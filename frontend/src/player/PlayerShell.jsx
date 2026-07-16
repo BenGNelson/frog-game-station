@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { X, Menu, Minimize } from 'lucide-react'
-import { playerSrc, coverUrl } from '../lib/library.js'
+import { playerSrc, coverUrl, ENGINE_LOADER_URL, engineIsLocal } from '../lib/library.js'
 import { goBack } from '../lib/nav.js'
 // The player is Frog's screen — launched from a game's page, it dresses in Frog's
 // clothes (the same theme + boot mascot) so play feels continuous with the browser.
@@ -80,8 +80,60 @@ const BOOT_OUT_MS = 900
 // has to land INSIDE the iframe, because iOS unlocks audio per-document. So we
 // show the engine's own Start button and put nothing over it until the game is
 // actually running.
+// Shown when the self-hosted EmulatorJS engine hasn't been fetched yet — a friendly,
+// on-theme explanation with the one command to fix it, instead of a broken frame.
+function EngineMissing({ onBack }) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-6 p-8 text-center"
+      style={{ background: FROG.ground, color: FROG.ink }}
+    >
+      <div className="max-w-md space-y-3">
+        <h1 className="text-xl font-semibold" style={{ color: FROG.ink }}>
+          Emulator engine not installed
+        </h1>
+        <p className="text-sm leading-relaxed" style={{ color: FROG.soft }}>
+          Games play with the EmulatorJS engine, which isn’t bundled in the repo
+          (it’s ~300&nbsp;MB). Fetch it once, then rebuild the frontend:
+        </p>
+        <pre
+          className="mx-auto w-fit rounded-lg px-4 py-2 text-sm"
+          style={{ background: FROG.panel, color: FROG.ink }}
+        >
+          scripts/fetch-emulatorjs.sh
+        </pre>
+        <p className="text-xs" style={{ color: FROG.faint }}>
+          Or point <code>EMULATORJS_DATA</code> in{' '}
+          <code>frontend/src/lib/library.js</code> at the public CDN.
+        </p>
+      </div>
+      <button
+        onClick={onBack}
+        className="rounded-full px-5 py-2 text-sm font-medium"
+        style={{ background: FROG.panel, color: FROG.ink }}
+      >
+        Back to games
+      </button>
+    </div>
+  )
+}
+
 export default function PlayerShell({ id, core, name, label, loadStateUrl }) {
   const navigate = useNavigate()
+
+  // The EmulatorJS engine isn't bundled in the repo (~300 MB). If the self-hosted
+  // copy hasn't been fetched (scripts/fetch-emulatorjs.sh), HEAD its loader and show
+  // a friendly notice instead of a silently-broken player. A remote CDN base is
+  // assumed present — a cross-origin HEAD is unreliable and the CDN works as-is.
+  const [engineOk, setEngineOk] = useState(true)
+  useEffect(() => {
+    if (!engineIsLocal()) return
+    let cancelled = false
+    fetch(ENGINE_LOADER_URL, { method: 'HEAD' })
+      .then((r) => { if (!cancelled && !r.ok) setEngineOk(false) })
+      .catch(() => { if (!cancelled) setEngineOk(false) })
+    return () => { cancelled = true }
+  }, [])
 
   const wrapperRef = useRef(null)
   const frameRef = useRef(null)
@@ -725,6 +777,8 @@ export default function PlayerShell({ id, core, name, label, loadStateUrl }) {
     }
   }, [])
 
+
+  if (!engineOk) return <EngineMissing onBack={() => navigate('/frog')} />
 
   return (
     <div

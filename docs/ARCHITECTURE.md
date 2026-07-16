@@ -316,6 +316,12 @@ at the public CDN. The engine is threadless, so no cross-origin-isolation
 (COOP/COEP / `crossOriginIsolated`) headers are needed — one less thing for nginx to get
 right.
 
+Because the engine is fetched separately, a fresh clone can reach the player before it's
+installed. Rather than a silently-broken frame, the player **HEADs the engine loader on
+mount** (only when the base is a local path — a CDN base is assumed present) and, if it's
+missing, shows a friendly "engine not installed" card with the one command to fix it. So
+the not-yet-fetched state explains itself instead of looking like a bug.
+
 Frog is an **installable PWA**: a manifest + service worker make it addable to a home
 screen and let downloaded games play **offline** (the shelf, list, and search fall back to
 the on-device downloaded manifest, and the player boots from the cached ROM + engine).
