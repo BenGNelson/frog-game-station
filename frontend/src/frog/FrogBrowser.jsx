@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { X, Search as SearchIcon, Plane } from 'lucide-react'
+import { X, Search as SearchIcon, Plane, Settings as SettingsIcon } from 'lucide-react'
 import { useApi } from '../lib/useApi.js'
 import { useOnline } from '../lib/online.jsx'
 import { useDownloadedEntries } from '../lib/useDownloaded.js'
 import { useDownload } from '../lib/useDownload.js'
 import {
   systemGames, gameOfflineUrls, saveStatesUrl, gameMetaUrl, gameCandidatesUrl, postGameMatch,
+  GAME_META_STATUS_PATH, postMetaRescan,
 } from '../lib/library.js'
+import { readSettings, writeSettings } from '../lib/playerSettings.js'
 import { isFavorite, toggleFavorite } from '../lib/favorites.js'
 import { ensureEmulatorEngine, cacheGameSram } from '../lib/offlineStore.js'
 import { offlineGamesToItems } from './offline.js'
@@ -27,6 +29,7 @@ import Frog, { FrogMark, Reflected } from './Frog.jsx'
 import Boot from './Boot.jsx'
 import Shelf from './Shelf.jsx'
 import Search from './Search.jsx'
+import SettingsPanel from './Settings.jsx'
 import GameScreen from './GameScreen.jsx'
 import GameList, { GameListHeader } from './GameList.jsx'
 import './frog.css'
@@ -95,7 +98,7 @@ export default function FrogBrowser() {
   // unreachable" — precisely when the probe says offline AND the API gave us nothing.
   const offline = !online && !apiItems.length
 
-  // 'boot' → 'shelf' ⇄ 'games'.
+  // 'boot' → 'shelf' ⇄ 'games'; 'search'/'detail'/'settings' are transient overlays.
   const [screen, setScreen] = useState(place.booted ? place.screen : 'boot')
   const [system, setSystem] = useState(place.system)
 
@@ -115,6 +118,17 @@ export default function FrogBrowser() {
   // query you already found your way through is one press away. Refreshed from storage
   // each time search opens.
   const [recentSearches, setRecentSearches] = useState(() => getRecentSearches())
+
+  // Settings is a transient overlay (like search/detail): which screen it was opened
+  // over, which of its two rows has the cursor, the player input-mode preference it
+  // surfaces, and whether a re-scan was just kicked (before the status poll shows it).
+  const [settingsFrom, setSettingsFrom] = useState('shelf')
+  const [settingsFocus, setSettingsFocus] = useState('igdb')
+  const [inputMode, setInputModeState] = useState(() => readSettings(localStorage).inputMode)
+  const [rescanBusy, setRescanBusy] = useState(false)
+  // The IGDB matcher status — polled only while the settings screen is up (one cheap
+  // fetch otherwise); useApi pauses when the tab is hidden.
+  const igdbStatus = useApi(GAME_META_STATUS_PATH, screen === 'settings' ? 4000 : 0)
 
   // Touch vs pad. Opens from the pointer kind (a phone starts in touch), then every
   // real input keeps it honest — a gamepad button flips to pad, a finger back to
@@ -267,11 +281,13 @@ export default function FrogBrowser() {
     const persistScreen =
       screen === 'search'
         ? searchFrom
-        : screen === 'detail'
-          ? detailFrom === 'search'
-            ? searchFrom
-            : detailFrom
-          : screen
+        : screen === 'settings'
+          ? settingsFrom
+          : screen === 'detail'
+            ? detailFrom === 'search'
+              ? searchFrom
+              : detailFrom
+            : screen
     Object.assign(place, { booted: true, screen: persistScreen, system, focus, row })
   })
 
@@ -356,6 +372,32 @@ export default function FrogBrowser() {
     setKeyIndex(0)
   }
   const removeRecent = (q) => setRecentSearches(removeRecentSearch(q))
+
+  // Settings, opened over whatever screen you were on (so B / ✕ returns there).
+  const openSettings = useCallback(() => {
+    setSettingsFrom(screen)
+    setSettingsFocus('igdb')
+    setScreen('settings')
+  }, [screen])
+  const closeSettings = useCallback(() => setScreen(settingsFrom), [settingsFrom])
+  // Persist the player input-mode preference and reflect it in the toggle at once.
+  const setInputMode = (m) => {
+    writeSettings(localStorage, { inputMode: m })
+    setInputModeState(m)
+  }
+  // Kick a one-off matching pass. Guarded so a double-press or a press while a pass is
+  // already running is a no-op; the status poll then shows the progress.
+  const doRescan = async () => {
+    const s = igdbStatus.data
+    if (rescanBusy || !s?.configured || s?.running) return
+    setRescanBusy(true)
+    try {
+      await postMetaRescan()
+    } catch {
+      /* transient — the button re-enables and the poll reflects reality */
+    }
+    setRescanBusy(false)
+  }
 
   // The game page. Opens over whatever screen you were on (so B returns there), lands
   // focus on Play, and reads the game's current favourite state.
@@ -604,6 +646,38 @@ export default function FrogBrowser() {
         case 'railPrev':
         case 'back':
           setZone('grid')
+          return
+        default:
+      }
+      return
+    }
+
+    // Settings: two focus rows, up/down between them. On the IGDB card A re-scans; on
+    // the input-mode row A and left/right cycle Auto → Touch → Pad. B closes.
+    if (screen === 'settings') {
+      const rows = ['igdb', 'inputMode']
+      const idx = rows.indexOf(settingsFocus)
+      const modes = ['auto', 'touch', 'pad']
+      const cycleMode = (dir) =>
+        setInputMode(modes[(modes.indexOf(inputMode) + dir + modes.length) % modes.length])
+      switch (action) {
+        case 'back':
+          closeSettings()
+          return
+        case 'up':
+          setSettingsFocus(rows[Math.max(0, idx - 1)])
+          return
+        case 'down':
+          setSettingsFocus(rows[Math.min(rows.length - 1, idx + 1)])
+          return
+        case 'confirm':
+          settingsFocus === 'igdb' ? doRescan() : cycleMode(1)
+          return
+        case 'left':
+          if (settingsFocus === 'inputMode') cycleMode(-1)
+          return
+        case 'right':
+          if (settingsFocus === 'inputMode') cycleMode(1)
           return
         default:
       }
@@ -872,7 +946,7 @@ export default function FrogBrowser() {
           <div className="flex items-center gap-2">
             <FrogMark size={22} style={{ color: `rgb(${FROG.jade})` }} />
             <span className="text-sm font-semibold tracking-[0.22em]" style={{ color: FROG.ink }}>
-              {screen === 'search' ? 'FROG · SEARCH' : 'FROG'}
+              {screen === 'search' ? 'FROG · SEARCH' : screen === 'settings' ? 'FROG · SETTINGS' : 'FROG'}
             </span>
           </div>
         )}
@@ -907,11 +981,26 @@ export default function FrogBrowser() {
             </button>
           )}
 
+          {/* Settings — a header entry point (there's no dedicated pad button for it,
+              so the gear is how both thumb and cursor reach it). Hidden on the overlay
+              screens that own the ✕. */}
+          {screen !== 'search' && screen !== 'detail' && screen !== 'settings' && (
+            <button
+              onClick={openSettings}
+              className="rounded-full p-2"
+              style={{ background: FROG.panel, color: FROG.soft }}
+              aria-label="Settings"
+            >
+              <SettingsIcon className="h-5 w-5" aria-hidden="true" />
+            </button>
+          )}
+
           {screen !== 'shelf' && (
             <button
               onClick={() => {
                 if (screen === 'search') closeSearch()
                 else if (screen === 'detail') closeDetail()
+                else if (screen === 'settings') closeSettings()
                 else if (screen === 'games') setScreen('shelf')
               }}
               className="rounded-full p-2"
@@ -921,7 +1010,9 @@ export default function FrogBrowser() {
                   ? 'Close search'
                   : screen === 'detail'
                     ? 'Back'
-                    : 'Back to the shelf'
+                    : screen === 'settings'
+                      ? 'Close settings'
+                      : 'Back to the shelf'
               }
             >
               <X className="h-5 w-5" aria-hidden="true" />
@@ -964,6 +1055,17 @@ export default function FrogBrowser() {
           recent={recentSearches}
           onRecent={applyRecentQuery}
           onRemoveRecent={removeRecent}
+        />
+      ) : screen === 'settings' ? (
+        <SettingsPanel
+          status={igdbStatus.data}
+          loading={igdbStatus.loading}
+          focus={settingsFocus}
+          onFocus={setSettingsFocus}
+          onRescan={doRescan}
+          rescanBusy={rescanBusy}
+          inputMode={inputMode}
+          onInputMode={setInputMode}
         />
       ) : screen === 'detail' && detailGame ? (
         <GameScreen

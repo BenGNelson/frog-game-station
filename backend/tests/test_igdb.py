@@ -542,3 +542,58 @@ def test_rematch_502_when_fetch_fails_leaves_row_untouched(client, monkeypatch):
     r = client.post("/api/library/games/meta", json={"id": "gb/z.gb", "igdb_id": 999})
     assert r.status_code == 502
     assert db.get_igdb_meta("gb/z.gb")["source"] == "auto"  # unchanged
+
+
+# --- trigger_rescan / the /meta/rescan endpoint (the settings "re-scan" button) ---
+import threading  # noqa: E402
+
+
+def _rescan_ready(monkeypatch):
+    """Make the matcher think it can run: creds present, a configured Games section."""
+    monkeypatch.setattr(igdb, "configured", lambda s: True)
+    monkeypatch.setattr(igdb_sync.library, "get_section", lambda k: {"key": "games"})
+    monkeypatch.setattr(igdb_sync.library, "is_configured", lambda *a: True)
+
+
+def test_trigger_rescan_disabled_returns_reason():
+    assert igdb_sync.IgdbMatcher(False, 3600).trigger_rescan() == {"started": False, "reason": "disabled"}
+
+
+def test_trigger_rescan_unconfigured_returns_reason(monkeypatch):
+    monkeypatch.setattr(igdb, "configured", lambda s: False)
+    assert igdb_sync.IgdbMatcher(True, 3600).trigger_rescan() == {"started": False, "reason": "unconfigured"}
+
+
+def test_trigger_rescan_skips_when_a_pass_is_running(monkeypatch):
+    _rescan_ready(monkeypatch)
+    m = igdb_sync.IgdbMatcher(True, 3600)
+    m._running = True  # a timer pass is mid-flight
+    assert m.trigger_rescan() == {"started": False, "reason": "running"}
+
+
+def test_trigger_rescan_runs_a_pass_in_the_background_then_releases(monkeypatch):
+    _rescan_ready(monkeypatch)
+    m = igdb_sync.IgdbMatcher(True, 3600)
+    ran = threading.Event()
+    monkeypatch.setattr(m, "match_once", lambda: ran.set() or 0)
+    assert m.trigger_rescan() == {"started": True}
+    assert ran.wait(2)  # the background pass actually ran
+    # ...and the lock is released afterwards, so a later re-scan isn't wedged.
+    for _ in range(200):
+        if not m._rescan_lock.locked():
+            break
+        time.sleep(0.01)
+    assert not m._rescan_lock.locked()
+
+
+def test_rescan_endpoint_reports_not_started_when_dormant(client, monkeypatch):
+    """With no matcher/creds the endpoint still answers 200 with a started/status shape
+    (the settings screen renders the reason rather than erroring). Forced dormant so the
+    test never kicks a real IGDB pass, whatever the container's env."""
+    monkeypatch.setattr(igdb_sync, "get_matcher", lambda: None)
+    monkeypatch.setattr(igdb, "configured", lambda s: False)
+    r = client.post("/api/library/games/meta/rescan")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["started"] is False and body["reason"] == "disabled"
+    assert body["status"]["configured"] is False
