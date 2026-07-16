@@ -1,0 +1,11 @@
+@import "tailwindcss";
+
+/*
+  Paint the root background the darkest neutral so no white ever shows through —
+  behind the iOS status bar in the installed PWA, and during overscroll bounce.
+  Frog commits to a single dark look; each screen paints its own WATER/jade
+  backdrop on top of this (see modules/library/frog/theme.js + frog.css).
+*/
+html {
+  background-color: var(--color-slate-950);
+}

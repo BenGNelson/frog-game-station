@@ -1,0 +1,411 @@
+// The device-side offline store: the downloads manifest (IndexedDB) + helpers
+// to read/write the content cache, plus the PURE accounting logic that powers
+// the audit-grade storage manager.
+//
+// Split on purpose:
+//   - Pure functions (downloadKey, auditCache, summarizeStorage) touch no
+//     browser globals, so they're unit-tested like the rest of lib/.
+//   - I/O functions (IndexedDB + Cache Storage + storage.estimate/persist) only
+//     reach for globals inside their bodies, so importing this module is safe in
+//     any environment.
+//
+// Invariant the whole feature rests on: the OFFLINE_CACHE is written ONLY by
+// `downloadJob` here. Nothing else caches content. `auditCache` exists to PROVE
+// that — it cross-checks the real cache against the manifest and flags strays.
+
+import { OFFLINE_CACHE, SHELL_CACHE, GAME_SAVES_CACHE } from './offlineConfig.js'
+import { EMULATOR_ENGINE_URLS, gameSramUrl } from './library.js'
+
+const DB_NAME = 'frog-offline'
+const DB_VERSION = 1
+const STORE = 'downloads'
+
+// --- pure helpers (unit-tested) -------------------------------------------
+
+// A manifest entry's stable key: one download per (section, item).
+export function downloadKey(section, id) {
+  return `${section}:${id}`
+}
+
+// Cross-check the real content cache against the manifest. Given the manifest
+// entries (each `{ urls: [...] }`) and the URLs actually present in the cache,
+// return what doesn't line up:
+//   orphans — cached URLs not referenced by ANY manifest entry (bytes we can't
+//             explain → the thing the audit is here to catch; should be []).
+//   missing — manifest URLs not in the cache (a download that was partly evicted
+//             → that item won't fully read offline).
+export function auditCache(entries, cachedUrls) {
+  const referenced = new Set()
+  for (const e of entries ?? []) for (const u of e.urls ?? []) referenced.add(u)
+  const cached = new Set(cachedUrls ?? [])
+  const orphans = [...cached].filter((u) => !referenced.has(u))
+  const missing = [...referenced].filter((u) => !cached.has(u))
+  return { orphans, missing, clean: orphans.length === 0 && missing.length === 0 }
+}
+
+// Shape the storage manager's view: the per-item breakdown (newest first), the
+// shell line, the downloads total, and — when the browser reports a usage
+// figure — how much of it our accounting explains vs. is unaccounted-for.
+export function summarizeStorage(entries, estimate = {}, shellBytes = 0, gameSaves = 0) {
+  const all = entries ?? []
+  // The shared emulator engine is infrastructure, not a content download — show
+  // it as its own line (like the app shell), not in the items list.
+  const engineBytes = all
+    .filter((e) => e.section === 'emulator')
+    .reduce((n, e) => n + (e.bytes || 0), 0)
+  const items = all
+    .filter((e) => e.section !== 'emulator')
+    .sort((a, b) => (b.date || 0) - (a.date || 0))
+  const downloadsBytes = items.reduce((n, e) => n + (e.bytes || 0), 0)
+  const gameSavesBytes = gameSaves || 0
+  const accounted = downloadsBytes + (shellBytes || 0) + engineBytes + gameSavesBytes
+  const usage = typeof estimate.usage === 'number' ? estimate.usage : null
+  const quota = typeof estimate.quota === 'number' ? estimate.quota : null
+  return {
+    items,
+    shellBytes: shellBytes || 0,
+    engineBytes,
+    gameSavesBytes,
+    downloadsBytes,
+    accounted,
+    usage,
+    quota,
+    // Bytes the browser counts that we can't attribute (rounded so float dust in
+    // estimate() doesn't read as a leak). >0 would mean something escaped the
+    // manifest — by construction it shouldn't.
+    unaccounted: usage == null ? null : Math.max(0, usage - accounted),
+  }
+}
+
+// --- IndexedDB manifest (I/O) ---------------------------------------------
+
+function openDb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION)
+    req.onupgradeneeded = () => {
+      const db = req.result
+      if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE, { keyPath: 'key' })
+    }
+    req.onsuccess = () => resolve(req.result)
+    req.onerror = () => reject(req.error)
+  })
+}
+
+function tx(db, mode, fn) {
+  return new Promise((resolve, reject) => {
+    const t = db.transaction(STORE, mode)
+    const store = t.objectStore(STORE)
+    const result = fn(store)
+    t.oncomplete = () => resolve(result)
+    t.onerror = () => reject(t.error)
+    t.onabort = () => reject(t.error)
+  })
+}
+
+function reqProm(request) {
+  return new Promise((resolve, reject) => {
+    request.onsuccess = () => resolve(request.result)
+    request.onerror = () => reject(request.error)
+  })
+}
+
+export async function allEntries() {
+  const db = await openDb()
+  try {
+    return await tx(db, 'readonly', (s) => reqProm(s.getAll())).then((r) => r || [])
+  } finally {
+    db.close()
+  }
+}
+
+export async function getEntry(key) {
+  const db = await openDb()
+  try {
+    return await tx(db, 'readonly', (s) => reqProm(s.get(key)))
+  } finally {
+    db.close()
+  }
+}
+
+async function putEntry(entry) {
+  const db = await openDb()
+  try {
+    await tx(db, 'readwrite', (s) => s.put(entry))
+  } finally {
+    db.close()
+  }
+}
+
+async function delEntry(key) {
+  const db = await openDb()
+  try {
+    await tx(db, 'readwrite', (s) => s.delete(key))
+  } finally {
+    db.close()
+  }
+}
+
+// --- content cache (I/O) ---------------------------------------------------
+
+// The URLs currently sitting in the content cache (absolute hrefs), for the
+// audit. Returns [] if the Cache API isn't available.
+export async function cachedUrls() {
+  if (!('caches' in self)) return []
+  const cache = await caches.open(OFFLINE_CACHE)
+  const reqs = await cache.keys()
+  return reqs.map((r) => r.url)
+}
+
+// Download one item for offline use: fetch + store every URL in the content
+// cache, tally the real byte size, and record one manifest entry. This is the
+// ONLY function that writes to OFFLINE_CACHE. `meta` = {section, id, name,
+// reader, urls} (`reader` = the engine to reopen it with — 'pdf'|'epub').
+// `onProgress({fraction, loaded})` reports a 0..1 overall fraction: within-file
+// byte progress for a one-file download (a 100+ MB magazine) and per-file
+// progress across a many-file download (a comic = info + cover + N pages), so
+// the bar is smooth either way. Returns the stored entry.
+export async function downloadJob(meta, onProgress) {
+  const cache = await caches.open(OFFLINE_CACHE)
+  const files = meta.urls.length
+  let loaded = 0
+  const cached = [] // URLs put so far, so a mid-download failure can roll back
+  try {
+    for (let i = 0; i < files; i++) {
+      const url = meta.urls[i]
+      const res = await fetch(url, { cache: 'no-store' })
+      if (!res.ok) throw new Error(`download failed (${res.status}) for ${url}`)
+      const flen = Number(res.headers.get('content-length')) || 0
+      const reader = res.body?.getReader?.()
+      const chunks = []
+      let fileLoaded = 0
+      const report = () => {
+        const cur = flen ? Math.min(fileLoaded / flen, 1) : 0
+        onProgress?.({ fraction: (i + cur) / files, loaded })
+      }
+      if (reader) {
+        for (;;) {
+          const { done, value } = await reader.read()
+          if (done) break
+          chunks.push(value)
+          fileLoaded += value.length
+          loaded += value.length
+          report()
+        }
+      } else {
+        const buf = new Uint8Array(await res.arrayBuffer())
+        chunks.push(buf)
+        fileLoaded += buf.length
+        loaded += buf.length
+        report()
+      }
+      await cache.put(url, new Response(new Blob(chunks), { headers: res.headers }))
+      cached.push(url)
+      onProgress?.({ fraction: (i + 1) / files, loaded }) // file complete
+    }
+  } catch (err) {
+    // Roll back the bytes we already cached so a partial download leaves no
+    // orphans — the manifest row is never written, so without this the audit
+    // ("Verify storage") would flag stray, unaccounted-for cache entries.
+    await Promise.all(cached.map((u) => cache.delete(u).catch(() => {})))
+    throw err
+  }
+  const entry = {
+    key: downloadKey(meta.section, meta.id),
+    section: meta.section,
+    id: meta.id,
+    name: meta.name,
+    reader: meta.reader,
+    urls: meta.urls,
+    bytes: loaded,
+    date: Date.now(),
+    // Games carry their emulator core; audiobooks carry their ordered chapter
+    // list — both so the player can open the item offline without the live API.
+    ...(meta.core ? { core: meta.core } : {}),
+    ...(meta.slot ? { slot: meta.slot } : {}), // newest save state cached with a game → resume into it
+    ...(meta.chapters ? { chapters: meta.chapters } : {}),
+    ...(meta.engineVersion != null ? { engineVersion: meta.engineVersion } : {}),
+  }
+  await putEntry(entry)
+  return entry
+}
+
+// The shared EmulatorJS engine (host page + loader + core-agnostic assets) that
+// every downloaded game needs. Cached once as its own manifest entry (section
+// 'emulator') — the storage manager shows it as a distinct "Emulator engine"
+// line, like the app shell. A game download ensures this first. Bump
+// ENGINE_VERSION whenever emulator.html or EMULATOR_ENGINE_URLS changes so a
+// device that already cached the engine refreshes it instead of running stale.
+const ENGINE_VERSION = 10
+export async function ensureEmulatorEngine() {
+  const key = downloadKey('emulator', 'engine')
+  const existing = await getEntry(key)
+  if (existing && existing.engineVersion === ENGINE_VERSION) return
+
+  // ATOMIC refresh: fetch every file into memory first, and only touch the cache
+  // once they've ALL arrived.
+  //
+  // The obvious version of this — delete the old engine, then download the new
+  // one — is a trap. The engine is what every downloaded game boots through, and
+  // its files live at fixed URLs, so a refresh overwrites them in place. If the
+  // connection drops halfway, a delete-first (or overwrite-in-place) refresh
+  // leaves the device with a half-engine and NO working offline copy: every game
+  // the user has downloaded stops launching in airplane mode, and nothing puts it
+  // back. Staging in memory means a failed refresh is a no-op — you keep the
+  // engine you had.
+  //
+  // Safe to buffer because the engine is six small files (<1 MB). Games, comics
+  // and magazines are the big ones, and they still stream through downloadJob.
+  const staged = []
+  let bytes = 0
+  for (const url of EMULATOR_ENGINE_URLS) {
+    const res = await fetch(url, { cache: 'no-store' })
+    if (!res.ok) throw new Error(`engine download failed (${res.status}) for ${url}`)
+    const blob = await res.blob()
+    bytes += blob.size
+    staged.push([url, new Response(blob, { headers: res.headers })])
+  }
+
+  const cache = await caches.open(OFFLINE_CACHE)
+  await Promise.all(staged.map(([url, res]) => cache.put(url, res)))
+  await putEntry({
+    key,
+    section: 'emulator',
+    id: 'engine',
+    name: 'Emulator engine',
+    engineVersion: ENGINE_VERSION,
+    urls: EMULATOR_ENGINE_URLS,
+    bytes,
+    date: Date.now(),
+  })
+}
+
+// --- captured game saves (the "resume where you left off" snapshot) ---------
+// emulator.html writes one save per game (key /__game-save/<gid>) to its own
+// cache so reopening resumes the latest state, including offline. Surfaced here
+// for the storage manager + cleaned up with the game.
+
+const gameSaveKey = (gid) => '/__game-save/' + encodeURIComponent(gid)
+
+// Total bytes of all captured game saves, for the "Game saves" storage line.
+export async function gameSavesBytes() {
+  if (!('caches' in self)) return 0
+  try {
+    const cache = await caches.open(GAME_SAVES_CACHE)
+    const reqs = await cache.keys()
+    let total = 0
+    for (const req of reqs) {
+      const res = await cache.match(req)
+      if (res) total += (await res.blob()).size
+    }
+    return total
+  } catch {
+    return 0
+  }
+}
+
+async function removeGameSave(gid) {
+  if (!('caches' in self) || !gid) return
+  try {
+    const cache = await caches.open(GAME_SAVES_CACHE)
+    await cache.delete(gameSaveKey(gid))
+    await cache.delete('/__game-sram/' + encodeURIComponent(gid))
+  } catch {
+    /* ignore */
+  }
+}
+
+// Seed a game's in-game battery save (SRAM) into the local saves cache at
+// download time, so playing it offline before ever playing online still has
+// your server-side save. Best-effort (no save yet → 404 → skip).
+export async function cacheGameSram(id) {
+  if (!('caches' in self) || !id) return
+  try {
+    const res = await fetch(gameSramUrl(id))
+    if (res.ok) {
+      const cache = await caches.open(GAME_SAVES_CACHE)
+      await cache.put('/__game-sram/' + encodeURIComponent(id), res)
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+// Drop every captured game save (used by "Remove all" on the Downloads page).
+export async function clearGameSaves() {
+  if ('caches' in self) await caches.delete(GAME_SAVES_CACHE).catch(() => {})
+}
+
+// Remove a download: delete its cached URLs AND its manifest row, so nothing is
+// left behind. A game also drops its captured save state.
+export async function removeDownload(key) {
+  const entry = await getEntry(key)
+  if (!entry) return false
+  if ('caches' in self) {
+    const cache = await caches.open(OFFLINE_CACHE)
+    await Promise.all((entry.urls || []).map((u) => cache.delete(u)))
+  }
+  if (entry.section === 'games') await removeGameSave(entry.id)
+  await delEntry(key)
+  return true
+}
+
+// Full audit: manifest vs. the real cache (catches orphan/missing bytes). The
+// manifest stores URLs as passed (often relative, e.g. "/api/library/file?…")
+// while Cache Storage keys by the absolute URL, so normalize BOTH to absolute
+// hrefs before comparing — otherwise every item looks both orphaned and missing.
+export async function auditStorage() {
+  const [entries, urls] = await Promise.all([allEntries(), cachedUrls()])
+  const abs = (u) => {
+    try {
+      return new URL(u, self.location.href).href
+    } catch {
+      return u
+    }
+  }
+  const normEntries = entries.map((e) => ({ ...e, urls: (e.urls || []).map(abs) }))
+  return auditCache(normEntries, urls.map(abs))
+}
+
+// On-device size of the precached app shell (the one thing cached without an
+// explicit download) — summed from the real cached responses, so the storage
+// manager can show it as its own honest line. 0 if the Cache API is absent.
+export async function shellBytes() {
+  if (!('caches' in self)) return 0
+  try {
+    const cache = await caches.open(SHELL_CACHE)
+    const reqs = await cache.keys()
+    let total = 0
+    for (const req of reqs) {
+      const res = await cache.match(req)
+      if (res) total += (await res.blob()).size
+    }
+    return total
+  } catch {
+    return 0
+  }
+}
+
+// --- quota / eviction (I/O) ------------------------------------------------
+
+// Ask the browser to keep our offline data from being evicted under storage
+// pressure. Best-effort + silent (most engines grant it for installed PWAs
+// without a prompt). Returns the granted boolean, or null if unsupported.
+export async function requestPersist() {
+  try {
+    if (navigator.storage?.persist) return await navigator.storage.persist()
+  } catch {
+    /* ignore */
+  }
+  return null
+}
+
+// The browser's own usage/quota for this origin — the independent total the
+// storage manager reconciles its per-item accounting against.
+export async function getEstimate() {
+  try {
+    if (navigator.storage?.estimate) return await navigator.storage.estimate()
+  } catch {
+    /* ignore */
+  }
+  return {}
+}

@@ -1,0 +1,104 @@
+# Frog Game Station — TODO
+
+A prioritized backlog. Items are unchecked checkboxes grouped by theme, roughly
+priority-ordered within each group.
+
+---
+
+## Extraction cleanup & validation
+
+The repo is **green** (unit + build + e2e-smoke from a clean clone) and the real
+gameplay loop is validated (a game boots, plays, and a save-state round-trips through
+the backend). The first polish pass is done — remaining follow-ups below.
+
+**Done in the polish pass:** validated end-to-end play-through; trimmed `lib/library.js`
+(386→176) and `lib/nav.js` (76→14) to the game bits; flattened `modules/library/{frog,
+player}` → `src/{frog,player}` and renamed the route `/library/play` → `/play`; added
+ESLint (`npm run lint`, 0 errors); added real README screenshots.
+
+**Still open**
+- [ ] **First-run engine story.** Playing needs the ~300 MB EmulatorJS engine (p7zip +
+      `scripts/fetch-emulatorjs.sh`, or the CDN). Add a friendly runtime notice when
+      `/emulatorjs/` is absent so a fresh clone explains itself.
+- [ ] **Relocate `FrogBoot.jsx`** from `frog/` into `player/` (it's player-owned; only
+      lived in `frog/` by accident).
+- [ ] **Clear the 9 ESLint warnings** (react-hooks/exhaustive-deps in `FrogBrowser.jsx`/
+      `PlayerShell.jsx`, one unused arg in `emuBridge.js`) — left as warnings to avoid
+      behavior changes; revisit deliberately.
+- [ ] Wire the **gold targeted e2e suite** (`e2e/frog_{touch,search,detail,meta,rematch,
+      offline}.py` + `games_flip.py`) into CI or a `scripts/verify-full.sh` — right now only
+      `smoke.py` gates. They mock the backend via Playwright routing, so they run headless.
+
+---
+
+## Theming audit
+
+Confirm every surface wears the WATER / jade (dark) theme consistently — no stray default
+Tailwind greys, no unstyled states.
+
+- [ ] Boot screen (the live one) + its loading state
+- [ ] Shelf: rails, system tiles, "Jump back in", Favorites, empty rails
+- [ ] Game list: the letter rail, the focused-row cursor, the aside frog
+- [ ] Search: the 6×6 grid, the results, the native-keyboard (touch) variant, "no results"
+- [ ] Game page: hero, actions, About/facts, save shelf, lightbox, re-match dialog
+- [ ] Player shell: quit/save/controls, the rotate prompt, the in-game pause menu
+- [ ] Cross-cutting states: loading skeletons, offline chip, "IGDB not configured", "no
+      ROMs configured" first-run, error toasts, 404
+- [ ] PWA polish: manifest name/colors, the app icon + favicon (from the FrogMark), splash
+- [ ] Confirm the single-theme (dark) commitment is deliberate everywhere — no accidental
+      light-mode leaks, no unstyled default states standing in for a design choice
+
+### Theming ideas (backlog — pick from these)
+
+- [ ] Ambient **pond** on the shelf: faint animated ripples / caustics behind the rails
+      (respect reduced-motion)
+- [ ] **Time-of-day frog:** the `asleep` state, driven by real time (dozes at night)
+- [ ] Extend the per-system accent from the frog + pond-light to the whole chrome (header
+      underline, scrollbar, focus rings) for a fuller "this machine" feel
+- [ ] **Console-cartridge motifs:** each system's list header wears subtle label/cart art
+- [ ] Extend the **reflection** (water) motif to the cover and the hero
+- [ ] Optional **navigation SFX** (soft blips), off by default, a settings toggle
+- [ ] A true-**OLED-black** variant of the ground for phones
+- [ ] A polished **empty-state** illustration ("the pond's quiet…")
+- [ ] A tasteful **boot logline** / version stamp for the portfolio build
+
+---
+
+## UI/UX sweep
+
+- [ ] **Accessibility:** the hero is `role=button` — verify SR labeling; focus-visible
+      rings for keyboard-only; the re-match dialog as a proper focus-trapped modal; aria on
+      the 6×6 grid; alt text throughout
+- [ ] **Reduced-motion** coverage everywhere (hero crossfade + boot + frog-float done —
+      re-audit)
+- [ ] **Consistency:** one skeleton style, one card radius/shadow scale, one spacing rhythm
+- [ ] **Error / empty states** friendly and on-theme (see the theming audit)
+- [ ] **Touch ergonomics:** letter-rail tap targets, the search field auto-raise on iOS,
+      swipe momentum on rails
+- [ ] **Perf:** shelf with many favorites/recents; image lazy-loading; art-cache warm-up
+- [ ] **First-run:** a guided "point me at your ROMs / add an IGDB key" empty state
+- [ ] Audit and remove dead code the extraction left behind
+
+---
+
+## Feature backlog
+
+- [ ] **Settings screen:** IGDB key status + a "re-scan" button, input-mode, theme options
+- [ ] IGDB **"similar games"** / more-like-this rail
+- [ ] **Play-time stats** per game; a "most played" rail
+- [ ] **Set custom art** from a live in-game screenshot (ties to save-state shot capture)
+- [ ] **Collections / tags** (beyond Favorites) and a "finished" flag
+- [ ] Deeper **ROM-hack** support surfacing
+- [ ] Multiple **save-state slots** with richer management
+
+---
+
+## Odds & ends
+
+- [ ] **R3 = random game** (pick and jump to a random title)
+- [ ] **Left-stick fast-scroll** in long lists
+- [ ] Frog **`asleep` idle state driven by real time** (dozes at night)
+- [ ] **Favicon / app-icon from the FrogMark**
+- [ ] Rename the `/library/play` route → `/play`
+- [ ] Relocate `FrogBoot.jsx` from `frog/` into `player/`, where it belongs
+- [ ] **Recent searches**

@@ -1,0 +1,32 @@
+# --- Secrets / host-specific config ---
+# .env holds REAL values (tokens, host paths). Never commit it.
+.env
+# Real forbidden-pattern list for the pre-commit privacy hook (this machine's
+# hostname / IPs / paths). The hook machinery + a generic .example are committed.
+.githooks/*.local
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# --- Node / frontend ---
+node_modules/
+dist/
+# Self-hosted EmulatorJS engine/cores (~300 MB of third-party WASM). Pinned and
+# fetched by scripts/fetch-emulatorjs.sh — never committed.
+frontend/public/emulatorjs/
+
+# --- Local ROMs (never commit game data) ---
+roms/*
+!roms/.gitkeep
+
+# --- E2e artifacts ---
+# Screenshots captured from the LIVE app can contain real game titles; keep them
+# out of the repo. The harness itself is committed.
+e2e/screenshots/
+
+# --- Editor / OS noise ---
+.DS_Store
+*.swp
