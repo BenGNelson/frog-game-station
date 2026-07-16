@@ -8,14 +8,14 @@ the confirm can be cancelled), and that a snapshot launches the player WITH its 
 Save states are server-stored (created in-game), so the save-states API is mocked to
 return two snapshots; everything else hits the real backend.
 
-    BASE_URL=http://localhost:5173 python frog_detail.py
+    BASE_URL=http://localhost:8585 python frog_detail.py
 """
 import os
 import sys
 import time
 from playwright.sync_api import sync_playwright
 
-BASE = os.environ.get("BASE_URL", "http://localhost:5173")
+BASE = os.environ.get("BASE_URL", "http://localhost:8585")
 errors = []
 
 
@@ -95,7 +95,7 @@ with sync_playwright() as p:
     # SLOT_A is now really gone (optimistic + server), so the one remaining snapshot is
     # SLOT_B — launching it carries ITS slot into the player (never the deleted one).
     page.locator('[data-testid="frog-save-row"]').first.locator("button").first.click(force=True)
-    page.wait_for_url("**/library/play**", timeout=8000)
+    page.wait_for_url("**/play**", timeout=8000)
     check(f"slot={SLOT_B}" in page.url, "launching the remaining snapshot carries its slot (not the deleted one)")
 
     context.close()

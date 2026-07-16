@@ -15,7 +15,7 @@ The stack must be up (`docker compose up -d`). No host Python/Node/browser
 needed — it runs in the official Playwright image:
 
 ```bash
-scripts/verify.sh                                  # against prod build (:5173)
+scripts/verify.sh                                  # against prod build (:8585)
 BASE_URL=http://localhost:5174 scripts/verify.sh   # against frontend-dev
 ```
 

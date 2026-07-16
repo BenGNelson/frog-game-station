@@ -17,18 +17,17 @@ player}` → `src/{frog,player}` and renamed the route `/library/play` → `/pla
 ESLint (`npm run lint`, 0 errors); added real README screenshots.
 
 **Still open**
-- [ ] Wire the **gold targeted e2e suite** (`e2e/frog_{touch,search,detail,meta,rematch,
-      offline}.py` + `games_flip.py`) into CI or a `scripts/verify-full.sh` — right now only
-      `smoke.py` gates. They mock the backend via Playwright routing, so they run headless.
 - [ ] **Clear the remaining 7 ESLint warnings** — all `react-hooks/exhaustive-deps` in
       `FrogBrowser.jsx` (the `items` conditional × 4) and `PlayerShell.jsx` (× 3). Left as
       warnings deliberately: "fixing" them means changing dependency arrays, which can change
       behavior — revisit each on purpose, don't bulk-apply.
 
-**Done since:** first-run engine notice (the player HEADs the local engine loader and shows
-a friendly "not installed" card when it's missing); relocated `FrogBoot.jsx` frog/→player/;
-cleared the two safe lint warnings (unused `name` in `emuBridge.playerConfig`, unnecessary
-`online` dep in `PlayerShell.exit`).
+**Done since:** wired the gold targeted e2e suite into CI (`scripts/verify-full.sh` + a CI
+step; ported `/library/play`→`/play`, replaced the parent-app `games_flip.py` with a
+standalone `routing.py`, per-test retries for flake resilience); first-run engine notice
+(the player HEADs the local engine loader and shows a friendly "not installed" card when
+it's missing); relocated `FrogBoot.jsx` frog/→player/; cleared the two safe lint warnings
+(unused `name` in `emuBridge.playerConfig`, unnecessary `online` dep in `PlayerShell.exit`).
 
 ---
 

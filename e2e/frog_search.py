@@ -5,13 +5,13 @@ runs on desktop Chromium with no gamepad and no touch. Asserts the things the un
 tests can't see: that X/`/` opens a 36-key grid, that typing narrows a live result
 list, that dead keys dim, and that Down carries the cursor into the results.
 
-    BASE_URL=http://localhost:5173 python frog_search.py
+    BASE_URL=http://localhost:8585 python frog_search.py
 """
 import os
 import sys
 from playwright.sync_api import sync_playwright
 
-BASE = os.environ.get("BASE_URL", "http://localhost:5173")
+BASE = os.environ.get("BASE_URL", "http://localhost:8585")
 errors = []
 
 
@@ -87,8 +87,8 @@ with sync_playwright() as p:
     check(True, "Enter on a result opens its game page")
     track[0] = False
     page.keyboard.press("Enter")
-    page.wait_for_url("**/library/play**", timeout=8000)
-    check("/library/play" in page.url, "Enter on the game page (Play focused) launches the game")
+    page.wait_for_url("**/play**", timeout=8000)
+    check("/play" in page.url, "Enter on the game page (Play focused) launches the game")
 
     browser.close()
 

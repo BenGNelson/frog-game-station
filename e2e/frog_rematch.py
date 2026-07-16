@@ -6,7 +6,7 @@ page — controller- and touch-drivable. IGDB is external, so meta / candidates 
 the re-match POST are mocked with a stateful backend: picking an option flips
 which game the meta endpoint then returns.
 
-    BASE_URL=http://localhost:5173 python frog_rematch.py
+    BASE_URL=http://localhost:8585 python frog_rematch.py
 """
 import json
 import os
@@ -14,7 +14,7 @@ import re
 import sys
 from playwright.sync_api import sync_playwright
 
-BASE = os.environ.get("BASE_URL", "http://localhost:5173")
+BASE = os.environ.get("BASE_URL", "http://localhost:8585")
 errors = []
 
 _PNG = bytes.fromhex(
