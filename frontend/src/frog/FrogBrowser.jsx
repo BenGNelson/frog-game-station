@@ -22,7 +22,7 @@ import { defaultFrogMode, nextFrogMode, usesNativeKeyboard } from './input.js'
 import { FROG, systemStyle } from './theme.js'
 import { buildShelf, stepLetter } from './shelf.js'
 import { searchGames, matches, KEYS, gridMove } from './search.js'
-import { FrogMark } from './Frog.jsx'
+import Frog, { FrogMark, Reflected } from './Frog.jsx'
 import Boot from './Boot.jsx'
 import Shelf from './Shelf.jsx'
 import Search from './Search.jsx'
@@ -969,6 +969,8 @@ export default function FrogBrowser() {
           onFocus={setRow}
           onPick={(g) => openDetail(g, 'games')}
         />
+      ) : items.length === 0 ? (
+        <EmptyLibrary online={online} />
       ) : (
         <Shelf
           rails={rails}
@@ -1066,5 +1068,43 @@ export default function FrogBrowser() {
 // machine it runs on.
 function hovered(rails, focus) {
   return rails?.[focus.rail]?.items?.[focus.index]?.label ?? null
+}
+
+// The first-run / empty shelf. Rather than a row of greyed-out "empty" systems —
+// which reads like a bug — the pond is simply quiet: a dozing frog over its
+// reflection, and a plain-language nudge toward the one thing to configure. Offline
+// with nothing downloaded gets its own honest line.
+function EmptyLibrary({ online }) {
+  const Chip = ({ children }) => (
+    <code
+      className="rounded px-1.5 py-0.5 text-[0.8em]"
+      style={{ background: FROG.panel, color: FROG.ink }}
+    >
+      {children}
+    </code>
+  )
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center gap-6 px-8 pb-16 text-center">
+      <Reflected>
+        <Frog size={120} asleep />
+      </Reflected>
+      <div className="max-w-sm space-y-2">
+        <h2 className="text-lg font-semibold" style={{ color: FROG.ink }}>
+          {online ? 'The pond’s quiet' : 'You’re offline'}
+        </h2>
+        <p className="text-sm leading-relaxed" style={{ color: FROG.soft }}>
+          {online
+            ? 'No games on the shelf yet. Point Frog at a folder of ROMs and they’ll hop right in.'
+            : 'No downloaded games to play offline. Reconnect to browse your library.'}
+        </p>
+        {online && (
+          <p className="pt-1 text-xs leading-relaxed" style={{ color: FROG.faint }}>
+            Set <Chip>ROMS_DIR</Chip> in your <Chip>.env</Chip> to your ROM folder, then
+            restart the stack.
+          </p>
+        )}
+      </div>
+    </div>
+  )
 }
 

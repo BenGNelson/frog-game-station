@@ -59,7 +59,9 @@ Tailwind greys, no unstyled states.
 - [ ] Extend the **reflection** (water) motif to the cover and the hero
 - [ ] Optional **navigation SFX** (soft blips), off by default, a settings toggle
 - [ ] A true-**OLED-black** variant of the ground for phones
-- [ ] A polished **empty-state** illustration ("the pond's quiet…")
+- [x] A polished **empty-state** illustration ("the pond's quiet…") — DONE: the first-run /
+      no-ROMs shelf shows a dozing frog over its reflection + a plain-language ROM-config
+      nudge, instead of a row of greyed-out "empty" systems.
 - [ ] A tasteful **boot logline** / version stamp for the portfolio build
 
 ---
@@ -76,7 +78,8 @@ Tailwind greys, no unstyled states.
 - [ ] **Touch ergonomics:** letter-rail tap targets, the search field auto-raise on iOS,
       swipe momentum on rails
 - [ ] **Perf:** shelf with many favorites/recents; image lazy-loading; art-cache warm-up
-- [ ] **First-run:** a guided "point me at your ROMs / add an IGDB key" empty state
+- [x] **First-run:** a guided "point me at your ROMs" empty state — DONE (the pond's-quiet
+      shelf). Could still extend it to nudge adding an IGDB key.
 - [ ] Audit and remove dead code the extraction left behind
 
 ---
