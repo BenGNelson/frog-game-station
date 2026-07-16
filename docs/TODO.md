@@ -106,4 +106,6 @@ Tailwind greys, no unstyled states.
       mark; `scripts/gen-icons.sh` renders the PWA/apple-touch PNGs from it (node + sharp).
 - [ ] Rename the `/library/play` route → `/play`
 - [ ] Relocate `FrogBoot.jsx` from `frog/` into `player/`, where it belongs
-- [ ] **Recent searches**
+- [x] **Recent searches** — DONE: queries that led into a game are kept
+      (`lib/recentSearches.js`) and shown in the search results zone on an empty query;
+      re-run by controller/tap, forget with ✕.

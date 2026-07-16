@@ -13,6 +13,7 @@ import { ensureEmulatorEngine, cacheGameSram } from '../lib/offlineStore.js'
 import { offlineGamesToItems } from './offline.js'
 import { getRecent, recordPlayed } from '../lib/recentGames.js'
 import { getFavorites } from '../lib/favorites.js'
+import { getRecentSearches, recordSearch, removeRecentSearch } from '../lib/recentSearches.js'
 import { moveInRails } from '../lib/gridNav.js'
 import { useGamepad } from '../lib/useGamepad.js'
 import { mediaMatches } from '../lib/useMediaQuery.js'
@@ -110,6 +111,10 @@ export default function FrogBrowser() {
   const [keyIndex, setKeyIndex] = useState(0)
   const [resultRow, setResultRow] = useState(0)
   const [searchFrom, setSearchFrom] = useState('shelf')
+  // Your recent searches — shown in the results zone while the query is empty, so a
+  // query you already found your way through is one press away. Refreshed from storage
+  // each time search opens.
+  const [recentSearches, setRecentSearches] = useState(() => getRecentSearches())
 
   // Touch vs pad. Opens from the pointer kind (a phone starts in touch), then every
   // real input keeps it honest — a gamepad button flips to pad, a finger back to
@@ -328,12 +333,29 @@ export default function FrogBrowser() {
     setKeyIndex(0)
     setResultRow(0)
     setZone('grid')
+    setRecentSearches(getRecentSearches()) // pick up searches recorded since last open
     // Freeze the keyboard kind for this search session (see `searchNative`).
     setSearchNative(usesNativeKeyboard(mode))
     setScreen('search')
   }, [screen, mode])
 
   const closeSearch = useCallback(() => setScreen(searchFrom), [searchFrom])
+
+  // Open a game from the results — remember the query that found it first (a search
+  // that actually led somewhere is the one worth keeping; empties are ignored).
+  const openFromSearch = (game) => {
+    setRecentSearches(recordSearch(query))
+    openDetail(game, 'search')
+  }
+  // Tapping/selecting a recent search re-runs it: drop it into the query and let the
+  // normal typing flow take over (results fill; Down/RB steps into them).
+  const applyRecentQuery = (q) => {
+    setQuery(q)
+    setZone('grid')
+    setResultRow(0)
+    setKeyIndex(0)
+  }
+  const removeRecent = (q) => setRecentSearches(removeRecentSearch(q))
 
   // The game page. Opens over whatever screen you were on (so B returns there), lands
   // focus on Play, and reads the game's current favourite state.
@@ -508,6 +530,17 @@ export default function FrogBrowser() {
     }
 
     if (screen === 'search') {
+      // The results zone shows game matches while you're typing, and your recent
+      // searches when the query is empty — the same cursor/zone machinery drives both.
+      const searchRows = query ? results.length : recentSearches.length
+      const pickSearchRow = () => {
+        if (query) {
+          if (results[resultRow]) openFromSearch(results[resultRow])
+        } else {
+          const r = recentSearches[resultRow]
+          if (r) applyRecentQuery(r.q)
+        }
+      }
       if (zone === 'grid') {
         switch (action) {
           case 'confirm':
@@ -522,7 +555,7 @@ export default function FrogBrowser() {
           // instead of walking Down through every row. The spatial Down-exit below
           // still works for the thumb that expects it.
           case 'railNext':
-            if (results.length) {
+            if (searchRows) {
               setZone('results')
               setResultRow(0)
             }
@@ -535,7 +568,7 @@ export default function FrogBrowser() {
             if (move.exit === 'results') {
               // Down off the bottom row drops into the results — but only if there are
               // any; otherwise the keyboard keeps the cursor rather than stranding it.
-              if (results.length) {
+              if (searchRows) {
                 setZone('results')
                 setResultRow(0)
               }
@@ -553,7 +586,7 @@ export default function FrogBrowser() {
       switch (action) {
         case 'confirm':
         case 'alt':
-          if (results[resultRow]) openDetail(results[resultRow], 'search')
+          pickSearchRow()
           return
         // Up off the top row hands the cursor back to the keyboard — the mirror of the
         // down-press that brought you here. Decide the zone OUTSIDE the setState updater
@@ -565,7 +598,7 @@ export default function FrogBrowser() {
           return
         case 'down':
         case 'right':
-          setResultRow((i) => Math.min(results.length - 1, i + 1))
+          setResultRow((i) => Math.min(searchRows - 1, i + 1))
           return
         // The shoulder that took you here takes you back.
         case 'railPrev':
@@ -927,7 +960,10 @@ export default function FrogBrowser() {
           // autocorrect), so it sets the query directly rather than one dead-key-guarded
           // character at a time the way the grid does.
           onType={setQuery}
-          onPick={(game, ch) => (ch != null ? typeKey(ch) : openDetail(game, 'search'))}
+          onPick={(game, ch) => (ch != null ? typeKey(ch) : openFromSearch(game))}
+          recent={recentSearches}
+          onRecent={applyRecentQuery}
+          onRemoveRecent={removeRecent}
         />
       ) : screen === 'detail' && detailGame ? (
         <GameScreen

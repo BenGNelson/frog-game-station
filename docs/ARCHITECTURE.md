@@ -88,6 +88,14 @@ are spaces, every key would dim — so it dims nothing rather than showing a key
 looks broken. A physical keyboard just types (full parity), and the whole search is pure
 functions with a DOM-free test.
 
+**Recent searches fill the void.** An empty query used to open onto a blank invitation;
+now the results zone holds your **recent searches** instead — the queries that actually led
+into a game (recorded on open-from-results, so an abandoned half-word is never kept). They
+reuse the very same results-zone cursor, so a controller walks them and A re-runs one, a
+thumb taps, exactly like the game rows — no third focus zone. The store is the same
+localStorage shape as recents/favorites (`lib/recentSearches.js`: newest-first, deduped
+case-insensitively, capped, DOM-free-testable), and a ✕ forgets one.
+
 ### Drawn, not scraped
 
 The console art is **drawn in-app**, not pulled from a logo database — which is exactly
