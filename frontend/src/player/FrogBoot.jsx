@@ -1,6 +1,6 @@
-import Frog from './Frog.jsx'
-import { FROG } from './theme.js'
-import './frog.css'
+import Frog from '../frog/Frog.jsx'
+import { FROG } from '../frog/theme.js'
+import '../frog/frog.css'
 
 // The screen between tapping Play and the game appearing.
 //

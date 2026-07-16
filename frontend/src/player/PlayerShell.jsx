@@ -2,12 +2,11 @@ import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { X, Menu, Minimize } from 'lucide-react'
 import { playerSrc, coverUrl } from '../lib/library.js'
-import { useOnline } from '../lib/online.jsx'
 import { goBack } from '../lib/nav.js'
 // The player is Frog's screen — launched from a game's page, it dresses in Frog's
 // clothes (the same theme + boot mascot) so play feels continuous with the browser.
 import { systemForCore, FROG } from '../frog/theme.js'
-import FrogBoot from '../frog/FrogBoot.jsx'
+import FrogBoot from './FrogBoot.jsx'
 import {
   RETROPAD,
   playerConfig,
@@ -83,7 +82,6 @@ const BOOT_OUT_MS = 900
 // actually running.
 export default function PlayerShell({ id, core, name, label, loadStateUrl }) {
   const navigate = useNavigate()
-  const { online } = useOnline()
 
   const wrapperRef = useRef(null)
   const frameRef = useRef(null)
@@ -253,11 +251,9 @@ export default function PlayerShell({ id, core, name, label, loadStateUrl }) {
 
   const exit = useCallback(() => {
     // The player is Frog's screen wherever it launched, so quitting returns to Frog
-    // (which restores the shelf/list you were on). Offline, Frog needs the live API to
-    // list everything — so a downloaded game exits to Downloads instead of a shelf that
-    // can only show what's cached.
+    // (which restores the shelf/list you were on).
     goBack(navigate, '/frog')
-  }, [navigate, online])
+  }, [navigate])
 
   const openShelf = useCallback(async () => {
     setShelfOpen(true)

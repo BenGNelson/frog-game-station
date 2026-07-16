@@ -33,7 +33,7 @@ export const HQ_CONTRACT_VERSION = 1
 // in the app bundle rides the content-hashed shell instead — which means the
 // control presets, hidden buttons and menu settings can all change later
 // without touching the player document again.
-export function playerConfig(core, controls, { name, coverUrl } = {}) {
+export function playerConfig(core, controls, { coverUrl } = {}) {
   return {
     // --- the start screen ---
     // It belongs to the engine, and it has to: that Start tap is the gesture that
