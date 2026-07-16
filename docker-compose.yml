@@ -1,0 +1,83 @@
+# Frog Game Station — service definitions.
+# Committed to git and contains NO secrets: every host-specific value is a
+# ${VAR} pulled from .env at runtime (compose auto-loads ./.env). Copy
+# .env.example → .env and fill it in.
+
+# Cap every container's logs so a misbehaving service can't fill the disk with
+# stdout. Docker's default json-file driver is UNBOUNDED; this rotates at
+# 10 MB × 3 files per container.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  # --- backend: the FastAPI game API (IGDB, ROM listing/streaming, saves). ---
+  backend:
+    build: ./backend
+    container_name: fgs-backend
+    security_opt:
+      - no-new-privileges:true
+    # Inject the .env values so config.py (pydantic-settings) reads them at boot.
+    env_file: .env
+    environment:
+      # The ROM directory as seen INSIDE the container (bind-mounted below,
+      # read-only). Your real host path is ROMS_DIR in .env.
+      GAMES_ROM_DIR: /roms
+    ports:
+      # Optional direct API access (curl/debug). The frontend reaches the backend
+      # over the compose network, so this mapping isn't required for the app.
+      - "${API_PORT:-8586}:8000"
+    volumes:
+      # Persistent state: SQLite (frog.db), IGDB art cache, box-art cache, saves.
+      - "fgs-data:/data"
+      # Your ROM collection, read-only. Defaults to the repo's empty ./roms so a
+      # clean clone boots (the app just shows its "no ROMs configured" state).
+      - "${ROMS_DIR:-./roms}:/roms:ro"
+    restart: unless-stopped
+    logging: *default-logging
+
+  # --- frontend: production build served by nginx (the always-on face). ---
+  # Multi-stage build → static PWA behind nginx, which also proxies /api to the
+  # backend, so the browser sees one origin. For hot-reload development use the
+  # "dev" profile (frontend-dev below).
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: fgs-frontend
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      - "${FRONTEND_PORT:-8585}:80"
+    # Wait for the backend to be HEALTHY before nginx comes up, so the first
+    # request can't hit a backend that's still booting.
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    logging: *default-logging
+
+  # --- frontend-dev: Vite dev server with hot reload (opt-in). ---
+  # Only starts with `docker compose --profile dev up frontend-dev`. Listens on
+  # host port 5174 so it can run alongside the production frontend. Source is
+  # bind-mounted for live reload. Also the image the Vitest suite runs in.
+  frontend-dev:
+    profiles: ["dev"]
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: fgs-frontend-dev
+    ports:
+      - "${DEV_PORT:-5174}:5173"
+    volumes:
+      - ./frontend:/app          # live source for hot reload
+      - /app/node_modules        # keep the image's deps; don't shadow with host
+    depends_on:
+      - backend
+    restart: unless-stopped
+    logging: *default-logging
+
+volumes:
+  fgs-data:

@@ -1,0 +1,169 @@
+// Pure helpers for the Library (owned-content hub). The pages just render.
+import { API_BASE } from './useApi.js'
+
+// A constant-palette accent per section, so a section reads with its own colour
+// across the hub (the peek-tile icon + the spotlight radiance). Constant RGB
+// (not a theme token) so the colours survive a theme swap, same rule the
+// back-lit radiance motif follows. `rgb` feeds the glow/backdrop helpers; `text`
+// tints the Lucide icon.
+const SECTION_ACCENTS = {
+  games: { rgb: '139,92,246', text: 'text-violet-300' },
+  books: { rgb: '56,189,248', text: 'text-sky-300' },
+  textbooks: { rgb: '99,102,241', text: 'text-indigo-300' },
+  comics: { rgb: '245,158,11', text: 'text-amber-300' },
+  papers: { rgb: '16,185,129', text: 'text-emerald-300' },
+  audiobooks: { rgb: '244,63,94', text: 'text-rose-300' },
+}
+const _DEFAULT_ACCENT = { rgb: '148,163,184', text: 'text-slate-300' }
+export function sectionAccent(key) {
+  return SECTION_ACCENTS[key] || _DEFAULT_ACCENT
+}
+
+// Where the EmulatorJS engine + cores load from. Default: self-hosted at
+// /emulatorjs/ (populate with scripts/fetch-emulatorjs.sh — a pinned, gitignored
+// bundle, so nothing third-party is committed and play time makes no external
+// calls). To use the official pinned CDN instead, set this to
+// 'https://cdn.emulatorjs.org/4.2.3/data/'. emulator.html allowlists both forms.
+export const EMULATORJS_DATA = '/emulatorjs/'
+
+// URL the backend streams an item's bytes from. Range-capable, so a reader or
+// emulator can fetch only the bytes it needs (matters for big PDFs later).
+export function fileUrl(section, id) {
+  return `${API_BASE}/library/file?section=${encodeURIComponent(section)}&id=${encodeURIComponent(id)}`
+}
+
+// Proxied + cached box art for a game (404 → caller shows a placeholder).
+export function coverUrl(id) {
+  return `${API_BASE}/library/games/cover?id=${encodeURIComponent(id)}`
+}
+
+// Server-side save states for a game (roam across devices).
+export function saveStatesUrl(id) {
+  return `${API_BASE}/library/games/save-states?id=${encodeURIComponent(id)}`
+}
+// The state blob — what EJS_loadStateURL fetches to resume into a state.
+export function saveStateUrl(id, slot) {
+  return `${API_BASE}/library/games/save-state?id=${encodeURIComponent(id)}&slot=${encodeURIComponent(slot)}`
+}
+// A save state's screenshot (detail-page thumbnail).
+export function saveStateShotUrl(id, slot) {
+  return `${API_BASE}/library/games/save-state/screenshot?id=${encodeURIComponent(id)}&slot=${encodeURIComponent(slot)}`
+}
+
+// A game's rich IGDB metadata (screenshots/summary/genres/rating) for the game
+// screen. Returns {matched:false} for a ROM hack / not-looked-up / no-key game;
+// the frontend renders its basic layout then.
+export function gameMetaUrl(id) {
+  return `${API_BASE}/library/games/meta?id=${encodeURIComponent(id)}`
+}
+// One IGDB image (cover or screenshot) for a game, by its IGDB image id — proxied
+// + cached WebP. The id must be one the game's metadata references (server-checked).
+export function igdbShotUrl(id, imageId) {
+  return `${API_BASE}/library/games/screenshot?id=${encodeURIComponent(id)}&shot=${encodeURIComponent(imageId)}`
+}
+// The IGDB match candidates the matcher shortlisted for a game (for "Wrong game?").
+export function gameCandidatesUrl(id) {
+  return `${API_BASE}/library/games/meta/candidates?id=${encodeURIComponent(id)}`
+}
+// Manually fix a game's IGDB match: an igdbId re-matches to it, null clears to the
+// basic page. Resolves when the server has stored it (caller then refetches meta).
+export function postGameMatch(id, igdbId) {
+  return fetch(`${API_BASE}/library/games/meta`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id, igdb_id: igdbId }),
+  })
+}
+
+// A game's in-game battery save (SRAM) — the game's OWN save (e.g. Pokemon's
+// "Save"), one per game, stored server-side so it roams. GET serves it, POST
+// (multipart) overwrites it. The emulator captures + restores it.
+export function gameSramUrl(id) {
+  return `${API_BASE}/library/games/sram?id=${encodeURIComponent(id)}`
+}
+
+// The isolated player page (public/emulator.html) for a game item. Running
+// EmulatorJS inside an iframe keeps its window globals + teardown out of the SPA.
+export function playerSrc(item, data = EMULATORJS_DATA) {
+  const q = new URLSearchParams({
+    core: item.core,
+    rom: fileUrl('games', item.id),
+    data,
+  })
+  q.set('gid', item.id) // game id, so the emulator can upload save states for it
+  if (item.name) q.set('name', item.name) // EJS_gameName — avoids an "undefined" title
+  if (item.loadStateUrl) q.set('loadstate', item.loadStateUrl) // resume into a saved state
+  return `/emulator.html?${q.toString()}`
+}
+
+// Natural string compare so chapter files order 1,2,…,10 (not 1,10,2) and are
+// case-insensitive — used to sequence an audiobook's chapter files.
+export function naturalCompare(a, b) {
+  return (a || '').localeCompare(b || '', undefined, { numeric: true, sensitivity: 'base' })
+}
+
+// --- offline emulator (ROMs) -----------------------------------------------
+// The shared EmulatorJS engine assets a game needs (cached once, not per-game).
+// Captured live from a real game load. The host page (emulator.html) is matched
+// by bare path in the SW since it's requested with per-game query params.
+export const EMULATOR_ENGINE_URLS = [
+  '/emulator.html',
+  `${EMULATORJS_DATA}loader.js`,
+  `${EMULATORJS_DATA}emulator.min.js`,
+  `${EMULATORJS_DATA}emulator.min.css`,
+  `${EMULATORJS_DATA}localization/en-US.json`,
+  `${EMULATORJS_DATA}compression/extract7z.js`,
+]
+
+// EmulatorJS maps our system core name to the libretro core file it loads by
+// DEFAULT (the first entry in its per-system core table, src/emulator.js) — so
+// the offline cache fetches the same .data the online loader does. Note segaMS
+// defaults to smsplus (not genesis_plus_gx, which Genesis/Game Gear use).
+const LIBRETRO_CORE = {
+  gb: 'gambatte',
+  gbc: 'mgba',
+  gba: 'mgba',
+  nes: 'fceumm',
+  snes: 'snes9x',
+  segaMD: 'genesis_plus_gx',
+  segaMS: 'smsplus',
+  segaGG: 'genesis_plus_gx',
+}
+
+// The per-game offline URLs: the ROM + its core (both non-thread variants, since
+// iOS may pick either) + the core's report. The shared engine is separate.
+export function gameOfflineUrls(id, core) {
+  const lib = LIBRETRO_CORE[core] || core
+  return [
+    fileUrl('games', id),
+    `${EMULATORJS_DATA}cores/${lib}-wasm.data`,
+    `${EMULATORJS_DATA}cores/${lib}-legacy-wasm.data`,
+    `${EMULATORJS_DATA}cores/reports/${lib}.json`,
+  ]
+}
+
+// --- Games: per-system drill-in ---------------------------------------------
+// Frog browses one system at a time (Game Boy alone has hundreds of titles). These
+// pure helpers shape the data behind that; the components just draw it.
+
+// The letter buckets, in display order: A–Z then '#' (numeric/other titles) last.
+// Frog's game-list letter rail (GameList.jsx) reads it.
+export const ALPHABET = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ', '#']
+
+// One system's games, alphabetised by title (natural compare so "Pokemon 2"
+// orders before "Pokemon 10"). → items[]
+export function systemGames(items, label) {
+  return (items ?? [])
+    .filter((it) => (it.label || 'Other') === label)
+    .sort((a, b) => naturalCompare(a.name, b.name))
+}
+
+// The scrubber bucket for a title: its uppercase first A–Z letter, else '#'
+// (numbers, symbols, non-latin, empty). Diacritics are stripped first (NFD
+// decomposes 'É' → 'E' + combining mark) so an accented title buckets under its
+// base letter — matching how systemGames natural-sorts it (sensitivity 'base').
+// → 'A'..'Z' | '#'
+export function letterOf(name) {
+  const c = (name || '').trim().normalize('NFD').charAt(0).toUpperCase()
+  return c >= 'A' && c <= 'Z' ? c : '#'
+}
