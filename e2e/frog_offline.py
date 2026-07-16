@@ -11,13 +11,13 @@ library in by itself — the chip clears and games that weren't downloaded appea
 proving the item source prefers the live API and re-fetches on the offline→online edge
 (no polling), which was the crux of the review that shaped this design.
 
-    BASE_URL=http://localhost:5173 python frog_offline.py
+    BASE_URL=http://localhost:8585 python frog_offline.py
 """
 import os
 import sys
 from playwright.sync_api import sync_playwright
 
-BASE = os.environ.get("BASE_URL", "http://localhost:5173")
+BASE = os.environ.get("BASE_URL", "http://localhost:8585")
 errors = []
 
 

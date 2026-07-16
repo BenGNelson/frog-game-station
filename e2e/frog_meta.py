@@ -6,13 +6,13 @@ you can open fullscreen. When it hasn't (a ROM hack / no key), the page falls
 back to the basic cover + name layout. IGDB is external, so the metadata +
 screenshot-image endpoints are mocked; everything else hits the real backend.
 
-    BASE_URL=http://localhost:5173 python frog_meta.py
+    BASE_URL=http://localhost:8585 python frog_meta.py
 """
 import os
 import sys
 from playwright.sync_api import sync_playwright
 
-BASE = os.environ.get("BASE_URL", "http://localhost:5173")
+BASE = os.environ.get("BASE_URL", "http://localhost:8585")
 errors = []
 
 # A 1x1 PNG, so the mocked screenshot/cover images decode instead of erroring.

@@ -7,13 +7,13 @@ header (a pad has X, a thumb had no way in at all before it), the device's own
 keyboard instead of the 6×6 dead-key grid, tap-to-filter, tap-a-result-to-play, and
 tap-a-console-to-drill-in.
 
-    BASE_URL=http://localhost:5173 python frog_touch.py
+    BASE_URL=http://localhost:8585 python frog_touch.py
 """
 import os
 import sys
 from playwright.sync_api import sync_playwright
 
-BASE = os.environ.get("BASE_URL", "http://localhost:5173")
+BASE = os.environ.get("BASE_URL", "http://localhost:8585")
 errors = []
 
 
@@ -83,8 +83,8 @@ with sync_playwright() as p:
     check(True, "tapping a result opens its game page")
     track[0] = False
     page.locator('[data-testid="frog-detail-play"]').tap()
-    page.wait_for_url("**/library/play**", timeout=8000)
-    check("/library/play" in page.url, "Play on the game page launches the game")
+    page.wait_for_url("**/play**", timeout=8000)
+    check("/play" in page.url, "Play on the game page launches the game")
 
     context.close()
     browser.close()
