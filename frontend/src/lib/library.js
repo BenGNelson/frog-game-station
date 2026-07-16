@@ -26,6 +26,16 @@ export function sectionAccent(key) {
 // 'https://cdn.emulatorjs.org/4.2.3/data/'. emulator.html allowlists both forms.
 export const EMULATORJS_DATA = '/emulatorjs/'
 
+// The engine's loader script, under the configured base. When the base is a local
+// path (the self-hosted default), the app can HEAD this to detect an engine that
+// hasn't been fetched yet (scripts/fetch-emulatorjs.sh) and show a friendly notice
+// instead of a silently-broken player. A remote CDN base is assumed present (a
+// cross-origin HEAD would be unreliable, and the CDN engine works out of the box).
+export const ENGINE_LOADER_URL = `${EMULATORJS_DATA}loader.js`
+export function engineIsLocal() {
+  return EMULATORJS_DATA.startsWith('/')
+}
+
 // URL the backend streams an item's bytes from. Range-capable, so a reader or
 // emulator can fetch only the bytes it needs (matters for big PDFs later).
 export function fileUrl(section, id) {

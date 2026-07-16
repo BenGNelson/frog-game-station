@@ -13,6 +13,8 @@ import {
   letterOf,
   gameMetaUrl,
   igdbShotUrl,
+  ENGINE_LOADER_URL,
+  engineIsLocal,
 } from './library.js'
 
 describe('naturalCompare', () => {
@@ -147,5 +149,14 @@ describe('gameOfflineUrls', () => {
     expect(urls).toContain('/emulatorjs/cores/genesis_plus_gx-wasm.data')
     expect(urls).toContain('/emulatorjs/cores/genesis_plus_gx-legacy-wasm.data')
     expect(urls).toContain('/emulatorjs/cores/reports/genesis_plus_gx.json')
+  })
+})
+
+describe('engine detection', () => {
+  it('builds the loader URL under the self-hosted base', () => {
+    expect(ENGINE_LOADER_URL).toBe('/emulatorjs/loader.js')
+  })
+  it('reports the default (self-hosted) base as local', () => {
+    expect(engineIsLocal()).toBe(true)
   })
 })

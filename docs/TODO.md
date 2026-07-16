@@ -17,9 +17,6 @@ player}` → `src/{frog,player}` and renamed the route `/library/play` → `/pla
 ESLint (`npm run lint`, 0 errors); added real README screenshots.
 
 **Still open**
-- [ ] **First-run engine story.** Playing needs the ~300 MB EmulatorJS engine (p7zip +
-      `scripts/fetch-emulatorjs.sh`, or the CDN). Add a friendly runtime notice when
-      `/emulatorjs/` is absent so a fresh clone explains itself.
 - [ ] Wire the **gold targeted e2e suite** (`e2e/frog_{touch,search,detail,meta,rematch,
       offline}.py` + `games_flip.py`) into CI or a `scripts/verify-full.sh` — right now only
       `smoke.py` gates. They mock the backend via Playwright routing, so they run headless.
@@ -28,8 +25,10 @@ ESLint (`npm run lint`, 0 errors); added real README screenshots.
       warnings deliberately: "fixing" them means changing dependency arrays, which can change
       behavior — revisit each on purpose, don't bulk-apply.
 
-**Done since:** relocated `FrogBoot.jsx` frog/→player/; cleared the two safe lint warnings
-(unused `name` in `emuBridge.playerConfig`, unnecessary `online` dep in `PlayerShell.exit`).
+**Done since:** first-run engine notice (the player HEADs the local engine loader and shows
+a friendly "not installed" card when it's missing); relocated `FrogBoot.jsx` frog/→player/;
+cleared the two safe lint warnings (unused `name` in `emuBridge.playerConfig`, unnecessary
+`online` dep in `PlayerShell.exit`).
 
 ---
 
