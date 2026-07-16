@@ -1,6 +1,12 @@
-# Frog Game Station
+<p align="center">
+  <img src="docs/img/logo.png" alt="Frog Game Station" width="180">
+</p>
 
-**A self-hosted games browser for your ROM library — play from the couch with a controller, or from the couch with your thumb.**
+<h1 align="center">Frog Game Station</h1>
+
+<p align="center"><strong>A self-hosted games browser for your ROM library — play from the couch with a controller, or from your phone with your thumb.</strong></p>
+
+<p align="center"><em>AI-assisted build.</em></p>
 
 Frog Game Station is a portfolio-quality, self-hosted web app that turns a folder of ROMs into a console-style library you can actually enjoy browsing. It's a *host* for your games: it organizes and enriches the collection, then hands the actual gameplay off to an isolated, in-browser [EmulatorJS](https://emulatorjs.org) frame. No installs, no per-game setup — point it at a folder and play.
 
@@ -162,7 +168,3 @@ Console art is drawn in-app; no official hardware logos or wordmarks are used.
 ## License
 
 MIT.
-
----
-
-_AI-assisted build._
