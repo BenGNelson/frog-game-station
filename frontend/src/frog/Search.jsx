@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react'
+import { Search as SearchIcon, X } from 'lucide-react'
 import { coverUrl } from '../lib/library.js'
 import { FROG, systemStyle, reflection } from './theme.js'
 import { KEYS, COLS, liveKeys } from './search.js'
@@ -15,7 +16,10 @@ import Frog, { Reflected } from './Frog.jsx'
 // grid or the results) has the cursor; this draws what it's told. That's the same
 // contract the shelf and the game list keep, and it's what will let the whole folder
 // lift into its own repo as a copy rather than a rewrite.
-export default function Search({ query, results, zone, keyIndex, resultRow, allGames, native, onKey, onResult, onPick, onType }) {
+export default function Search({ query, results, zone, keyIndex, resultRow, allGames, native, onKey, onResult, onPick, onType, recent = [], onRecent, onRemoveRecent }) {
+  // With an empty query the results zone stands in for your recent searches, so the
+  // cursor has somewhere to go and the screen isn't a blank invitation.
+  const showRecent = query === '' && recent.length > 0
   // Which keys still lead somewhere. Derived from the WHOLE library (not the capped
   // result list), so dimming is honest even when there are more matches than we show.
   const live = useMemo(() => liveKeys(allGames, query), [allGames, query])
@@ -137,9 +141,19 @@ export default function Search({ query, results, zone, keyIndex, resultRow, allG
         </aside>
       </div>
 
-      {/* The results. Empty until you type; then it narrows with every key. */}
+      {/* The results. Empty until you type; then it narrows with every key. With an
+          empty query it holds your recent searches instead of a bare placeholder. */}
       <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto" style={{ scrollbarWidth: 'none' }}>
-        {results.length === 0 ? (
+        {showRecent ? (
+          <RecentSearches
+            recent={recent}
+            zone={zone}
+            resultRow={resultRow}
+            onResult={onResult}
+            onRecent={onRecent}
+            onRemoveRecent={onRemoveRecent}
+          />
+        ) : results.length === 0 ? (
           <p className="pt-6 text-center text-sm" style={{ color: FROG.faint }}>
             {query ? `Nothing matches “${query}”` : 'Results appear here as you type'}
           </p>
@@ -190,6 +204,65 @@ export default function Search({ query, results, zone, keyIndex, resultRow, allG
           </ul>
         )}
       </div>
+    </div>
+  )
+}
+
+// Your recent searches, filling the results zone while the query is empty. Each row is
+// driven by the same zone/resultRow cursor the game results use, so a controller walks
+// them and A re-runs one; a thumb taps. The ✕ (touch affordance) forgets a search —
+// the list otherwise self-prunes (deduped + capped), so pad users rarely need it.
+function RecentSearches({ recent, zone, resultRow, onResult, onRecent, onRemoveRecent }) {
+  return (
+    <div>
+      <p
+        className="px-3 pb-1 pt-1 text-[11px] font-semibold uppercase tracking-[0.18em]"
+        style={{ color: FROG.faint }}
+      >
+        Recent searches
+      </p>
+      <ul className="space-y-0.5">
+        {recent.map((r, i) => {
+          const on = zone === 'results' && i === resultRow
+          return (
+            <li key={r.q} className="flex items-center">
+              <button
+                type="button"
+                data-focused={on || undefined}
+                data-testid="frog-recent-search"
+                onMouseMove={() => onResult(i)}
+                onClick={() => onRecent(r.q)}
+                className="flex min-w-0 flex-1 items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors"
+                style={{
+                  background: on ? `rgba(${FROG.jade}, 0.14)` : 'transparent',
+                  boxShadow: on ? `inset 0 0 0 1px rgba(${FROG.jade}, 0.4)` : 'none',
+                }}
+              >
+                <SearchIcon
+                  className="h-4 w-4 shrink-0"
+                  style={{ color: on ? `rgb(${FROG.jade})` : FROG.faint }}
+                  aria-hidden="true"
+                />
+                <span
+                  className="min-w-0 flex-1 truncate text-[15px]"
+                  style={{ color: on ? FROG.ink : FROG.soft, fontWeight: on ? 600 : 400 }}
+                >
+                  {r.q}
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onRemoveRecent?.(r.q)}
+                aria-label={`Forget search “${r.q}”`}
+                className="mr-1 shrink-0 rounded-full p-2"
+                style={{ color: FROG.faint }}
+              >
+                <X className="h-4 w-4" aria-hidden="true" />
+              </button>
+            </li>
+          )
+        })}
+      </ul>
     </div>
   )
 }
