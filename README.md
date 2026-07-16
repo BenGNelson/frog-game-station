@@ -136,6 +136,8 @@ Backend internal port is `8000`, with the API mounted at `/api`. Data directorie
 
 The frontend degrades gracefully when the backend is absent, so a lot of UI iteration can happen with just the dev server.
 
+To run Frog as its **own installable PWA** (its own home-screen icon and offline scope), serve it at its own HTTPS origin — see [`docs/DEPLOY.md`](docs/DEPLOY.md).
+
 ## Testing
 
 ```bash
