@@ -326,6 +326,13 @@ Frog is an **installable PWA**: a manifest + service worker make it addable to a
 screen and let downloaded games play **offline** (the shelf, list, and search fall back to
 the on-device downloaded manifest, and the player boots from the cached ROM + engine).
 
+The **favicon and app icons are the frog itself**, not a placeholder: `favicon.svg` is the
+flat two-tone `FrogMark` (the same `frogMarkMarkup` the header and loading screen draw), and
+the PNG icon set (`pwa-192`, `pwa-512`, the padded `pwa-maskable-512`, `apple-touch-icon`) is
+rendered from that one mark by `scripts/gen-icons.sh` (a `node:20-alpine` + sharp container,
+so there's no host-Node dependency) and committed. Change the frog once and re-run the script
+and it changes everywhere — tab, home screen, and in-app — with no chance of drift.
+
 The player and readers are **real routes**, not overlays, so the phone's back gesture exits
 (the native expectation) and items are deep-linkable.
 
