@@ -43,6 +43,9 @@ class IgdbMatcher:
         self._interval = max(3600, interval)
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
+        # Serializes manual re-scans (the settings button) with each other; the timer
+        # pass is guarded separately by `_running`.
+        self._rescan_lock = threading.Lock()
         # Live progress for the status endpoint.
         self._running = False
         self._processed = 0  # ROMs looked up (not skipped) this pass
@@ -171,6 +174,33 @@ class IgdbMatcher:
         finally:
             self._running = False
         return self._processed
+
+    def trigger_rescan(self) -> dict:
+        """Kick a one-off matching pass now, in the background (the settings 're-scan'
+        button). A no-op with a `reason` if the matcher can't run (dormant /
+        unconfigured / no ROMs) or a pass is already in flight — a full pass is
+        synchronous + minutes long + rate-limited, so it must never run inline in the
+        request. Poll `status()` for progress. Returns `{started, reason?}`."""
+        if not self._enabled:
+            return {"started": False, "reason": "disabled"}
+        if not igdb.configured(settings):
+            return {"started": False, "reason": "unconfigured"}
+        section = library.get_section("games")
+        if not section or not library.is_configured(section, settings):
+            return {"started": False, "reason": "no-roms"}
+        # Skip if the timer pass is mid-flight, or another manual re-scan holds the lock.
+        if self._running or not self._rescan_lock.acquire(blocking=False):
+            return {"started": False, "reason": "running"}
+        threading.Thread(target=self._rescan_once, daemon=True, name="igdb-rescan").start()
+        return {"started": True}
+
+    def _rescan_once(self) -> None:
+        try:
+            self.match_once()
+        except Exception as exc:  # a manual pass must never crash the thread
+            log.warning("igdb-rescan: pass error: %s", exc)
+        finally:
+            self._rescan_lock.release()
 
     def _store(self, gid: str, result: dict, mtime: float) -> None:
         """Flatten a lookup result into the cache row (auto source, current version)."""

@@ -144,6 +144,14 @@
   to { opacity: 0; }
 }
 
+/* The re-scan button's icon while a matching pass runs. */
+@keyframes frog-spin {
+  to { transform: rotate(360deg); }
+}
+.frog-spin {
+  animation: frog-spin 1.1s linear infinite;
+}
+
 /* --- honour the setting ----------------------------------------------------- */
 
 /* Reduced motion means REDUCED, not none: the frog still blinks (it's how you
@@ -156,6 +164,7 @@
   .frog-ripple,
   .frog-rings,
   .frog-invite,
+  .frog-spin,
   .frog-surface,
   .frog-rise {
     animation: none;

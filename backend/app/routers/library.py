@@ -446,6 +446,23 @@ def get_game_meta_status():
     return matcher.status()
 
 
+@router.post("/library/games/meta/rescan")
+def rescan_game_meta():
+    """Kick a one-off IGDB matching pass now (the settings 're-scan' button). The pass
+    runs in the background (it's synchronous + minutes long), so this returns straight
+    away with whether it started — with a `reason` if not (dormant / unconfigured / no
+    ROMs / already running) — plus the current status. Poll the status endpoint above
+    for progress."""
+    matcher = igdb_sync.get_matcher()
+    if not matcher:
+        total, matched = db.count_igdb_meta()
+        return {"started": False, "reason": "disabled",
+                "status": {"enabled": False, "configured": igdb.configured(settings),
+                           "running": False, "looked_up": total, "matched": matched}}
+    result = matcher.trigger_rescan()
+    return {**result, "status": matcher.status()}
+
+
 @router.get("/library/games/meta/candidates")
 def get_game_meta_candidates(id: str = Query(description="Game id from the section listing")):
     """The IGDB match candidates the matcher shortlisted for this game (id + name +

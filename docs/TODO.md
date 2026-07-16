@@ -87,7 +87,9 @@ Tailwind greys, no unstyled states.
 
 ## Feature backlog
 
-- [ ] **Settings screen:** IGDB key status + a "re-scan" button, input-mode, theme options
+- [x] **Settings screen:** IGDB key status + a "re-scan" button, input-mode — DONE (a
+      transient overlay reached by a header gear; `Settings.jsx` +
+      `POST /library/games/meta/rescan`). Theme is intentionally an info line, not a toggle.
 - [ ] IGDB **"similar games"** / more-like-this rail
 - [ ] **Play-time stats** per game; a "most played" rail
 - [ ] **Set custom art** from a live in-game screenshot (ties to save-state shot capture)

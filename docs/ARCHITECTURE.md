@@ -96,6 +96,20 @@ thumb taps, exactly like the game rows — no third focus zone. The store is the
 localStorage shape as recents/favorites (`lib/recentSearches.js`: newest-first, deduped
 case-insensitively, capped, DOM-free-testable), and a ✕ forgets one.
 
+### Settings — a small utility overlay
+
+Settings is a **transient overlay** like search: reached by a header gear (there's no
+dedicated pad button, so the gear serves thumb and cursor alike), opened over whatever
+screen you were on, and never persisted as the restored screen. It's deliberately small —
+two focusable rows the D-pad steps between, driven by the same `act` dispatcher as every
+other screen. **IGDB metadata** shows the collector's live status (configured?, matched
+counts, in-progress `processed/total`) and a **Re-scan** button — or, when no key is set,
+the plain-language nudge to add one (the same setup step the README documents). **Input
+mode** surfaces the player's persisted `inputMode` preference (Auto / Touch / Pad) that
+previously had no UI. **Theme** is an honest one-liner, not a control: the single dark
+WATER identity is a decision, so settings *says so* rather than offering a toggle that
+isn't there.
+
 ### Drawn, not scraped
 
 The console art is **drawn in-app**, not pulled from a logo database — which is exactly
@@ -289,7 +303,12 @@ SQLite-cache pattern, not an external script.
   endpoint is a **validated** proxy — the requested IGDB image id must be one the game's
   cached row references, so it is *not* an open image proxy — reusing the box-art
   fetch → thumbnail → atomic-write WebP cache into the IGDB art dir; a **status** endpoint
-  reports collector progress.
+  reports collector progress (configured?, running?, looked-up / matched counts); and a
+  **re-scan** endpoint (`POST /library/games/meta/rescan`) kicks a one-off pass **on a
+  background thread** — a full pass is synchronous, minutes-long, and rate-limited, so it
+  must never run inline in the request. It's guarded (dormant / unconfigured / already
+  running return a `reason`, never a second concurrent pass) and reflected by the status
+  endpoint; it backs the settings screen's "Re-scan" button.
 - **Fixing a wrong match.** Auto-matching sometimes picks the wrong one of several similar
   titles, so the shortlist the matcher considered is cached per row. A **candidates**
   endpoint returns it, and a **meta POST** `{id, igdb_id}` re-matches to a chosen candidate

@@ -75,6 +75,15 @@ export function igdbShotUrl(id, imageId) {
 export function gameCandidatesUrl(id) {
   return `${API_BASE}/library/games/meta/candidates?id=${encodeURIComponent(id)}`
 }
+// The IGDB matcher's progress + whether creds are configured — the settings screen
+// polls this. A BARE path (no API_BASE) because it's read through useApi, which
+// prepends the base itself (unlike the plain-fetch helpers above/below).
+export const GAME_META_STATUS_PATH = '/library/games/meta/status'
+// Kick a one-off IGDB matching pass now (the settings "re-scan" button). Returns
+// { started, reason?, status } — the pass runs server-side; poll the status path.
+export function postMetaRescan() {
+  return fetch(`${API_BASE}/library/games/meta/rescan`, { method: 'POST' })
+}
 // Manually fix a game's IGDB match: an igdbId re-matches to it, null clears to the
 // basic page. Resolves when the server has stored it (caller then refetches meta).
 export function postGameMatch(id, igdbId) {
