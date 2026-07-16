@@ -27,7 +27,18 @@ with sync_playwright() as p:
     # Track console errors only while we're inside Frog; the player boots a WASM core
     # whose own console noise isn't ours to police here.
     track = [True]
-    page.on("console", lambda m: errors.append(f"console.{m.type}: {m.text}") if (track[0] and m.type == "error") else None)
+
+    # A game's cover is a libretro-thumbnails <img>; a ROM whose No-Intro name has no
+    # matching box art (e.g. a library without cover art) 404s it, logging a "Failed to
+    # load resource". That's environmental, not an app error — a genuine app error (an
+    # uncaught throw / React error) reads differently, so only those count. Same filter
+    # the meta/detail/offline checks already use. `track` still gates out the emulator
+    # page's own console noise once we leave Frog.
+    def on_console(m):
+        if track[0] and m.type == "error" and "Failed to load resource" not in m.text:
+            errors.append(f"console.{m.type}: {m.text}")
+
+    page.on("console", on_console)
 
     page.goto(f"{BASE}/frog", wait_until="networkidle")
 

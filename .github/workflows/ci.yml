@@ -20,7 +20,14 @@ jobs:
       # with the committed example .env (empty ./roms, no IGDB keys) and degrades
       # to its "not configured" states. This is exactly the clean-clone path.
       - name: Configure (.env from the committed example)
-        run: cp .env.example .env
+        run: |
+          cp .env.example .env
+          # Point the backend at the committed ROM fixtures (empty files spanning
+          # all six systems) so the real-app e2e flows have a deterministic library
+          # to browse — the default ./roms is empty. A duplicate key wins over the
+          # example's default. IGDB stays unset (degraded metadata) and the engine
+          # is never fetched, exactly matching a clean clone.
+          echo 'ROMS_DIR=./e2e/fixtures/roms' >> .env
 
       # Build backend, frontend (prod), and frontend-dev (for the Vitest runner).
       - name: Build images
