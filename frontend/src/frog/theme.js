@@ -115,7 +115,10 @@ export function systemForCore(core) {
   return CORE_SYSTEM[core] || null
 }
 
-// The water. A thing that floats casts a soft reflection under itself.
-export function reflection(rgb, alpha = 0.22) {
+// The water. A thing that floats casts a soft reflection under itself. The default
+// alpha is the ONE "floating card" strength — callers should take it rather than pass
+// their own, so every floating card in the app reflects at the same weight (this used
+// to drift 0.4 / 0.45 / 0.5 across otherwise-identical cards).
+export function reflection(rgb, alpha = 0.45) {
   return `0 26px 40px -22px rgba(${rgb}, ${alpha}), 0 2px 0 rgba(255,255,255,0.04) inset`
 }

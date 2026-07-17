@@ -342,7 +342,7 @@ function Cover({ game, accent, className = '' }) {
   return (
     <div
       className={`relative shrink-0 overflow-hidden rounded-2xl ${className}`}
-      style={{ border: `1px solid rgba(${accent}, 0.4)`, boxShadow: reflection(accent, 0.5), background: '#000' }}
+      style={{ border: `1px solid rgba(${accent}, 0.4)`, boxShadow: reflection(accent), background: '#000' }}
     >
       <img src={coverUrl(game.id)} alt="" className="aspect-[3/4] w-full object-cover" />
       <div
@@ -439,7 +439,7 @@ function SaveShelf({ game, saves, loadingSaves, on, accent, onFocus, onPlaySlot,
                 data-testid="frog-save-row"
                 data-focused={on('saves', i) || undefined}
                 onMouseMove={() => onFocus('saves', i)}
-                className="flex items-center gap-3 rounded-xl px-2 py-2"
+                className="flex items-center gap-3 rounded-xl px-3 py-2"
                 style={{
                   background: on('saves', i) ? `rgba(${accent}, 0.16)` : FROG.panel,
                   boxShadow: on('saves', i) ? `inset 0 0 0 1px rgba(${accent}, 0.5)` : `inset 0 0 0 1px ${FROG.line}`,
@@ -598,7 +598,7 @@ function RematchDialog({ rematch, accent, onHover, onPick, onCancel }) {
         aria-modal="true"
         aria-labelledby="frog-rematch-title"
         tabIndex={-1}
-        className="w-full max-w-sm rounded-2xl p-4 outline-none"
+        className="w-full max-w-sm rounded-2xl p-5 outline-none"
         style={{ background: FROG.panel, border: `1px solid ${FROG.line}`, boxShadow: '0 20px 60px rgba(0,0,0,0.6)' }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -728,7 +728,7 @@ function ActionButton({ focused, onFocus, onClick, accent, active, busy, label, 
 }
 
 function DownloadIcon({ state }) {
-  if (state === 'downloading') return <Loader className="h-5 w-5 animate-spin" aria-hidden="true" />
+  if (state === 'downloading') return <Loader className="frog-spin h-5 w-5" aria-hidden="true" />
   if (state === 'done') return <Check className="h-5 w-5" aria-hidden="true" />
   if (state === 'error') return <TriangleAlert className="h-5 w-5" aria-hidden="true" />
   return <Download className="h-5 w-5" aria-hidden="true" />

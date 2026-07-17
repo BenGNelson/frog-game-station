@@ -1050,7 +1050,7 @@ export default function FrogBrowser() {
           <SkeletonLine className="h-4 w-40" />
           <div className="flex gap-3">
             {Array.from({ length: 6 }, (_, i) => (
-              <div key={i} className="h-32 flex-1 rounded-2xl" style={{ background: FROG.panel }} />
+              <div key={i} className="h-32 flex-1 animate-pulse rounded-2xl" style={{ background: FROG.panel }} />
             ))}
           </div>
         </div>
