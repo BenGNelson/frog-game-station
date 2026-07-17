@@ -832,8 +832,9 @@ export default function PlayerShell({ id, core, name, label, loadStateUrl }) {
           style={{
             top: 'calc(env(safe-area-inset-top) + 0.5rem)',
             left: 'calc(env(safe-area-inset-left) + 0.5rem)',
+            background: 'rgba(5, 17, 13, 0.5)',
           }}
-          className="absolute z-30 rounded-full bg-slate-950/50 p-2 text-rose-300/80 ring-1 ring-rose-400/25 backdrop-blur-sm transition-colors hover:bg-rose-500/20 hover:text-rose-100 active:bg-rose-500/30"
+          className="absolute z-30 rounded-full p-2 text-rose-300/80 ring-1 ring-rose-400/25 backdrop-blur-sm transition-colors hover:bg-rose-500/20 hover:text-rose-100 active:bg-rose-500/30"
         >
           <X className="h-5 w-5" aria-hidden="true" />
         </button>
@@ -844,7 +845,8 @@ export default function PlayerShell({ id, core, name, label, loadStateUrl }) {
       {immersive && (
         <button
           onClick={() => setImmersive(false)}
-          className="absolute bottom-3 right-3 z-30 flex items-center gap-1.5 rounded-full bg-slate-800/90 px-3 py-1.5 text-sm font-medium text-slate-100 ring-1 ring-white/30 active:bg-slate-700"
+          style={{ background: FROG.panel, color: FROG.ink, boxShadow: `0 0 0 1px ${FROG.line}` }}
+          className="absolute bottom-3 right-3 z-30 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium active:opacity-80"
         >
           <Minimize className="h-4 w-4" aria-hidden="true" /> Exit Fullscreen
         </button>
@@ -886,7 +888,8 @@ export default function PlayerShell({ id, core, name, label, loadStateUrl }) {
           <button
             onClick={openMenu}
             aria-label="Game menu"
-            className="absolute right-2 top-2 z-10 rounded-full bg-slate-900/70 p-2 text-slate-200 backdrop-blur-sm hover:bg-slate-800 active:bg-slate-800"
+            style={{ background: FROG.panel, color: FROG.ink }}
+            className="absolute right-2 top-2 z-10 rounded-full p-2 backdrop-blur-sm active:opacity-80"
           >
             <Menu className="h-5 w-5" aria-hidden="true" />
           </button>
@@ -898,12 +901,17 @@ export default function PlayerShell({ id, core, name, label, loadStateUrl }) {
           <div
             data-testid="pad-hint"
             aria-hidden={!padHint}
-            className={`pointer-events-none absolute right-3 top-3 z-10 rounded-full bg-slate-900/70 px-3 py-1.5 text-xs text-slate-300 backdrop-blur-sm transition-opacity duration-700 ${
+            className={`pointer-events-none absolute right-3 top-3 z-10 rounded-full px-3 py-1.5 text-xs backdrop-blur-sm transition-opacity duration-700 ${
               padHint ? 'opacity-100' : 'opacity-0'
             }`}
-            style={{ marginTop: 'env(safe-area-inset-top)', marginRight: 'env(safe-area-inset-right)' }}
+            style={{
+              background: FROG.panel,
+              color: FROG.soft,
+              marginTop: 'env(safe-area-inset-top)',
+              marginRight: 'env(safe-area-inset-right)',
+            }}
           >
-            Controller · hold <span className="font-semibold text-slate-100">☰</span> for the menu
+            Controller · hold <span className="font-semibold" style={{ color: FROG.ink }}>☰</span> for the menu
           </div>
         )}
 

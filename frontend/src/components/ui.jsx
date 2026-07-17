@@ -1,10 +1,12 @@
 // Small shared presentational primitives.
 
-// A spinning indicator for "this is loading / updating".
+// A spinning indicator for "this is loading / updating". Colours inherit from the
+// caller (currentColor), so it wears whatever accent its context sets rather than a
+// fixed slate.
 export function Spinner({ label = 'loading…' }) {
   return (
-    <div className="flex items-center gap-2 text-sm text-slate-400">
-      <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-600 border-t-slate-300" />
+    <div className="flex items-center gap-2 text-sm">
+      <span className="h-4 w-4 animate-spin rounded-full border-2 border-current/30 border-t-current" />
       {label}
     </div>
   )

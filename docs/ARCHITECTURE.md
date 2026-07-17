@@ -132,6 +132,15 @@ mode.
 The game runs in an **isolated client-side frame** (`emulator.html`) that loads
 EmulatorJS. That identity — the WATER world — follows the game **into the player**.
 
+The player's own chrome — the **pause menu**, **controls** screen, **save-state** shelf,
+rotate prompt, and the corner buttons — reads from the same `frog/theme.js` tokens as the
+rest of the app (green-black panels, `FROG.line` borders, a jade focus glow via the
+back-lit radiance motif), so nothing snaps to a different palette when you open a menu.
+**Two surfaces stay deliberately neutral:** the **touch controls** are white-on-black glass
+that float over live gameplay (like the lightbox, they must not clash with any game's own
+colours), and the **button-legend glyphs** keep the real controller's face-button colours
+(green A / red B / blue X / amber Y) so they map at a glance to the pad in your hands.
+
 - **A skinned start screen.** The box-art start screen is styled by injecting CSS into the
   player document (the engine's Start button, which is also the iOS audio unlock, has to
   stay there). It wears Frog's colours: a jade glow over the green-black pond, with the

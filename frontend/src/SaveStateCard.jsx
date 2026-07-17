@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { saveStateShotUrl } from './lib/library.js'
 import { formatAgo } from './lib/format.js'
+import { FROG } from './frog/theme.js'
 
 // One save state: its screenshot, when it was taken, and what you can do with it.
 // Shared by the game's detail page and the in-game pause menu, so a state looks
@@ -13,9 +14,12 @@ export default function SaveStateCard({ game, state, onSelect, onDelete, actionL
   const [failed, setFailed] = useState(false)
   return (
     <div
-      className={`overflow-hidden rounded-xl border bg-slate-900/60 transition-transform ${
-        focused ? 'scale-105 border-violet-400 ring-2 ring-violet-400/60' : 'border-slate-700'
-      }`}
+      className={`overflow-hidden rounded-xl border transition-transform ${focused ? 'scale-105' : ''}`}
+      style={{
+        background: FROG.panel,
+        borderColor: focused ? `rgba(${FROG.jade}, 0.6)` : FROG.line,
+        boxShadow: focused ? `0 0 0 2px rgba(${FROG.jade}, 0.5)` : 'none',
+      }}
     >
       <button onClick={onSelect} className="block w-full text-left">
         <div className="aspect-video w-full bg-black">
@@ -31,21 +35,26 @@ export default function SaveStateCard({ game, state, onSelect, onDelete, actionL
               className="h-full w-full object-cover [image-rendering:pixelated]"
             />
           ) : (
-            <div className="flex h-full w-full items-center justify-center text-xs text-slate-600">
+            <div className="flex h-full w-full items-center justify-center text-xs" style={{ color: FROG.faint }}>
               no preview
             </div>
           )}
         </div>
-        <div className="px-2 py-1 text-xs text-slate-300">saved {formatAgo(state.created_ms / 1000)}</div>
+        <div className="px-2 py-1 text-xs" style={{ color: FROG.soft }}>saved {formatAgo(state.created_ms / 1000)}</div>
       </button>
-      <div className="flex border-t border-slate-800 text-xs">
-        <button onClick={onSelect} className="flex-1 py-1.5 text-sky-400 active:bg-slate-800">
+      <div className="flex border-t text-xs" style={{ borderColor: FROG.line }}>
+        <button
+          onClick={onSelect}
+          className="flex-1 py-1.5 active:opacity-70"
+          style={{ color: `rgb(${FROG.jade})` }}
+        >
           {actionLabel}
         </button>
         {onDelete && (
           <button
             onClick={onDelete}
-            className="border-l border-slate-800 px-3 py-1.5 text-rose-400 active:bg-slate-800"
+            className="border-l px-3 py-1.5 active:opacity-70"
+            style={{ borderColor: FROG.line, color: 'rgb(239, 90, 90)' }}
           >
             Delete
           </button>

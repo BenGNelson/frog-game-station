@@ -1,6 +1,7 @@
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { saveStateUrl } from './lib/library.js'
 import PlayerShell from './player/PlayerShell.jsx'
+import { FROG } from './frog/theme.js'
 
 // The /play route. A real route (not a modal) so the phone's back
 // gesture exits the game, and so unmounting tears the engine down completely.
@@ -25,9 +26,16 @@ export default function Player() {
 
   if (!id || !core) {
     return (
-      <div className="p-6 text-rose-400">
-        Missing game.{' '}
-        <button onClick={() => navigate('/frog')} className="underline">
+      <div
+        className="flex min-h-screen flex-col items-center justify-center gap-3 p-6 text-center"
+        style={{ background: FROG.ground, color: FROG.soft }}
+      >
+        <p>Missing game.</p>
+        <button
+          onClick={() => navigate('/frog')}
+          className="underline"
+          style={{ color: `rgb(${FROG.jade})` }}
+        >
           Back to Games
         </button>
       </div>
