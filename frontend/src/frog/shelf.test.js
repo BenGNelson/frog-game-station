@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildShelf, buildSystems, jumpBackIn, favoriteGames, mostPlayed, agoLabel, stepLetter, SYSTEM_ORDER } from './shelf.js'
+import { buildShelf, buildSystems, jumpBackIn, favoriteGames, mostPlayed, tagRails, agoLabel, stepLetter, SYSTEM_ORDER } from './shelf.js'
 
 const g = (id, name, label) => ({ id, name, label, core: 'gb' })
 
@@ -93,6 +93,29 @@ describe('buildShelf', () => {
   it('drops the Most played row when nothing has been played', () => {
     const rails = buildShelf(LIBRARY, [], [], [])
     expect(rails.map((r) => r.id)).toEqual(['systems'])
+  })
+
+  it('adds a Finished rail (after Most played) and one rail per tag, then Systems', () => {
+    const rails = buildShelf(LIBRARY, [], [], [], {
+      finished: ['3'],
+      tags: { Zelda: ['2'], Sonic: ['4'] },
+    })
+    // finished after mostPlayed; tag rails in tag-name order; systems always last.
+    expect(rails.map((r) => r.id)).toEqual(['finished', 'tag:Sonic', 'tag:Zelda', 'systems'])
+    expect(rails.find((r) => r.id === 'finished').items.map((g) => g.id)).toEqual(['3'])
+  })
+})
+
+describe('tagRails', () => {
+  it('builds one game rail per tag, in tag-name order, re-hydrated', () => {
+    const rails = tagRails(LIBRARY, { Sonic: ['4'], Adventure: ['1', '2'] })
+    expect(rails.map((r) => r.title)).toEqual(['Adventure', 'Sonic'])
+    expect(rails[0].items.map((g) => g.name)).toEqual(['Pokemon Red', "Link's Awakening"])
+    expect(rails[0]).toMatchObject({ id: 'tag:Adventure', tag: 'Adventure', kind: 'game' })
+  })
+
+  it('drops a tag whose games have all left the library', () => {
+    expect(tagRails(LIBRARY, { Ghosts: ['gone'] })).toEqual([])
   })
 })
 

@@ -235,11 +235,21 @@ def test_list_play_stats_orders_by_playtime_and_skips_unplayed():
     assert all(s["game_id"] != "c.gb" for s in stats)  # no counted time → excluded
 
 
-def test_play_time_endpoint_ignores_short_sessions(client, rom_dir):
+def test_play_time_endpoint_ignores_nonpositive(client, rom_dir):
+    # The "too short to count" judgement lives on the client now; the backend only
+    # drops non-positive reports (a legit report can be a small chunk of a long session).
     r = client.post("/api/library/games/play-time",
-                    json={"id": "Tetris.gb", "core": "gb", "ms": 1000})
+                    json={"id": "Tetris.gb", "core": "gb", "ms": 0})
     assert r.status_code == 200 and r.json()["counted"] is False
     assert db.list_play_stats() == []  # nothing recorded
+    # A small positive chunk IS counted (no server-side floor).
+    assert client.post("/api/library/games/play-time",
+                       json={"id": "Tetris.gb", "core": "gb", "ms": 1500}).json()["counted"] is True
+
+
+def test_play_time_endpoint_rejects_bogus_rom(client, rom_dir):
+    assert client.post("/api/library/games/play-time",
+                       json={"id": "Nope.gb", "core": "gb", "ms": 60_000}).status_code == 404
 
 
 def test_play_time_endpoint_caps_a_single_report(client, rom_dir):
@@ -255,12 +265,62 @@ def test_play_stats_endpoint_lists_owned_games_most_played_first(client, rom_dir
                 json={"id": "Tetris.gb", "core": "gb", "ms": 30_000})
     client.post("/api/library/games/play-time",
                 json={"id": "Zelda.gbc", "core": "gbc", "ms": 120_000})
-    client.post("/api/library/games/play-time",  # ROM not present → dropped
-                json={"id": "Gone.gb", "core": "gb", "ms": 200_000})
+    # A stat whose ROM has since left the library (inserted directly, past the write
+    # guard) is dropped by the read-side filter, not surfaced with a stale name.
+    db.add_play_time("Gone.gb", "gb", 200_000)
     items = client.get("/api/library/games/play-stats").json()["items"]
     assert [i["id"] for i in items] == ["Zelda.gbc", "Tetris.gb"]
     assert items[0]["play_ms"] == 120_000 and items[0]["plays"] == 1
     assert all(i["id"] != "Gone.gb" for i in items)
+
+
+# --- collections: finished flag + tags -------------------------------------
+
+def test_set_finished_toggles_and_clears():
+    db.set_finished("a.gb", True)
+    db.set_finished("b.gb", True)
+    assert set(db.list_finished()) == {"a.gb", "b.gb"}
+    db.set_finished("a.gb", False)  # clearing removes the row
+    assert db.list_finished() == ["b.gb"]
+
+
+def test_tags_add_remove_and_group():
+    db.add_tag("a.gb", "RPG")
+    db.add_tag("a.gb", "RPG")  # idempotent — no duplicate membership
+    db.add_tag("b.gb", "RPG")
+    db.add_tag("a.gb", "Co-op")
+    grouped = db.tags_grouped()
+    assert set(grouped["RPG"]) == {"a.gb", "b.gb"}
+    assert grouped["Co-op"] == ["a.gb"]
+    assert db.remove_tag("a.gb", "RPG") is True
+    assert db.tags_grouped()["RPG"] == ["b.gb"]  # tag survives while any game wears it
+
+
+def test_collections_endpoint_returns_finished_and_tags(client, rom_dir):
+    client.post("/api/library/games/finished", json={"id": "Tetris.gb", "finished": True})
+    client.post("/api/library/games/tags", json={"id": "Tetris.gb", "tag": "Puzzle"})
+    client.post("/api/library/games/tags", json={"id": "Zelda.gbc", "tag": "Puzzle"})
+    body = client.get("/api/library/games/collections").json()
+    assert body["finished"] == ["Tetris.gb"]
+    assert set(body["tags"]["Puzzle"]) == {"Tetris.gb", "Zelda.gbc"}
+
+
+def test_tag_write_cleans_and_rejects_empty(client, rom_dir):
+    r = client.post("/api/library/games/tags", json={"id": "Tetris.gb", "tag": "  Action  RPG "})
+    assert r.status_code == 200 and r.json()["tag"] == "Action RPG"  # whitespace collapsed
+    assert client.post("/api/library/games/tags", json={"id": "Tetris.gb", "tag": "   "}).status_code == 422
+
+
+def test_collections_write_rejects_bogus_rom(client, rom_dir):
+    assert client.post("/api/library/games/finished", json={"id": "Nope.gb", "finished": True}).status_code == 404
+    assert client.post("/api/library/games/tags", json={"id": "Nope.gb", "tag": "X"}).status_code == 404
+
+
+def test_delete_tag_endpoint(client, rom_dir):
+    client.post("/api/library/games/tags", json={"id": "Tetris.gb", "tag": "Fav"})
+    assert client.delete("/api/library/games/tags", params={"id": "Tetris.gb", "tag": "Fav"}).status_code == 204
+    assert client.delete("/api/library/games/tags", params={"id": "Tetris.gb", "tag": "Fav"}).status_code == 404
+    assert client.get("/api/library/games/collections").json()["tags"] == {}
 
 
 # --- title cleanup + sort --------------------------------------------------

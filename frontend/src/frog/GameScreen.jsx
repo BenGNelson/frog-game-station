@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   Play, Star, Download, Check, Trash2, TriangleAlert, Loader, X, ChevronLeft, ChevronRight,
-  Maximize2, RefreshCw,
+  Maximize2, RefreshCw, Trophy, Tag, Plus,
 } from 'lucide-react'
 import { coverUrl, saveStateShotUrl, igdbShotUrl } from '../lib/library.js'
 import { formatPlaytime } from '../lib/format.js'
 import { useFocusTrap } from '../lib/useFocusTrap.js'
 import { FROG, systemStyle, reflection } from './theme.js'
 import { SystemFrog, Reflected } from './Frog.jsx'
+import { FinishedBadge } from './Shelf.jsx'
 import { agoLabel } from './shelf.js'
 
 // FROG — a game's page.
@@ -34,6 +35,10 @@ export default function GameScreen({
   loadingSaves,
   similar = [],
   playMs,
+  finished = false,
+  tags = [],
+  allTags = [],
+  tagPicker,
   download,
   focus,
   confirm,
@@ -46,6 +51,12 @@ export default function GameScreen({
   onPlaySlot,
   onOpenSimilar,
   onToggleFavorite,
+  onToggleFinished,
+  onOpenTags,
+  onToggleTag,
+  onAddTag,
+  onTagPickerFocus,
+  onCloseTags,
   onDownload,
   onRequestDeleteSave,
   onOpenShot,
@@ -106,6 +117,18 @@ export default function GameScreen({
       >
         <DownloadIcon state={download.state} />
       </ActionButton>
+
+      <ActionButton
+        focused={on('actions', 3)}
+        onFocus={() => onFocus('actions', 3)}
+        onClick={onToggleFinished}
+        accent={FROG.jade}
+        active={finished}
+        label={finished ? 'Finished' : 'Mark finished'}
+        testid="frog-detail-finished"
+      >
+        <Trophy className="h-5 w-5" fill={finished ? 'currentColor' : 'none'} aria-hidden="true" />
+      </ActionButton>
     </div>
   )
 
@@ -123,11 +146,12 @@ export default function GameScreen({
             s={s}
             slide={slide}
             focused={on('hero', 0)}
+            finished={finished}
             onOpen={onOpenShot}
             onHover={() => onFocus('hero', 0)}
           />
         ) : (
-          <BasicHeader game={game} s={s} actions={actions} />
+          <BasicHeader game={game} s={s} actions={actions} finished={finished} />
         )}
 
         <div className="flex flex-col gap-6 px-6 pb-4 pt-5">
@@ -148,6 +172,14 @@ export default function GameScreen({
               onClick={onOpenRematch}
             />
           )}
+
+          <CollectionsRow
+            tags={tags}
+            focused={on('tags', 0)}
+            accent={s.accent}
+            onFocus={() => onFocus('tags', 0)}
+            onOpen={onOpenTags}
+          />
 
           <SaveShelf
             game={game}
@@ -170,6 +202,19 @@ export default function GameScreen({
           )}
         </div>
       </div>
+
+      {tagPicker && (
+        <TagPicker
+          tags={tags}
+          allTags={allTags}
+          focus={tagPicker}
+          accent={s.accent}
+          onFocus={onTagPickerFocus}
+          onToggle={onToggleTag}
+          onAdd={onAddTag}
+          onClose={onCloseTags}
+        />
+      )}
 
       {rematch && (
         <RematchDialog
@@ -206,10 +251,10 @@ export default function GameScreen({
 // The basic (unmatched / dormant / still-loading) header — a ROM hack looks exactly
 // like it did before IGDB existed: the cover, the frog wearing this machine, the
 // title, and the actions beside them.
-function BasicHeader({ game, s, actions }) {
+function BasicHeader({ game, s, actions, finished }) {
   return (
     <div className="flex shrink-0 gap-5 px-6 pt-6">
-      <Cover game={game} accent={s.accent} className="w-32 sm:w-40" />
+      <Cover game={game} accent={s.accent} finished={finished} className="w-32 sm:w-40" />
       <div className="flex min-w-0 flex-1 flex-col">
         <div className="flex items-start gap-3">
           <div className="min-w-0 flex-1">
@@ -238,7 +283,7 @@ function BasicHeader({ game, s, actions }) {
 // banner (or A when it's focused) opens the shots fullscreen. `slide` is the active
 // screenshot index (FrogBrowser owns it so the auto-advance can pause for the lightbox
 // and the D-pad can peek); dots show where you are.
-function RichHero({ game, meta, shots, s, slide, focused, onOpen, onHover }) {
+function RichHero({ game, meta, shots, s, slide, focused, finished, onOpen, onHover }) {
   const n = shots.length
   const idx = n ? ((slide % n) + n) % n : 0
   return (
@@ -312,7 +357,7 @@ function RichHero({ game, meta, shots, s, slide, focused, onOpen, onHover }) {
 
         {/* Overlaid: the cover + title + facts, sitting on the scrim. */}
         <div className="absolute inset-x-0 bottom-0 flex items-end gap-4 p-5 sm:gap-5 sm:p-6">
-          <Cover game={game} accent={s.accent} className="w-24 sm:w-28" />
+          <Cover game={game} accent={s.accent} finished={finished} className="w-24 sm:w-28" />
           <div className="min-w-0 flex-1 pb-1">
             <h1
               className="text-2xl font-semibold leading-tight sm:text-3xl"
@@ -353,13 +398,14 @@ function RichHero({ game, meta, shots, s, slide, focused, onOpen, onHover }) {
 
 // The box-art cover, with the machine's accent edge + reflection glow. Shared by both
 // headers so a matched and unmatched game frame their cover identically.
-function Cover({ game, accent, className = '' }) {
+function Cover({ game, accent, finished, className = '' }) {
   return (
     <div
       className={`relative shrink-0 overflow-hidden rounded-2xl ${className}`}
       style={{ border: `1px solid rgba(${accent}, 0.4)`, boxShadow: reflection(accent), background: '#000' }}
     >
       <img src={coverUrl(game.id)} alt="" className="aspect-[3/4] w-full object-cover" />
+      {finished && <FinishedBadge />}
       <div
         className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3"
         style={{ background: `linear-gradient(to top, rgba(${accent}, 0.4), transparent)` }}
@@ -762,6 +808,172 @@ function RematchDialog({ rematch, accent, onHover, onPick, onCancel }) {
           style={{ background: 'transparent', color: FROG.soft, border: `1px solid ${FROG.line}`, opacity: busy ? 0.6 : 1 }}
         >
           Cancel
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// The "Collections" row (zone 'tags') — the game's current tags as chips, plus a prompt
+// to add. One focusable target; A opens the picker where the actual add/remove happens.
+function CollectionsRow({ tags, focused, accent, onFocus, onOpen }) {
+  return (
+    <div>
+      <Heading>COLLECTIONS</Heading>
+      <button
+        type="button"
+        data-testid="frog-detail-tags"
+        data-focused={focused || undefined}
+        onMouseMove={onFocus}
+        onClick={onOpen}
+        className="flex w-full flex-wrap items-center gap-2 rounded-xl px-3 py-2.5 text-left transition-colors"
+        style={{
+          background: focused ? `rgba(${accent}, 0.14)` : FROG.panel,
+          boxShadow: focused ? `inset 0 0 0 1px rgba(${accent}, 0.5)` : `inset 0 0 0 1px ${FROG.line}`,
+        }}
+      >
+        {tags.length === 0 ? (
+          <span className="flex items-center gap-2 text-sm" style={{ color: FROG.faint }}>
+            <Plus className="h-4 w-4" aria-hidden="true" /> Add to a collection
+          </span>
+        ) : (
+          <>
+            {tags.map((t) => (
+              <span
+                key={t}
+                className="flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium"
+                style={{ background: `rgba(${accent}, 0.16)`, color: `rgb(${accent})` }}
+              >
+                <Tag className="h-3 w-3" aria-hidden="true" /> {t}
+              </span>
+            ))}
+            <span className="flex items-center gap-1 text-xs" style={{ color: FROG.faint }}>
+              <Plus className="h-3.5 w-3.5" aria-hidden="true" /> Edit
+            </span>
+          </>
+        )}
+      </button>
+    </div>
+  )
+}
+
+// The tag picker (input-trapped, like the re-match dialog). The parent owns the D-pad
+// highlight over the EXISTING tags (A toggles this game's membership); the new-collection
+// field above the list is a native input for touch/keyboard — the controller drives the
+// list, a keyboard or thumb creates a brand-new tag. `focus.index` addresses the tag list.
+function TagPicker({ tags, allTags, focus, accent, onFocus, onToggle, onAdd, onClose }) {
+  const panelRef = useRef(null)
+  useFocusTrap(panelRef)
+  const [draft, setDraft] = useState('')
+  const has = new Set(tags)
+  const submit = () => {
+    if (draft.trim()) {
+      onAdd(draft)
+      setDraft('')
+    }
+  }
+  return (
+    <div
+      data-testid="frog-tag-picker"
+      className="absolute inset-0 z-20 flex items-center justify-center p-6"
+      style={{ background: 'rgba(5, 17, 13, 0.72)', backdropFilter: 'blur(3px)' }}
+      onClick={onClose}
+    >
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="frog-tags-title"
+        tabIndex={-1}
+        className="w-full max-w-sm rounded-2xl p-5 outline-none"
+        style={{ background: FROG.panel, border: `1px solid ${FROG.line}`, boxShadow: '0 20px 60px rgba(0,0,0,0.6)' }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <p id="frog-tags-title" className="px-1 text-sm font-semibold" style={{ color: FROG.ink }}>
+          Collections
+        </p>
+        <p className="mb-3 mt-0.5 px-1 text-xs leading-relaxed" style={{ color: FROG.faint }}>
+          Tag this game to group it into a rail on your shelf.
+        </p>
+
+        <div
+          className="mb-3 flex items-center gap-2 rounded-xl px-2 py-1"
+          style={{ border: `1px solid ${FROG.line}` }}
+        >
+          <input
+            data-testid="frog-tag-input"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                submit()
+              } else if (e.key === 'Escape') {
+                // While the field is focused the global handler routes Escape to the
+                // search toggle (its INPUT special-case), which the picker's input-trap
+                // then swallows — so close the picker here instead of relying on it.
+                e.preventDefault()
+                onClose()
+              }
+            }}
+            placeholder="New collection…"
+            maxLength={40}
+            className="min-w-0 flex-1 bg-transparent px-2 py-1.5 text-sm outline-none"
+            style={{ color: FROG.ink }}
+          />
+          <button
+            type="button"
+            aria-label="Create collection"
+            onClick={submit}
+            disabled={!draft.trim()}
+            className="shrink-0 rounded-lg p-1.5"
+            style={{ color: draft.trim() ? `rgb(${accent})` : FROG.faint }}
+          >
+            <Plus className="h-5 w-5" aria-hidden="true" />
+          </button>
+        </div>
+
+        {allTags.length > 0 ? (
+          <ul className="max-h-64 space-y-1 overflow-y-auto" style={{ scrollbarWidth: 'none' }}>
+            {allTags.map((t, i) => {
+              const focused = focus.index === i
+              const active = has.has(t)
+              return (
+                <li key={t}>
+                  <button
+                    type="button"
+                    data-testid="frog-tag-option"
+                    data-focused={focused || undefined}
+                    onMouseMove={() => onFocus(i)}
+                    onClick={() => onToggle(t)}
+                    className="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left"
+                    style={{
+                      background: focused ? `rgba(${accent}, 0.16)` : 'transparent',
+                      boxShadow: focused ? `inset 0 0 0 1px rgba(${accent}, 0.5)` : 'none',
+                    }}
+                  >
+                    <span className="flex items-center gap-2 text-sm font-medium" style={{ color: active ? FROG.ink : FROG.soft }}>
+                      <Tag className="h-3.5 w-3.5" aria-hidden="true" /> {t}
+                    </span>
+                    {active && <Check className="h-4 w-4 shrink-0" style={{ color: `rgb(${accent})` }} aria-hidden="true" />}
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        ) : (
+          <p className="px-1 py-2 text-xs" style={{ color: FROG.faint }}>
+            No collections yet — type a name above to make your first one.
+          </p>
+        )}
+
+        <button
+          type="button"
+          onClick={onClose}
+          className="mt-3 w-full rounded-xl px-4 py-2 text-sm font-medium"
+          style={{ background: 'transparent', color: FROG.soft, border: `1px solid ${FROG.line}` }}
+        >
+          Done
         </button>
       </div>
     </div>

@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Trophy } from 'lucide-react'
 import { coverUrl, ALPHABET, letterOf } from '../lib/library.js'
 import { windowRange, spacers } from '../lib/windowRange.js'
 import { FROG, systemStyle, reflection } from './theme.js'
 import Console from './Console.jsx'
 import { Reflected, SystemFrog } from './Frog.jsx'
+import { FinishedBadge } from './Shelf.jsx'
 
 const ROW = 44
 
@@ -26,9 +28,10 @@ const ROW = 44
 //
 // The letter rail on the right is the fast lane: the triggers jump letter to letter,
 // so getting to "Super Mario World" is two flicks and not sixty presses.
-export default function GameList({ system, games, focus, onFocus, onPick }) {
+export default function GameList({ system, games, focus, finishedIds, onFocus, onPick }) {
   const s = systemStyle(system)
   const current = games[focus] ?? null
+  const isFinished = (id) => !!finishedIds?.has(id)
 
   const scrollerRef = useRef(null)
   const [scrollTop, setScrollTop] = useState(0)
@@ -108,6 +111,7 @@ export default function GameList({ system, games, focus, onFocus, onPick }) {
                 alt=""
                 className="frog-rise aspect-[3/4] w-full object-cover"
               />
+              {isFinished(current.id) && <FinishedBadge size={28} />}
               <div
                 className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3"
                 style={{ background: `linear-gradient(to top, rgba(${s.accent}, 0.4), transparent)` }}
@@ -159,6 +163,14 @@ export default function GameList({ system, games, focus, onFocus, onPick }) {
                   >
                     {g.name}
                   </span>
+                  {isFinished(g.id) && (
+                    <Trophy
+                      className="ml-auto h-3.5 w-3.5 shrink-0"
+                      style={{ color: `rgb(${FROG.jade})` }}
+                      fill="currentColor"
+                      aria-label="Finished"
+                    />
+                  )}
                 </button>
               </li>
             )

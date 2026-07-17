@@ -40,13 +40,15 @@ reachable from anywhere. The shape of them is the design:
   is also what tells Frog whether to lay itself out for a pad or a thumb. A faint version
   stamp sits in the corner (the app version, injected from `package.json` at build via a
   Vite `define` → `import.meta.env.VITE_APP_VERSION`) — a quiet portfolio signature.
-- **"Jump back in" is rail zero, Favorites is rail one, "Most played" is rail two.** You
-  are almost always coming back to the same game, so the rows that mean *most sessions
-  never touch the alphabet* come first. Favorites are starred on a game's page (a
-  client-side list, like recents); **Most played** is server-owned (see play-time below),
-  fetched fresh on every return to the shelf. All three are re-hydrated against the live
-  library so a game that has left the collection simply drops out, and each row disappears
-  when empty. (`buildShelf` in `shelf.js` decides the whole set.)
+- **The rails, in order: "Jump back in", Favorites, "Most played", "Finished", then one
+  rail per collection, then Systems.** You are almost always coming back to the same game,
+  so the rows that mean *most sessions never touch the alphabet* come first. Favorites are
+  starred on a game's page (a client-side list, like recents); **Most played**, **Finished**,
+  and the **per-tag collection rails** are server-owned (see Collections + play-time below),
+  fetched fresh on every return to the shelf. All are re-hydrated against the live library
+  so a game that has left simply drops out, and each row disappears when empty.
+  (`buildShelf` in `shelf.js` decides the whole set; `tagRails` builds the collection rows
+  in tag-name order.)
 - **The systems row never scrolls.** A small, fixed set of machines fits on one screen —
   no carousel, no hidden tile — so you can see the shape of the whole collection at a
   glance. A system with no games keeps its tile, dimmed.
@@ -66,11 +68,19 @@ reachable from anywhere. The shape of them is the design:
   a second line points at `IGDB_CLIENT_ID` / `IGDB_CLIENT_SECRET` for cover art. Offline
   with nothing downloaded gets its own honest line instead.
 - **Picking a game opens its page, not the game.** The game page carries the cover, a big
-  Play (defaulting to the battery save), favourite, download-for-offline, and the
-  save-state shelf (each snapshot launches with its slot; delete is guarded by a confirm,
-  and is both controller- and touch-drivable). The **one exception is "Jump back in": A
-  there resumes the game instantly** (that rail is *for* fast resume; a secondary button
-  still opens the page).
+  Play (defaulting to the battery save), favourite, download-for-offline, a **Finished**
+  toggle, a **Collections** row, and the save-state shelf (each snapshot launches with its
+  slot; delete is guarded by a confirm, and is both controller- and touch-drivable). The
+  **one exception is "Jump back in": A there resumes the game instantly** (that rail is *for*
+  fast resume; a secondary button still opens the page).
+  - **Collections: a "finished" flag + free-form tags, both server-owned so they roam.** The
+    finished toggle is a one-tap status (its own action, a trophy badge on every cover, and
+    a "Finished" shelf rail). Tags are a *set* — a "Collections" focus zone opens a picker
+    (input-trapped like the re-match dialog): the D-pad walks the existing tags and A toggles
+    this game's membership; a native text field above the list creates a brand-new tag
+    (touch keyboard / hardware keyboard — the controller drives the list, a keyboard or thumb
+    makes new tags). Each tag becomes its own shelf rail. Optimistic: an edit updates the
+    client `collections` state at once (so the rails react immediately) and fires the write.
   - **When IGDB has matched the ROM, the page fills with the real game** — a large hero
     banner whose **background *is* the screenshots, slowly crossfading** (no separate
     strip; the cover, title, summary, genres, rating, and developer/publisher sit over
@@ -302,16 +312,33 @@ persistence.
 
 ### Play-time tracking
 
-The same `game_progress` row that holds "last played" also accumulates **`play_ms`** (and a
-session count) — the server-owned total behind the shelf's "Most played" rail and the game
-page's play-time line. It's measured in the **parent**, for the same reason saves are:
-`usePlayTime` (a sibling to `useGameSaves`) clocks wall-time while the game is on screen —
-playing *or* paused, but never while the tab is hidden — and POSTs the **delta** on quit and
-on hide (`sendBeacon`, so it survives the very teardown that ends the session). Deltas simply
-add, so a hide→return→quit run double-reports without double-counting. The endpoint drops
-too-short sessions (menu bounces) and clamps a single report, so a wedged client can't book
-days. Recording play-time also refreshes last-played — actually playing is the truest
-recency signal, stronger than the save-triggered marker.
+A dedicated **`game_playtime`** table accumulates **`play_ms`** (and a session count) per game
+— the server-owned total behind the shelf's "Most played" rail and the game page's play-time
+line. It is kept **separate from `game_progress`** on purpose: a `game_progress` row means
+"has a resumable save" (it drives Jump Back In, which resumes via SRAM), so merely playing a
+game for a few seconds must never fake a save there. Play-time is measured in the **parent**,
+for the same reason saves are: `usePlayTime` (a sibling to `useGameSaves`) clocks wall-time
+while the game is on screen — playing *or* paused, but never while the tab is hidden — and
+POSTs the **delta** on quit and on hide (`sendBeacon`, so it survives the very teardown that
+ends the session). Deltas simply add, so a hide→return→quit run double-reports without
+double-counting. The endpoint drops too-short sessions (menu bounces) and clamps a single
+report, so a wedged client can't book days.
+
+### Collections (the finished flag + tags)
+
+Two more server-owned per-game tables, both sparse (only flagged/tagged games get a row):
+`game_flags` (a boolean `finished`) and `game_tags` — a **join table**, one row per
+(game, tag) membership, so "every game in collection X" is a cheap indexed lookup, which is
+what the per-tag rails want. The tag namespace is simply the set of distinct `tag` values, so
+a tag exists exactly as long as some game wears it. One `GET /library/games/collections`
+returns everything as ids (`{ finished: [...], tags: { tag: [...] } }`); the frontend
+re-hydrates against the live library like the other rails, and edits are optimistic (writes
+via `POST finished` / `POST tags` / `DELETE tags`). This is a deliberate step *toward* the
+backend: favorites and recents are still the last client-only (this-device) holdouts, but
+collections are the kind of state you curate on the couch and check on your phone, so they
+roam from day one. **Known limitation:** creating a *new* tag needs the native text field
+(touch / hardware keyboard); a controller-only on-screen keyboard for new tags is a follow-up
+(assigning *existing* tags is fully controller-drivable).
 
 ### Presentation: titles and box art
 
