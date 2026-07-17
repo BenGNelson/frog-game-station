@@ -21,6 +21,7 @@ import { FROG } from './theme.js'
 export default function Boot({ onDone }) {
   // 'rising' → the frog is surfacing; 'ready' → it's waiting on you.
   const [phase, setPhase] = useState('rising')
+  const version = import.meta.env.VITE_APP_VERSION
 
   useEffect(() => {
     const t = setTimeout(() => setPhase('ready'), 1150)
@@ -103,6 +104,17 @@ export default function Boot({ onDone }) {
           </p>
         )}
       </div>
+
+      {/* A quiet build stamp in the corner — the portfolio signature, never loud enough
+          to compete with the invite. Injected from package.json at build time. */}
+      {version && (
+        <p
+          className="absolute bottom-3 right-4 text-[0.65rem] tracking-[0.22em]"
+          style={{ color: FROG.faint }}
+        >
+          v{version}
+        </p>
+      )}
     </div>
   )
 }

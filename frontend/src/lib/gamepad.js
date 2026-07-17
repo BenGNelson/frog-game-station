@@ -130,6 +130,10 @@ export function padAction(button) {
       return 'jumpPrev'
     case XBOX.RT:
       return 'jumpNext'
+    // Click the right stick to surface a game at random — the "surprise me" lane
+    // through a library too big to scroll. It's the one stick-click either menu uses.
+    case XBOX.RS:
+      return 'random'
     case XBOX.DU:
       return 'up'
     case XBOX.DD:

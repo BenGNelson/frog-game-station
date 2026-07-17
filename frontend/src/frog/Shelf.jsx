@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { coverUrl } from '../lib/library.js'
 import { FROG, systemStyle, reflection } from './theme.js'
 import { agoLabel } from './shelf.js'
+import { useDozing } from '../lib/dayNight.js'
 import { Reflected, SystemFrog } from './Frog.jsx'
 import Console from './Console.jsx'
 
@@ -136,6 +137,8 @@ function Heading({ children }) {
 
 export default function Shelf({ rails, focus, onFocus, onPick }) {
   const railRefs = useRef([])
+  // The mascot dozes after hours (closed eyes), on the wall clock.
+  const dozing = useDozing()
 
   // Keep the focused tile on screen as the pad/keyboard moves focus. `block: 'nearest'`
   // handles both axes — the horizontal "Jump back in" rail and, on a phone, a systems
@@ -175,10 +178,10 @@ export default function Shelf({ rails, focus, onFocus, onPick }) {
                 `hidden` passed alongside it, so toggling it directly leaves BOTH
                 frogs on screen. A plain wrapper has no such fight. */}
             <div className="lg:hidden">
-              <SystemFrog size={128} system={system} />
+              <SystemFrog size={128} system={system} asleep={dozing} />
             </div>
             <div className="hidden lg:block">
-              <SystemFrog size={210} system={system} />
+              <SystemFrog size={210} system={system} asleep={dozing} />
             </div>
           </Reflected>
         </div>

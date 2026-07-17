@@ -30,7 +30,7 @@ It has a hand-drawn **frog mascot** and a **WATER / jade dark theme** — a pond
 
 ## Features
 
-- **Five console-style screens** — boot, shelf, per-system game list, and a full game page, with search reachable anywhere. The shelf leads with "Jump back in" and Favorites, so most sessions never touch the alphabet.
+- **Five console-style screens** — boot, shelf, per-system game list, and a full game page, with search reachable anywhere. The shelf leads with "Jump back in" and Favorites, so most sessions never touch the alphabet. Click the right stick (R3, or `R`) for **"surprise me"** — a random title, from anywhere.
 - **Rich IGDB metadata** — a background matcher pairs each ROM with its IGDB entry: a hero banner built from slowly crossfading screenshots, cover art, summary, genres, rating, and developer/publisher. Unmatched ROMs (a hack, or no key configured) degrade cleanly to a basic cover-and-title page — nothing ever looks broken.
 - **Save states + battery saves (SRAM)** — your in-game "Save → Continue" battery save roams and is backed up server-side; explicit save states are captured as snapshots (with a screenshot thumbnail) and relaunched from the game page.
 - **Offline play + installable PWA** — download games to your device, add Frog to your home screen, and play offline; the shelf, list, and search all fall back to your downloaded library automatically.
@@ -92,7 +92,9 @@ scripts/fetch-emulatorjs.sh
 docker compose up -d
 ```
 
-Then open <http://localhost:8585> (or whatever you set `FRONTEND_PORT` to).
+Then open <http://localhost:8585> (or whatever you set `FRONTEND_PORT` to). On a fresh
+install with no games yet, the shelf shows a quiet first-run screen that nudges you toward
+the one or two things to set (`ROMS_DIR`, and IGDB credentials for cover art).
 
 The EmulatorJS engine is **not** committed to the repo (it's large and pinned to v4.2.3). `scripts/fetch-emulatorjs.sh` downloads it into `frontend/public/emulatorjs/` (gitignored); alternatively the player can be pointed at the public CDN.
 

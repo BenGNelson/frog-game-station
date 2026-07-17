@@ -37,7 +37,9 @@ reachable from anywhere. The shape of them is the design:
 - **The boot exists for a reason, not for a logo.** iOS does not report a connected
   controller until a button is pressed on it, so *something* has to ask for that press.
   "PRESS A" is a nicer way to ask than a "no controller detected" banner — and the press
-  is also what tells Frog whether to lay itself out for a pad or a thumb.
+  is also what tells Frog whether to lay itself out for a pad or a thumb. A faint version
+  stamp sits in the corner (the app version, injected from `package.json` at build via a
+  Vite `define` → `import.meta.env.VITE_APP_VERSION`) — a quiet portfolio signature.
 - **"Jump back in" is rail zero, Favorites is rail one.** You are almost always coming
   back to the same game, so the rows that mean *most sessions never touch the alphabet*
   come first. Favorites are starred on a game's page (a client-side list, like recents)
@@ -52,6 +54,15 @@ reachable from anywhere. The shape of them is the design:
   grid truncates them. The art gets one slot, big, next to whatever you're pointing at —
   you find by reading and confirm by looking. The triggers move a *letter* at a time,
   which is what keeps a 500-game system from being sixty D-pad presses.
+- **Clicking the right stick (R3, or `R`) is "surprise me."** It opens a random title's
+  page from anywhere — a re-roll even while a game page is already open. It's a global
+  `random` action in the `act` dispatcher, ahead of the per-screen handlers, and lands on
+  the page (not straight into play) so a roll you didn't want costs one B, not a launch.
+- **The empty shelf is a first-run nudge, not a wall of dimmed tiles.** With no games the
+  pond is simply quiet — a dozing frog over its reflection and a plain-language nudge to
+  set `ROMS_DIR`. If IGDB isn't configured either (checked via the matcher's status),
+  a second line points at `IGDB_CLIENT_ID` / `IGDB_CLIENT_SECRET` for cover art. Offline
+  with nothing downloaded gets its own honest line instead.
 - **Picking a game opens its page, not the game.** The game page carries the cover, a big
   Play (defaulting to the battery save), favourite, download-for-offline, and the
   save-state shelf (each snapshot launches with its slot; delete is guarded by a confirm,
@@ -70,6 +81,10 @@ reachable from anywhere. The shape of them is the design:
 - **The frog holds its console.** Colour alone can't tell two similar handhelds apart, so
   a small drawn console badge is pinned to the mascot's corner wherever it stands in for
   the focused system (shelf, game list, game page).
+- **The mascot keeps the clock.** The shelf frog closes its eyes at night (22:00–05:59
+  local, re-checked on a slow tick so it nods off if you leave the shelf open past
+  bedtime), driven by the pure `frogDozes` predicate in `lib/dayNight.js` through its
+  existing `asleep` art — a bit of life, no new drawing.
 
 ### Search — a keyboard that refuses to waste your presses
 

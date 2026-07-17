@@ -110,9 +110,15 @@ describe('padAction', () => {
     expect(padAction(XBOX.RT)).toBe('jumpNext')
   })
 
+  it('clicks the right stick to surface a random game', () => {
+    expect(padAction(XBOX.RS)).toBe('random')
+    expect(padAction(11)).toBe('random')
+  })
+
   it('ignores buttons with no meaning to a menu', () => {
     expect(padAction(XBOX.GUIDE)).toBeNull()
     expect(padAction(XBOX.VIEW)).toBeNull()
+    expect(padAction(XBOX.LS)).toBeNull()
   })
 })
 
