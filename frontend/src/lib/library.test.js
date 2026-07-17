@@ -40,10 +40,9 @@ describe('coverUrl', () => {
 })
 
 describe('sectionAccent', () => {
-  it('gives each known section a constant-palette accent', () => {
+  it('gives games its constant-palette accent', () => {
     expect(sectionAccent('games').text).toBe('text-violet-300')
-    expect(sectionAccent('audiobooks').rgb).toBe('244,63,94')
-    expect(sectionAccent('textbooks').text).toBe('text-indigo-300')
+    expect(sectionAccent('games').rgb).toBe('139,92,246')
   })
   it('falls back to a neutral accent for an unknown section', () => {
     expect(sectionAccent('nope').text).toBe('text-slate-300')

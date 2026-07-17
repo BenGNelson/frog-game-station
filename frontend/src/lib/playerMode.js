@@ -14,20 +14,6 @@ export function resolveInputMode({ override, padActive, hasTouch }) {
   return hasTouch ? 'touch' : 'pad'
 }
 
-// A pad counts as "active" from its FIRST BUTTON PRESS, never from the
-// gamepadconnected event — on iOS Safari that event doesn't fire until a button
-// is pressed anyway, so waiting for it would leave the touch controls up on a
-// perfectly good controller.
-//
-// And it only goes inactive on a real disconnect, never on an idle timeout: a
-// controller resting on the couch through a long cutscene must not make the
-// touch pad reappear over the game.
-export function nextPadActive(padActive, event) {
-  if (event === 'pad-button') return true
-  if (event === 'pad-disconnected') return false
-  return padActive
-}
-
 // Touch mode has a real portrait layout (game on top, thumb controls below), so
 // only the controller needs landscape — with no on-screen controls there's
 // nothing to reflow, and a portrait letterbox wastes most of the screen.

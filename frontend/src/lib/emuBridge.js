@@ -24,7 +24,7 @@ export { RETROPAD, DIGITAL_INPUTS }
 // stamps the same number on the handle it exposes; a mismatch means the player
 // document and the app bundle are out of step (a stale cached emulator.html), and
 // we fall back to the engine's own UI rather than half-wiring ours.
-export const HQ_CONTRACT_VERSION = 1
+const HQ_CONTRACT_VERSION = 1
 
 // The engine config the parent hands the player document. It lives HERE rather
 // than hardcoded in emulator.html on purpose: emulator.html is excluded from

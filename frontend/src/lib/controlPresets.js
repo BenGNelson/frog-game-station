@@ -37,7 +37,7 @@ import { RETROPAD } from './retropad.js'
 // the browser's "standard" mapping — which an Xbox, DualSense, or 8BitDo pad all
 // do — puts its face buttons at indices 0-3, so these names are about POSITION
 // even though they read like Xbox letters.
-export const PAD_LABELS = {
+const PAD_LABELS = {
   BUTTON_1: 'A (bottom)',
   BUTTON_2: 'B (right)',
   BUTTON_3: 'X (left)',

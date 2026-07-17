@@ -90,7 +90,7 @@ export function buildShelf(items = [], recent = [], favorites = []) {
 // in ALPHABET. So a trigger press from the top row of the biggest library — the row
 // focus lands on by default — walked off the end of the alphabet and dumped you 490
 // games down. The list's own order is the only order that can't lie about itself.
-export function letterIndex(games = []) {
+function letterIndex(games = []) {
   const first = new Map()
   for (let i = 0; i < games.length; i++) {
     const ch = letterOf(games[i].name)
