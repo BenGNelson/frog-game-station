@@ -305,6 +305,14 @@ one folder, keyed by a hash of its id.
   states (screenshot thumbnails), and **Resume** relaunches loading the chosen state's
   bytes. Slot ids are backend-assigned millisecond timestamps (digits only) — which
   doubles as the traversal guard for the file paths.
+  - **Manage a slot: rename / annotate / pin.** A slot's default name is its age, but the
+    game page's save-shelf editor (a modal, Y or the pencil) gives it a custom **label**, a
+    **note**, and a **pin**. It's stored in a per-slot `{slot}.json` sidecar beside the state
+    (so it roams and is deleted with it), and the listing sorts **pinned-first, then newest**
+    — an order all three surfaces (both save shelves + Jump Back In) inherit for free. The
+    editor mirrors the tag picker: native fields for the text, the D-pad for the pin/delete
+    toggles. Deleting a state also removes its sidecar; clearing every field drops it, so an
+    untouched save stays sidecar-free.
 
 ### Why the parent owns saves
 
@@ -322,9 +330,10 @@ line. It is kept **separate from `game_progress`** on purpose: a `game_progress`
 "has a resumable save" (it drives Jump Back In, which resumes via SRAM), so merely playing a
 game for a few seconds must never fake a save there. Play-time is measured in the **parent**,
 for the same reason saves are: `usePlayTime` (a sibling to `useGameSaves`) clocks wall-time
-while the game is on screen — playing *or* paused, but never while the tab is hidden — and
-POSTs the **delta** on quit and on hide (`sendBeacon`, so it survives the very teardown that
-ends the session). Deltas simply add, so a hide→return→quit run double-reports without
+only while the game is actively **playing** — not while it's paused (a game left paused in a
+foreground tab would otherwise clock hours) and not while the tab is hidden — and POSTs the
+**delta** on quit and on hide (`sendBeacon`, so it survives the very teardown that ends the
+session). Deltas simply add, so a hide→return→quit run double-reports without
 double-counting. The endpoint drops too-short sessions (menu bounces) and clamps a single
 report, so a wedged client can't book days.
 

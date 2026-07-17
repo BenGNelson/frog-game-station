@@ -10,7 +10,7 @@
 // fetch/caches are injected so every path here is testable without a browser.
 
 import { GAME_SAVES_CACHE } from './offlineConfig.js'
-import { saveStatesUrl, saveStateUrl } from './library.js'
+import { saveStatesUrl, saveStateUrl, saveStateMetaUrl } from './library.js'
 
 export const localStateKey = (gameId) => `/__game-save/${encodeURIComponent(gameId)}`
 
@@ -136,4 +136,20 @@ export async function deleteState(gameId, slot, d) {
   const { fetch: f } = deps(d)
   const res = await f(`${saveStatesUrl(gameId)}&slot=${encodeURIComponent(slot)}`, { method: 'DELETE' })
   return res.ok
+}
+
+// Rename / annotate / pin a slot. Metadata-only (no local-cache mirror — a stale label
+// offline is harmless, unlike a lost save), so this is a plain best-effort POST.
+export async function setStateMeta(gameId, slot, { label, note, pinned }, d) {
+  const { fetch: f } = deps(d)
+  try {
+    const res = await f(saveStateMetaUrl(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: gameId, slot, label: label || null, note: note || null, pinned: !!pinned }),
+    })
+    return res.ok
+  } catch {
+    return false
+  }
 }

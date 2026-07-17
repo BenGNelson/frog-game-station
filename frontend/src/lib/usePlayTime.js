@@ -6,9 +6,11 @@ import { postPlayTime } from './library.js'
 //
 // A sibling to useGameSaves, and for the same reason it lives in the PARENT: the
 // session ends by the player iframe being torn down, and this needs to outlive that
-// to send the final tally. Wall-clock while the game is on screen (playing OR paused —
-// a glance at the pause menu is still your session), but NOT while the tab is hidden:
-// a backgrounded game isn't being played, so that time isn't counted.
+// to send the final tally. Wall-clock only while the game is actively PLAYING — the
+// caller passes `running` as exactly that. Paused time doesn't count (a game left paused
+// in a foreground tab would otherwise clock hours it was never played), and neither does
+// hidden time (a backgrounded game isn't being played). Pausing banks the stretch so far
+// and the clock resumes on unpause.
 //
 // Two things it gets right that a naive "post the delta on hide" does not:
 //   · The "too short to count" judgement is made HERE, against the whole SESSION total —

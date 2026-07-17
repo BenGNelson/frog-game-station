@@ -605,6 +605,72 @@ def test_save_state_without_screenshot(client, tmp_path, monkeypatch):
     assert lst[0]["has_shot"] is False
 
 
+def _make_state(saves_root, gid, slot):
+    """Write a bare state file for a slot directly on disk (so a test controls the
+    slot ids, which the create endpoint would otherwise stamp from the clock)."""
+    d = library.saves_game_dir(saves_root, gid)
+    os.makedirs(d, exist_ok=True)
+    open(os.path.join(d, f"{slot}.state"), "wb").write(b"S")
+
+
+def test_save_state_meta_rename_annotate_pin_roundtrips(client, tmp_path, monkeypatch):
+    saves = str(tmp_path / "saves")
+    monkeypatch.setattr(settings, "games_saves_dir", saves)
+    _make_state(saves, "Tetris.gb", "1000")
+
+    r = client.post("/api/library/games/save-states/meta",
+                    json={"id": "Tetris.gb", "slot": "1000",
+                          "label": "  Boss  fight ", "note": "half HP", "pinned": True})
+    assert r.status_code == 200 and r.json() == {"label": "Boss fight", "note": "half HP", "pinned": True}
+    st = client.get("/api/library/games/save-states", params={"id": "Tetris.gb"}).json()["states"][0]
+    assert st["label"] == "Boss fight" and st["note"] == "half HP" and st["pinned"] is True
+
+
+def test_save_state_meta_pinned_sorts_before_newer(client, tmp_path, monkeypatch):
+    saves = str(tmp_path / "saves")
+    monkeypatch.setattr(settings, "games_saves_dir", saves)
+    _make_state(saves, "Tetris.gb", "1000")  # older
+    _make_state(saves, "Tetris.gb", "2000")  # newer
+    # Newest-first by default: 2000, 1000.
+    slots = [s["slot"] for s in client.get("/api/library/games/save-states", params={"id": "Tetris.gb"}).json()["states"]]
+    assert slots == ["2000", "1000"]
+    # Pin the older one → it jumps to the top.
+    client.post("/api/library/games/save-states/meta", json={"id": "Tetris.gb", "slot": "1000", "pinned": True})
+    slots = [s["slot"] for s in client.get("/api/library/games/save-states", params={"id": "Tetris.gb"}).json()["states"]]
+    assert slots == ["1000", "2000"]
+
+
+def test_save_state_meta_clearing_removes_sidecar(client, tmp_path, monkeypatch):
+    saves = str(tmp_path / "saves")
+    monkeypatch.setattr(settings, "games_saves_dir", saves)
+    _make_state(saves, "Tetris.gb", "1000")
+    client.post("/api/library/games/save-states/meta", json={"id": "Tetris.gb", "slot": "1000", "label": "X"})
+    assert os.path.isfile(library.save_state_meta_file(saves, "Tetris.gb", "1000"))
+    # Clearing everything drops the sidecar → the save reverts to plain defaults.
+    client.post("/api/library/games/save-states/meta",
+                json={"id": "Tetris.gb", "slot": "1000", "label": "", "note": "", "pinned": False})
+    assert not os.path.isfile(library.save_state_meta_file(saves, "Tetris.gb", "1000"))
+    st = client.get("/api/library/games/save-states", params={"id": "Tetris.gb"}).json()["states"][0]
+    assert st["label"] is None and st["pinned"] is False
+
+
+def test_save_state_meta_unknown_slot_404(client, tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "games_saves_dir", str(tmp_path / "saves"))
+    assert client.post("/api/library/games/save-states/meta",
+                       json={"id": "Tetris.gb", "slot": "9999", "label": "x"}).status_code == 404
+
+
+def test_delete_save_state_removes_meta_sidecar(client, tmp_path, monkeypatch):
+    saves = str(tmp_path / "saves")
+    monkeypatch.setattr(settings, "games_saves_dir", saves)
+    _make_state(saves, "Tetris.gb", "1000")
+    client.post("/api/library/games/save-states/meta", json={"id": "Tetris.gb", "slot": "1000", "pinned": True})
+    meta = library.save_state_meta_file(saves, "Tetris.gb", "1000")
+    assert os.path.isfile(meta)
+    client.request("DELETE", "/api/library/games/save-states", params={"id": "Tetris.gb", "slot": "1000"})
+    assert not os.path.isfile(meta)  # the sidecar is gone, not orphaned
+
+
 def test_save_state_bad_slot_is_404(client, tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "games_saves_dir", str(tmp_path / "saves"))
     # Non-numeric slot can't resolve to a path (traversal guard) → 404.

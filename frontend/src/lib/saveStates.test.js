@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { saveState, loadState, listStates, deleteState, captureShot, localStateKey } from './saveStates.js'
+import { saveState, loadState, listStates, deleteState, setStateMeta, captureShot, localStateKey } from './saveStates.js'
 
 // A running engine, reduced to the two things save states touch.
 function fakeEmu({ state = new Uint8Array([1, 2, 3]), shot = new Blob(['png']) } = {}) {
@@ -160,5 +160,24 @@ describe('listStates / deleteState', () => {
     await expect(deleteState('g', '7', { fetch })).resolves.toBe(true)
     expect(fetch.mock.calls[0][0]).toContain('slot=7')
     expect(fetch.mock.calls[0][1].method).toBe('DELETE')
+  })
+})
+
+describe('setStateMeta', () => {
+  it('POSTs the rename/note/pin as JSON, coercing empties to null', async () => {
+    const fetch = vi.fn(async () => ({ ok: true }))
+    await expect(
+      setStateMeta('g', '7', { label: 'Boss', note: '', pinned: true }, { fetch })
+    ).resolves.toBe(true)
+    const [, opts] = fetch.mock.calls[0]
+    expect(opts.method).toBe('POST')
+    expect(JSON.parse(opts.body)).toEqual({ id: 'g', slot: '7', label: 'Boss', note: null, pinned: true })
+  })
+
+  it('returns false rather than throwing when offline', async () => {
+    const fetch = vi.fn(async () => {
+      throw new Error('offline')
+    })
+    await expect(setStateMeta('g', '7', { pinned: true }, { fetch })).resolves.toBe(false)
   })
 })

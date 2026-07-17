@@ -49,3 +49,29 @@ export function tagsForGame(tags, gameId) {
     .filter((t) => tags[t].includes(gameId))
     .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()))
 }
+
+// Reconcile a (possibly stale) server snapshot with the optimistic local state. The
+// mount-time GET can land AFTER the user has already edited a game — its response
+// predates that write, so applying it wholesale would revert the edit, and dropping it
+// wholesale would lose every OTHER game's server state it carried. So: take the server as
+// the base of truth, but for each game the user has touched since the fetch (`dirty`),
+// keep the LOCAL membership. Untouched games fill in from the server; edits survive.
+export function mergeCollections(server, local, dirty) {
+  const dirtySet = dirty instanceof Set ? dirty : new Set(dirty || [])
+  const sFin = server?.finished ?? []
+  const sTags = server?.tags ?? {}
+  if (!dirtySet.size) return { finished: [...sFin], tags: { ...sTags } }
+
+  const localFin = new Set(local.finished)
+  const finished = sFin.filter((id) => !dirtySet.has(id))
+  for (const id of dirtySet) if (localFin.has(id)) finished.unshift(id)
+
+  const tags = {}
+  for (const tag of new Set([...Object.keys(sTags), ...Object.keys(local.tags)])) {
+    const localMembers = new Set(local.tags[tag] ?? [])
+    const members = (sTags[tag] ?? []).filter((id) => !dirtySet.has(id))
+    for (const id of dirtySet) if (localMembers.has(id)) members.unshift(id)
+    if (members.length) tags[tag] = members
+  }
+  return { finished, tags }
+}
