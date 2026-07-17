@@ -943,10 +943,17 @@ export default function FrogBrowser() {
         {screen === 'games' && system ? (
           <GameListHeader system={system} count={games.length} />
         ) : (
-          <div className="flex items-center gap-2">
-            <FrogMark size={22} style={{ color: `rgb(${FROG.jade})` }} />
-            <span className="text-sm font-semibold tracking-[0.22em]" style={{ color: FROG.ink }}>
-              {screen === 'search' ? 'FROG · SEARCH' : screen === 'settings' ? 'FROG · SETTINGS' : 'FROG'}
+          <div className="flex min-w-0 items-center gap-2">
+            <FrogMark size={22} className="shrink-0" style={{ color: `rgb(${FROG.jade})` }} />
+            <span className="truncate text-sm font-semibold tracking-[0.16em]" style={{ color: FROG.ink }}>
+              FROG GAME STATION
+              {/* The section is redundant with the screen itself, so it only rides along
+                  where there's room — hidden on a phone so the name never truncates. */}
+              {(screen === 'search' || screen === 'settings') && (
+                <span className="hidden sm:inline">
+                  {screen === 'search' ? ' · SEARCH' : ' · SETTINGS'}
+                </span>
+              )}
             </span>
           </div>
         )}
