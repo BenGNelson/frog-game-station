@@ -106,8 +106,10 @@ Tailwind greys, no unstyled states.
 - [ ] Frog **`asleep` idle state driven by real time** (dozes at night)
 - [x] **Favicon / app-icon from the FrogMark** — DONE: `favicon.svg` reproduces the flat
       mark; `scripts/gen-icons.sh` renders the PWA/apple-touch PNGs from it (node + sharp).
-- [ ] Rename the `/library/play` route → `/play`
-- [ ] Relocate `FrogBoot.jsx` from `frog/` into `player/`, where it belongs
+- [x] Rename the `/library/play` route → `/play` — DONE in the extraction.
+- [x] Relocate `FrogBoot.jsx` from `frog/` into `player/` — DONE in the extraction.
 - [x] **Recent searches** — DONE: queries that led into a game are kept
       (`lib/recentSearches.js`) and shown in the search results zone on an empty query;
       re-run by controller/tap, forget with ✕.
+- [x] **Settings reachable without touch** — DONE: hold-☰ (mirrors the player's pause
+      gesture) or `,` opens Settings; legend hint added.
