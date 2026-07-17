@@ -88,14 +88,22 @@ Tailwind greys, no unstyled states.
       `prefers-reduced-motion` block in `frog.css`, and the hero auto-advance is guarded in
       `FrogBrowser` via `matchMedia`. Remaining motion is user-initiated (focus scale) or
       essential feedback (loading spinners), intentionally kept ("reduced, not none").
-- [ ] **Consistency:** one skeleton style, one card radius/shadow scale, one spacing rhythm
+- [x] **Consistency:** normalized the clear drift — the shared `SkeletonLine` is retinted
+      green (was slate grey-on-green) and the boot shelf now pulses as one; `reflection()`
+      carries the single "floating card" shadow alpha (callers stopped passing 0.4/0.45/0.5);
+      focused-row inset rings unified to one alpha; the two FROG dialogs share `p-5`; the
+      download spinner uses `frog-spin`. Radius differences that remain are deliberate role
+      distinctions (a hero cover vs a rail tile; a floating modal vs an inline settings card).
 - [ ] **Error / empty states** friendly and on-theme (see the theming audit)
 - [ ] **Touch ergonomics:** letter-rail tap targets, the search field auto-raise on iOS,
       swipe momentum on rails
 - [ ] **Perf:** shelf with many favorites/recents; image lazy-loading; art-cache warm-up
 - [x] **First-run:** a guided "point me at your ROMs" empty state — DONE (the pond's-quiet
       shelf). Could still extend it to nudge adding an IGDB key.
-- [ ] Audit and remove dead code the extraction left behind
+- [x] Audit and remove dead code the extraction left behind — DONE: dropped the unused
+      Home HQ dashboard widgets in `components/ui.jsx`, 10 unused `format.js` formatters, the
+      non-games `SECTION_ACCENTS` rows, `useDownloaded()`, `frogVesselMarkup()`, and the dead
+      `nextPadActive()` (PlayerShell inlines that); un-exported four file-local symbols.
 
 ---
 

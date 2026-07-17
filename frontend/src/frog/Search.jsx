@@ -177,7 +177,7 @@ export default function Search({ query, results, zone, keyIndex, resultRow, allG
                     className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors"
                     style={{
                       background: on ? `rgba(${s.accent}, 0.16)` : 'transparent',
-                      boxShadow: on ? `inset 0 0 0 1px rgba(${s.accent}, 0.45)` : 'none',
+                      boxShadow: on ? `inset 0 0 0 1px rgba(${s.accent}, 0.5)` : 'none',
                     }}
                   >
                     <span
@@ -239,7 +239,7 @@ function RecentSearches({ recent, zone, resultRow, onResult, onRecent, onRemoveR
                 className="flex min-w-0 flex-1 items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors"
                 style={{
                   background: on ? `rgba(${FROG.jade}, 0.14)` : 'transparent',
-                  boxShadow: on ? `inset 0 0 0 1px rgba(${FROG.jade}, 0.4)` : 'none',
+                  boxShadow: on ? `inset 0 0 0 1px rgba(${FROG.jade}, 0.5)` : 'none',
                 }}
               >
                 <SearchIcon
@@ -279,7 +279,7 @@ function PreviewCard({ game }) {
     <div className="w-40">
       <div
         className="frog-float relative overflow-hidden rounded-2xl"
-        style={{ border: `1px solid rgba(${s.accent}, 0.35)`, boxShadow: reflection(s.accent, 0.45), background: '#000' }}
+        style={{ border: `1px solid rgba(${s.accent}, 0.35)`, boxShadow: reflection(s.accent), background: '#000' }}
       >
         <img key={game.id} src={coverUrl(game.id)} alt="" className="frog-rise aspect-[3/4] w-full object-cover" />
       </div>

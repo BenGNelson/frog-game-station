@@ -13,9 +13,14 @@ export function Spinner({ label = 'loading…' }) {
 // A pulsing placeholder block — the building piece for skeleton loading states.
 // Size it with utility classes (w-/h-) to mirror the real content it stands in
 // for, so swapping the real data in causes no layout shift. Always pass a height
-// (no default, to avoid two conflicting h-* classes on one element).
+// (no default, to avoid two conflicting h-* classes on one element). Tinted a soft
+// green (FROG.soft) rather than slate, so it doesn't read as grey-on-green over the
+// WATER ground.
 export function SkeletonLine({ className = '' }) {
   return (
-    <span className={`block animate-pulse rounded bg-slate-700/60 ${className}`} />
+    <span
+      className={`block animate-pulse rounded ${className}`}
+      style={{ background: 'rgba(147, 181, 168, 0.16)' }}
+    />
   )
 }

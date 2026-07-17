@@ -98,7 +98,7 @@ export default function GameList({ system, games, focus, onFocus, onPick }) {
               className="frog-float relative overflow-hidden rounded-2xl"
               style={{
                 border: `1px solid rgba(${s.accent}, 0.35)`,
-                boxShadow: reflection(s.accent, 0.45),
+                boxShadow: reflection(s.accent),
                 background: '#000',
               }}
             >
@@ -142,7 +142,7 @@ export default function GameList({ system, games, focus, onFocus, onPick }) {
                   style={{
                     height: ROW,
                     background: on ? `rgba(${s.accent}, 0.16)` : 'transparent',
-                    boxShadow: on ? `inset 0 0 0 1px rgba(${s.accent}, 0.45)` : 'none',
+                    boxShadow: on ? `inset 0 0 0 1px rgba(${s.accent}, 0.5)` : 'none',
                   }}
                 >
                   {/* The cursor: a lit edge on the focused row, in the machine's colour. */}

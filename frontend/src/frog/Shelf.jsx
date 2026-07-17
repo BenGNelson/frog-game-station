@@ -54,7 +54,7 @@ function SystemTile({ system, focused, onFocus, onPick }) {
           ? `linear-gradient(180deg, rgba(${s.accent}, 0.20), rgba(${s.accent}, 0.05))`
           : FROG.panel,
         border: `1px solid ${focused ? `rgba(${s.accent}, 0.55)` : FROG.line}`,
-        boxShadow: focused ? reflection(s.accent, 0.4) : 'none',
+        boxShadow: focused ? reflection(s.accent) : 'none',
         transform: focused ? 'scale(1.06)' : 'scale(1)',
         opacity: empty ? 0.35 : 1,
       }}
@@ -93,7 +93,7 @@ function GameCard({ game, focused, onFocus, onPick }) {
       style={{
         background: FROG.panel,
         border: `1px solid ${focused ? `rgba(${s.accent}, 0.6)` : FROG.line}`,
-        boxShadow: focused ? reflection(s.accent, 0.45) : 'none',
+        boxShadow: focused ? reflection(s.accent) : 'none',
         transform: focused ? 'scale(1.05)' : 'scale(1)',
       }}
     >
