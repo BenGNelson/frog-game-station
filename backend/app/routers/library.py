@@ -757,10 +757,12 @@ def delete_last_played(id: str = Query(description="Game id")):
 # per game so play-time roams across devices (the client already has this offline via
 # recents, but the total is server-owned so "most played" agrees on every device).
 
-# Sessions shorter than this are menu bounces, not play — dropped. A single report is
-# capped so a wedged/mis-behaving client can't book days of play in one shot (real
-# marathons still accrue across multiple reports).
-_MIN_PLAY_MS = 5_000
+# The "is this a real session" judgement lives on the CLIENT (usePlayTime), which knows
+# the whole session's length; it only reports once the session is worth counting and then
+# reports in periodic chunks, so a report here is legitimate even when small (a chunk of a
+# long session) — hence only a >0 floor. A single report is still capped as a sanity guard
+# against a wedged/malicious client, but the client's periodic flush keeps real reports far
+# under it, so a genuine marathon accrues across many chunks rather than one clamped report.
 _MAX_PLAY_MS = 6 * 60 * 60 * 1000
 
 
@@ -772,12 +774,16 @@ class PlayTimeBody(BaseModel):
 
 @router.post("/library/games/play-time")
 def record_play_time(body: PlayTimeBody):
-    """Add a finished session's elapsed time to a game's running total. Too-short
-    sessions are ignored; one report is clamped to a sane maximum. Returns the new
-    totals (or `counted: false` when the session was too short to count)."""
+    """Add a play chunk's elapsed time to a game's running total. Non-positive reports
+    are ignored and one report is clamped to a sane maximum; the client decides what's
+    too short to count. Rejects an id that isn't a real ROM (like the other writes).
+    Returns the new totals (or `counted: false` when nothing was recorded)."""
     ms = int(body.ms)
-    if ms < _MIN_PLAY_MS:
+    if ms <= 0:
         return {"counted": False}
+    games = library.get_section("games")
+    if not library.safe_path(games, settings, body.id):
+        return Response(status_code=404)
     ms = min(ms, _MAX_PLAY_MS)
     play_ms, plays = db.add_play_time(body.id, body.core, ms)
     return {"counted": True, "play_ms": play_ms, "plays": plays}
@@ -800,24 +806,98 @@ class PlayStatsModel(BaseModel):
 def get_play_stats():
     """Per-game play-time, most-played first — the source for the "Most played" rail
     and each game page's play-time line. Skips entries whose ROM is gone; the name
-    always comes from the live library, never a stale copy."""
+    always comes from the live library, never a stale copy. Filters against ONE listing
+    of the section (an in-memory set) rather than a per-row filesystem check, since this
+    is fetched on every shelf visit."""
     games = library.get_section("games")
-    items = []
-    for row in db.list_play_stats():
-        gid = row["game_id"]
-        if not library.safe_path(games, settings, gid):
-            continue  # ROM removed
-        items.append(
-            {
-                "id": gid,
-                "name": library.display_name(games, gid),
-                "core": row["core"],
-                "play_ms": row["play_ms"],
-                "plays": row["plays"],
-                "updated_ms": row["updated_ms"],
-            }
-        )
+    names = {it["id"]: it["name"] for it in library.list_items(games, settings)}
+    items = [
+        {
+            "id": row["game_id"],
+            "name": names[row["game_id"]],
+            "core": row["core"],
+            "play_ms": row["play_ms"],
+            "plays": row["plays"],
+            "updated_ms": row["updated_ms"],
+        }
+        for row in db.list_play_stats()
+        if row["game_id"] in names  # ROM still present
+    ]
     return {"items": items}
+
+
+# --- Collections: the "finished" flag + free-form tags ----------------------
+#
+# One GET returns every collection (ids only — the frontend re-hydrates names against
+# the live library, like the other rails); the writes each validate the game is a real
+# ROM before touching the DB, the same guard the re-match write uses.
+
+_MAX_TAG_LEN = 40
+
+
+def _clean_tag(tag: str) -> str:
+    """Collapse whitespace and cap length so "  RPG  " and "RPG" aren't two tags and a
+    pasted essay can't become a tag. Case is preserved as typed (the picker shows the
+    existing tags, so users pick rather than re-type and drift the casing)."""
+    return " ".join((tag or "").split())[:_MAX_TAG_LEN]
+
+
+class FinishedBody(BaseModel):
+    id: str = Field(description="Game id from the section listing")
+    finished: bool
+
+
+class TagBody(BaseModel):
+    id: str = Field(description="Game id from the section listing")
+    tag: str = Field(description="The collection / tag name")
+
+
+class CollectionsModel(BaseModel):
+    finished: list[str] = Field(default=[], description="game_ids flagged finished")
+    tags: dict[str, list[str]] = Field(
+        default={}, description="each tag → the game_ids that wear it"
+    )
+
+
+@router.get("/library/games/collections", response_model=CollectionsModel)
+def get_collections():
+    """Every user collection in one read: the finished game_ids and each tag's members.
+    Ids only — the frontend re-hydrates them against the live library (dropping games
+    that have left), exactly like the shelf's other rails."""
+    return {"finished": db.list_finished(), "tags": db.tags_grouped()}
+
+
+@router.post("/library/games/finished")
+def set_game_finished(body: FinishedBody):
+    """Flag or unflag a game as finished. Rejects an id that isn't a real ROM."""
+    games = library.get_section("games")
+    if not library.safe_path(games, settings, body.id):
+        return Response(status_code=404)
+    return {"finished": db.set_finished(body.id, body.finished)}
+
+
+@router.post("/library/games/tags")
+def add_game_tag(body: TagBody):
+    """Add a game to a collection (creating the collection implicitly). Rejects a bogus
+    id or an empty tag. Returns the cleaned tag actually stored."""
+    games = library.get_section("games")
+    if not library.safe_path(games, settings, body.id):
+        return Response(status_code=404)
+    tag = _clean_tag(body.tag)
+    if not tag:
+        return Response(status_code=422)
+    db.add_tag(body.id, tag)
+    return {"ok": True, "tag": tag}
+
+
+@router.delete("/library/games/tags")
+def remove_game_tag(
+    id: str = Query(description="Game id"),
+    tag: str = Query(description="The collection / tag to remove it from"),
+):
+    """Remove a game from a collection."""
+    removed = db.remove_tag(id, tag)
+    return Response(status_code=204 if removed else 404)
 
 
 @router.get("/library/{section}", response_model=SectionModel)

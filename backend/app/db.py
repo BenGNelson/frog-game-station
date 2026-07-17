@@ -78,6 +78,27 @@ CREATE TABLE IF NOT EXISTS igdb_meta (
     updated_at     REAL NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_igdb_meta_igdb_id ON igdb_meta (igdb_id);
+
+-- Per-game "finished" flag — a first-class one-tap status (its own toggle + cover
+-- badge + shelf rail), kept apart from tags so it stays a quick boolean rather than
+-- one label among many. Sparse: only games you've flagged get a row.
+CREATE TABLE IF NOT EXISTS game_flags (
+    game_id    TEXT PRIMARY KEY,
+    finished   INTEGER NOT NULL DEFAULT 0,
+    updated_ms INTEGER NOT NULL
+);
+
+-- Free-form collections: one row per (game, tag) membership. A join table (not a JSON
+-- blob) so "every game in collection X" is a cheap indexed lookup — which is what the
+-- per-tag rails and the tag-filtered list both want. The tag namespace is simply the
+-- set of distinct `tag` values, so a tag exists exactly as long as some game wears it.
+CREATE TABLE IF NOT EXISTS game_tags (
+    game_id    TEXT NOT NULL,
+    tag        TEXT NOT NULL,
+    created_ms INTEGER NOT NULL,
+    PRIMARY KEY (game_id, tag)
+);
+CREATE INDEX IF NOT EXISTS idx_game_tags_tag ON game_tags (tag);
 """
 
 
@@ -288,3 +309,67 @@ def owned_by_igdb_ids(igdb_ids):
             tuple(ids),
         ).fetchall()
     return {r["igdb_id"]: r["game_id"] for r in rows}
+
+
+# --- Collections: the "finished" flag + free-form tags ----------------------
+
+def set_finished(game_id, finished, now_ms=None):
+    """Set (or clear) a game's finished flag. A cleared flag deletes the row so the
+    table stays sparse (only flagged games have one). Returns the new bool."""
+    if now_ms is None:
+        now_ms = int(time.time() * 1000)
+    with get_conn() as conn:
+        if finished:
+            conn.execute(
+                "INSERT INTO game_flags (game_id, finished, updated_ms) VALUES (?, 1, ?)"
+                " ON CONFLICT(game_id) DO UPDATE SET finished = 1, updated_ms = excluded.updated_ms",
+                (game_id, now_ms),
+            )
+        else:
+            conn.execute("DELETE FROM game_flags WHERE game_id = ?", (game_id,))
+    return bool(finished)
+
+
+def list_finished():
+    """The game_ids flagged finished (for the badges + the "Finished" rail)."""
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT game_id FROM game_flags WHERE finished = 1 ORDER BY updated_ms DESC"
+        ).fetchall()
+    return [r["game_id"] for r in rows]
+
+
+def add_tag(game_id, tag, now_ms=None):
+    """Tag a game (idempotent — re-tagging is a no-op via the composite key)."""
+    if now_ms is None:
+        now_ms = int(time.time() * 1000)
+    with get_conn() as conn:
+        conn.execute(
+            "INSERT INTO game_tags (game_id, tag, created_ms) VALUES (?, ?, ?)"
+            " ON CONFLICT(game_id, tag) DO NOTHING",
+            (game_id, tag, now_ms),
+        )
+
+
+def remove_tag(game_id, tag):
+    """Untag a game. Returns whether a membership was removed."""
+    with get_conn() as conn:
+        cur = conn.execute(
+            "DELETE FROM game_tags WHERE game_id = ? AND tag = ?", (game_id, tag)
+        )
+        return cur.rowcount > 0
+
+
+def tags_grouped():
+    """{tag: [game_id, ...]} across the whole library — the tag namespace and each
+    tag's membership in one shot. Powers the per-tag shelf rails, the tag-filtered
+    list, and (by keys) the picker's list of existing tags. Newest membership first
+    within a tag; tags themselves ordered by name (case-insensitive) by the caller."""
+    out = {}
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT game_id, tag FROM game_tags ORDER BY tag COLLATE NOCASE, created_ms DESC"
+        ).fetchall()
+    for r in rows:
+        out.setdefault(r["tag"], []).append(r["game_id"])
+    return out

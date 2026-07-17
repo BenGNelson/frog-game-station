@@ -1,10 +1,32 @@
 import { useEffect, useRef } from 'react'
+import { Trophy } from 'lucide-react'
 import { coverUrl } from '../lib/library.js'
 import { FROG, systemStyle, reflection } from './theme.js'
 import { agoLabel } from './shelf.js'
 import { formatPlaytime } from '../lib/format.js'
 import { useDozing } from '../lib/dayNight.js'
 import { Reflected, SystemFrog } from './Frog.jsx'
+
+// The "finished" ribbon, corner-pinned on a cover. Exported so the game list and the
+// game page badge the same way — one trophy, everywhere a cover shows.
+export function FinishedBadge({ size = 24 }) {
+  return (
+    <span
+      className="absolute right-1.5 top-1.5 flex items-center justify-center rounded-full"
+      style={{
+        width: size,
+        height: size,
+        background: `rgba(${FROG.jade}, 0.92)`,
+        color: FROG.ground,
+        boxShadow: '0 2px 8px rgba(0,0,0,0.55)',
+      }}
+      title="Finished"
+      aria-label="Finished"
+    >
+      <Trophy className="h-3.5 w-3.5" fill="currentColor" aria-hidden="true" />
+    </span>
+  )
+}
 import Console from './Console.jsx'
 
 // The shelf: Frog's home screen.
@@ -81,7 +103,7 @@ function SystemTile({ system, focused, onFocus, onPick }) {
   )
 }
 
-function GameCard({ game, focused, onFocus, onPick }) {
+function GameCard({ game, focused, finished, onFocus, onPick }) {
   const s = systemStyle(game.label)
 
   return (
@@ -107,6 +129,7 @@ function GameCard({ game, focused, onFocus, onPick }) {
           className="h-full w-full object-cover"
           style={{ opacity: focused ? 1 : 0.72 }}
         />
+        {finished && <FinishedBadge />}
         {/* The system's colour washes up from the bottom, so a cover you half-recognize
             still tells you which machine it's for before you read anything. */}
         <div
@@ -137,7 +160,7 @@ function Heading({ children }) {
   )
 }
 
-export default function Shelf({ rails, focus, onFocus, onPick }) {
+export default function Shelf({ rails, focus, finishedIds, onFocus, onPick }) {
   const railRefs = useRef([])
   // The mascot dozes after hours (closed eyes), on the wall clock.
   const dozing = useDozing()
@@ -235,6 +258,7 @@ export default function Shelf({ rails, focus, onFocus, onPick }) {
                     <GameCard
                       game={game}
                       focused={focus.rail === r && focus.index === i}
+                      finished={finishedIds?.has(game.id)}
                       onFocus={() => onFocus(r, i)}
                       onPick={() => onPick(rail, game)}
                     />

@@ -14,6 +14,9 @@ import { isFavorite, toggleFavorite } from '../lib/favorites.js'
 import { ensureEmulatorEngine, cacheGameSram } from '../lib/offlineStore.js'
 import { offlineGamesToItems } from './offline.js'
 import { getRecent, recordPlayed } from '../lib/recentGames.js'
+import {
+  fetchCollections, postFinished, postTag, deleteTag, cleanTag, tagsForGame,
+} from '../lib/collections.js'
 import { getFavorites } from '../lib/favorites.js'
 import { getRecentSearches, recordSearch, removeRecentSearch } from '../lib/recentSearches.js'
 import { moveInRails } from '../lib/gridNav.js'
@@ -174,6 +177,7 @@ export default function FrogBrowser() {
   // The "Wrong game?" picker: null, or { candidates, current, matched, index }. Bumping
   // metaRefresh re-fetches the open game's meta after a manual re-match/clear.
   const [rematch, setRematch] = useState(null)
+  const [tagPicker, setTagPicker] = useState(null) // { index } while the picker is open
   const [metaRefresh, setMetaRefresh] = useState(0)
 
   // Per-game play-time totals (the "Most played" rail + the game-page line). FrogBrowser
@@ -200,9 +204,24 @@ export default function FrogBrowser() {
     [playStatItems]
   )
 
+  // Collections: the finished flag + free-form tags, server-owned so they roam. Fetched
+  // once on mount; edits (on the game page) update this optimistically so the shelf's
+  // Finished / per-tag rails reflect a change the instant you make it, without a round-trip.
+  const [collections, setCollections] = useState({ finished: [], tags: {} })
+  useEffect(() => {
+    let alive = true
+    fetchCollections()
+      .then((d) => alive && d && setCollections({ finished: d.finished ?? [], tags: d.tags ?? {} }))
+      .catch(() => {})
+    return () => {
+      alive = false
+    }
+  }, [])
+  const finishedSet = useMemo(() => new Set(collections.finished), [collections.finished])
+
   const rails = useMemo(
-    () => buildShelf(items, getRecent(), getFavorites(), playStatItems),
-    [items, playStatItems]
+    () => buildShelf(items, getRecent(), getFavorites(), playStatItems, collections),
+    [items, playStatItems, collections]
   )
   const games = useMemo(() => (system ? systemGames(items, system) : []), [items, system])
   // Searched across EVERY system, not just the open one — from the shelf you haven't
@@ -292,11 +311,22 @@ export default function FrogBrowser() {
   // Whether a "Wrong game?" / "Find on IGDB" fix control is offered (there's a
   // candidate shortlist to fix the match against).
   const canRematch = !!meta?.can_rematch
+  // The open game's collection state, derived from the shared `collections`.
+  const detailFinished = detailGame ? finishedSet.has(detailGame.id) : false
+  const detailTags = useMemo(
+    () => (detailGame ? tagsForGame(collections.tags, detailGame.id) : []),
+    [collections.tags, detailGame]
+  )
+  const allTags = useMemo(
+    () => Object.keys(collections.tags).sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase())),
+    [collections.tags]
+  )
   const detailZones = useMemo(() => {
     const z = []
     if (shots.length) z.push('hero') // the banner sits above the actions
     z.push('actions')
     if (canRematch) z.push('fix') // the "Wrong game?" control, below the facts
+    z.push('tags') // "Collections" — always available (you can always tag a game)
     if (saves.length) z.push('saves')
     if (similar.length) z.push('similar') // the rail at the foot of the page
     return z
@@ -344,14 +374,20 @@ export default function FrogBrowser() {
 
   // Reconcile focus with whatever the rails just became.
   //
-  // The rails are rebuilt when the library resolves, and they CHANGE SHAPE when they
-  // do: "Jump back in" appears, so what was rail 0 (systems) becomes rail 1. Dismiss
-  // the boot before the fetch lands, press right a few times, and focus is left
-  // pointing at index 5 of a two-item rail — nothing is highlighted, the frog wears
-  // no costume, the caption reads "Nothing here yet", and A does nothing at all.
+  // The rails CHANGE SHAPE after the shelf is already interactive — not just once when
+  // the library resolves (Jump back in / Favorites appearing) but again as the async
+  // Most played, Finished, and per-tag rails land. Keeping focus.rail as a bare index
+  // would let a rail inserted AHEAD of you slide the highlight onto a different game. So
+  // we keep focus on the SAME rail by identity: find where its id moved to, and only
+  // fall back to index-clamping when that rail is gone (or on the first resolve).
+  const prevRails = useRef(rails)
   useEffect(() => {
+    const prev = prevRails.current
+    prevRails.current = rails
     setFocus((f) => {
-      const rail = Math.min(f.rail, Math.max(0, rails.length - 1))
+      const wasId = prev[f.rail]?.id
+      let rail = wasId != null ? rails.findIndex((r) => r.id === wasId) : -1
+      if (rail < 0) rail = Math.min(f.rail, Math.max(0, rails.length - 1))
       const count = rails[rail]?.items?.length ?? 0
       const index = Math.min(f.index, Math.max(0, count - 1))
       return rail === f.rail && index === f.index ? f : { rail, index }
@@ -453,6 +489,7 @@ export default function FrogBrowser() {
     setConfirm(null)
     setLightbox(null)
     setRematch(null)
+    setTagPicker(null)
     setHeroSlide(0)
     // Clear the previous game's metadata SYNCHRONOUSLY here, not only in the fetch
     // effect (which runs after paint): otherwise the new game's page renders for one
@@ -466,6 +503,7 @@ export default function FrogBrowser() {
     setConfirm(null)
     setLightbox(null)
     setRematch(null)
+    setTagPicker(null)
     setScreen(detailFrom)
   }
   // "Surprise me": jump to a random title's page. Opens the game page (not straight into
@@ -481,6 +519,50 @@ export default function FrogBrowser() {
   }
 
   const toggleFav = () => detailGame && setFavorited(toggleFavorite(detailGame).favorited)
+
+  // Collections edits for the open game, all optimistic: update `collections` at once so
+  // the button/chips and the shelf rails react immediately, then fire the write. `id`
+  // captured up front so a game-switch mid-write can't retarget it.
+  const toggleFinished = () => {
+    if (!detailGame) return
+    const id = detailGame.id
+    const next = !finishedSet.has(id)
+    setCollections((c) => ({
+      ...c,
+      finished: next ? [id, ...c.finished.filter((g) => g !== id)] : c.finished.filter((g) => g !== id),
+    }))
+    postFinished(id, next)
+  }
+  const addGameTag = (raw) => {
+    if (!detailGame) return
+    const id = detailGame.id
+    const tag = cleanTag(raw)
+    if (!tag) return
+    setCollections((c) => {
+      const members = c.tags[tag] || []
+      if (members.includes(id)) return c
+      return { ...c, tags: { ...c.tags, [tag]: [id, ...members] } }
+    })
+    postTag(id, tag)
+  }
+  const removeGameTag = (tag) => {
+    if (!detailGame) return
+    const id = detailGame.id
+    setCollections((c) => {
+      const members = (c.tags[tag] || []).filter((g) => g !== id)
+      const tags = { ...c.tags }
+      if (members.length) tags[tag] = members
+      else delete tags[tag] // the tag disappears when its last member leaves
+      return { ...c, tags }
+    })
+    deleteTag(id, tag)
+  }
+  // The picker's A / tap: add the tag if this game lacks it, remove it if it has it.
+  const toggleGameTag = (tag) => {
+    if (!detailGame) return
+    if ((collections.tags[tag] || []).includes(detailGame.id)) removeGameTag(tag)
+    else addGameTag(tag)
+  }
   const startOrRemoveDownload = () => {
     // A press while it's already working (or still checking) is a no-op — otherwise a
     // controller A would kick a SECOND downloadJob for the same game (the touch button's
@@ -559,6 +641,7 @@ export default function FrogBrowser() {
   useEffect(() => {
     setDetailFocus((f) => {
       if (f.zone === 'actions') return f
+      if (f.zone === 'tags') return { zone: 'tags', index: 0 } // always present, single target
       // The hero / fix control are single targets; if they went away, fall to actions.
       if (f.zone === 'hero') return shots.length ? { zone: 'hero', index: 0 } : { zone: 'actions', index: 0 }
       if (f.zone === 'fix') return canRematch ? { zone: 'fix', index: 0 } : { zone: 'actions', index: 0 }
@@ -622,6 +705,20 @@ export default function FrogBrowser() {
         const o = opts[rematch.index]
         if (o) applyMatch(o.type === 'clear' ? null : o.id)
       } else if (action === 'back') setRematch(null)
+      return
+    }
+
+    // The tag picker traps input: up/down walk the EXISTING tags, A toggles this game's
+    // membership, B closes. (Creating a NEW tag is the native field, driven by a keyboard
+    // or thumb — the D-pad drives the list.)
+    if (screen === 'detail' && tagPicker) {
+      const n = allTags.length
+      if (action === 'up') setTagPicker((t) => ({ index: Math.max(0, t.index - 1) }))
+      else if (action === 'down') setTagPicker((t) => ({ index: Math.max(0, Math.min(n - 1, t.index + 1)) }))
+      else if (action === 'confirm') {
+        const tag = allTags[tagPicker.index]
+        if (tag) toggleGameTag(tag)
+      } else if (action === 'back') setTagPicker(null)
       return
     }
 
@@ -784,7 +881,10 @@ export default function FrogBrowser() {
           } else if (f.zone === 'actions') {
             if (f.index === 0) play(detailGame)
             else if (f.index === 1) toggleFav()
-            else startOrRemoveDownload()
+            else if (f.index === 2) startOrRemoveDownload()
+            else toggleFinished()
+          } else if (f.zone === 'tags') {
+            setTagPicker({ index: 0 })
           } else if (f.zone === 'similar') {
             // Open the picked similar game. Inherit THIS page's origin (never 'detail')
             // so Back returns to the screen you came from, not a dead-ended game page —
@@ -807,7 +907,7 @@ export default function FrogBrowser() {
           return
         case 'right':
           if (f.zone === 'hero') setHeroSlide((i) => (i + 1) % shots.length)
-          else if (f.zone === 'actions') setDetailFocus((p) => ({ zone: 'actions', index: Math.min(2, p.index + 1) }))
+          else if (f.zone === 'actions') setDetailFocus((p) => ({ zone: 'actions', index: Math.min(3, p.index + 1) }))
           else if (f.zone === 'similar') setDetailFocus((p) => ({ zone: 'similar', index: Math.min(similar.length - 1, p.index + 1) }))
           return
         case 'up':
@@ -1178,6 +1278,10 @@ export default function FrogBrowser() {
           loadingSaves={savesLoading}
           similar={similar}
           playMs={playStatsById.get(detailGame.id)?.play_ms}
+          finished={detailFinished}
+          tags={detailTags}
+          allTags={allTags}
+          tagPicker={tagPicker}
           download={dl}
           focus={detailFocus}
           confirm={confirm}
@@ -1186,6 +1290,12 @@ export default function FrogBrowser() {
           canRematch={canRematch}
           rematch={rematch}
           onOpenSimilar={(g) => openDetail(g, detailFrom)}
+          onToggleFinished={toggleFinished}
+          onOpenTags={() => setTagPicker({ index: 0 })}
+          onToggleTag={toggleGameTag}
+          onAddTag={addGameTag}
+          onTagPickerFocus={(index) => setTagPicker({ index })}
+          onCloseTags={() => setTagPicker(null)}
           onOpenRematch={openRematch}
           onRematchHover={(index) => setRematch((r) => (r ? { ...r, index } : r))}
           onRematchPick={(igdbId) => applyMatch(igdbId)}
@@ -1209,6 +1319,7 @@ export default function FrogBrowser() {
           system={system}
           games={games}
           focus={row}
+          finishedIds={finishedSet}
           onFocus={setRow}
           onPick={(g) => openDetail(g, 'games')}
         />
@@ -1221,6 +1332,7 @@ export default function FrogBrowser() {
         <Shelf
           rails={rails}
           focus={focus}
+          finishedIds={finishedSet}
           onFocus={(rail, index) => setFocus({ rail, index })}
           onPick={(rail, item) =>
             rail.kind === 'system'
@@ -1275,24 +1387,32 @@ export default function FrogBrowser() {
                         { button: 'B', label: 'Cancel' },
                         { button: 'D-pad', label: 'Move' },
                       ]
-                    : [
-                        {
-                          button: 'A',
-                          label:
-                            detailFocus.zone === 'saves'
-                              ? 'Load'
-                              : detailFocus.zone === 'hero'
-                                ? 'Screenshots'
-                                : detailFocus.zone === 'fix'
-                                  ? 'Fix match'
-                                  : detailFocus.zone === 'similar'
-                                    ? 'Open'
-                                    : 'Select',
-                        },
-                        { button: 'B', label: 'Back' },
-                        ...(detailFocus.zone === 'saves' ? [{ button: 'Y', label: 'Delete save' }] : []),
-                        { button: 'D-pad', label: detailFocus.zone === 'hero' ? 'Peek' : 'Move' },
-                      ]
+                    : tagPicker
+                      ? [
+                          { button: 'A', label: 'Toggle' },
+                          { button: 'B', label: 'Done' },
+                          { button: 'D-pad', label: 'Move' },
+                        ]
+                      : [
+                          {
+                            button: 'A',
+                            label:
+                              detailFocus.zone === 'saves'
+                                ? 'Load'
+                                : detailFocus.zone === 'hero'
+                                  ? 'Screenshots'
+                                  : detailFocus.zone === 'fix'
+                                    ? 'Fix match'
+                                    : detailFocus.zone === 'similar'
+                                      ? 'Open'
+                                      : detailFocus.zone === 'tags'
+                                        ? 'Collections'
+                                        : 'Select',
+                          },
+                          { button: 'B', label: 'Back' },
+                          ...(detailFocus.zone === 'saves' ? [{ button: 'Y', label: 'Delete save' }] : []),
+                          { button: 'D-pad', label: detailFocus.zone === 'hero' ? 'Peek' : 'Move' },
+                        ]
               : screen === 'settings'
                 ? [
                     { button: 'A', label: 'Select' },
