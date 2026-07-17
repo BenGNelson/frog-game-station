@@ -24,7 +24,7 @@ export default defineConfig({
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       manifest: {
         name: 'Frog Game Station',
-        short_name: 'Frog',
+        short_name: 'Frog Game Station',
         description: 'A cozy front-end for your game collection — couch + controller, or phone + thumb.',
         start_url: '/',
         display: 'standalone',
