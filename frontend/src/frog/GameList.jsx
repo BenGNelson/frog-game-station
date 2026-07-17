@@ -180,8 +180,10 @@ export default function GameList({ system, games, focus, finishedIds, onFocus, o
       </div>
 
       {/* The letter rail. Dead letters are dimmed, not hidden — the alphabet keeps
-          its shape, so your thumb learns where "S" is and it's there every time. */}
-      <nav className="flex w-8 shrink-0 flex-col items-center justify-center gap-px" aria-label="Jump to letter">
+          its shape, so your thumb learns where "S" is and it's there every time.
+          Each letter STRETCHES to fill its share of the rail height (flex-1), so the
+          tap target is the whole cell — a thumb-friendly band, not an 11px glyph. */}
+      <nav className="flex w-9 shrink-0 flex-col items-stretch py-1" aria-label="Jump to letter">
         {ALPHABET.map((ch) => {
           const has = live.has(ch)
           const on = ch === currentLetter
@@ -194,7 +196,7 @@ export default function GameList({ system, games, focus, finishedIds, onFocus, o
                 const i = games.findIndex((g) => letterOf(g.name) === ch)
                 if (i >= 0) onFocus(i)
               }}
-              className="w-full rounded text-[11px] font-semibold leading-[1.5]"
+              className="flex flex-1 items-center justify-center rounded text-[11px] font-semibold leading-none"
               style={{
                 color: on ? FROG.ground : has ? FROG.soft : FROG.faint,
                 background: on ? `rgb(${s.accent})` : 'transparent',

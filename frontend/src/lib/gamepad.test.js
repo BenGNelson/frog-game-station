@@ -5,6 +5,7 @@ import {
   padDiff,
   axisDirection,
   repeatTick,
+  stickRepeatRate,
   padAction,
   menuGesture,
   MENU_GESTURE_IDLE,
@@ -119,6 +120,21 @@ describe('padAction', () => {
     expect(padAction(XBOX.GUIDE)).toBeNull()
     expect(padAction(XBOX.VIEW)).toBeNull()
     expect(padAction(XBOX.LS)).toBeNull()
+  })
+})
+
+describe('stickRepeatRate', () => {
+  it('repeats at the normal rate near the deadzone and much faster at full push', () => {
+    expect(stickRepeatRate(0.5)).toBe(110) // just past the deadzone → normal d-pad speed
+    expect(stickRepeatRate(1)).toBe(30) // full deflection → fast-scroll
+    // Monotonic: pushing further never slows it down.
+    expect(stickRepeatRate(0.75)).toBeLessThan(stickRepeatRate(0.55))
+    expect(stickRepeatRate(0.75)).toBeGreaterThan(stickRepeatRate(0.95))
+  })
+
+  it('clamps below the deadzone and past full', () => {
+    expect(stickRepeatRate(0)).toBe(110)
+    expect(stickRepeatRate(1.4)).toBe(30) // a diagonal magnitude > 1 still pins to fast
   })
 })
 

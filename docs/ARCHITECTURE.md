@@ -239,7 +239,11 @@ Worth stating so nobody plans around a fantasy:
 
 Navigation is **index arithmetic over rails**, not DOM measurement — which is what lets a
 controller, the arrow keys, and a mouse drive identical code, none of them a special case.
-Long lists are **windowed** so mounting hundreds of rows doesn't make a tablet stutter.
+Long lists are **windowed** so mounting hundreds of rows doesn't make a tablet stutter. The
+**analog stick fast-scrolls by deflection**: held like a d-pad it repeats, but the further
+it's pushed the faster it repeats (`stickRepeatRate`), so a full push flies through a
+600-game list while a gentle tilt still steps one row. On touch, the **letter rail's cells
+stretch to fill the rail height** (`flex-1`), so each letter is a thumb-band, not an 11px glyph.
 
 **Touch is a first-class control model, not a fallback.** A phone has no controller, so the
 same browser has to be navigable by thumb — and it mostly already is, because every screen

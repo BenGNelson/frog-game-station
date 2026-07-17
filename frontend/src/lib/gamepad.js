@@ -80,6 +80,15 @@ export function repeatTick(state, now, { delay = 400, rate = 110 } = {}) {
   return { state, fire: false }
 }
 
+// The analog stick's repeat interval, scaled by how FAR it's pushed: a gentle tilt at
+// the deadzone edge repeats at the normal d-pad rate; a full deflection flies. That's
+// what makes the stick a fast-scroll through a 600-game list rather than a slow d-pad
+// clone. Pure and clamped, so the curve is a test rather than a feel-it-on-the-couch.
+export function stickRepeatRate(magnitude, { base = 110, fast = 30, deadzone = 0.5 } = {}) {
+  const t = Math.max(0, Math.min(1, (magnitude - deadzone) / (1 - deadzone)))
+  return Math.round(base - t * (base - fast))
+}
+
 // EmulatorJS's name for a raw button index, so a press can become a binding.
 // Indices come from the browser's "standard" mapping, which every modern pad
 // reports — so this works for a controller we've never seen.
