@@ -1,8 +1,10 @@
 # Frog Game Station — TODO
 
-The **agreed backlog for the next work session** — every item below was reviewed and kept
-in a triage on 2026-07-17. Roughly priority-ordered within each group. Shipped work lives in
-the git history (`git log`).
+The **open backlog**. A big polish + feature push has shipped since the last triage — all
+the Quick wins, and the top Features (IGDB "more like this", play-time / most-played,
+collections + finished flag, custom cover art, save-state rename/annotate/pin, analog-stick
+fast-scroll, letter-rail tap targets). Shipped work lives in the git history (`git log`);
+what's below is what's left, roughly priority-ordered within each group.
 
 > **Deployment status:** the standalone stack is deployed and runs as its own installable
 > PWA (its own origin, manifest, and service worker — independent of any parent app). See
@@ -11,28 +13,8 @@ the git history (`git log`).
 
 ---
 
-## Quick wins (small, high value-per-effort)
-
-- [x] **R3 = random game** — pick and jump to a random title.
-- [x] **First-run IGDB nudge** — extend the "pond's quiet" empty state to also nudge adding
-      an IGDB key.
-- [x] **Boot logline / version stamp** for the portfolio build.
-- [x] **Time-of-day frog** — drive the existing `asleep` prop by real time (dozes at night).
-      The prop already exists; this is wiring it to the clock.
-
----
-
 ## Features
 
-- [x] **IGDB "similar games"** / more-like-this rail — reuses the existing IGDB pipeline;
-      strong portfolio piece.
-- [x] **Play-time stats** per game + a "most played" rail. Needs new backend play-time
-      tracking (only recency is tracked today).
-- [x] **Collections / tags** beyond Favorites + a "finished" flag.
-      - _Follow-ups:_ a controller on-screen keyboard for creating **new** tags (assigning
-        existing ones is already controller-drivable); a vertical, letter-railed
-        tag-filtered list view for large collections (the per-tag shelf rail covers small ones).
-- [x] **Set custom art** from a live in-game screenshot (ties to save-state shot capture).
 - [ ] **Deeper ROM-hack support surfacing** — **define scope first**: what exactly to
       surface (base-game linkage? hack metadata? a badge on the tile?) before building.
 - [ ] **In-game wiki browser** — a peekable, app-skinned web browser *inside the player*,
@@ -48,21 +30,22 @@ the git history (`git log`).
 
 ## Quality & polish
 
-- [~] **Touch ergonomics:** **letter-rail tap targets DONE** (cells stretch to fill the rail
-      height). _Deferred, needs on-device iOS:_ search-field keyboard auto-raise (iOS blocks
-      programmatic focus outside a user gesture) and swipe momentum (already default on
-      modern iOS — likely a no-op).
-- [x] **A11y finish** — verified: the hero carries `role=button` + `aria-label`; covers use
-      `alt=""` wherever a visible title sits alongside, and labelled art (the lightbox) is
-      labelled. No changes were needed.
-- [x] **Perf: image lazy-loading** — verified already applied where it matters (rails
-      `loading="lazy"`; the game list is windowed; single above-fold covers don't benefit).
-      _Deferred:_ art-cache warm-up (marginal for a one-cover-at-a-time list; real complexity).
-- [x] **Save-state slots — richer management** — rename (custom label), annotate (note), and
-      pin (pinned sorts first — the sensible take on "reorder"), via a game-page editor modal
-      and a per-slot `{slot}.json` sidecar.
-- [x] **Left-stick accelerated fast-scroll** — velocity-scaled: the stick repeats faster the
-      further it's pushed (`stickRepeatRate` in `lib/gamepad.js`).
+- [ ] **Touch ergonomics (remaining):** search-field keyboard **auto-raise on iOS** (iOS
+      blocks programmatic focus outside a user gesture — needs an on-device solution) and
+      **swipe momentum** on rails (already default on modern iOS — verify it's actually needed
+      before touching it). _Letter-rail tap targets already shipped._
+- [ ] **Perf: art-cache warm-up** — prefetch covers so browsing is instant. Marginal for the
+      current one-cover-at-a-time game list; more relevant if a cover grid ever lands. (Image
+      lazy-loading is already applied where it matters.)
+
+### Follow-ups from shipped features
+
+- [ ] **Controller on-screen keyboard for creating NEW tags / naming saves** — today a
+      hardware/touch keyboard is needed to type a *new* tag or a save-state name; assigning
+      existing tags and toggling pin/finished are already fully controller-drivable. A reusable
+      grid-keyboard (the search screen has the pattern) would close the couch-controller gap.
+- [ ] **Tag-filtered list view** — a vertical, letter-railed list for a collection (like a
+      system's game list), for tags with many games. The per-tag shelf rail covers small ones.
 
 ---
 
