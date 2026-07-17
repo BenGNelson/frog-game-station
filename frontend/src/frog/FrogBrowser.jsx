@@ -571,6 +571,14 @@ export default function FrogBrowser() {
       return
     }
 
+    // Settings from anywhere, and again to close. There's no free face button for it,
+    // so it rides the app's existing "hold ☰ for the menu" gesture (the same one that
+    // opens the pause menu in the player) — plus ',' on a keyboard.
+    if (action === 'settingsToggle') {
+      screen === 'settings' ? closeSettings() : openSettings()
+      return
+    }
+
     if (screen === 'search') {
       // The results zone shows game matches while you're typing, and your recent
       // searches when the query is empty — the same cursor/zone machinery drives both.
@@ -823,6 +831,8 @@ export default function FrogBrowser() {
     },
     onMenuAction: (a) => {
       if (a === 'start') act.current('confirm')
+      // Hold ☰ opens Settings — mirrors the player, where a hold opens the pause menu.
+      else if (a === 'pauseMenu') act.current('settingsToggle')
     },
   })
 
@@ -880,6 +890,7 @@ export default function FrogBrowser() {
         PageUp: 'railPrev',
         PageDown: 'railNext',
         '/': 'search',
+        ',': 'settingsToggle', // the desk mirror of hold-☰
       }
       const a = map[e.key]
       if (!a) return
@@ -1190,18 +1201,26 @@ export default function FrogBrowser() {
                         ...(detailFocus.zone === 'saves' ? [{ button: 'Y', label: 'Delete save' }] : []),
                         { button: 'D-pad', label: detailFocus.zone === 'hero' ? 'Peek' : 'Move' },
                       ]
-              : screen === 'games'
+              : screen === 'settings'
                 ? [
-                    { button: 'A', label: 'Open' },
-                    { button: 'B', label: 'Shelf' },
-                    { button: 'X', label: 'Find' },
-                    { button: 'LT/RT', label: 'Letter' },
-                  ]
-                : [
-                    { button: 'A', label: 'Open' },
-                    { button: 'X', label: 'Find' },
+                    { button: 'A', label: 'Select' },
+                    { button: 'B', label: 'Close' },
                     { button: 'D-pad', label: 'Move' },
                   ]
+                : screen === 'games'
+                  ? [
+                      { button: 'A', label: 'Open' },
+                      { button: 'B', label: 'Shelf' },
+                      { button: 'X', label: 'Find' },
+                      { button: 'LT/RT', label: 'Letter' },
+                      { button: '☰', label: 'Hold: Settings' },
+                    ]
+                  : [
+                      { button: 'A', label: 'Open' },
+                      { button: 'X', label: 'Find' },
+                      { button: 'D-pad', label: 'Move' },
+                      { button: '☰', label: 'Hold: Settings' },
+                    ]
         }
       />
       )}

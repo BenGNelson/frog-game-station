@@ -40,7 +40,16 @@ with sync_playwright() as p:
     page.keyboard.press("Enter")
     page.wait_for_selector('[data-testid="frog"]', timeout=5000)
 
-    # Open settings from the header gear.
+    # Controller/keyboard parity: ',' opens settings (the same 'settingsToggle' action
+    # the controller's hold-☰ fires) and closes it again.
+    page.keyboard.press(",")
+    page.wait_for_selector('[data-testid="frog-settings"]', timeout=5000)
+    check(True, "',' (hold-☰ parity) opens settings without touching the glass")
+    page.keyboard.press("Escape")
+    page.wait_for_selector('[data-testid="frog"]', timeout=5000)
+    check(page.locator('[data-testid="frog-settings"]').count() == 0, "and closes again")
+
+    # Open settings from the header gear (the touch entry point).
     open_settings(page)
     check(True, "settings opens from the header gear")
 
