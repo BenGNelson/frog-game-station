@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import {
   Play, Star, Download, Check, Trash2, TriangleAlert, Loader, X, ChevronLeft, ChevronRight,
   Maximize2, RefreshCw,
 } from 'lucide-react'
 import { coverUrl, saveStateShotUrl, igdbShotUrl } from '../lib/library.js'
+import { useFocusTrap } from '../lib/useFocusTrap.js'
 import { FROG, systemStyle, reflection } from './theme.js'
 import { SystemFrog, Reflected } from './Frog.jsx'
 import { agoLabel } from './shelf.js'
@@ -168,6 +169,7 @@ export default function GameScreen({
       {lightbox !== null && shots[lightbox] && (
         <Lightbox
           gameId={game.id}
+          gameName={game.name}
           shots={shots}
           index={lightbox}
           onClose={onCloseLightbox}
@@ -479,18 +481,26 @@ function SaveShelf({ game, saves, loadingSaves, on, accent, onFocus, onPlaySlot,
 // A fullscreen screenshot — controller-drivable (◀ ▶ page, B/A closes) and tappable
 // (tap the backdrop or ✕ to close, the arrows to page). Traps input in FrogBrowser
 // while open, like the confirm dialog.
-function Lightbox({ gameId, shots, index, onClose, onNav }) {
+function Lightbox({ gameId, gameName, shots, index, onClose, onNav }) {
   const stop = (e) => e.stopPropagation()
+  const panelRef = useRef(null)
+  useFocusTrap(panelRef)
+  const shotLabel = `${gameName} — screenshot ${index + 1} of ${shots.length}`
   return (
     <div
+      ref={panelRef}
       data-testid="frog-lightbox"
-      className="absolute inset-0 z-30 flex items-center justify-center p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-label={`${gameName} screenshots`}
+      tabIndex={-1}
+      className="absolute inset-0 z-30 flex items-center justify-center p-4 outline-none"
       style={{ background: 'rgba(0,0,0,0.88)', backdropFilter: 'blur(2px)' }}
       onClick={onClose}
     >
       <img
         src={igdbShotUrl(gameId, shots[index])}
-        alt=""
+        alt={shotLabel}
         onClick={stop}
         className="max-h-full max-w-full rounded-lg object-contain"
         style={{ boxShadow: '0 20px 80px rgba(0,0,0,0.7)' }}
@@ -569,6 +579,8 @@ function RematchDialog({ rematch, accent, onHover, onPick, onCancel }) {
   // the SAME way FrogBrowser's rematchOptions builds the controller's — otherwise the
   // trailing "Clear" row could differ and the D-pad cursor would misalign with the rows.
   const { candidates, current, index, matched, error, busy } = rematch
+  const panelRef = useRef(null)
+  useFocusTrap(panelRef)
   const options = [
     ...candidates.map((c) => ({ type: 'game', ...c })),
     ...(matched ? [{ type: 'clear' }] : []),
@@ -581,11 +593,16 @@ function RematchDialog({ rematch, accent, onHover, onPick, onCancel }) {
       onClick={onCancel}
     >
       <div
-        className="w-full max-w-sm rounded-2xl p-4"
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="frog-rematch-title"
+        tabIndex={-1}
+        className="w-full max-w-sm rounded-2xl p-4 outline-none"
         style={{ background: FROG.panel, border: `1px solid ${FROG.line}`, boxShadow: '0 20px 60px rgba(0,0,0,0.6)' }}
         onClick={(e) => e.stopPropagation()}
       >
-        <p className="px-1 text-sm font-semibold" style={{ color: FROG.ink }}>
+        <p id="frog-rematch-title" className="px-1 text-sm font-semibold" style={{ color: FROG.ink }}>
           Pick the right game
         </p>
         <p className="mb-3 mt-0.5 px-1 text-xs leading-relaxed" style={{ color: FROG.faint }}>
@@ -727,6 +744,8 @@ function DownloadLabel({ download }) {
 // The confirm — controller-drivable (Yes is focus, A confirms, B cancels) and
 // tappable. Guards a delete/remove behind one deliberate step.
 function ConfirmDialog({ message, onYes, onNo }) {
+  const panelRef = useRef(null)
+  useFocusTrap(panelRef)
   return (
     <div
       data-testid="frog-confirm"
@@ -734,10 +753,15 @@ function ConfirmDialog({ message, onYes, onNo }) {
       style={{ background: 'rgba(5, 17, 13, 0.72)', backdropFilter: 'blur(3px)' }}
     >
       <div
-        className="w-full max-w-sm rounded-2xl p-5 text-center"
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="frog-confirm-title"
+        tabIndex={-1}
+        className="w-full max-w-sm rounded-2xl p-5 text-center outline-none"
         style={{ background: FROG.panel, border: `1px solid ${FROG.line}`, boxShadow: '0 20px 60px rgba(0,0,0,0.6)' }}
       >
-        <p className="text-base font-medium" style={{ color: FROG.ink }}>
+        <p id="frog-confirm-title" className="text-base font-medium" style={{ color: FROG.ink }}>
           {message}
         </p>
         <div className="mt-5 flex justify-center gap-3">
