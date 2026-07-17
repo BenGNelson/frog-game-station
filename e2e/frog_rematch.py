@@ -112,6 +112,24 @@ with sync_playwright() as p:
     page.wait_for_selector('[data-testid="frog-rematch"]', timeout=4000)
     opts = page.locator('[data-testid="frog-rematch-option"]')
     check(opts.count() == 2, f"the picker lists the candidates ({opts.count()})")
+
+    # The picker is a real modal for keyboard / assistive tech (on top of the
+    # virtual-cursor nav): a labelled role=dialog + aria-modal, with focus moved
+    # inside it on open.
+    dialog = page.locator('[role="dialog"][aria-modal="true"]')
+    check(dialog.count() == 1, "the picker is a proper modal (role=dialog + aria-modal)")
+    labelled = page.evaluate(
+        "() => { const d = document.querySelector('[role=dialog]');"
+        " const l = d && document.getElementById(d.getAttribute('aria-labelledby'));"
+        " return !!(l && l.textContent.trim()); }"
+    )
+    check(labelled, "the modal is labelled by its heading (aria-labelledby)")
+    focus_inside = page.evaluate(
+        "() => { const d = document.querySelector('[role=dialog]');"
+        " return !!d && (d === document.activeElement || d.contains(document.activeElement)); }"
+    )
+    check(focus_inside, "focus moves into the modal on open")
+
     page.get_by_test_id("frog-rematch-option").filter(has_text="Second Game").click(force=True)
     page.wait_for_selector('[data-testid="frog-rematch"]', state="detached", timeout=4000)
     check(len(posts) == 1 and posts[-1].get("igdb_id") == 200, "picking re-matches to that IGDB id")
@@ -129,6 +147,10 @@ with sync_playwright() as p:
     state["fail"] = False
     page.get_by_role("button", name="Cancel").click(force=True)
     page.wait_for_selector('[data-testid="frog-rematch"]', state="detached", timeout=4000)
+    restored = page.evaluate(
+        "() => document.activeElement === document.querySelector('[data-testid=frog-detail-fix]')"
+    )
+    check(restored, "cancelling the picker restores focus to the 'Wrong game?' control")
 
     # Now clear it → the basic page (no hero), but the fix control stays.
     page.get_by_test_id("frog-detail-fix").click(force=True)

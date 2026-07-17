@@ -76,11 +76,18 @@ Tailwind greys, no unstyled states.
 
 ## UI/UX sweep
 
-- [ ] **Accessibility:** the hero is `role=button` — verify SR labeling; focus-visible
-      rings for keyboard-only; the re-match dialog as a proper focus-trapped modal; aria on
-      the 6×6 grid; alt text throughout
-- [ ] **Reduced-motion** coverage everywhere (hero crossfade + boot + frog-float done —
-      re-audit)
+- [~] **Accessibility:** PARTIAL. Done: the re-match / confirm / lightbox overlays are now
+      real modals (`role=dialog` + `aria-modal` + `aria-labelledby`, focus moved in on open
+      and restored on close, Tab contained) via the shared `lib/useFocusTrap.js`; the
+      fullscreen screenshot has a meaningful `alt`; dead keys on the 6×6 grid carry
+      `aria-disabled`. **Deliberately NOT doing "focus-visible rings for keyboard nav":**
+      the screens run on a *virtual cursor* (a global key handler + `data-focused`), not real
+      DOM focus, so there's no focus to ring — bolting real rings on would fight the design.
+      Still open: verify the hero `role=button` SR labeling; broader alt-text pass on covers.
+- [x] **Reduced-motion** coverage — re-audited: the `.frog-*` animations are all gated by the
+      `prefers-reduced-motion` block in `frog.css`, and the hero auto-advance is guarded in
+      `FrogBrowser` via `matchMedia`. Remaining motion is user-initiated (focus scale) or
+      essential feedback (loading spinners), intentionally kept ("reduced, not none").
 - [ ] **Consistency:** one skeleton style, one card radius/shadow scale, one spacing rhythm
 - [ ] **Error / empty states** friendly and on-theme (see the theming audit)
 - [ ] **Touch ergonomics:** letter-rail tap targets, the search field auto-raise on iOS,

@@ -106,6 +106,10 @@ export default function Search({ query, results, zone, keyIndex, resultRow, allG
                     <button
                       key={ch}
                       type="button"
+                      // A dead key leads to zero results, so `typeKey` no-ops on it —
+                      // tell assistive tech that too, without disabling it (the pointer
+                      // cursor still needs to move across the grid).
+                      aria-disabled={dead || undefined}
                       onMouseMove={() => onKey(i)}
                       onClick={() => onPick(null, ch)}
                       className="flex aspect-square items-center justify-center rounded-lg text-lg font-semibold transition-colors"

@@ -211,6 +211,18 @@ every other text field). The controller legend is hidden in touch mode, and the 
 keydown router yields to a focused `<input>` so the native field's keystrokes never
 double-fire.
 
+Because navigation is a **virtual cursor** (the global key router + a `data-focused`
+attribute for styling) rather than real DOM focus, "focus-visible rings" have nothing to
+ring — so accessibility is handled where it actually helps. The input-trapping overlays
+(the re-match picker, the delete/remove confirm, the fullscreen screenshot) are **real
+modals**: `role="dialog"` + `aria-modal` + `aria-labelledby`, with focus moved onto the
+panel on open and handed back to the opener on close, and `Tab` contained. That lives in one
+tiny hook, `lib/useFocusTrap.js`, shared by all three. Focus lands on the panel itself, not a
+control inside it — a focused button would let a physical Enter fire *both* the global
+`confirm` action and the button's native click (which, for a Yes/No confirm, can disagree),
+so the key router stays the single driver while assistive tech still enters and announces the
+dialog.
+
 **Frog works offline.** The shelf, game list, and search are all built from one array of
 `{ id, name, core, label }` items — online that's the library API; offline it's the games
 you've **downloaded** (an on-device manifest). A pure mapping turns a manifest row into
