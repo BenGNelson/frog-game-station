@@ -16,6 +16,12 @@ describe('cleanTag', () => {
   it('caps length at 40 (matching the backend)', () => {
     expect(cleanTag('x'.repeat(60))).toHaveLength(40)
   })
+
+  it('caps by code point, not UTF-16 unit, so emoji tags match the backend', () => {
+    // 40 astral chars = 80 UTF-16 units; a code-point cap keeps 40, a naive slice(0,40)
+    // would keep 20 and desync from the server's Python code-point slice.
+    expect([...cleanTag('🐸'.repeat(50))]).toHaveLength(40)
+  })
 })
 
 describe('tagsForGame', () => {

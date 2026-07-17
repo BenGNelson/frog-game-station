@@ -281,7 +281,7 @@ function PreviewCard({ game }) {
         className="frog-float relative overflow-hidden rounded-2xl"
         style={{ border: `1px solid rgba(${s.accent}, 0.35)`, boxShadow: reflection(s.accent), background: '#000' }}
       >
-        <img key={game.id} src={coverUrl(game.id)} alt="" className="frog-rise aspect-[3/4] w-full object-cover" />
+        <img key={game.id} src={coverUrl(game.id, game.cover_v)} alt="" className="frog-rise aspect-[3/4] w-full object-cover" />
       </div>
       <p className="mt-2 truncate text-sm font-semibold" style={{ color: FROG.ink }}>
         {game.name}

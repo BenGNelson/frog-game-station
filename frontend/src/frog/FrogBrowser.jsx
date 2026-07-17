@@ -208,10 +208,19 @@ export default function FrogBrowser() {
   // once on mount; edits (on the game page) update this optimistically so the shelf's
   // Finished / per-tag rails reflect a change the instant you make it, without a round-trip.
   const [collections, setCollections] = useState({ finished: [], tags: {} })
+  // If the user makes an (optimistic) edit before this mount-time GET resolves, the GET's
+  // response predates that write on the server — applying it would clobber the edit and
+  // flash the badge/rail back off. So once an edit has happened, ignore the stale GET; the
+  // optimistic state + the fired writes are authoritative, and the next remount refetches.
+  const collectionsEdited = useRef(false)
   useEffect(() => {
     let alive = true
     fetchCollections()
-      .then((d) => alive && d && setCollections({ finished: d.finished ?? [], tags: d.tags ?? {} }))
+      .then((d) => {
+        if (alive && d && !collectionsEdited.current) {
+          setCollections({ finished: d.finished ?? [], tags: d.tags ?? {} })
+        }
+      })
       .catch(() => {})
     return () => {
       alive = false
@@ -405,7 +414,7 @@ export default function FrogBrowser() {
       recordPlayed(game)
       const q = `id=${encodeURIComponent(game.id)}&core=${encodeURIComponent(game.core)}&name=${encodeURIComponent(
         game.name || ''
-      )}&label=${encodeURIComponent(game.label || '')}`
+      )}&label=${encodeURIComponent(game.label || '')}${game.cover_v ? `&coverv=${game.cover_v}` : ''}`
       // A `slot` launches into that snapshot; without one it's a plain boot on the
       // game's own in-game (battery) save. Play with no slot is deliberately the default
       // — restoring an older snapshot would roll the battery save back to whenever it
@@ -522,9 +531,11 @@ export default function FrogBrowser() {
 
   // Collections edits for the open game, all optimistic: update `collections` at once so
   // the button/chips and the shelf rails react immediately, then fire the write. `id`
-  // captured up front so a game-switch mid-write can't retarget it.
+  // captured up front so a game-switch mid-write can't retarget it. `collectionsEdited`
+  // flips so a still-in-flight mount GET can't overwrite the edit with a pre-edit snapshot.
   const toggleFinished = () => {
     if (!detailGame) return
+    collectionsEdited.current = true
     const id = detailGame.id
     const next = !finishedSet.has(id)
     setCollections((c) => ({
@@ -535,9 +546,10 @@ export default function FrogBrowser() {
   }
   const addGameTag = (raw) => {
     if (!detailGame) return
-    const id = detailGame.id
     const tag = cleanTag(raw)
     if (!tag) return
+    collectionsEdited.current = true
+    const id = detailGame.id
     setCollections((c) => {
       const members = c.tags[tag] || []
       if (members.includes(id)) return c
@@ -547,6 +559,7 @@ export default function FrogBrowser() {
   }
   const removeGameTag = (tag) => {
     if (!detailGame) return
+    collectionsEdited.current = true
     const id = detailGame.id
     setCollections((c) => {
       const members = (c.tags[tag] || []).filter((g) => g !== id)

@@ -123,7 +123,7 @@ function GameCard({ game, focused, finished, onFocus, onPick }) {
     >
       <div className="relative aspect-[3/4] w-full overflow-hidden" style={{ background: '#000' }}>
         <img
-          src={coverUrl(game.id)}
+          src={coverUrl(game.id, game.cover_v)}
           alt=""
           loading="lazy"
           className="h-full w-full object-cover"

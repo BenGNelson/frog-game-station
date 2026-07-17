@@ -23,6 +23,9 @@ export default function Player() {
   // page. In-game, loading a state no longer reboots the player — but this entry
   // point still does, because there's no running engine yet to load into.
   const slot = params.get('slot')
+  // The game's user-set cover version, so the start-screen art busts its immutable
+  // cache after a cover is set (and so the pause menu knows a custom cover exists).
+  const coverV = params.get('coverv') || ''
 
   if (!id || !core) {
     return (
@@ -48,6 +51,7 @@ export default function Player() {
       core={core}
       name={name}
       label={label}
+      coverV={coverV}
       loadStateUrl={slot ? saveStateUrl(id, slot) : undefined}
     />
   )

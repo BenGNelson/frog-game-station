@@ -37,6 +37,14 @@ describe('coverUrl', () => {
       '/api/library/games/cover?id=Metroid%20Fusion%20(USA).gba'
     )
   })
+
+  it('appends the cover version to bust the immutable cache when one is set', () => {
+    expect(coverUrl('Tetris.gb', 1699999999000)).toBe(
+      '/api/library/games/cover?id=Tetris.gb&v=1699999999000'
+    )
+    // A falsy version (no custom cover) leaves the URL clean.
+    expect(coverUrl('Tetris.gb', 0)).toBe('/api/library/games/cover?id=Tetris.gb')
+  })
 })
 
 describe('sectionAccent', () => {

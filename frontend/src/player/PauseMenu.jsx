@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { Play, Save, FolderOpen, FastForward, Maximize, Gamepad2, RotateCcw, LogOut } from 'lucide-react'
+import { Play, Save, FolderOpen, FastForward, Maximize, Gamepad2, RotateCcw, LogOut, ImagePlus, ImageOff } from 'lucide-react'
 import { moveInGrid } from '../lib/gridNav.js'
 import { FROG } from '../frog/theme.js'
 import { radiantBackdrop, glowFilter } from '../lib/glow.js'
@@ -28,7 +28,7 @@ export function pauseCols(count) {
 // The menu's contents, exported so the controller can walk the same grid the
 // touch/keyboard user sees — one source of truth for what's on screen and what
 // index each thing sits at.
-export function pauseItems(fastForward, { canFullscreen = true } = {}) {
+export function pauseItems(fastForward, { canFullscreen = true, hasCustomCover = false } = {}) {
   return [
     { id: 'resume', label: 'Resume', Icon: Play, primary: true },
     { id: 'save', label: 'Save State', Icon: Save },
@@ -44,13 +44,18 @@ export function pauseItems(fastForward, { canFullscreen = true } = {}) {
     // at all: there the button did nothing, so it isn't shown. Quit is the way out.
     ...(canFullscreen ? [{ id: 'fullscreen', label: 'Fullscreen', Icon: Maximize }] : []),
     { id: 'controls', label: 'Controls', Icon: Gamepad2 },
+    // Grab THIS moment as the game's cover art — the live frame is already captured
+    // for the next save-state thumbnail, so it's here to reuse. Reset only shows once
+    // there's a user-set cover to revert.
+    { id: 'setCover', label: 'Set as Cover', Icon: ImagePlus },
+    ...(hasCustomCover ? [{ id: 'resetCover', label: 'Reset Cover', Icon: ImageOff }] : []),
     { id: 'restart', label: 'Restart', Icon: RotateCcw },
     { id: 'quit', label: 'Quit', Icon: LogOut, danger: true },
   ]
 }
 
-export default function PauseMenu({ open, name, fastForward, canFullscreen, focus, onFocus, onAction, legend }) {
-  const items = pauseItems(fastForward, { canFullscreen })
+export default function PauseMenu({ open, name, fastForward, canFullscreen, hasCustomCover, notice, focus, onFocus, onAction, legend }) {
+  const items = pauseItems(fastForward, { canFullscreen, hasCustomCover })
   const cols = pauseCols(items.length)
   const orphan = items.length % cols === 1 && items.length > cols
 
@@ -114,6 +119,16 @@ export default function PauseMenu({ open, name, fastForward, canFullscreen, focu
             />
           ))}
         </div>
+
+        {notice && (
+          <p
+            data-testid="frog-pause-notice"
+            className="mt-4 text-center text-sm font-medium"
+            style={{ color: `rgb(${FROG.jade})` }}
+          >
+            {notice}
+          </p>
+        )}
 
         {legend && <div className="mt-5">{legend}</div>}
       </div>

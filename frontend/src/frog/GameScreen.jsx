@@ -404,7 +404,7 @@ function Cover({ game, accent, finished, className = '' }) {
       className={`relative shrink-0 overflow-hidden rounded-2xl ${className}`}
       style={{ border: `1px solid rgba(${accent}, 0.4)`, boxShadow: reflection(accent), background: '#000' }}
     >
-      <img src={coverUrl(game.id)} alt="" className="aspect-[3/4] w-full object-cover" />
+      <img src={coverUrl(game.id, game.cover_v)} alt="" className="aspect-[3/4] w-full object-cover" />
       {finished && <FinishedBadge />}
       <div
         className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3"
@@ -603,7 +603,7 @@ function SimilarCard({ game, focused, onFocus, onOpen }) {
     >
       <div className="relative aspect-[3/4] w-full overflow-hidden" style={{ background: '#000' }}>
         <img
-          src={coverUrl(game.id)}
+          src={coverUrl(game.id, game.cover_v)}
           alt=""
           loading="lazy"
           className="h-full w-full object-cover"
