@@ -32,6 +32,14 @@ the git history (`git log`).
 - [ ] **Set custom art** from a live in-game screenshot (ties to save-state shot capture).
 - [ ] **Deeper ROM-hack support surfacing** — **define scope first**: what exactly to
       surface (base-game linkage? hack metadata? a badge on the tile?) before building.
+- [ ] **In-game wiki browser** — a peekable, app-skinned web browser *inside the player*,
+      for pulling up a game's wiki (e.g. a Pokémon wiki) mid-game. Toggle open/closed and it
+      **keeps its place** (page + scroll) across close/reopen, so you can glance and dismiss
+      without losing your spot. **Scope/feasibility first:** many wikis block being framed
+      (`X-Frame-Options` / `frame-ancestors` CSP), so decide the approach — a header-stripping
+      backend proxy, a curated set of frame-friendly wikis, or an open-in-tab fallback — and
+      how the per-game URL is chosen (search by title vs a stored per-game/per-system link)
+      before building.
 
 ---
 
