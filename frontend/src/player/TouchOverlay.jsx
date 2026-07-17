@@ -209,7 +209,10 @@ export default function TouchOverlay({ core, orientation, onInput, onAction, opa
             data-on="0"
             // The visuals never receive a touch — the surface above owns all of
             // them. This is what makes multi-touch and slide-through possible.
-            className={`pointer-events-none flex items-center justify-center font-semibold text-slate-100 transition-[filter,background-color] duration-75 ${SHAPE[item.type] || ''} ${
+            // Deliberately neutral white-on-black glass — the touch controls float
+            // over live gameplay, so they stay a game-agnostic overlay (like the
+            // lightbox) rather than wearing the app's jade.
+            className={`pointer-events-none flex items-center justify-center font-semibold text-white transition-[filter,background-color] duration-75 ${SHAPE[item.type] || ''} ${
               on ? 'hq-pressed' : ''
             }`}
             style={place(item.frame)}

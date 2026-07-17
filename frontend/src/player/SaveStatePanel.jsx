@@ -3,6 +3,7 @@ import { ChevronLeft, Save } from 'lucide-react'
 import SaveStateCard from '../SaveStateCard.jsx'
 import { Spinner } from '../components/ui.jsx'
 import { moveInGrid } from '../lib/gridNav.js'
+import { FROG } from '../frog/theme.js'
 
 // The in-game save-state shelf, opened from the pause menu.
 //
@@ -95,8 +96,9 @@ export default function SaveStatePanel({
       aria-label="Save states"
       tabIndex={-1}
       onKeyDown={onKeyDown}
-      className="absolute inset-0 z-30 flex flex-col bg-slate-950/85 outline-none backdrop-blur-md"
+      className="absolute inset-0 z-30 flex flex-col outline-none backdrop-blur-md"
       style={{
+        background: 'rgba(5, 17, 13, 0.9)',
         paddingLeft: 'env(safe-area-inset-left)',
         paddingRight: 'env(safe-area-inset-right)',
         paddingBottom: 'env(safe-area-inset-bottom)',
@@ -105,15 +107,16 @@ export default function SaveStatePanel({
       <div className="flex shrink-0 items-center gap-2 px-3 py-2">
         <button
           onClick={onBack}
-          className="flex items-center gap-1 rounded-lg bg-slate-800/80 px-2.5 py-1.5 text-sm text-slate-200 active:bg-slate-700"
+          className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-sm active:opacity-70"
+          style={{ background: FROG.panel, color: FROG.ink }}
         >
           <ChevronLeft className="h-4 w-4" aria-hidden="true" /> Back
         </button>
-        <h2 className="min-w-0 flex-1 truncate text-center text-sm font-medium text-slate-200">Save states</h2>
+        <h2 className="min-w-0 flex-1 truncate text-center text-sm font-medium" style={{ color: FROG.ink }}>Save states</h2>
         <span className="w-16" aria-hidden="true" />
       </div>
 
-      {error && <p className="px-4 pb-2 text-sm text-rose-400">{error}</p>}
+      {error && <p className="px-4 pb-2 text-sm" style={{ color: 'rgb(239, 90, 90)' }}>{error}</p>}
 
       {/* touch-auto: the player wrapper turns touch-action off so a thumb on the
           d-pad can't drag the page — but that inherits here too, and this list
@@ -125,9 +128,15 @@ export default function SaveStatePanel({
             onMouseEnter={() => onFocus(0)}
             disabled={busy}
             data-focused={focus === 0 || undefined}
-            className={`flex aspect-[4/3] flex-col items-center justify-center gap-2 rounded-xl border border-dashed bg-emerald-500/10 text-emerald-300 transition-transform active:bg-emerald-500/20 disabled:opacity-50 ${
-              focus === 0 ? 'scale-105 border-emerald-300 ring-2 ring-emerald-400/60' : 'border-emerald-500/60'
+            className={`flex aspect-[4/3] flex-col items-center justify-center gap-2 rounded-xl border border-dashed transition-transform active:opacity-80 disabled:opacity-50 ${
+              focus === 0 ? 'scale-105' : ''
             }`}
+            style={{
+              background: `rgba(${FROG.jade}, 0.10)`,
+              color: `rgb(${FROG.jade})`,
+              borderColor: focus === 0 ? `rgba(${FROG.jade}, 0.8)` : `rgba(${FROG.jade}, 0.5)`,
+              boxShadow: focus === 0 ? `0 0 0 2px rgba(${FROG.jade}, 0.5)` : 'none',
+            }}
           >
             {busy ? <Spinner /> : <Save className="h-6 w-6" aria-hidden="true" />}
             <span className="text-xs font-medium">{busy ? 'Saving…' : 'Save new state'}</span>
@@ -147,9 +156,9 @@ export default function SaveStatePanel({
           ))}
         </div>
 
-        {loading && <p className="py-6 text-center text-sm text-slate-500">loading…</p>}
+        {loading && <p className="py-6 text-center text-sm" style={{ color: FROG.faint }}>loading…</p>}
         {!loading && states.length === 0 && (
-          <p className="py-8 text-center text-sm text-slate-500">
+          <p className="py-8 text-center text-sm" style={{ color: FROG.faint }}>
             No saved states yet. Save one here and it’ll show up on your other devices too.
           </p>
         )}

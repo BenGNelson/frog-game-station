@@ -1,10 +1,8 @@
 import { useEffect, useRef } from 'react'
 import { Play, Save, FolderOpen, FastForward, Maximize, Gamepad2, RotateCcw, LogOut } from 'lucide-react'
 import { moveInGrid } from '../lib/gridNav.js'
-import { sectionAccent } from '../lib/library.js'
+import { FROG } from '../frog/theme.js'
 import { radiantBackdrop, glowFilter } from '../lib/glow.js'
-
-const GAMES = sectionAccent('games') // violet — the Games role tint
 
 // The in-game menu. Replaces EmulatorJS's own bottom bar, which is a strip of
 // small mouse-sized icons that a D-pad can't reach.
@@ -87,8 +85,9 @@ export default function PauseMenu({ open, name, fastForward, canFullscreen, focu
       aria-label="Game menu"
       tabIndex={-1}
       onKeyDown={onKeyDown}
-      className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-slate-950/70 outline-none backdrop-blur-md"
+      className="absolute inset-0 z-20 flex flex-col items-center justify-center outline-none backdrop-blur-md"
       style={{
+        background: 'rgba(5, 17, 13, 0.72)',
         paddingLeft: 'env(safe-area-inset-left)',
         paddingRight: 'env(safe-area-inset-right)',
         paddingBottom: 'env(safe-area-inset-bottom)',
@@ -96,12 +95,12 @@ export default function PauseMenu({ open, name, fastForward, canFullscreen, focu
     >
       <div
         className="pointer-events-none absolute inset-0"
-        style={{ background: radiantBackdrop(GAMES.rgb, 0.14) }}
+        style={{ background: radiantBackdrop(FROG.jade, 0.14) }}
       />
 
       <div className="relative w-full max-w-lg px-4">
-        <p className="mb-1 text-center text-xs font-medium uppercase tracking-widest text-slate-500">Paused</p>
-        <h2 className="mb-5 truncate text-center text-lg font-semibold text-slate-100">{name}</h2>
+        <p className="mb-1 text-center text-xs font-medium uppercase tracking-widest" style={{ color: FROG.faint }}>Paused</p>
+        <h2 className="mb-5 truncate text-center text-lg font-semibold" style={{ color: FROG.ink }}>{name}</h2>
 
         <div className={`grid gap-3 ${cols === 4 ? 'grid-cols-4' : 'grid-cols-3'}`}>
           {items.map((item, i) => (
@@ -131,7 +130,9 @@ function MenuTile({ item, focused, centered, onSelect, onHover }) {
     if (focused) ref.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
   }, [focused])
 
-  const tint = danger ? 'text-rose-300' : primary ? 'text-emerald-300' : active ? 'text-violet-300' : 'text-slate-300'
+  // Quit reads danger-red; Resume and the active toggle wear the app's jade accent;
+  // everything else is a quiet FROG soft.
+  const iconColor = danger ? 'rgb(239, 90, 90)' : primary || active ? `rgb(${FROG.jade})` : FROG.soft
 
   return (
     <button
@@ -139,17 +140,21 @@ function MenuTile({ item, focused, centered, onSelect, onHover }) {
       onClick={onSelect}
       onMouseEnter={onHover}
       aria-current={focused || undefined}
-      className={`flex aspect-square flex-col items-center justify-center gap-2 rounded-2xl border bg-slate-900/70 px-2 transition-all active:scale-[0.97] ${
+      className={`flex aspect-square flex-col items-center justify-center gap-2 rounded-2xl border px-2 transition-all active:scale-[0.97] ${
         centered ? 'col-start-2' : ''
-      } ${
-        focused
-          ? 'scale-105 border-violet-400 bg-slate-800/80 ring-2 ring-violet-400/60'
-          : 'border-slate-700/80 hover:border-slate-600'
-      }`}
-      style={focused ? { filter: glowFilter(GAMES.rgb, 0.55) } : undefined}
+      } ${focused ? 'scale-105' : ''}`}
+      style={{
+        background: focused ? `rgba(${FROG.jade}, 0.14)` : FROG.panel,
+        borderColor: focused ? `rgba(${FROG.jade}, 0.6)` : FROG.line,
+        boxShadow: focused ? `0 0 0 2px rgba(${FROG.jade}, 0.5)` : 'none',
+        filter: focused ? glowFilter(FROG.jade, 0.55) : undefined,
+      }}
     >
-      <Icon className={`h-7 w-7 ${tint}`} aria-hidden="true" />
-      <span className={`text-center text-xs font-medium leading-tight ${focused ? 'text-slate-100' : 'text-slate-400'}`}>
+      <Icon className="h-7 w-7" style={{ color: iconColor }} aria-hidden="true" />
+      <span
+        className="text-center text-xs font-medium leading-tight"
+        style={{ color: focused ? FROG.ink : FROG.soft }}
+      >
         {label}
       </span>
     </button>

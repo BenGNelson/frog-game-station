@@ -1,8 +1,6 @@
 import { RotateCw, Smartphone } from 'lucide-react'
-import { sectionAccent } from '../lib/library.js'
+import { FROG } from '../frog/theme.js'
 import { radiantBackdrop, glowFilter } from '../lib/glow.js'
-
-const GAMES = sectionAccent('games')
 
 // "Turn your device sideways."
 //
@@ -17,19 +15,23 @@ const GAMES = sectionAccent('games')
 export default function RotatePrompt() {
   return (
     <div
-      className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-6 bg-slate-950/95 text-center"
+      className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-6 text-center"
+      style={{ background: 'rgba(5, 17, 13, 0.95)' }}
       role="status"
     >
-      <div className="pointer-events-none absolute inset-0" style={{ background: radiantBackdrop(GAMES.rgb, 0.16) }} />
+      <div className="pointer-events-none absolute inset-0" style={{ background: radiantBackdrop(FROG.jade, 0.16) }} />
 
-      <div className="relative flex items-center gap-3 text-violet-300" style={{ filter: glowFilter(GAMES.rgb, 0.7) }}>
+      <div
+        className="relative flex items-center gap-3"
+        style={{ color: `rgb(${FROG.jade})`, filter: glowFilter(FROG.jade, 0.7) }}
+      >
         <Smartphone className="h-12 w-12 rotate-90" aria-hidden="true" />
         <RotateCw className="h-6 w-6 animate-[spin_2.5s_linear_infinite]" aria-hidden="true" />
       </div>
 
       <div className="relative px-8">
-        <p className="text-lg font-semibold text-slate-100">Turn your device sideways</p>
-        <p className="mt-1 text-sm text-slate-400">Your game is paused. It’ll pick up right where you left it.</p>
+        <p className="text-lg font-semibold" style={{ color: FROG.ink }}>Turn your device sideways</p>
+        <p className="mt-1 text-sm" style={{ color: FROG.soft }}>Your game is paused. It’ll pick up right where you left it.</p>
       </div>
     </div>
   )

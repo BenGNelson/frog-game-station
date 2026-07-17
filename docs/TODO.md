@@ -10,21 +10,6 @@ Roughly priority-ordered within each group.
 
 ---
 
-## Player theming — re-theme to WATER / jade
-
-The in-game player UI is still **slate-grey** from the Home HQ extraction: the pause menu,
-controls panel, save panel, rotate prompt, button legend, touch overlay, and the top-level
-`SaveStateCard` use raw Tailwind `slate-*`/`violet-*`, while the rest of the app — and the
-player's *own* FROG-coloured start screen — is on the `frog/theme.js` tokens. So the player
-is inconsistent even with itself.
-
-- [ ] Re-theme `player/*` (except the already-FROG `FrogBoot.jsx`), `Player.jsx`, and
-      `SaveStateCard.jsx` onto the FROG tokens (`FROG.panel`/`line`/`ink`/`soft`, jade
-      accent) so the whole app reads as one world. Keep it a legible dark chrome around the
-      game — this is a re-skin, not a redesign.
-
----
-
 ## Accessibility — finish the pass
 
 The overlays are real modals and the screenshot has alt text (done). Remaining:
