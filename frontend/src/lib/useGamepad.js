@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { snapshotPad, padDiff, axisDirection, repeatTick, padAction, menuGesture, MENU_GESTURE_IDLE } from './gamepad.js'
+import { snapshotPad, padDiff, axisDirection, repeatTick, stickRepeatRate, padAction, menuGesture, MENU_GESTURE_IDLE } from './gamepad.js'
 
 // Polls the physical controller and turns it into semantic actions.
 //
@@ -91,9 +91,15 @@ export function useGamepad(handlers, enabled = true) {
       menu = m.state
       if (m.action) h.onMenuAction?.(m.action)
 
+      // How far the analog stick is pushed (0 at center, ~1 at full). When a HELD
+      // direction is the stick's, the further it's pushed the faster it repeats —
+      // velocity-scaled fast-scroll. The d-pad (no magnitude) keeps the steady rate.
+      const stickMag = Math.min(1, Math.hypot(next.axes[0] ?? 0, next.axes[1] ?? 0))
+
       // Hold a direction -> keep moving, after a beat.
       if (held) {
-        const r = repeatTick(held, now)
+        const opts = held.action === stick ? { rate: stickRepeatRate(stickMag) } : undefined
+        const r = repeatTick(held, now, opts)
         held = r.state
         if (r.fire) h.onAction?.(held.action)
       }

@@ -48,16 +48,20 @@ the git history (`git log`).
 
 ## Quality & polish
 
-- [ ] **Touch ergonomics:** the search field auto-raise on iOS, swipe momentum on rails,
-      letter-rail tap targets.
-- [ ] **A11y finish:** verify the hero `role=button` screen-reader labeling; broader alt-text
-      pass on covers (confirm `alt=""` where a visible title sits alongside, label where not).
-- [ ] **Perf:** image lazy-loading + art-cache warm-up — mostly matters at the ~1200-game
-      library scale.
+- [~] **Touch ergonomics:** **letter-rail tap targets DONE** (cells stretch to fill the rail
+      height). _Deferred, needs on-device iOS:_ search-field keyboard auto-raise (iOS blocks
+      programmatic focus outside a user gesture) and swipe momentum (already default on
+      modern iOS — likely a no-op).
+- [x] **A11y finish** — verified: the hero carries `role=button` + `aria-label`; covers use
+      `alt=""` wherever a visible title sits alongside, and labelled art (the lightbox) is
+      labelled. No changes were needed.
+- [x] **Perf: image lazy-loading** — verified already applied where it matters (rails
+      `loading="lazy"`; the game list is windowed; single above-fold covers don't benefit).
+      _Deferred:_ art-cache warm-up (marginal for a one-cover-at-a-time list; real complexity).
 - [ ] **Save-state slots — richer management** (rename / annotate / reorder). The multi-slot
       store (create/list/delete) already exists; this is the management UI on top.
-- [ ] **Left-stick accelerated fast-scroll** — the velocity-scaled variant; the analog stick
-      already drives d-pad nav with hold-repeat (`lib/useGamepad.js`).
+- [x] **Left-stick accelerated fast-scroll** — velocity-scaled: the stick repeats faster the
+      further it's pushed (`stickRepeatRate` in `lib/gamepad.js`).
 
 ---
 
