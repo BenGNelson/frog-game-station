@@ -7,7 +7,7 @@ import { useDownloadedEntries } from '../lib/useDownloaded.js'
 import { useDownload } from '../lib/useDownload.js'
 import {
   systemGames, gameOfflineUrls, saveStatesUrl, gameMetaUrl, gameCandidatesUrl, postGameMatch,
-  GAME_META_STATUS_PATH, postMetaRescan,
+  GAME_META_STATUS_PATH, fetchPlayStats, postMetaRescan,
 } from '../lib/library.js'
 import { readSettings, writeSettings } from '../lib/playerSettings.js'
 import { isFavorite, toggleFavorite } from '../lib/favorites.js'
@@ -23,7 +23,7 @@ import { SkeletonLine } from '../components/ui.jsx'
 import ButtonLegend from '../player/ButtonLegend.jsx'
 import { defaultFrogMode, nextFrogMode, usesNativeKeyboard } from './input.js'
 import { FROG, systemStyle } from './theme.js'
-import { buildShelf, stepLetter } from './shelf.js'
+import { buildShelf, hydrate, stepLetter } from './shelf.js'
 import { searchGames, matches, KEYS, gridMove } from './search.js'
 import Frog, { FrogMark, Reflected } from './Frog.jsx'
 import Boot from './Boot.jsx'
@@ -176,7 +176,34 @@ export default function FrogBrowser() {
   const [rematch, setRematch] = useState(null)
   const [metaRefresh, setMetaRefresh] = useState(0)
 
-  const rails = useMemo(() => buildShelf(items, getRecent(), getFavorites()), [items])
+  // Per-game play-time totals (the "Most played" rail + the game-page line). FrogBrowser
+  // remounts on every game launch, so a session that just ended is picked up on return.
+  // But that session is reported by a sendBeacon during the player's teardown, which can
+  // land just after this first read — so re-read once shortly after mount to catch it,
+  // updating state only on success (no loading flash, and offline just leaves it empty).
+  const [playStatItems, setPlayStatItems] = useState([])
+  useEffect(() => {
+    let alive = true
+    const load = () =>
+      fetchPlayStats()
+        .then((d) => alive && d && setPlayStatItems(d.items ?? []))
+        .catch(() => {})
+    load()
+    const t = setTimeout(load, 1500)
+    return () => {
+      alive = false
+      clearTimeout(t)
+    }
+  }, [])
+  const playStatsById = useMemo(
+    () => new Map(playStatItems.map((s) => [s.id, s])),
+    [playStatItems]
+  )
+
+  const rails = useMemo(
+    () => buildShelf(items, getRecent(), getFavorites(), playStatItems),
+    [items, playStatItems]
+  )
   const games = useMemo(() => (system ? systemGames(items, system) : []), [items, system])
   // Searched across EVERY system, not just the open one — from the shelf you haven't
   // picked a console yet, and "which box is Zelda in" is exactly what search is for.
@@ -249,9 +276,19 @@ export default function FrogBrowser() {
   // The screenshots the game screen shows (only when IGDB matched this game). Drives
   // both the strip's focus range and the fullscreen lightbox.
   const shots = meta?.matched ? meta.screenshot_ids ?? [] : []
+  // "More like this": IGDB's similar-game ids for the open game, re-hydrated against
+  // the live library (same pattern as the shelf's recents/favorites) so a tile is
+  // always a real, playable game with the library's own name — and games that have
+  // since left simply drop out. Empty until a matched game carries a similar list.
+  const similar = useMemo(() => {
+    const ids = meta?.matched ? meta.similar ?? [] : []
+    // The ids are bare game_ids; wrap them as markers for the shared re-hydrator.
+    return ids.length ? hydrate(items, ids.map((id) => ({ id }))) : []
+  }, [meta, items])
   // The vertical focus order on the game page — actions, then the screenshot strip
-  // (only if there are shots), then the save list (only if there are saves). up/down
-  // cross between whichever zones are present; left/right move within actions/screens.
+  // (only if there are shots), then the save list (only if there are saves), then the
+  // "more like this" rail. up/down cross between whichever zones are present; left/right
+  // move within actions/screens/similar.
   // Whether a "Wrong game?" / "Find on IGDB" fix control is offered (there's a
   // candidate shortlist to fix the match against).
   const canRematch = !!meta?.can_rematch
@@ -261,8 +298,9 @@ export default function FrogBrowser() {
     z.push('actions')
     if (canRematch) z.push('fix') // the "Wrong game?" control, below the facts
     if (saves.length) z.push('saves')
+    if (similar.length) z.push('similar') // the rail at the foot of the page
     return z
-  }, [shots.length, canRematch, saves.length])
+  }, [shots.length, canRematch, saves.length, similar.length])
 
   // Slowly crossfade the hero's background through the screenshots. Paused while the
   // lightbox is open (you're looking at one) and under reduced-motion (leave it still).
@@ -524,11 +562,16 @@ export default function FrogBrowser() {
       // The hero / fix control are single targets; if they went away, fall to actions.
       if (f.zone === 'hero') return shots.length ? { zone: 'hero', index: 0 } : { zone: 'actions', index: 0 }
       if (f.zone === 'fix') return canRematch ? { zone: 'fix', index: 0 } : { zone: 'actions', index: 0 }
+      // The two list zones clamp their index and fall to actions when they empty.
+      if (f.zone === 'similar') {
+        if (similar.length === 0) return { zone: 'actions', index: 0 }
+        return f.index < similar.length ? f : { zone: 'similar', index: similar.length - 1 }
+      }
       // saves
       if (saves.length === 0) return { zone: 'actions', index: 0 }
       return f.index < saves.length ? f : { zone: 'saves', index: saves.length - 1 }
     })
-  }, [saves, shots.length, canRematch])
+  }, [saves, shots.length, canRematch, similar.length])
 
   // Append a key, but only if it keeps the list alive — the same dead-key rule the
   // grid dims by, enforced here so you physically cannot type into an empty result
@@ -742,7 +785,12 @@ export default function FrogBrowser() {
             if (f.index === 0) play(detailGame)
             else if (f.index === 1) toggleFav()
             else startOrRemoveDownload()
-          } else if (saves[f.index]) {
+          } else if (f.zone === 'similar') {
+            // Open the picked similar game. Inherit THIS page's origin (never 'detail')
+            // so Back returns to the screen you came from, not a dead-ended game page —
+            // the same reasoning as openRandom.
+            if (similar[f.index]) openDetail(similar[f.index], detailFrom)
+          } else if (f.zone === 'saves' && saves[f.index]) {
             play(detailGame, saves[f.index].slot)
           }
           return
@@ -755,10 +803,12 @@ export default function FrogBrowser() {
         case 'left':
           if (f.zone === 'hero') setHeroSlide((i) => (i - 1 + shots.length) % shots.length)
           else if (f.zone === 'actions') setDetailFocus((p) => ({ zone: 'actions', index: Math.max(0, p.index - 1) }))
+          else if (f.zone === 'similar') setDetailFocus((p) => ({ zone: 'similar', index: Math.max(0, p.index - 1) }))
           return
         case 'right':
           if (f.zone === 'hero') setHeroSlide((i) => (i + 1) % shots.length)
           else if (f.zone === 'actions') setDetailFocus((p) => ({ zone: 'actions', index: Math.min(2, p.index + 1) }))
+          else if (f.zone === 'similar') setDetailFocus((p) => ({ zone: 'similar', index: Math.min(similar.length - 1, p.index + 1) }))
           return
         case 'up':
           // Within the save list, up walks the list first; at its top (and from any
@@ -767,7 +817,11 @@ export default function FrogBrowser() {
           else if (above) setDetailFocus({ zone: above, index: 0 })
           return
         case 'down':
-          if (f.zone === 'saves') setDetailFocus((p) => ({ zone: 'saves', index: Math.min(saves.length - 1, p.index + 1) }))
+          // Within the save list, down walks the list first; at its bottom (and from any
+          // other zone) it crosses to the zone below — the mirror of `up`. Without the
+          // "not yet at the end" guard, focus would stick in the saves list and never
+          // reach the "More like this" rail beneath it.
+          if (f.zone === 'saves' && f.index < saves.length - 1) setDetailFocus((p) => ({ zone: 'saves', index: p.index + 1 }))
           else if (below) setDetailFocus({ zone: below, index: 0 })
           return
         default:
@@ -1122,6 +1176,8 @@ export default function FrogBrowser() {
           favorited={favorited}
           saves={saves}
           loadingSaves={savesLoading}
+          similar={similar}
+          playMs={playStatsById.get(detailGame.id)?.play_ms}
           download={dl}
           focus={detailFocus}
           confirm={confirm}
@@ -1129,6 +1185,7 @@ export default function FrogBrowser() {
           slide={heroSlide}
           canRematch={canRematch}
           rematch={rematch}
+          onOpenSimilar={(g) => openDetail(g, detailFrom)}
           onOpenRematch={openRematch}
           onRematchHover={(index) => setRematch((r) => (r ? { ...r, index } : r))}
           onRematchPick={(igdbId) => applyMatch(igdbId)}
@@ -1228,7 +1285,9 @@ export default function FrogBrowser() {
                                 ? 'Screenshots'
                                 : detailFocus.zone === 'fix'
                                   ? 'Fix match'
-                                  : 'Select',
+                                  : detailFocus.zone === 'similar'
+                                    ? 'Open'
+                                    : 'Select',
                         },
                         { button: 'B', label: 'Back' },
                         ...(detailFocus.zone === 'saves' ? [{ button: 'Y', label: 'Delete save' }] : []),

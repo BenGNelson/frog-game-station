@@ -34,6 +34,20 @@ CREATE TABLE IF NOT EXISTS game_progress (
 );
 CREATE INDEX IF NOT EXISTS idx_game_progress_updated ON game_progress (updated_ms);
 
+-- Cumulative play-time per game — the source for the "Most played" rail and the game
+-- page's play-time line. DELIBERATELY separate from game_progress: that table's rows
+-- mean "has a resumable save" (it drives Jump Back In, which resumes via SRAM), and
+-- merely playing a game for a few seconds must NOT fake a save there. A game earns a
+-- play-time row the first time it's played at all; a save is a different thing.
+CREATE TABLE IF NOT EXISTS game_playtime (
+    game_id    TEXT PRIMARY KEY,
+    core       TEXT,
+    play_ms    INTEGER NOT NULL DEFAULT 0,  -- cumulative time actually played
+    plays      INTEGER NOT NULL DEFAULT 0,  -- number of play sessions counted
+    updated_ms INTEGER NOT NULL             -- last session's end, for tie-breaking
+);
+CREATE INDEX IF NOT EXISTS idx_game_playtime_play ON game_playtime (play_ms);
+
 -- IGDB metadata cache — the rich data behind the game screen (screenshots,
 -- summary, genres, rating, developer/publisher, trailer ids). A background
 -- matcher looks each ROM up on IGDB once; `rom_mtime` lets it skip unchanged
@@ -60,8 +74,10 @@ CREATE TABLE IF NOT EXISTS igdb_meta (
     source         TEXT NOT NULL,     -- 'auto' | 'manual' | 'cleared'
     match_version  TEXT,              -- matcher logic version this row was made with
     rom_mtime      REAL,              -- ROM mtime at match time (change detection)
+    similar_games  TEXT,              -- JSON array of IGDB ids IGDB calls "similar"
     updated_at     REAL NOT NULL
 );
+CREATE INDEX IF NOT EXISTS idx_igdb_meta_igdb_id ON igdb_meta (igdb_id);
 """
 
 
@@ -86,6 +102,8 @@ _MIGRATIONS = [
     # a re-match is resumable). A DB whose igdb_meta table predates the column gets it
     # here; a fresh one already has it from CREATE TABLE (this ALTER then no-ops).
     "ALTER TABLE igdb_meta ADD COLUMN match_version TEXT",
+    # IGDB's "similar games" ids on each cached match (the "more like this" rail).
+    "ALTER TABLE igdb_meta ADD COLUMN similar_games TEXT",
 ]
 
 
@@ -135,15 +153,49 @@ def delete_game_progress(game_id):
         return cur.rowcount > 0
 
 
+def add_play_time(game_id, core, ms, now_ms=None):
+    """Add a play session's elapsed time to a game's running total (and count it), in
+    the game_playtime table. Note this does NOT touch game_progress — play-time is not
+    a save, so it must not put a save-less game on the Jump Back In shelf. `ms` is the
+    caller's already-sanitised elapsed milliseconds. Returns the new (play_ms, plays)."""
+    if now_ms is None:
+        now_ms = int(time.time() * 1000)
+    with get_conn() as conn:
+        conn.execute(
+            "INSERT INTO game_playtime (game_id, core, play_ms, plays, updated_ms)"
+            " VALUES (?, ?, ?, 1, ?)"
+            " ON CONFLICT(game_id) DO UPDATE SET"
+            " core = excluded.core, updated_ms = excluded.updated_ms,"
+            " play_ms = play_ms + excluded.play_ms, plays = plays + 1",
+            (game_id, core, ms, now_ms),
+        )
+        r = conn.execute(
+            "SELECT play_ms, plays FROM game_playtime WHERE game_id = ?", (game_id,)
+        ).fetchone()
+    return (r["play_ms"], r["plays"]) if r else (ms, 1)
+
+
+def list_play_stats(limit=200):
+    """Games with any counted play-time, most-played first. Powers the "Most
+    played" rail and the per-game play-time line (the caller maps by game_id)."""
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT game_id, core, play_ms, plays, updated_ms FROM game_playtime"
+            " WHERE play_ms > 0 ORDER BY play_ms DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
 # --- IGDB game metadata cache ----------------------------------------------
 
 # JSON-encoded columns on igdb_meta, decoded back to Python on read.
-_IGDB_JSON_COLS = ("genres", "screenshot_ids", "videos", "candidates")
+_IGDB_JSON_COLS = ("genres", "screenshot_ids", "videos", "candidates", "similar_games")
 _IGDB_COLS = (
     "game_id", "igdb_id", "matched", "name", "summary", "release_year", "rating",
     "developer", "publisher", "genres", "cover_image_id", "screenshot_ids",
     "videos", "candidates", "confidence", "source", "match_version", "rom_mtime",
-    "updated_at",
+    "similar_games", "updated_at",
 )
 
 
@@ -218,3 +270,21 @@ def count_igdb_meta():
             "SELECT COUNT(*) AS n FROM igdb_meta WHERE matched = 1"
         ).fetchone()["n"]
     return total, matched
+
+
+def owned_by_igdb_ids(igdb_ids):
+    """{igdb_id: game_id} for the ROMs you OWN among a set of IGDB game ids — the
+    reverse of the usual game_id→igdb_id lookup. Powers the "more like this" rail:
+    IGDB hands back the ids of similar games, and this keeps only the ones actually
+    in the library. Only confident (matched) rows count. Empty set ⇒ empty dict."""
+    ids = [int(i) for i in igdb_ids if i is not None]
+    if not ids:
+        return {}
+    placeholders = ",".join("?" for _ in ids)
+    with get_conn() as conn:
+        rows = conn.execute(
+            f"SELECT igdb_id, game_id FROM igdb_meta"
+            f" WHERE matched = 1 AND igdb_id IN ({placeholders})",
+            tuple(ids),
+        ).fetchall()
+    return {r["igdb_id"]: r["game_id"] for r in rows}

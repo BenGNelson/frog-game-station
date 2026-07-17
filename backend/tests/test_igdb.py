@@ -109,6 +109,7 @@ def test_flatten_extracts_dev_publisher_year_rating_and_media():
         "cover": {"image_id": "covA"},
         "screenshots": [{"image_id": "s1"}, {"image_id": "s2"}, {}],
         "videos": [{"video_id": "yt1", "name": "Trailer"}, {"name": "no id"}],
+        "similar_games": [101, 202, 303],
     }
     out = igdb.flatten(candidate)
     assert out["igdb_id"] == 7
@@ -119,6 +120,7 @@ def test_flatten_extracts_dev_publisher_year_rating_and_media():
     assert out["cover_image_id"] == "covA"
     assert out["screenshot_ids"] == ["s1", "s2"]
     assert out["videos"] == [{"id": "yt1", "name": "Trailer"}]
+    assert out["similar_games"] == [101, 202, 303]
 
 
 def test_flatten_none_and_sparse():
@@ -126,6 +128,7 @@ def test_flatten_none_and_sparse():
     sparse = igdb.flatten({"id": 1, "name": "X"})
     assert sparse["developer"] is None and sparse["screenshot_ids"] == []
     assert sparse["rating"] is None and sparse["release_year"] is None
+    assert sparse["similar_games"] == []
 
 
 def test_image_url_builds_size_template():
@@ -258,6 +261,24 @@ def test_db_upsert_and_get_roundtrips_json_columns():
 
 def test_db_get_missing_is_none():
     assert db.get_igdb_meta("nope.gb") is None
+
+
+def test_db_similar_games_roundtrips():
+    db.upsert_igdb_meta(
+        "gb/z.gb",
+        {"matched": True, "source": "auto", "igdb_id": 1, "similar_games": [11, 22, 33]},
+    )
+    assert db.get_igdb_meta("gb/z.gb")["similar_games"] == [11, 22, 33]
+
+
+def test_owned_by_igdb_ids_keeps_only_matched_owned_games():
+    # Two owned+matched games, one unmatched, one not owned at all.
+    db.upsert_igdb_meta("a.gb", {"matched": True, "source": "auto", "igdb_id": 11})
+    db.upsert_igdb_meta("b.gb", {"matched": True, "source": "auto", "igdb_id": 22})
+    db.upsert_igdb_meta("c.gb", {"matched": False, "source": "auto", "igdb_id": 33})
+    owned = db.owned_by_igdb_ids([11, 22, 33, 44])
+    assert owned == {11: "a.gb", 22: "b.gb"}  # 33 unmatched, 44 not owned
+    assert db.owned_by_igdb_ids([]) == {}
 
 
 def test_db_upsert_overwrites_and_counts():
@@ -416,6 +437,27 @@ def test_meta_endpoint_returns_cached_row(client):
     assert body["screenshot_ids"] == ["s1", "s2"]
     assert body["videos"][0]["id"] == "yt"
     assert body["release_year"] == 1993 and body["rating"] == 89
+
+
+def test_meta_endpoint_lists_only_owned_similar_games(client):
+    # The viewed game (igdb 42) says its similar games are 100, 200, 300 in that
+    # relevance order. We own the ROMs matched to 200 and 100 (but not 300).
+    _seed()  # gb/Zelda.gb → igdb_id 42
+    db.upsert_igdb_meta(
+        "gb/Zelda.gb", {"matched": True, "source": "auto", "igdb_id": 42,
+                        "similar_games": [100, 200, 300]},
+    )
+    db.upsert_igdb_meta("gb/A.gb", {"matched": True, "source": "auto", "igdb_id": 100})
+    db.upsert_igdb_meta("gb/B.gb", {"matched": True, "source": "auto", "igdb_id": 200})
+    body = client.get("/api/library/games/meta", params={"id": "gb/Zelda.gb"}).json()
+    # Owned only, in IGDB's order (100 before 200); 300 dropped (not owned).
+    assert body["similar"] == ["gb/A.gb", "gb/B.gb"]
+
+
+def test_meta_endpoint_similar_empty_when_none_stored(client):
+    _seed()  # no similar_games on the seeded row
+    body = client.get("/api/library/games/meta", params={"id": "gb/Zelda.gb"}).json()
+    assert body["similar"] == []
 
 
 def test_screenshot_rejects_foreign_image_id(client):

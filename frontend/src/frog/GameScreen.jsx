@@ -1,9 +1,10 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   Play, Star, Download, Check, Trash2, TriangleAlert, Loader, X, ChevronLeft, ChevronRight,
   Maximize2, RefreshCw,
 } from 'lucide-react'
 import { coverUrl, saveStateShotUrl, igdbShotUrl } from '../lib/library.js'
+import { formatPlaytime } from '../lib/format.js'
 import { useFocusTrap } from '../lib/useFocusTrap.js'
 import { FROG, systemStyle, reflection } from './theme.js'
 import { SystemFrog, Reflected } from './Frog.jsx'
@@ -31,6 +32,8 @@ export default function GameScreen({
   favorited,
   saves,
   loadingSaves,
+  similar = [],
+  playMs,
   download,
   focus,
   confirm,
@@ -41,6 +44,7 @@ export default function GameScreen({
   onFocus,
   onPlay,
   onPlaySlot,
+  onOpenSimilar,
   onToggleFavorite,
   onDownload,
   onRequestDeleteSave,
@@ -131,6 +135,8 @@ export default function GameScreen({
               it. When basic, the header already carried them beside the cover. */}
           {rich && actions}
 
+          {playMs > 0 && <PlayedLine ms={playMs} />}
+
           {rich && <About meta={meta} />}
 
           {canRematch && (
@@ -153,6 +159,15 @@ export default function GameScreen({
             onPlaySlot={onPlaySlot}
             onRequestDeleteSave={onRequestDeleteSave}
           />
+
+          {similar.length > 0 && (
+            <SimilarRail
+              games={similar}
+              focusedIndex={focus.zone === 'similar' ? focus.index : -1}
+              onFocus={onFocus}
+              onOpen={onOpenSimilar}
+            />
+          )}
         </div>
       </div>
 
@@ -366,6 +381,17 @@ function RatingPill({ rating }) {
 }
 
 // The summary + a compact facts grid.
+// A quiet "you've played this for a while" line — shown for any game with clocked
+// time, rich or basic, so a well-loved ROM hack wears its hours too.
+function PlayedLine({ ms }) {
+  return (
+    <p className="flex items-center gap-1.5 text-sm" style={{ color: FROG.soft }}>
+      <Play className="h-3.5 w-3.5" fill="currentColor" aria-hidden="true" />
+      Played <span style={{ color: FROG.ink }}>{formatPlaytime(ms)}</span>
+    </p>
+  )
+}
+
 function About({ meta }) {
   const [expanded, setExpanded] = useState(false)
   const facts = [
@@ -475,6 +501,79 @@ function SaveShelf({ game, saves, loadingSaves, on, accent, onFocus, onPlaySlot,
         </ul>
       )}
     </div>
+  )
+}
+
+// "More like this" (zone 'similar') — the games in YOUR library that IGDB says are
+// close to this one, in IGDB's relevance order. A horizontal rail of covers, walked
+// left/right; A opens the picked game's page. Only games you own reach here (the
+// backend intersects IGDB's similar list with the library), so every tile is playable.
+function SimilarRail({ games, focusedIndex, onFocus, onOpen }) {
+  const rowRef = useRef(null)
+  // Keep the focused cover on screen as the D-pad walks the rail (same idea as the
+  // shelf's rails). Harmless in touch mode, where focusedIndex stays -1.
+  useEffect(() => {
+    if (focusedIndex < 0) return
+    rowRef.current?.children?.[focusedIndex]?.scrollIntoView({
+      block: 'nearest',
+      inline: 'center',
+      behavior: 'smooth',
+    })
+  }, [focusedIndex])
+  return (
+    <div>
+      <Heading>MORE LIKE THIS</Heading>
+      <div ref={rowRef} className="flex gap-3 overflow-x-auto pb-2">
+        {games.map((g, i) => (
+          <SimilarCard
+            key={g.id}
+            game={g}
+            focused={i === focusedIndex}
+            onFocus={() => onFocus('similar', i)}
+            onOpen={() => onOpen(g)}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function SimilarCard({ game, focused, onFocus, onOpen }) {
+  const s = systemStyle(game.label)
+  return (
+    <button
+      type="button"
+      data-testid="frog-similar"
+      data-focused={focused || undefined}
+      onMouseMove={onFocus}
+      onClick={onOpen}
+      className="relative flex w-28 shrink-0 flex-col overflow-hidden rounded-xl text-left transition-transform duration-200 sm:w-32"
+      style={{
+        background: FROG.panel,
+        border: `1px solid ${focused ? `rgba(${s.accent}, 0.6)` : FROG.line}`,
+        boxShadow: focused ? reflection(s.accent) : 'none',
+        transform: focused ? 'scale(1.05)' : 'scale(1)',
+      }}
+    >
+      <div className="relative aspect-[3/4] w-full overflow-hidden" style={{ background: '#000' }}>
+        <img
+          src={coverUrl(game.id)}
+          alt=""
+          loading="lazy"
+          className="h-full w-full object-cover"
+          style={{ opacity: focused ? 1 : 0.72 }}
+        />
+        <div
+          className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2"
+          style={{ background: `linear-gradient(to top, rgba(${s.accent}, 0.35), transparent)` }}
+        />
+      </div>
+      <div className="px-2 py-1.5">
+        <p className="truncate text-[12px] font-medium" style={{ color: focused ? FROG.ink : FROG.soft }}>
+          {game.name}
+        </p>
+      </div>
+    </button>
   )
 }
 

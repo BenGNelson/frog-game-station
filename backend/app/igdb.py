@@ -57,7 +57,7 @@ _FIELDS = (
     "name,summary,first_release_date,rating,total_rating,"
     "genres.name,involved_companies.company.name,involved_companies.developer,"
     "involved_companies.publisher,cover.image_id,screenshots.image_id,"
-    "videos.video_id,videos.name"
+    "videos.video_id,videos.name,similar_games"
 )
 
 # Low-signal words dropped before token comparison, so article/preposition
@@ -173,6 +173,9 @@ def flatten(candidate: dict | None) -> dict:
             for v in (candidate.get("videos") or [])
             if v.get("video_id")
         ],
+        # IGDB's own "more like this" — a list of IGDB game ids. Stored raw; the
+        # library endpoint later intersects them with the ROMs you actually own.
+        "similar_games": [int(i) for i in (candidate.get("similar_games") or []) if i],
     }
 
 

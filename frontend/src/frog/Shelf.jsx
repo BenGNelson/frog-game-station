@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { coverUrl } from '../lib/library.js'
 import { FROG, systemStyle, reflection } from './theme.js'
 import { agoLabel } from './shelf.js'
+import { formatPlaytime } from '../lib/format.js'
 import { useDozing } from '../lib/dayNight.js'
 import { Reflected, SystemFrog } from './Frog.jsx'
 import Console from './Console.jsx'
@@ -118,7 +119,8 @@ function GameCard({ game, focused, onFocus, onPick }) {
           {game.name}
         </p>
         <p className="mt-0.5 truncate text-[11px]" style={{ color: FROG.faint }}>
-          {agoLabel(game.ts)}
+          {/* A most-played card wears its play-time; every other rail wears "when". */}
+          {game.playMs != null ? formatPlaytime(game.playMs) : agoLabel(game.ts)}
         </p>
       </div>
     </button>

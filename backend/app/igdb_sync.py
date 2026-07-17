@@ -30,7 +30,9 @@ log = logging.getLogger("frog.igdb-sync")
 
 # Bump to force a full re-match once the matching/scoring logic changes
 # (already-matched rows would otherwise be skipped by the unchanged-mtime check).
-_MATCH_VERSION = "1"
+# v2: the query now also pulls `similar_games` (the "more like this" rail), so every
+# pre-v2 row needs a re-fetch to populate it.
+_MATCH_VERSION = "2"
 _RATE_DELAY = 0.28  # seconds between IGDB calls (~4 req/s, IGDB's published cap)
 _MAX_FAILS = 5  # consecutive lookup failures that abort a pass (API down / bad creds)
 

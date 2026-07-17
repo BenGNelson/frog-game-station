@@ -40,28 +40,39 @@ export function buildSystems(items = []) {
   return [...known, ...extra]
 }
 
-// "Jump back in" — the row that means most sessions never touch the alphabet.
-//
-// Recents are stored as bare markers (id + name + when), so they're matched back
-// against the live library: a game that has since left simply drops out, and the
-// name shown is always the library's, never a stale copy.
-export function jumpBackIn(items = [], recent = [], limit = 6) {
+// Re-hydrate stored id-markers against the LIVE library. Every rail here (and the game
+// page's "more like this") is stored as bare markers — an id plus maybe a `when` or a
+// play-time — and turned back into real games the same way: swap each marker for the
+// library's own copy (so the name is never stale), drop the ones whose game has left,
+// and carry any per-card field across with `decorate`. One place, so a change to how a
+// card is built can't be half-applied across four call sites.
+export function hydrate(items = [], refs = [], decorate) {
   const byId = new Map(items.map((g) => [g.id, g]))
-  return recent
-    .map((r) => {
-      const game = byId.get(r.id)
-      return game ? { ...game, ts: r.ts } : null
+  return refs
+    .map((ref) => {
+      const game = byId.get(ref.id)
+      if (!game) return null
+      return decorate ? { ...game, ...decorate(ref) } : game
     })
     .filter(Boolean)
-    .slice(0, limit)
 }
 
-// The games you've starred, re-hydrated against the live library exactly like the
-// recents: a favorite whose game has left simply drops out, and the name shown is
-// always the library's, never the stale copy in storage.
+// "Jump back in" — the row that means most sessions never touch the alphabet. Recents
+// are stored as bare markers (id + name + when); the `when` rides across for the card.
+export function jumpBackIn(items = [], recent = [], limit = 6) {
+  return hydrate(items, recent, (r) => ({ ts: r.ts })).slice(0, limit)
+}
+
+// The games you've starred — same re-hydration, nothing extra to carry.
 export function favoriteGames(items = [], favorites = []) {
-  const byId = new Map(items.map((g) => [g.id, g]))
-  return favorites.map((f) => byId.get(f.id)).filter(Boolean)
+  return hydrate(items, favorites)
+}
+
+// "Most played" — the games with the most clocked play-time. `stats` comes from the
+// backend already ordered most-played first (and already excluding anything with no
+// counted time), so this just re-hydrates and carries each one's `playMs` for the card.
+export function mostPlayed(items = [], stats = [], limit = 6) {
+  return hydrate(items, stats, (s) => ({ playMs: s.play_ms })).slice(0, limit)
 }
 
 // The shelf as rails, for lib/gridNav.js — which is what gives the D-pad column
@@ -71,13 +82,15 @@ export function favoriteGames(items = [], favorites = []) {
 // "Jump back in" is rail 0 so it's where focus lands, then Favorites — both the rows
 // that mean most sessions never touch the alphabet. Each disappears entirely when
 // it's empty: a heading over an empty row is a worse first impression than no heading.
-export function buildShelf(items = [], recent = [], favorites = []) {
+export function buildShelf(items = [], recent = [], favorites = [], played = []) {
   const jump = jumpBackIn(items, recent)
   const favs = favoriteGames(items, favorites)
+  const top = mostPlayed(items, played)
   const systems = buildSystems(items)
   return [
     ...(jump.length ? [{ id: 'jump', title: 'Jump back in', kind: 'game', items: jump }] : []),
     ...(favs.length ? [{ id: 'favorites', title: 'Favorites', kind: 'game', items: favs }] : []),
+    ...(top.length ? [{ id: 'mostPlayed', title: 'Most played', kind: 'game', items: top }] : []),
     { id: 'systems', title: 'Systems', kind: 'system', items: systems },
   ]
 }
