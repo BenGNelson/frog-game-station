@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Pin } from 'lucide-react'
 import { saveStateShotUrl } from './lib/library.js'
 import { formatAgo } from './lib/format.js'
 import { FROG } from './frog/theme.js'
@@ -40,7 +41,17 @@ export default function SaveStateCard({ game, state, onSelect, onDelete, actionL
             </div>
           )}
         </div>
-        <div className="px-2 py-1 text-xs" style={{ color: FROG.soft }}>saved {formatAgo(state.created_ms / 1000)}</div>
+        <div className="px-2 py-1">
+          {/* A custom name (and a pin) show above the age; the editor lives on the game
+              page, so in-game this is display-only. */}
+          {state.label && (
+            <div className="flex items-center gap-1 truncate text-xs font-medium" style={{ color: FROG.ink }}>
+              {state.pinned && <Pin className="h-3 w-3 shrink-0" fill="currentColor" style={{ color: `rgb(${FROG.jade})` }} aria-hidden="true" />}
+              <span className="truncate">{state.label}</span>
+            </div>
+          )}
+          <div className="text-xs" style={{ color: FROG.soft }}>saved {formatAgo(state.created_ms / 1000)}</div>
+        </div>
       </button>
       <div className="flex border-t text-xs" style={{ borderColor: FROG.line }}>
         <button

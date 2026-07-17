@@ -72,6 +72,10 @@ export function saveStateUrl(id, slot) {
 export function saveStateShotUrl(id, slot) {
   return `${API_BASE}/library/games/save-state/screenshot?id=${encodeURIComponent(id)}&slot=${encodeURIComponent(slot)}`
 }
+// Rename / annotate / pin a save slot (POST {id, slot, label, note, pinned}).
+export function saveStateMetaUrl() {
+  return `${API_BASE}/library/games/save-states/meta`
+}
 
 // A game's rich IGDB metadata (screenshots/summary/genres/rating) for the game
 // screen. Returns {matched:false} for a ROM hack / not-looked-up / no-key game;

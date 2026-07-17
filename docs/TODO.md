@@ -58,8 +58,9 @@ the git history (`git log`).
 - [x] **Perf: image lazy-loading** — verified already applied where it matters (rails
       `loading="lazy"`; the game list is windowed; single above-fold covers don't benefit).
       _Deferred:_ art-cache warm-up (marginal for a one-cover-at-a-time list; real complexity).
-- [ ] **Save-state slots — richer management** (rename / annotate / reorder). The multi-slot
-      store (create/list/delete) already exists; this is the management UI on top.
+- [x] **Save-state slots — richer management** — rename (custom label), annotate (note), and
+      pin (pinned sorts first — the sensible take on "reorder"), via a game-page editor modal
+      and a per-slot `{slot}.json` sidecar.
 - [x] **Left-stick accelerated fast-scroll** — velocity-scaled: the stick repeats faster the
       further it's pushed (`stickRepeatRate` in `lib/gamepad.js`).
 

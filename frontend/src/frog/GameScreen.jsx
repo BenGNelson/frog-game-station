@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   Play, Star, Download, Check, Trash2, TriangleAlert, Loader, X, ChevronLeft, ChevronRight,
-  Maximize2, RefreshCw, Trophy, Tag, Plus,
+  Maximize2, RefreshCw, Trophy, Tag, Plus, Pin, Pencil,
 } from 'lucide-react'
 import { coverUrl, saveStateShotUrl, igdbShotUrl } from '../lib/library.js'
 import { formatPlaytime } from '../lib/format.js'
@@ -58,7 +58,12 @@ export default function GameScreen({
   onTagPickerFocus,
   onCloseTags,
   onDownload,
-  onRequestDeleteSave,
+  saveEditor,
+  onOpenSaveEditor,
+  onEditSaveField,
+  onSaveEditorFocus,
+  onDeleteFromEditor,
+  onCloseSaveEditor,
   onOpenShot,
   onCloseLightbox,
   onLightboxNav,
@@ -189,7 +194,7 @@ export default function GameScreen({
             accent={s.accent}
             onFocus={onFocus}
             onPlaySlot={onPlaySlot}
-            onRequestDeleteSave={onRequestDeleteSave}
+            onOpenEditor={onOpenSaveEditor}
           />
 
           {similar.length > 0 && (
@@ -213,6 +218,17 @@ export default function GameScreen({
           onToggle={onToggleTag}
           onAdd={onAddTag}
           onClose={onCloseTags}
+        />
+      )}
+
+      {saveEditor && (
+        <SaveEditor
+          editor={saveEditor}
+          accent={s.accent}
+          onEdit={onEditSaveField}
+          onFocus={onSaveEditorFocus}
+          onDelete={onDeleteFromEditor}
+          onClose={onCloseSaveEditor}
         />
       )}
 
@@ -488,9 +504,10 @@ function About({ meta }) {
   )
 }
 
-// The save-state shelf (zone 'saves') — unchanged behaviour: launch a slot, or delete
-// one behind the confirm.
-function SaveShelf({ game, saves, loadingSaves, on, accent, onFocus, onPlaySlot, onRequestDeleteSave }) {
+// The save-state shelf (zone 'saves'): launch a slot, or open its editor (rename / note /
+// pin / delete). A slot's name is its custom label, falling back to its age; a pin star
+// and any note show inline. Pinned slots already arrive sorted to the top from the server.
+function SaveShelf({ game, saves, loadingSaves, on, accent, onFocus, onPlaySlot, onOpenEditor }) {
   return (
     <div>
       <Heading>SAVE STATES</Heading>
@@ -524,22 +541,28 @@ function SaveShelf({ game, saves, loadingSaves, on, accent, onFocus, onPlaySlot,
                 >
                   <SaveThumb gameId={game.id} snap={snap} />
                   <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-medium" style={{ color: FROG.ink }}>
-                      Resume
+                    <span className="flex items-center gap-1.5 text-sm font-medium" style={{ color: FROG.ink }}>
+                      {snap.pinned && <Pin className="h-3 w-3 shrink-0" fill="currentColor" style={{ color: `rgb(${accent})` }} aria-label="Pinned" />}
+                      <span className="truncate">{snap.label || 'Resume'}</span>
                     </span>
-                    <span className="block text-xs" style={{ color: FROG.soft }}>
+                    <span className="block truncate text-xs" style={{ color: FROG.soft }}>
                       saved {agoLabel(snap.slot)}
                     </span>
+                    {snap.note && (
+                      <span className="block truncate text-xs italic" style={{ color: FROG.faint }}>
+                        {snap.note}
+                      </span>
+                    )}
                   </span>
                 </button>
                 <button
                   type="button"
-                  onClick={() => onRequestDeleteSave(snap.slot)}
-                  aria-label="Delete this save state"
+                  onClick={() => onOpenEditor(snap)}
+                  aria-label="Edit this save state"
                   className="shrink-0 rounded-lg p-2"
                   style={{ color: on('saves', i) ? `rgb(${accent})` : FROG.faint }}
                 >
-                  <Trash2 className="h-[18px] w-[18px]" aria-hidden="true" />
+                  <Pencil className="h-[18px] w-[18px]" aria-hidden="true" />
                 </button>
               </div>
             </li>
@@ -966,6 +989,121 @@ function TagPicker({ tags, allTags, focus, accent, onFocus, onToggle, onAdd, onC
             No collections yet — type a name above to make your first one.
           </p>
         )}
+
+        <button
+          type="button"
+          onClick={onClose}
+          className="mt-3 w-full rounded-xl px-4 py-2 text-sm font-medium"
+          style={{ background: 'transparent', color: FROG.soft, border: `1px solid ${FROG.line}` }}
+        >
+          Done
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// The save-state editor (input-trapped, like the tag picker). Rename via the native name
+// field, annotate via the note field (keyboard/thumb), and pin or delete via the two
+// D-pad-reachable rows (parent owns `index`: 0 = pin, 1 = delete). Closing persists.
+function SaveEditor({ editor, accent, onEdit, onFocus, onDelete, onClose }) {
+  const panelRef = useRef(null)
+  useFocusTrap(panelRef)
+  const { label, note, pinned, index } = editor
+  const field = {
+    background: 'transparent',
+    border: `1px solid ${FROG.line}`,
+    color: FROG.ink,
+  }
+  const rowStyle = (on, danger) => ({
+    background: on ? (danger ? 'rgba(239,90,90,0.14)' : `rgba(${accent}, 0.16)`) : 'transparent',
+    boxShadow: on
+      ? `inset 0 0 0 1px ${danger ? 'rgba(239,90,90,0.5)' : `rgba(${accent}, 0.5)`}`
+      : `inset 0 0 0 1px ${FROG.line}`,
+  })
+  return (
+    <div
+      data-testid="frog-save-editor"
+      className="absolute inset-0 z-20 flex items-center justify-center p-6"
+      style={{ background: 'rgba(5, 17, 13, 0.72)', backdropFilter: 'blur(3px)' }}
+      onClick={onClose}
+    >
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="frog-save-editor-title"
+        tabIndex={-1}
+        className="w-full max-w-sm rounded-2xl p-5 outline-none"
+        style={{ background: FROG.panel, border: `1px solid ${FROG.line}`, boxShadow: '0 20px 60px rgba(0,0,0,0.6)' }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <p id="frog-save-editor-title" className="px-1 text-sm font-semibold" style={{ color: FROG.ink }}>
+          Save state
+        </p>
+        <p className="mb-3 mt-0.5 px-1 text-xs" style={{ color: FROG.faint }}>
+          Give it a name, add a note, pin it to the top.
+        </p>
+
+        <input
+          data-testid="frog-save-name"
+          value={label}
+          onChange={(e) => onEdit({ label: e.target.value })}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === 'Escape') {
+              e.preventDefault()
+              onClose()
+            }
+          }}
+          placeholder="Name (optional)"
+          maxLength={40}
+          className="mb-2 w-full rounded-xl px-3 py-2 text-sm outline-none"
+          style={field}
+        />
+        <textarea
+          data-testid="frog-save-note"
+          value={note}
+          onChange={(e) => onEdit({ note: e.target.value })}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              e.preventDefault()
+              onClose()
+            }
+          }}
+          placeholder="Note (optional)"
+          maxLength={280}
+          rows={2}
+          className="mb-3 w-full resize-none rounded-xl px-3 py-2 text-sm outline-none"
+          style={field}
+        />
+
+        <button
+          type="button"
+          data-testid="frog-save-pin"
+          data-focused={index === 0 || undefined}
+          onMouseMove={() => onFocus(0)}
+          onClick={() => onEdit({ pinned: !pinned })}
+          className="mb-1.5 flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left"
+          style={rowStyle(index === 0, false)}
+        >
+          <span className="flex items-center gap-2 text-sm font-medium" style={{ color: FROG.ink }}>
+            <Pin className="h-4 w-4" fill={pinned ? 'currentColor' : 'none'} style={{ color: pinned ? `rgb(${accent})` : FROG.soft }} aria-hidden="true" />
+            Pin to top
+          </span>
+          {pinned && <Check className="h-4 w-4" style={{ color: `rgb(${accent})` }} aria-hidden="true" />}
+        </button>
+
+        <button
+          type="button"
+          data-testid="frog-save-delete"
+          data-focused={index === 1 || undefined}
+          onMouseMove={() => onFocus(1)}
+          onClick={onDelete}
+          className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-medium"
+          style={{ color: 'rgb(239, 90, 90)', ...rowStyle(index === 1, true) }}
+        >
+          <Trash2 className="h-4 w-4" aria-hidden="true" /> Delete save
+        </button>
 
         <button
           type="button"

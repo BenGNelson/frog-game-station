@@ -14,6 +14,7 @@ Two things this module owns:
 """
 
 import hashlib
+import json
 import os
 import re
 import urllib.parse
@@ -337,6 +338,33 @@ def save_state_files(saves_root, game_id, slot):
     return os.path.join(d, f"{slot}.state"), os.path.join(d, f"{slot}.png")
 
 
+def save_state_meta_file(saves_root, game_id, slot):
+    """Path to a slot's metadata sidecar ({slot}.json — a custom label, note, and pin),
+    or None. Same digits-only slot guard as the state files; it lives right beside them,
+    so it roams with the save and is removed with it."""
+    if not saves_root or not game_id or not _SLOT_RE.match(str(slot or "")):
+        return None
+    return os.path.join(saves_game_dir(saves_root, game_id), f"{slot}.json")
+
+
+def read_save_state_meta(saves_root, game_id, slot):
+    """A slot's {label, note, pinned}, defaulting when there's no sidecar (or it's
+    unreadable). Always returns the three keys so the listing is uniform."""
+    path = save_state_meta_file(saves_root, game_id, slot)
+    if path and os.path.isfile(path):
+        try:
+            with open(path, encoding="utf-8") as fh:
+                m = json.load(fh)
+            return {
+                "label": (m.get("label") or None),
+                "note": (m.get("note") or None),
+                "pinned": bool(m.get("pinned")),
+            }
+        except (OSError, ValueError):
+            pass
+    return {"label": None, "note": None, "pinned": False}
+
+
 def sram_file(saves_root, game_id):
     """Path to a game's in-game battery save (SRAM / .sav) — ONE per game (the
     game's own save, distinct from snapshot save states). None if inputs missing.
@@ -347,28 +375,37 @@ def sram_file(saves_root, game_id):
 
 
 def list_save_states(saves_root, game_id):
-    """A game's save states, newest first: [{slot, created_ms, has_shot}]. The
-    slot id IS the creation time (ms), so no sidecar metadata is needed."""
+    """A game's save states: [{slot, created_ms, has_shot, label, note, pinned}]. The
+    slot id IS the creation time (ms), so the default name is its age; a sidecar carries
+    any custom label/note/pin. Sorted PINNED-FIRST, then newest — so all three UIs (both
+    save shelves and Jump Back In) inherit the order without re-sorting."""
     if not saves_root or not game_id:
         return []
     d = saves_game_dir(saves_root, game_id)
     if not os.path.isdir(d):
         return []
+    # ONE directory scan: note which files are present (screenshots, sidecars) so a slot
+    # is built without a stat-per-file — and the sidecar is only read for the (few) slots
+    # that actually have one, not every slot.
+    names = set(os.listdir(d))
+    _default_meta = {"label": None, "note": None, "pinned": False}
     states = []
-    for fn in os.listdir(d):
+    for fn in names:
         if not fn.endswith(".state"):
             continue
         sid = fn[: -len(".state")]
         if not _SLOT_RE.match(sid):
             continue
+        meta = read_save_state_meta(saves_root, game_id, sid) if f"{sid}.json" in names else _default_meta
         states.append(
             {
                 "slot": sid,
                 "created_ms": int(sid),
-                "has_shot": os.path.isfile(os.path.join(d, f"{sid}.png")),
+                "has_shot": f"{sid}.png" in names,
+                **meta,
             }
         )
-    states.sort(key=lambda s: s["created_ms"], reverse=True)
+    states.sort(key=lambda s: (not s["pinned"], -s["created_ms"]))
     return states
 
 

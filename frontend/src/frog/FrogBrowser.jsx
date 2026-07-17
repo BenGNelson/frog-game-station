@@ -11,11 +11,12 @@ import {
 } from '../lib/library.js'
 import { readSettings, writeSettings } from '../lib/playerSettings.js'
 import { isFavorite, toggleFavorite } from '../lib/favorites.js'
+import { setStateMeta } from '../lib/saveStates.js'
 import { ensureEmulatorEngine, cacheGameSram } from '../lib/offlineStore.js'
 import { offlineGamesToItems } from './offline.js'
 import { getRecent, recordPlayed } from '../lib/recentGames.js'
 import {
-  fetchCollections, postFinished, postTag, deleteTag, cleanTag, tagsForGame,
+  fetchCollections, postFinished, postTag, deleteTag, cleanTag, tagsForGame, mergeCollections,
 } from '../lib/collections.js'
 import { getFavorites } from '../lib/favorites.js'
 import { getRecentSearches, recordSearch, removeRecentSearch } from '../lib/recentSearches.js'
@@ -178,6 +179,7 @@ export default function FrogBrowser() {
   // metaRefresh re-fetches the open game's meta after a manual re-match/clear.
   const [rematch, setRematch] = useState(null)
   const [tagPicker, setTagPicker] = useState(null) // { index } while the picker is open
+  const [saveEditor, setSaveEditor] = useState(null) // { slot, index, label, note, pinned }
   const [metaRefresh, setMetaRefresh] = useState(0)
 
   // Per-game play-time totals (the "Most played" rail + the game-page line). FrogBrowser
@@ -208,18 +210,16 @@ export default function FrogBrowser() {
   // once on mount; edits (on the game page) update this optimistically so the shelf's
   // Finished / per-tag rails reflect a change the instant you make it, without a round-trip.
   const [collections, setCollections] = useState({ finished: [], tags: {} })
-  // If the user makes an (optimistic) edit before this mount-time GET resolves, the GET's
-  // response predates that write on the server — applying it would clobber the edit and
-  // flash the badge/rail back off. So once an edit has happened, ignore the stale GET; the
-  // optimistic state + the fired writes are authoritative, and the next remount refetches.
-  const collectionsEdited = useRef(false)
+  // Games the user has optimistically edited since the mount GET was issued. The GET's
+  // response predates those writes, so it's MERGED (not applied wholesale): the server
+  // fills in every untouched game, but a touched game keeps its local membership — so a
+  // slow GET can't clobber an edit, nor can skipping it lose the rest of the collections.
+  const collectionsDirty = useRef(new Set())
   useEffect(() => {
     let alive = true
     fetchCollections()
       .then((d) => {
-        if (alive && d && !collectionsEdited.current) {
-          setCollections({ finished: d.finished ?? [], tags: d.tags ?? {} })
-        }
+        if (alive && d) setCollections((local) => mergeCollections(d, local, collectionsDirty.current))
       })
       .catch(() => {})
     return () => {
@@ -499,6 +499,7 @@ export default function FrogBrowser() {
     setLightbox(null)
     setRematch(null)
     setTagPicker(null)
+    setSaveEditor(null)
     setHeroSlide(0)
     // Clear the previous game's metadata SYNCHRONOUSLY here, not only in the fetch
     // effect (which runs after paint): otherwise the new game's page renders for one
@@ -513,6 +514,7 @@ export default function FrogBrowser() {
     setLightbox(null)
     setRematch(null)
     setTagPicker(null)
+    setSaveEditor(null)
     setScreen(detailFrom)
   }
   // "Surprise me": jump to a random title's page. Opens the game page (not straight into
@@ -531,50 +533,54 @@ export default function FrogBrowser() {
 
   // Collections edits for the open game, all optimistic: update `collections` at once so
   // the button/chips and the shelf rails react immediately, then fire the write. `id`
-  // captured up front so a game-switch mid-write can't retarget it. `collectionsEdited`
-  // flips so a still-in-flight mount GET can't overwrite the edit with a pre-edit snapshot.
+  // captured up front so a game-switch mid-write can't retarget it, and added to
+  // `collectionsDirty` so a still-in-flight mount GET merges around it (never over it).
+  // The toggles read membership from the FUNCTIONAL state and fire the write from that
+  // same value, so a rapid double-tap toggles true→false→… (and posts to match) rather
+  // than both reads seeing the stale pre-render membership. The write is idempotent, so a
+  // dev StrictMode double-invoke of the updater is harmless.
   const toggleFinished = () => {
     if (!detailGame) return
-    collectionsEdited.current = true
     const id = detailGame.id
-    const next = !finishedSet.has(id)
-    setCollections((c) => ({
-      ...c,
-      finished: next ? [id, ...c.finished.filter((g) => g !== id)] : c.finished.filter((g) => g !== id),
-    }))
-    postFinished(id, next)
+    collectionsDirty.current.add(id)
+    setCollections((c) => {
+      const next = !c.finished.includes(id)
+      postFinished(id, next)
+      return {
+        ...c,
+        finished: next ? [id, ...c.finished.filter((g) => g !== id)] : c.finished.filter((g) => g !== id),
+      }
+    })
   }
   const addGameTag = (raw) => {
     if (!detailGame) return
     const tag = cleanTag(raw)
     if (!tag) return
-    collectionsEdited.current = true
     const id = detailGame.id
+    collectionsDirty.current.add(id)
     setCollections((c) => {
       const members = c.tags[tag] || []
       if (members.includes(id)) return c
+      postTag(id, tag)
       return { ...c, tags: { ...c.tags, [tag]: [id, ...members] } }
     })
-    postTag(id, tag)
   }
-  const removeGameTag = (tag) => {
+  // The picker's A / tap: add the tag if this game lacks it, remove it if it has it —
+  // decided from the functional state so a double-tap doesn't add twice.
+  const toggleGameTag = (tag) => {
     if (!detailGame) return
-    collectionsEdited.current = true
     const id = detailGame.id
+    collectionsDirty.current.add(id)
     setCollections((c) => {
-      const members = (c.tags[tag] || []).filter((g) => g !== id)
+      const has = (c.tags[tag] || []).includes(id)
+      const members = has ? (c.tags[tag] || []).filter((g) => g !== id) : [id, ...(c.tags[tag] || [])]
       const tags = { ...c.tags }
       if (members.length) tags[tag] = members
       else delete tags[tag] // the tag disappears when its last member leaves
+      if (has) deleteTag(id, tag)
+      else postTag(id, tag)
       return { ...c, tags }
     })
-    deleteTag(id, tag)
-  }
-  // The picker's A / tap: add the tag if this game lacks it, remove it if it has it.
-  const toggleGameTag = (tag) => {
-    if (!detailGame) return
-    if ((collections.tags[tag] || []).includes(detailGame.id)) removeGameTag(tag)
-    else addGameTag(tag)
   }
   const startOrRemoveDownload = () => {
     // A press while it's already working (or still checking) is a no-op — otherwise a
@@ -585,6 +591,44 @@ export default function FrogBrowser() {
     else dl.start()
   }
   const requestDeleteSave = (slot) => setConfirm({ kind: 'save', slot })
+
+  // The save-state editor (rename / annotate / pin). All its state lives here (like the
+  // rematch/tag pickers): the modal is presentational and reports edits back. `index` is
+  // the D-pad ring over its two toggles — 0 = pin, 1 = delete; the name/note are the
+  // native fields a keyboard/thumb drives.
+  const openSaveEditor = (snap) => {
+    if (!snap) return
+    const orig = { label: snap.label || '', note: snap.note || '', pinned: !!snap.pinned }
+    setSaveEditor({ slot: snap.slot, index: 0, ...orig, orig })
+  }
+  const editSaveField = (patch) => setSaveEditor((e) => (e ? { ...e, ...patch } : e))
+  // Persist on close — but only if something actually changed, so opening a save just to
+  // look at it is a read (no write, no re-sort). When it did change, optimistically
+  // re-label/re-sort the open list (pinned first, then newest) so it shows at once.
+  const closeSaveEditor = () => {
+    const e = saveEditor
+    setSaveEditor(null)
+    if (!e || !detailGame) return
+    const label = cleanTag(e.label) // same collapse/cap as tags; empty → default name
+    // Cap by CODE POINT (spread) to match Python's slice, like cleanTag — so an emoji
+    // note near the cap truncates the same on both ends.
+    const note = [...(e.note || '').trim()].slice(0, 280).join('') || null
+    const pinned = !!e.pinned
+    const o = e.orig
+    if (label === o.label && (note || '') === (o.note || '') && pinned === o.pinned) return // unchanged
+    setSaves((list) =>
+      list
+        .map((s) => (s.slot === e.slot ? { ...s, label: label || null, note, pinned } : s))
+        .sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned) || Number(b.slot) - Number(a.slot))
+    )
+    setStateMeta(detailGame.id, e.slot, { label, note, pinned })
+  }
+  // Delete from within the editor: close it, then route through the same guarded confirm.
+  const deleteFromEditor = () => {
+    const slot = saveEditor?.slot
+    setSaveEditor(null)
+    if (slot) requestDeleteSave(slot)
+  }
   const deleteSave = async (slot) => {
     // Drop the row at once (optimistic): the focus-clamp effect then moves the cursor off
     // it this render, so a confirm-press in the delete's round-trip window can't launch
@@ -732,6 +776,18 @@ export default function FrogBrowser() {
         const tag = allTags[tagPicker.index]
         if (tag) toggleGameTag(tag)
       } else if (action === 'back') setTagPicker(null)
+      return
+    }
+
+    // The save-state editor traps input: up/down move over its two toggles (0 = pin,
+    // 1 = delete), A activates, B closes (persisting). The name/note are native fields.
+    if (screen === 'detail' && saveEditor) {
+      if (action === 'up') setSaveEditor((e) => ({ ...e, index: Math.max(0, e.index - 1) }))
+      else if (action === 'down') setSaveEditor((e) => ({ ...e, index: Math.min(1, e.index + 1) }))
+      else if (action === 'confirm') {
+        if (saveEditor.index === 0) editSaveField({ pinned: !saveEditor.pinned })
+        else deleteFromEditor()
+      } else if (action === 'back') closeSaveEditor()
       return
     }
 
@@ -907,9 +963,10 @@ export default function FrogBrowser() {
             play(detailGame, saves[f.index].slot)
           }
           return
-        // Y deletes the focused snapshot — behind the confirm, and only in the save zone.
+        // Y opens the focused snapshot's editor (rename / note / pin / delete) — only in
+        // the save zone. (Delete now lives inside that editor, behind the same confirm.)
         case 'alt':
-          if (f.zone === 'saves' && saves[f.index]) requestDeleteSave(saves[f.index].slot)
+          if (f.zone === 'saves' && saves[f.index]) openSaveEditor(saves[f.index])
           return
         // On the hero, ◀▶ peek through the background screenshots; in the actions row
         // they move between the buttons.
@@ -1054,10 +1111,15 @@ export default function FrogBrowser() {
       // Routing those through the grid handler too would double-type or hijack the
       // caret. Escape is the exception: the field has no way to close search, so let
       // it through to toggle search shut.
-      if (e.target?.tagName === 'INPUT') {
-        if (e.key === 'Escape') {
+      const tag = e.target?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA') {
+        // Only Escape from the SEARCH field is forwarded (to close search — it has no
+        // other exit). The modal fields (tag picker, save-state editor) own their own
+        // Escape via onKeyDown, so a note textarea's Enter/letters/arrows never leak out
+        // to the grid handler and get dispatched as app actions.
+        if (e.key === 'Escape' && kbd.current.screen === 'search') {
           e.preventDefault()
-          act.current('search') // screen is 'search' → toggles it closed
+          act.current('search')
         }
         return
       }
@@ -1318,7 +1380,12 @@ export default function FrogBrowser() {
           onPlaySlot={(slot) => play(detailGame, slot)}
           onToggleFavorite={toggleFav}
           onDownload={startOrRemoveDownload}
-          onRequestDeleteSave={requestDeleteSave}
+          saveEditor={saveEditor}
+          onOpenSaveEditor={openSaveEditor}
+          onEditSaveField={editSaveField}
+          onSaveEditorFocus={(index) => setSaveEditor((e) => (e ? { ...e, index } : e))}
+          onDeleteFromEditor={deleteFromEditor}
+          onCloseSaveEditor={closeSaveEditor}
           onOpenShot={(index) => setLightbox(index)}
           onCloseLightbox={() => setLightbox(null)}
           onLightboxNav={(dir) =>
@@ -1406,7 +1473,13 @@ export default function FrogBrowser() {
                           { button: 'B', label: 'Done' },
                           { button: 'D-pad', label: 'Move' },
                         ]
-                      : [
+                      : saveEditor
+                        ? [
+                            { button: 'A', label: saveEditor.index === 1 ? 'Delete' : 'Pin' },
+                            { button: 'B', label: 'Done' },
+                            { button: 'D-pad', label: 'Move' },
+                          ]
+                        : [
                           {
                             button: 'A',
                             label:
@@ -1423,7 +1496,7 @@ export default function FrogBrowser() {
                                         : 'Select',
                           },
                           { button: 'B', label: 'Back' },
-                          ...(detailFocus.zone === 'saves' ? [{ button: 'Y', label: 'Delete save' }] : []),
+                          ...(detailFocus.zone === 'saves' ? [{ button: 'Y', label: 'Edit' }] : []),
                           { button: 'D-pad', label: detailFocus.zone === 'hero' ? 'Peek' : 'Move' },
                         ]
               : screen === 'settings'

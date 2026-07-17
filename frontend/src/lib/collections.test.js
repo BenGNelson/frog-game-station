@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { cleanTag, tagsForGame } from './collections.js'
+import { cleanTag, tagsForGame, mergeCollections } from './collections.js'
 
 describe('cleanTag', () => {
   it('collapses whitespace and trims', () => {
@@ -35,5 +35,28 @@ describe('tagsForGame', () => {
   it('is empty for a game with no tags', () => {
     expect(tagsForGame(tags, 'zzz')).toEqual([])
     expect(tagsForGame({}, 'a')).toEqual([])
+  })
+})
+
+describe('mergeCollections', () => {
+  it('applies the server wholesale when nothing is dirty', () => {
+    const server = { finished: ['a'], tags: { RPG: ['a', 'b'] } }
+    expect(mergeCollections(server, { finished: [], tags: {} }, new Set())).toEqual(server)
+  })
+
+  it('keeps the local edit for a dirty game but fills in the rest from the server', () => {
+    // Server (stale) still thinks only 'a' is finished and 'b' has no RPG tag. Locally the
+    // user just finished 'b' and tagged it RPG (dirty), while 'a' is untouched.
+    const server = { finished: ['a'], tags: { RPG: ['a'] } }
+    const local = { finished: ['b'], tags: { RPG: ['b'] } }
+    const merged = mergeCollections(server, local, new Set(['b']))
+    expect(new Set(merged.finished)).toEqual(new Set(['a', 'b'])) // 'a' from server, 'b' kept
+    expect(new Set(merged.tags.RPG)).toEqual(new Set(['a', 'b']))
+  })
+
+  it('honours a dirty REMOVAL against a server that still has the membership', () => {
+    // The user just UN-finished 'a' locally; the stale server still lists it.
+    const merged = mergeCollections({ finished: ['a', 'c'], tags: {} }, { finished: ['c'], tags: {} }, new Set(['a']))
+    expect(merged.finished).toEqual(['c']) // 'a' dropped (local removal wins), 'c' kept
   })
 })

@@ -605,6 +605,9 @@ class SaveStateModel(BaseModel):
     slot: str = Field(description="Slot id (also its creation time in ms)")
     created_ms: int
     has_shot: bool = Field(description="True if a screenshot was captured")
+    label: str | None = Field(default=None, description="A custom name; falls back to age")
+    note: str | None = Field(default=None, description="An optional annotation")
+    pinned: bool = Field(default=False, description="Pinned states sort to the top")
 
 
 class SaveStatesModel(BaseModel):
@@ -651,6 +654,44 @@ def create_save_state(
 def list_save_states(id: str = Query(description="Game id from the section listing")):
     """A game's save states, newest first."""
     return {"states": library.list_save_states(settings.games_saves_dir, id)}
+
+
+class SaveStateMetaBody(BaseModel):
+    id: str = Field(description="Game id from the section listing")
+    slot: str = Field(description="Slot id to annotate")
+    label: str | None = None
+    note: str | None = None
+    pinned: bool = False
+
+
+_MAX_SAVE_LABEL = 40
+_MAX_SAVE_NOTE = 280
+
+
+@router.post("/library/games/save-states/meta")
+def set_save_state_meta(body: SaveStateMetaBody):
+    """Rename / annotate / pin one save state. Writes the slot's sidecar (or removes it
+    when everything's cleared, so an untouched save stays sidecar-free). Rejects a bad
+    slot or one with no state file. Returns the stored meta."""
+    saves = settings.games_saves_dir
+    state_path, _ = library.save_state_files(saves, body.id, body.slot)
+    if not state_path or not os.path.isfile(state_path):
+        return Response(status_code=404)  # unknown slot / bad id
+    meta_path = library.save_state_meta_file(saves, body.id, body.slot)
+    label = " ".join((body.label or "").split())[:_MAX_SAVE_LABEL] or None
+    note = (body.note or "").strip()[:_MAX_SAVE_NOTE] or None
+    pinned = bool(body.pinned)
+    if not label and not note and not pinned:
+        # Nothing custom left — drop the sidecar so the save reverts to its plain default.
+        if os.path.isfile(meta_path):
+            os.remove(meta_path)
+    else:
+        os.makedirs(os.path.dirname(meta_path), exist_ok=True)
+        images.write_atomic(
+            meta_path,
+            json.dumps({"label": label, "note": note, "pinned": pinned}).encode("utf-8"),
+        )
+    return {"label": label, "note": note, "pinned": pinned}
 
 
 # --- in-game battery save (SRAM) -------------------------------------------
@@ -742,12 +783,13 @@ def delete_save_state(
     id: str = Query(description="Game id"),
     slot: str = Query(description="Slot id"),
 ):
-    """Delete one save state (and its screenshot)."""
+    """Delete one save state (its screenshot, and its metadata sidecar)."""
     state_path, shot_path = library.save_state_files(settings.games_saves_dir, id, slot)
     if not state_path:
         return Response(status_code=400)
+    meta_path = library.save_state_meta_file(settings.games_saves_dir, id, slot)
     removed = False
-    for p in (state_path, shot_path):
+    for p in (state_path, shot_path, meta_path):
         if p and os.path.isfile(p):
             os.remove(p)
             removed = True
