@@ -315,6 +315,18 @@ def saves_game_dir(saves_root, game_id):
     return os.path.join(saves_root, key)
 
 
+# User-set cover art (captured from a live in-game frame) lives in the WRITABLE covers
+# cache — never beside the ROM, which is mounted read-only. Keyed by a hash of the id
+# (same reason as the saves dir: the raw ROM filename never becomes a path), under a
+# `custom/` subdir so it can't collide with the libretro/sidecar cache files.
+def custom_cover_path(covers_root, game_id):
+    """Path to a game's user-set cover (a WebP), or None if inputs are missing."""
+    if not covers_root or not game_id:
+        return None
+    key = hashlib.sha1(game_id.encode()).hexdigest()
+    return os.path.join(covers_root, "custom", key + ".webp")
+
+
 def save_state_files(saves_root, game_id, slot):
     """(state_path, screenshot_path) for a slot, or (None, None) if the inputs
     are missing/invalid. `slot` must be digits only — that's the traversal

@@ -34,9 +34,12 @@ export function deleteTag(id, tag) {
 }
 
 // The same tag-cleaning the backend does (collapse whitespace, cap length), applied
-// client-side so an optimistic update matches what the server will store.
+// client-side so an optimistic update matches what the server will store. The cap is by
+// CODE POINT (spread, not slice) to match Python's str slicing — otherwise an emoji /
+// surrogate-pair tag near the cap would truncate differently here and orphan a rail.
 export function cleanTag(tag) {
-  return (tag || '').split(/\s+/).filter(Boolean).join(' ').slice(0, 40)
+  const collapsed = (tag || '').split(/\s+/).filter(Boolean).join(' ')
+  return [...collapsed].slice(0, 40).join('')
 }
 
 // The tags a single game wears, from the grouped {tag: [ids]} map — sorted like the

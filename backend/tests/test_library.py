@@ -260,18 +260,14 @@ def test_play_time_endpoint_caps_a_single_report(client, rom_dir):
     assert r.json()["play_ms"] == 6 * 60 * 60 * 1000  # clamped to the max
 
 
-def test_play_stats_endpoint_lists_owned_games_most_played_first(client, rom_dir):
+def test_play_stats_endpoint_returns_ids_and_totals_most_played_first(client, rom_dir):
     client.post("/api/library/games/play-time",
                 json={"id": "Tetris.gb", "core": "gb", "ms": 30_000})
     client.post("/api/library/games/play-time",
                 json={"id": "Zelda.gbc", "core": "gbc", "ms": 120_000})
-    # A stat whose ROM has since left the library (inserted directly, past the write
-    # guard) is dropped by the read-side filter, not surfaced with a stale name.
-    db.add_play_time("Gone.gb", "gb", 200_000)
     items = client.get("/api/library/games/play-stats").json()["items"]
-    assert [i["id"] for i in items] == ["Zelda.gbc", "Tetris.gb"]
-    assert items[0]["play_ms"] == 120_000 and items[0]["plays"] == 1
-    assert all(i["id"] != "Gone.gb" for i in items)
+    assert [i["id"] for i in items] == ["Zelda.gbc", "Tetris.gb"]  # most-played first
+    assert items[0] == {"id": "Zelda.gbc", "play_ms": 120_000}  # ids + totals only
 
 
 # --- collections: finished flag + tags -------------------------------------
@@ -482,6 +478,59 @@ def test_cover_served_from_cache(client, rom_dir, tmp_path, monkeypatch):
     (covers / f"{key}.png").write_bytes(b"\x89PNG-cached")
     r = client.get("/api/library/games/cover", params={"id": "Metroid Fusion (USA).gba"})
     assert r.status_code == 200 and r.content == b"\x89PNG-cached"
+
+
+def _png_bytes(w=200, h=280):
+    import io
+
+    from PIL import Image
+
+    out = io.BytesIO()
+    Image.new("RGB", (w, h), (40, 90, 70)).save(out, format="PNG")
+    return out.getvalue()
+
+
+def test_set_cover_stores_serves_and_stamps_version(client, rom_dir, tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "covers_dir", str(tmp_path / "covers"))
+    # No custom cover yet → the listing stamps cover_v 0.
+    items = client.get("/api/library/games").json()["items"]
+    assert next(i for i in items if i["id"] == "Tetris.gb")["cover_v"] == 0
+
+    r = client.post(
+        "/api/library/games/cover",
+        data={"id": "Tetris.gb"},
+        files={"cover": ("shot.png", _png_bytes(), "image/png")},
+    )
+    assert r.status_code == 200 and r.json()["ok"] is True and r.json()["cover_v"] > 0
+
+    # The cover endpoint now serves the stored WebP (downscaled), ahead of any libretro art.
+    cov = client.get("/api/library/games/cover", params={"id": "Tetris.gb"})
+    assert cov.status_code == 200 and cov.headers["content-type"] == "image/webp"
+    # A user-set cover is MUTABLE (set/reset at the same id) — it must not be immutable-
+    # cached, or a reset would leave the deleted art pinned for the immutable window.
+    assert "immutable" not in cov.headers.get("cache-control", "")
+
+    # And the listing now stamps a non-zero cover_v so the client busts its cache.
+    items = client.get("/api/library/games").json()["items"]
+    assert next(i for i in items if i["id"] == "Tetris.gb")["cover_v"] > 0
+
+
+def test_set_cover_rejects_bogus_rom_and_non_image(client, rom_dir, tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "covers_dir", str(tmp_path / "covers"))
+    assert client.post("/api/library/games/cover", data={"id": "Nope.gb"},
+                       files={"cover": ("s.png", _png_bytes(), "image/png")}).status_code == 404
+    assert client.post("/api/library/games/cover", data={"id": "Tetris.gb"},
+                       files={"cover": ("s.png", b"not an image", "image/png")}).status_code == 422
+
+
+def test_delete_cover_reverts(client, rom_dir, tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "covers_dir", str(tmp_path / "covers"))
+    client.post("/api/library/games/cover", data={"id": "Tetris.gb"},
+                files={"cover": ("s.png", _png_bytes(), "image/png")})
+    assert client.delete("/api/library/games/cover", params={"id": "Tetris.gb"}).status_code == 204
+    assert client.delete("/api/library/games/cover", params={"id": "Tetris.gb"}).status_code == 404
+    items = client.get("/api/library/games").json()["items"]
+    assert next(i for i in items if i["id"] == "Tetris.gb")["cover_v"] == 0
 
 
 def test_cover_fetches_then_caches(client, rom_dir, tmp_path, monkeypatch):

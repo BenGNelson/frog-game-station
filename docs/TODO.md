@@ -32,7 +32,7 @@ the git history (`git log`).
       - _Follow-ups:_ a controller on-screen keyboard for creating **new** tags (assigning
         existing ones is already controller-drivable); a vertical, letter-railed
         tag-filtered list view for large collections (the per-tag shelf rail covers small ones).
-- [ ] **Set custom art** from a live in-game screenshot (ties to save-state shot capture).
+- [x] **Set custom art** from a live in-game screenshot (ties to save-state shot capture).
 - [ ] **Deeper ROM-hack support surfacing** — **define scope first**: what exactly to
       surface (base-game linkage? hack metadata? a badge on the tile?) before building.
 - [ ] **In-game wiki browser** — a peekable, app-skinned web browser *inside the player*,

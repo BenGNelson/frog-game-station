@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { X, Menu, Minimize } from 'lucide-react'
-import { playerSrc, coverUrl, ENGINE_LOADER_URL, engineIsLocal } from '../lib/library.js'
+import { playerSrc, coverUrl, postCover, deleteCover, ENGINE_LOADER_URL, engineIsLocal } from '../lib/library.js'
 import { goBack } from '../lib/nav.js'
 // The player is Frog's screen — launched from a game's page, it dresses in Frog's
 // clothes (the same theme + boot mascot) so play feels continuous with the browser.
@@ -119,7 +119,7 @@ function EngineMissing({ onBack }) {
   )
 }
 
-export default function PlayerShell({ id, core, name, label, loadStateUrl }) {
+export default function PlayerShell({ id, core, name, label, coverV, loadStateUrl }) {
   const navigate = useNavigate()
 
   // The EmulatorJS engine isn't bundled in the repo (~300 MB). If the self-hosted
@@ -159,6 +159,10 @@ export default function PlayerShell({ id, core, name, label, loadStateUrl }) {
   const [error, setError] = useState(null)
   const [shelfFocus, setShelfFocus] = useState(0) // 0 = Save-new tile, 1..N = the states
   const [shelfCols, setShelfCols] = useState(2) // the shelf's real column count, measured
+  // Custom cover: whether this game already has one (seeds the pause menu's Reset item),
+  // and a transient confirmation shown in the pause menu after a set/reset.
+  const [hasCustomCover, setHasCustomCover] = useState(!!coverV)
+  const [coverNotice, setCoverNotice] = useState(null)
 
   // Is a physical controller driving? Becomes true on the FIRST BUTTON PRESS —
   // never on `gamepadconnected`, which iOS Safari doesn't fire until a button is
@@ -196,7 +200,7 @@ export default function PlayerShell({ id, core, name, label, loadStateUrl }) {
   // creates the <iframe> DOM node on commit — i.e. after this function returns —
   // so the player document is guaranteed to find it set when its inline script
   // runs. An effect would race the iframe's own load.
-  window.HQ_PLAYER_CONFIG = playerConfig(core, controls, { name, coverUrl: coverUrl(id) })
+  window.HQ_PLAYER_CONFIG = playerConfig(core, controls, { name, coverUrl: coverUrl(id, coverV) })
 
   // Wait for the user to tap the engine's Start button, then take the handle.
   // Aborted on unmount: backing out of a game before ever tapping Start would
@@ -221,7 +225,7 @@ export default function PlayerShell({ id, core, name, label, loadStateUrl }) {
     // the touch controls can have the rest), and anything centred inside a box that
     // changes size moves when it changes size. Two attempts died on that.
     styleStartScreen(frameRef.current, {
-      coverUrl: coverUrl(id),
+      coverUrl: coverUrl(id, coverV),
       name,
       // The player is Frog's screen, so its start screen wears Frog's colours — the
       // launch flow (Frog shelf → start → loading frog → game) reads as one world.
@@ -244,8 +248,8 @@ export default function PlayerShell({ id, core, name, label, loadStateUrl }) {
       dispatch('started')
       setBooted(true)
     })
-    // `id`/`name` are fixed for this shell's life (it mounts per-game, one game per
-    // /play?id=… route), so this iframe onLoad handler never needs to re-create — a
+    // `id`/`name`/`coverV` are fixed for this shell's life (it mounts per-game, one game
+    // per /play?id=… route), so this iframe onLoad handler never needs to re-create — a
     // stale closure can't fire. Empty deps on purpose.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -444,6 +448,48 @@ export default function PlayerShell({ id, core, name, label, loadStateUrl }) {
     [listeningFor, settings, padId, saveSettings]
   )
 
+  // Set the current live frame as this game's cover. The live-shot timer already keeps a
+  // fresh non-black frame in liveShotRef, so there's nothing to capture here — just POST
+  // it. Stays on the pause menu and shows a confirmation rather than dropping you back
+  // into the game, so you know it took. A black/absent frame (first moments, iOS readback)
+  // is reported, never uploaded.
+  const doSetCover = useCallback(async () => {
+    const shot = liveShotRef.current
+    if (!shot) {
+      setCoverNotice('Couldn’t grab a frame — give it a second and try again.')
+      return
+    }
+    try {
+      const res = await postCover(id, shot)
+      if (!res.ok) throw new Error(String(res.status))
+      setHasCustomCover(true)
+      setCoverNotice('Cover set from this frame.')
+    } catch {
+      setCoverNotice('Couldn’t set the cover — try again.')
+    }
+  }, [id])
+
+  const doResetCover = useCallback(async () => {
+    try {
+      await deleteCover(id)
+      setHasCustomCover(false)
+      // 'Reset Cover' sat immediately after 'Set as Cover' and just vanished from the
+      // grid; without moving focus back, its index now points at 'Restart', so a reflexive
+      // second A-press would reload the game. Step back onto the still-present 'Set' tile.
+      setMenuFocus((f) => Math.max(0, f - 1))
+      setCoverNotice('Cover reset to the default art.')
+    } catch {
+      setCoverNotice('Couldn’t reset the cover — try again.')
+    }
+  }, [id])
+
+  // The confirmation is transient — clear it a couple seconds after it shows.
+  useEffect(() => {
+    if (!coverNotice) return
+    const t = setTimeout(() => setCoverNotice(null), 2600)
+    return () => clearTimeout(t)
+  }, [coverNotice])
+
   const onMenuAction = useCallback(
     (action) => {
       const emu = emuRef.current
@@ -454,6 +500,12 @@ export default function PlayerShell({ id, core, name, label, loadStateUrl }) {
         case 'save':
         case 'load':
           openShelf()
+          break
+        case 'setCover':
+          doSetCover()
+          break
+        case 'resetCover':
+          doResetCover()
           break
         case 'fastForward': {
           const on = !fastForward
@@ -481,7 +533,7 @@ export default function PlayerShell({ id, core, name, label, loadStateUrl }) {
           break
       }
     },
-    [fastForward, openShelf, exit, goFullscreen, openControls]
+    [fastForward, openShelf, exit, goFullscreen, openControls, doSetCover, doResetCover]
   )
 
   const openMenu = useCallback(() => {
@@ -543,7 +595,7 @@ export default function PlayerShell({ id, core, name, label, loadStateUrl }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state === 'PLAYING'])
 
-  const menuItems = pauseItems(fastForward, { canFullscreen })
+  const menuItems = pauseItems(fastForward, { canFullscreen, hasCustomCover })
 
   const rows = controlRows()
 
@@ -672,9 +724,11 @@ export default function PlayerShell({ id, core, name, label, loadStateUrl }) {
   // it can read the save out of the engine on the way out and actually write it down.
   useGameSaves(emuRef, id, state === 'PLAYING' || state === 'PAUSED')
 
-  // Tally how long this game is actually played (for the "Most played" rail). Same
-  // "on screen" window as the save owner above, and it reports on the way out too.
-  usePlayTime(id, core, state === 'PLAYING' || state === 'PAUSED')
+  // Tally how long this game is actually PLAYED (for the "Most played" rail) — only
+  // while it's running, NOT while paused. Otherwise a game left paused in a foreground
+  // tab (a couch/TV that never backgrounds) would clock hours it was never played. The
+  // session-total accounting banks the time so far when you pause and resumes on unpause.
+  usePlayTime(id, core, state === 'PLAYING')
 
   // Don't let the screen sleep mid-game. Re-acquired on every return to the tab,
   // because iOS drops the lock whenever the page is hidden and never gives it back.
@@ -925,6 +979,8 @@ export default function PlayerShell({ id, core, name, label, loadStateUrl }) {
           name={name}
           fastForward={fastForward}
           canFullscreen={canFullscreen}
+          hasCustomCover={hasCustomCover}
+          notice={coverNotice}
           focus={menuFocus}
           onFocus={setMenuFocus}
           onAction={onMenuAction}

@@ -361,6 +361,18 @@ exact-name key so later loads skip the fallback; and a **custom cover dropped be
 ROM** (same basename) takes precedence over libretro — the durable override for hacks or a
 title with no listing match.
 
+**Set your own cover from a live frame.** The player's pause menu has a **"Set as Cover"**
+action: it takes the frame the live-shot timer already keeps ready (the same non-black
+capture that thumbnails a save state) and POSTs it, and the cover endpoint stores it as the
+**highest-precedence** tier — above the sidecar and libretro. It can't be written beside the
+ROM (that dir is read-only), so it lives in a **writable** slot under the covers cache
+(`custom/{sha1(id)}.webp`), and "Reset Cover" drops it. The hard part is cache invalidation:
+cover responses carry a 30-day **`immutable`** header, and `coverUrl(id)` is a fixed URL, so
+a new cover would otherwise be pinned for a month. Each game therefore carries a **`cover_v`**
+(the custom cover's mtime, `0` when none — stamped onto the listing from one `listdir`, not a
+stat per game), and `coverUrl(id, cover_v)` rides it as `&v=…`; a fresh set changes `cover_v`,
+which changes the URL, which is the only thing that actually busts the immutable cache.
+
 ---
 
 ## IGDB metadata (the collector pattern)

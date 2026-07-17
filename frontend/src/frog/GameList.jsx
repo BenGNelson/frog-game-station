@@ -107,7 +107,7 @@ export default function GameList({ system, games, focus, finishedIds, onFocus, o
             >
               <img
                 key={current.id}
-                src={coverUrl(current.id)}
+                src={coverUrl(current.id, current.cover_v)}
                 alt=""
                 className="frog-rise aspect-[3/4] w-full object-cover"
               />

@@ -37,8 +37,27 @@ export function fileUrl(section, id) {
 }
 
 // Proxied + cached box art for a game (404 → caller shows a placeholder).
-export function coverUrl(id) {
-  return `${API_BASE}/library/games/cover?id=${encodeURIComponent(id)}`
+// A game's cover. `v` is the user-set cover version (a game's `cover_v`, the custom
+// cover's mtime): when present it rides the URL as `&v=…`, which is the ONLY way to
+// bust the cover's 30-day `immutable` cache after someone sets a new cover from an
+// in-game frame — same fixed URL, so without it the old art would be pinned for a month.
+export function coverUrl(id, v) {
+  const base = `${API_BASE}/library/games/cover?id=${encodeURIComponent(id)}`
+  return v ? `${base}&v=${v}` : base
+}
+
+// Set a game's cover from a captured frame (a PNG Blob) — stored server-side and served
+// ahead of libretro art. Resolves to the response so the caller can read the new cover_v.
+export function postCover(id, blob) {
+  const body = new FormData()
+  body.append('id', id)
+  body.append('cover', blob, 'cover.png')
+  return fetch(`${API_BASE}/library/games/cover`, { method: 'POST', body })
+}
+
+// Drop a game's user-set cover, reverting to its libretro/sidecar art.
+export function deleteCover(id) {
+  return fetch(`${API_BASE}/library/games/cover?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
 }
 
 // Server-side save states for a game (roam across devices).

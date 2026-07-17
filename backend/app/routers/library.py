@@ -59,6 +59,7 @@ class ItemModel(BaseModel):
     core: str | None = Field(default=None, description="EmulatorJS core, for play-kind items")
     reader: str | None = Field(default=None, description="Reader engine, for read-kind items (e.g. 'pdf')")
     size: int | None = None
+    cover_v: int = Field(default=0, description="User-set cover version (mtime ms); 0 = none. Busts the cover URL cache.")
 
 
 class SectionModel(BaseModel):
@@ -118,6 +119,12 @@ def _media_type(item_id: str) -> str:
 # Art is content-addressed (cover by sha1 of its source URL) and rarely
 # changes, so let the browser/PWA hold onto it for a long time.
 _ART_CACHE_HEADERS = {"Cache-Control": "public, max-age=2592000, immutable"}
+# A user-set cover is MUTABLE — the same id can be set to a new frame or reset to the
+# default — so it must never be `immutable`-cached: the `v=<mtime>` on the URL busts a
+# fresh SET, but the plain no-`v` URL is the reset fallback, and an immutable response
+# there would pin deleted art for a month. Short-lived + revalidating instead (the file
+# is local, so re-serving is cheap).
+_CUSTOM_COVER_HEADERS = {"Cache-Control": "public, max-age=300, must-revalidate"}
 
 
 _SIDECAR_EXTS = (".png", ".jpg", ".jpeg", ".webp")
@@ -229,13 +236,20 @@ def _fuzzy_cover_bytes(item_id):
 
 @router.get("/library/games/cover")
 def get_game_cover(id: str = Query(description="Game id from the section listing")):
-    """Box art for a game, proxied + cached as a small WebP. Precedence: a custom
-    cover dropped beside the ROM (override) → libretro-thumbnails matched by the
-    ROM's No-Intro name (following libretro's text-pointer pseudo-symlinks) →
-    placeholder. Fetched once and downscaled to a cached WebP, so browsing makes
-    no repeat external calls and a no-match is remembered as a miss. 404 → the
-    frontend shows a placeholder."""
+    """Box art for a game, proxied + cached as a small WebP. Precedence: a cover the
+    user SET from an in-game screenshot (highest) → a custom cover dropped beside the
+    ROM (override) → libretro-thumbnails matched by the ROM's No-Intro name (following
+    libretro's text-pointer pseudo-symlinks) → placeholder. Fetched once and downscaled
+    to a cached WebP, so browsing makes no repeat external calls and a no-match is
+    remembered as a miss. 404 → the frontend shows a placeholder."""
     cache_dir = settings.covers_dir
+    # 0. A cover the user explicitly set (from a live frame) wins over everything. It's
+    #    already a stored WebP; the client busts its 30-day immutable cache via the
+    #    `v=<mtime>` on the URL (stamped onto each game as `cover_v`), so a fresh set is
+    #    seen without the endpoint having to vary on `v` here.
+    custom = library.custom_cover_path(cache_dir, id)
+    if custom and os.path.isfile(custom):
+        return FileResponse(custom, media_type="image/webp", headers=_CUSTOM_COVER_HEADERS)
     # 1. Manual override — an image beside the ROM wins over libretro (this is how
     #    a ROM hack or a name-mismatch gets a cover). Cached, keyed by file mtime
     #    so replacing the image refreshes it.
@@ -317,6 +331,51 @@ def get_game_cover(id: str = Query(description="Game id from the section listing
     if definitive:
         open(miss, "w").close()  # genuinely no art for this game — remember it
     return Response(status_code=404)  # transient failure → no miss cached, retry later
+
+
+def _cover_version(covers_root, game_id):
+    """The user-set cover's version token for `game_id` (its mtime in ms), or 0 when
+    the game has none. Stamped onto each game so the client can bust the cover URL's
+    30-day immutable cache the instant a new cover is set."""
+    path = library.custom_cover_path(covers_root, game_id)
+    try:
+        return int(os.path.getmtime(path) * 1000) if path and os.path.isfile(path) else 0
+    except OSError:
+        return 0
+
+
+@router.post("/library/games/cover")
+def set_game_cover(
+    id: str = Form(description="Game id from the section listing"),
+    cover: UploadFile = File(description="A captured frame (PNG) to store as the cover"),
+):
+    """Set a game's cover from an uploaded frame (a live in-game screenshot). Stored as a
+    downscaled WebP in the writable custom-cover slot, which the cover endpoint serves
+    ahead of libretro art. Rejects a bogus id; returns the new `cover_v` (mtime ms) so the
+    client can bust its cached cover URL."""
+    games = library.get_section("games")
+    if not library.safe_path(games, settings, id):
+        return Response(status_code=404)
+    raw = cover.file.read(_MAX_SHOT_BYTES + 1)  # cap+1 — never buffer the whole body
+    if not raw or len(raw) > _MAX_SHOT_BYTES:
+        return Response(status_code=413)
+    thumb = images.to_thumbnail(raw)
+    if not thumb:
+        return Response(status_code=422)  # not a decodable image
+    path = library.custom_cover_path(settings.covers_dir, id)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    images.write_atomic(path, thumb)
+    return {"ok": True, "cover_v": _cover_version(settings.covers_dir, id)}
+
+
+@router.delete("/library/games/cover")
+def delete_game_cover(id: str = Query(description="Game id")):
+    """Drop a game's user-set cover, reverting to its sidecar / libretro art."""
+    path = library.custom_cover_path(settings.covers_dir, id)
+    if path and os.path.isfile(path):
+        os.remove(path)
+        return Response(status_code=204)
+    return Response(status_code=404)
 
 
 # IGDB image ids are opaque base64-ish tokens — letters, digits, _ and -. Anything
@@ -791,11 +850,7 @@ def record_play_time(body: PlayTimeBody):
 
 class PlayStatEntry(BaseModel):
     id: str
-    name: str
-    core: str | None = None
     play_ms: int
-    plays: int
-    updated_ms: int
 
 
 class PlayStatsModel(BaseModel):
@@ -804,26 +859,11 @@ class PlayStatsModel(BaseModel):
 
 @router.get("/library/games/play-stats", response_model=PlayStatsModel)
 def get_play_stats():
-    """Per-game play-time, most-played first — the source for the "Most played" rail
-    and each game page's play-time line. Skips entries whose ROM is gone; the name
-    always comes from the live library, never a stale copy. Filters against ONE listing
-    of the section (an in-memory set) rather than a per-row filesystem check, since this
-    is fetched on every shelf visit."""
-    games = library.get_section("games")
-    names = {it["id"]: it["name"] for it in library.list_items(games, settings)}
-    items = [
-        {
-            "id": row["game_id"],
-            "name": names[row["game_id"]],
-            "core": row["core"],
-            "play_ms": row["play_ms"],
-            "plays": row["plays"],
-            "updated_ms": row["updated_ms"],
-        }
-        for row in db.list_play_stats()
-        if row["game_id"] in names  # ROM still present
-    ]
-    return {"items": items}
+    """Per-game play-time, most-played first — the source for the "Most played" rail and
+    each game page's play-time line. Ids + totals only: the frontend re-hydrates names
+    against the live library and drops games that have left, exactly like the other rails,
+    so this needs no per-request filesystem listing at all."""
+    return {"items": [{"id": r["game_id"], "play_ms": r["play_ms"]} for r in db.list_play_stats()]}
 
 
 # --- Collections: the "finished" flag + free-form tags ----------------------
@@ -900,6 +940,24 @@ def remove_game_tag(
     return Response(status_code=204 if removed else 404)
 
 
+def _custom_cover_map(covers_root):
+    """{sha1(game_id)hex: mtime_ms} for every user-set cover, from ONE listdir — so a
+    listing can stamp `cover_v` on each game with a cheap dict lookup instead of a
+    filesystem stat per game."""
+    d = os.path.join(covers_root or "", "custom")
+    out = {}
+    try:
+        for fn in os.listdir(d):
+            if fn.endswith(".webp"):
+                try:
+                    out[fn[:-5]] = int(os.path.getmtime(os.path.join(d, fn)) * 1000)
+                except OSError:
+                    pass
+    except OSError:
+        pass  # no custom covers yet
+    return out
+
+
 @router.get("/library/{section}", response_model=SectionModel)
 def get_section(section: str):
     """One section's browse list (or a configured=False shell if unset)."""
@@ -908,6 +966,11 @@ def get_section(section: str):
         return Response(status_code=404)
     configured = library.is_configured(section_def, settings)
     items = library.list_items(section_def, settings) if configured else []
+    # Stamp each game with its user-set cover version, so cover URLs bust on a fresh set.
+    customs = _custom_cover_map(settings.covers_dir)
+    if customs:
+        for it in items:
+            it["cover_v"] = customs.get(hashlib.sha1(it["id"].encode()).hexdigest(), 0)
     return {
         "section": section_def["key"],
         "label": section_def["label"],
