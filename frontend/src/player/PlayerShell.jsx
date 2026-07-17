@@ -243,6 +243,10 @@ export default function PlayerShell({ id, core, name, label, loadStateUrl }) {
       dispatch('started')
       setBooted(true)
     })
+    // `id`/`name` are fixed for this shell's life (it mounts per-game, one game per
+    // /play?id=… route), so this iframe onLoad handler never needs to re-create — a
+    // stale closure can't fire. Empty deps on purpose.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // The frog stays up for a beat after the game is ready.
@@ -288,6 +292,9 @@ export default function PlayerShell({ id, core, name, label, loadStateUrl }) {
   useEffect(() => {
     if (!emuRef.current) return
     applyControls(emuRef.current, controls)
+    // Deps are the granular inputs `controls` is built from — not `controls` itself,
+    // which is a fresh object every render and would re-apply the map on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state, settings.controlScheme, settings.controlBindings, padId])
 
   // Pause the core whenever we're not in PLAYING, and release every button on
@@ -529,7 +536,11 @@ export default function PlayerShell({ id, core, name, label, loadStateUrl }) {
     const emu = emuRef.current
     if (!emu) return
     return gateEngineGamepad(emu, () => menuOpenRef.current)
-  }, [state === 'PLAYING']) // re-install once the engine exists
+    // Intentionally gated on the PLAYING edge only: install the wrapper once the engine
+    // exists and never tear it down/re-install on other state transitions (pause/rotate/
+    // visibility) — the gate reads `menuOpenRef` live, so it needs no other deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state === 'PLAYING'])
 
   const menuItems = pauseItems(fastForward, { canFullscreen })
 
