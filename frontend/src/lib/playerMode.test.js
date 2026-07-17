@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
   resolveInputMode,
-  nextPadActive,
   shouldPromptRotate,
   nextPlayerState,
   isRunning,
@@ -28,25 +27,6 @@ describe('resolveInputMode', () => {
   it('lets an explicit choice beat what is plugged in', () => {
     expect(resolveInputMode({ override: 'touch', padActive: true, hasTouch: true })).toBe('touch')
     expect(resolveInputMode({ override: 'pad', padActive: false, hasTouch: true })).toBe('pad')
-  })
-})
-
-describe('nextPadActive', () => {
-  it('activates on the first button press, not on a connect event', () => {
-    // iOS Safari doesn't fire gamepadconnected until a button is pressed, so
-    // waiting for it would leave the touch controls up over a live controller.
-    expect(nextPadActive(false, 'pad-button')).toBe(true)
-  })
-
-  it('does not deactivate just because the pad went quiet', () => {
-    // A controller resting on the couch through a cutscene must NOT make the
-    // touch pad reappear over the game.
-    expect(nextPadActive(true, 'tick')).toBe(true)
-    expect(nextPadActive(true, 'idle')).toBe(true)
-  })
-
-  it('deactivates only on a real disconnect', () => {
-    expect(nextPadActive(true, 'pad-disconnected')).toBe(false)
   })
 })
 

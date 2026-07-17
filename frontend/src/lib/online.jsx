@@ -18,7 +18,7 @@ export const useOnline = () => useContext(OnlineContext)
 // One reachability probe. Resolves true only on a real OK response within the
 // timeout; any error / timeout / non-OK → false. `no-store` so we never read a
 // cached health response (and the SW never caches /api anyway).
-export async function probeHealth(timeoutMs = 4000) {
+async function probeHealth(timeoutMs = 4000) {
   const ctrl = new AbortController()
   const timer = setTimeout(() => ctrl.abort(), timeoutMs)
   try {

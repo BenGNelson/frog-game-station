@@ -1,18 +1,12 @@
 // Pure helpers for the Library (owned-content hub). The pages just render.
 import { API_BASE } from './useApi.js'
 
-// A constant-palette accent per section, so a section reads with its own colour
-// across the hub (the peek-tile icon + the spotlight radiance). Constant RGB
-// (not a theme token) so the colours survive a theme swap, same rule the
-// back-lit radiance motif follows. `rgb` feeds the glow/backdrop helpers; `text`
-// tints the Lucide icon.
+// A constant-palette accent for the games section. Constant RGB (not a theme
+// token) so the colour survives a theme swap, the same rule the back-lit radiance
+// motif follows. `rgb` feeds the glow/backdrop helpers; `text` tints the Lucide
+// icon. Kept as a keyed lookup (with a neutral default) so callers stay uniform.
 const SECTION_ACCENTS = {
   games: { rgb: '139,92,246', text: 'text-violet-300' },
-  books: { rgb: '56,189,248', text: 'text-sky-300' },
-  textbooks: { rgb: '99,102,241', text: 'text-indigo-300' },
-  comics: { rgb: '245,158,11', text: 'text-amber-300' },
-  papers: { rgb: '16,185,129', text: 'text-emerald-300' },
-  audiobooks: { rgb: '244,63,94', text: 'text-rose-300' },
 }
 const _DEFAULT_ACCENT = { rgb: '148,163,184', text: 'text-slate-300' }
 export function sectionAccent(key) {

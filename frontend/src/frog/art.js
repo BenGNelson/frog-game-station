@@ -106,36 +106,3 @@ export function frogMarkMarkup({ ground }) {
   ${domes('currentColor')}
   ${circles(A.eyes.map((e) => ({ cx: e.cx, cy: e.cy - 1 })), A.markPupil, ground)}`
 }
-
-// The frog as an EMPTY VESSEL, for the loading screen: an outline that fills with
-// water from the bottom up.
-//
-// The outline is drawn FIRST, under everything. Stroking a body and two eye domes
-// separately leaves you looking at the seams where they cross — three shapes, not one
-// frog. Drawn underneath and then covered by an opaque body, only the outer half of
-// each stroke survives, so the silhouette reads as a single union with no lines
-// running through it.
-export function frogVesselMarkup({ rgb, ground, clipId, wave }) {
-  return `
-  <defs>
-    <clipPath id="${clipId}">
-      <ellipse cx="${A.body.cx}" cy="${A.body.cy}" rx="${A.body.rx}" ry="${A.body.ry}"/>
-      ${A.eyes.map((e) => `<circle cx="${e.cx}" cy="${e.cy}" r="${e.r}"/>`).join('')}
-    </clipPath>
-  </defs>
-
-  <g fill="none" stroke="rgba(${rgb},0.6)" stroke-width="3">
-    <ellipse cx="${A.body.cx}" cy="${A.body.cy}" rx="${A.body.rx}" ry="${A.body.ry}"/>
-    ${A.eyes.map((e) => `<circle cx="${e.cx}" cy="${e.cy}" r="${e.r}"/>`).join('')}
-  </g>
-
-  <g clip-path="url(#${clipId})">
-    <rect x="0" y="0" width="100" height="100" fill="${ground}"/>
-    <rect x="0" y="0" width="100" height="100" fill="rgba(${rgb},0.14)"/>
-    <g class="hq-loader-water">
-      <path class="hq-loader-wave" d="${wave}" fill="rgba(${rgb},0.92)"/>
-    </g>
-  </g>
-
-  ${circles(A.eyes.map((e) => ({ cx: e.cx, cy: e.cy - 1 })), A.markPupil, ground)}`
-}
