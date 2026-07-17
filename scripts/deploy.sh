@@ -11,7 +11,7 @@ cd "$(dirname "$0")/.."
 run_tests=1
 [ "${1:-}" = "--no-test" ] && run_tests=0
 
-FRONTEND_PORT="${FRONTEND_PORT:-5173}"
+FRONTEND_PORT="${FRONTEND_PORT:-8585}"
 
 if [ "$run_tests" = 1 ]; then
   echo "==> Unit suites (pytest + Vitest)"
