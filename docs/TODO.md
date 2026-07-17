@@ -13,11 +13,11 @@ the git history (`git log`).
 
 ## Quick wins (small, high value-per-effort)
 
-- [ ] **R3 = random game** — pick and jump to a random title.
-- [ ] **First-run IGDB nudge** — extend the "pond's quiet" empty state to also nudge adding
+- [x] **R3 = random game** — pick and jump to a random title.
+- [x] **First-run IGDB nudge** — extend the "pond's quiet" empty state to also nudge adding
       an IGDB key.
-- [ ] **Boot logline / version stamp** for the portfolio build.
-- [ ] **Time-of-day frog** — drive the existing `asleep` prop by real time (dozes at night).
+- [x] **Boot logline / version stamp** for the portfolio build.
+- [x] **Time-of-day frog** — drive the existing `asleep` prop by real time (dozes at night).
       The prop already exists; this is wiring it to the clock.
 
 ---

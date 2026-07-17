@@ -1,12 +1,19 @@
+import { readFileSync } from 'node:fs'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
+// The app version, read from package.json and injected at build time (below) so the
+// boot screen's stamp stays in lockstep with the release rather than a hardcoded copy.
+const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'))
+
 // Dev server config. In development the browser loads this Vite server, which
 // hot-reloads on save. Calls to /api are proxied to the backend container so
 // the whole app behaves as one origin (no CORS, same URLs as production).
 export default defineConfig({
+  // Replaced literally at build; consumed by the boot screen's version stamp.
+  define: { 'import.meta.env.VITE_APP_VERSION': JSON.stringify(pkg.version) },
   plugins: [
     react(),
     tailwindcss(),

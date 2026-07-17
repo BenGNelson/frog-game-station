@@ -430,6 +430,18 @@ export default function FrogBrowser() {
     setRematch(null)
     setScreen(detailFrom)
   }
+  // "Surprise me": jump to a random title's page. Opens the game page (not straight into
+  // play) so a roll you didn't want costs one B, not a launch. The `from` is where B
+  // lands: a RE-ROLL while a game page is already open must keep that page's OWN origin —
+  // passing 'detail' here would make B a no-op (closeDetail → the screen you're on) and
+  // get persisted as a bogus restore screen. Only fires from the browsing screens (see
+  // the dispatcher), so `screen` is 'shelf' | 'games' | 'detail' by the time we're here.
+  const openRandom = () => {
+    if (!items.length) return
+    const g = items[Math.floor(Math.random() * items.length)]
+    openDetail(g, screen === 'detail' ? detailFrom : screen)
+  }
+
   const toggleFav = () => detailGame && setFavorited(toggleFavorite(detailGame).favorited)
   const startOrRemoveDownload = () => {
     // A press while it's already working (or still checking) is a no-op — otherwise a
@@ -582,6 +594,16 @@ export default function FrogBrowser() {
     // opens the pause menu in the player) — plus ',' on a keyboard.
     if (action === 'settingsToggle') {
       screen === 'settings' ? closeSettings() : openSettings()
+      return
+    }
+
+    // R3 / R is "surprise me" — a random game's page. Limited to the browsing screens
+    // (the shelf, a game list, or an already-open game page for a re-roll): on Settings
+    // or Search a stray stick-click shouldn't yank you out of a focused task, and the
+    // trap screens (confirm / lightbox / rematch) already returned above. Swallowed
+    // (not fallen through) on the other screens so it's never a half-handled action.
+    if (action === 'random') {
+      if (screen === 'shelf' || screen === 'games' || screen === 'detail') openRandom()
       return
     }
 
@@ -897,6 +919,8 @@ export default function FrogBrowser() {
         PageDown: 'railNext',
         '/': 'search',
         ',': 'settingsToggle', // the desk mirror of hold-☰
+        r: 'random', // R3's keyboard twin (search types its own letters before this)
+        R: 'random',
       }
       const a = map[e.key]
       if (!a) return
@@ -1132,7 +1156,10 @@ export default function FrogBrowser() {
           onPick={(g) => openDetail(g, 'games')}
         />
       ) : items.length === 0 ? (
-        <EmptyLibrary online={online} />
+        <EmptyLibrary
+          online={online}
+          needsIgdbKey={igdbStatus.data ? !igdbStatus.data.configured : false}
+        />
       ) : (
         <Shelf
           rails={rails}
@@ -1219,12 +1246,14 @@ export default function FrogBrowser() {
                       { button: 'B', label: 'Shelf' },
                       { button: 'X', label: 'Find' },
                       { button: 'LT/RT', label: 'Letter' },
+                      { button: 'R3', label: 'Random' },
                       { button: '☰', label: 'Hold: Settings' },
                     ]
                   : [
                       { button: 'A', label: 'Open' },
                       { button: 'X', label: 'Find' },
                       { button: 'D-pad', label: 'Move' },
+                      { button: 'R3', label: 'Random' },
                       { button: '☰', label: 'Hold: Settings' },
                     ]
         }
@@ -1242,9 +1271,10 @@ function hovered(rails, focus) {
 
 // The first-run / empty shelf. Rather than a row of greyed-out "empty" systems —
 // which reads like a bug — the pond is simply quiet: a dozing frog over its
-// reflection, and a plain-language nudge toward the one thing to configure. Offline
-// with nothing downloaded gets its own honest line.
-function EmptyLibrary({ online }) {
+// reflection, and a plain-language nudge toward what to configure (the ROM folder,
+// plus IGDB creds when those aren't set either). Offline with nothing downloaded gets
+// its own honest line.
+function EmptyLibrary({ online, needsIgdbKey = false }) {
   const Chip = ({ children }) => (
     <code
       className="rounded px-1.5 py-0.5 text-[0.8em]"
@@ -1271,6 +1301,12 @@ function EmptyLibrary({ online }) {
           <p className="pt-1 text-xs leading-relaxed" style={{ color: FROG.faint }}>
             Set <Chip>ROMS_DIR</Chip> in your <Chip>.env</Chip> to your ROM folder, then
             restart the stack.
+          </p>
+        )}
+        {online && needsIgdbKey && (
+          <p className="text-xs leading-relaxed" style={{ color: FROG.faint }}>
+            For cover art and rich game details, add <Chip>IGDB_CLIENT_ID</Chip> and{' '}
+            <Chip>IGDB_CLIENT_SECRET</Chip> too — Frog matches every game once they’re set.
           </p>
         )}
       </div>
