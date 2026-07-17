@@ -40,11 +40,13 @@ reachable from anywhere. The shape of them is the design:
   is also what tells Frog whether to lay itself out for a pad or a thumb. A faint version
   stamp sits in the corner (the app version, injected from `package.json` at build via a
   Vite `define` → `import.meta.env.VITE_APP_VERSION`) — a quiet portfolio signature.
-- **"Jump back in" is rail zero, Favorites is rail one.** You are almost always coming
-  back to the same game, so the rows that mean *most sessions never touch the alphabet*
-  come first. Favorites are starred on a game's page (a client-side list, like recents)
-  and, like recents, re-hydrated against the live library so a game that has left the
-  collection simply drops out. Each row disappears when empty.
+- **"Jump back in" is rail zero, Favorites is rail one, "Most played" is rail two.** You
+  are almost always coming back to the same game, so the rows that mean *most sessions
+  never touch the alphabet* come first. Favorites are starred on a game's page (a
+  client-side list, like recents); **Most played** is server-owned (see play-time below),
+  fetched fresh on every return to the shelf. All three are re-hydrated against the live
+  library so a game that has left the collection simply drops out, and each row disappears
+  when empty. (`buildShelf` in `shelf.js` decides the whole set.)
 - **The systems row never scrolls.** A small, fixed set of machines fits on one screen —
   no carousel, no hidden tile — so you can see the shape of the whole collection at a
   glance. A system with no games keeps its tile, dimmed.
@@ -75,9 +77,18 @@ reachable from anywhere. The shape of them is the design:
     it). **Clicking the banner (or A) opens the shots fullscreen** — a controller-drivable
     lightbox you can peek through in the background. The crossfade is opacity-only and
     pauses under reduced-motion or while the lightbox is open. Focus zones stack
-    vertically — hero → actions → save list — and up/down cross between whichever are
-    present. When IGDB *hasn't* matched (a ROM hack, or no key configured) the page
+    vertically — hero → actions → save list → **"More like this"** — and up/down cross
+    between whichever are present (left/right walk within the actions row and the similar
+    rail). When IGDB *hasn't* matched (a ROM hack, or no key configured) the page
     **degrades to exactly the basic cover-and-name layout**, so nothing ever looks broken.
+  - **"More like this" is IGDB's own similar-games list, intersected with what you own.**
+    IGDB returns each game's similar-game ids; the backend keeps only the ROMs in your
+    library (`db.owned_by_igdb_ids`, an `igdb_id IN (…)` reverse lookup) and returns them on
+    the meta response in IGDB's relevance order. So every tile is a game you can actually
+    play — picking one opens its page (inheriting the current page's Back target, never a
+    dead-ended `detail`). Empty (and the rail hidden) until the matcher has run at v2+.
+  - **A game you've sunk time into wears it:** a quiet "Played 3h 20m" line under the
+    actions, shown for rich and basic pages alike (see play-time below).
 - **The frog holds its console.** Colour alone can't tell two similar handhelds apart, so
   a small drawn console badge is pinned to the mascot's corner wherever it stands in for
   the focused system (shelf, game list, game page).
@@ -289,6 +300,19 @@ must survive it, roam between devices, and be backed up. So the frame *emits* sa
 (SRAM polls, save-state events) and the parent *stores* it — the frame never owns the
 persistence.
 
+### Play-time tracking
+
+The same `game_progress` row that holds "last played" also accumulates **`play_ms`** (and a
+session count) — the server-owned total behind the shelf's "Most played" rail and the game
+page's play-time line. It's measured in the **parent**, for the same reason saves are:
+`usePlayTime` (a sibling to `useGameSaves`) clocks wall-time while the game is on screen —
+playing *or* paused, but never while the tab is hidden — and POSTs the **delta** on quit and
+on hide (`sendBeacon`, so it survives the very teardown that ends the session). Deltas simply
+add, so a hide→return→quit run double-reports without double-counting. The endpoint drops
+too-short sessions (menu bounces) and clamps a single report, so a wedged client can't book
+days. Recording play-time also refreshes last-played — actually playing is the truest
+recency signal, stronger than the save-triggered marker.
+
 ### Presentation: titles and box art
 
 Filenames are raw No-Intro (`Legend of Zelda, The - The Minish Cap (USA)`); a pure title
@@ -330,12 +354,16 @@ SQLite-cache pattern, not an external script.
   skipped by mtime, and a match-version bump forces a re-match. **`matched=0` is a real,
   cached result** ("IGDB has nothing for this ROM" — a hack), so it isn't re-queried
   forever. It is rate-limited to IGDB's 4 req/s (a first full pass is a few minutes; later
-  passes are cheap). Screenshots and cover art are **not** downloaded here — the screenshot
+  passes are cheap). The cached row also carries **`similar_games`** — IGDB's own
+  "more like this" ids — captured for free by the matcher (it stores whatever `flatten()`
+  returns); adding it to the query was the `_MATCH_VERSION` **v1 → v2** bump, so existing
+  installs backfill it on the next pass. Screenshots and cover art are **not** downloaded here — the screenshot
   endpoint fetches and downscales each on first view, so passes stay fast and only art you
   actually look at is stored. A `source` column ('auto' / 'manual' / 'cleared') reserves
   the re-match override so the auto matcher won't stomp a manual choice.
 - **Endpoints** (`routers/`): a **meta** read returns the cache (a degraded
-  `{matched:false}` when unmatched/dormant, with a `can_rematch` flag); a **screenshot**
+  `{matched:false}` when unmatched/dormant, with a `can_rematch` flag, and a **`similar`**
+  list of owned game_ids IGDB calls similar — see the "More like this" rail); a **screenshot**
   endpoint is a **validated** proxy — the requested IGDB image id must be one the game's
   cached row references, so it is *not* an open image proxy — reusing the box-art
   fetch → thumbnail → atomic-write WebP cache into the IGDB art dir; a **status** endpoint

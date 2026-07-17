@@ -210,6 +210,59 @@ def test_continue_skips_removed_rom(client, rom_dir):
     assert all(i["id"] != "Vanished.gb" for i in items)
 
 
+# --- play-time / most-played -----------------------------------------------
+
+def test_add_play_time_accumulates_and_counts():
+    db.add_play_time("Tetris.gb", "gb", 60_000, now_ms=1000)
+    play_ms, plays = db.add_play_time("Tetris.gb", "gb", 30_000, now_ms=2000)
+    assert play_ms == 90_000 and plays == 2  # summed across two sessions
+
+
+def test_add_play_time_does_not_touch_jump_back_in():
+    # Play-time is NOT a save: playing a game must not create a game_progress row,
+    # or a save-less game would land on Jump Back In and fail to resume.
+    db.add_play_time("Tetris.gb", "gb", 60_000)
+    assert db.list_game_progress() == []  # nothing on the Jump Back In shelf
+    assert db.list_play_stats()[0]["game_id"] == "Tetris.gb"  # but its time is counted
+
+
+def test_list_play_stats_orders_by_playtime_and_skips_unplayed():
+    db.add_play_time("a.gb", "gb", 10_000)
+    db.add_play_time("b.gb", "gb", 90_000)
+    db.set_game_progress("c.gb", "gb")  # played=recency only, no play_ms
+    stats = db.list_play_stats()
+    assert [s["game_id"] for s in stats] == ["b.gb", "a.gb"]  # most-played first
+    assert all(s["game_id"] != "c.gb" for s in stats)  # no counted time → excluded
+
+
+def test_play_time_endpoint_ignores_short_sessions(client, rom_dir):
+    r = client.post("/api/library/games/play-time",
+                    json={"id": "Tetris.gb", "core": "gb", "ms": 1000})
+    assert r.status_code == 200 and r.json()["counted"] is False
+    assert db.list_play_stats() == []  # nothing recorded
+
+
+def test_play_time_endpoint_caps_a_single_report(client, rom_dir):
+    huge = 999 * 60 * 60 * 1000  # 999 hours in one report
+    r = client.post("/api/library/games/play-time",
+                    json={"id": "Tetris.gb", "core": "gb", "ms": huge})
+    assert r.json()["counted"] is True
+    assert r.json()["play_ms"] == 6 * 60 * 60 * 1000  # clamped to the max
+
+
+def test_play_stats_endpoint_lists_owned_games_most_played_first(client, rom_dir):
+    client.post("/api/library/games/play-time",
+                json={"id": "Tetris.gb", "core": "gb", "ms": 30_000})
+    client.post("/api/library/games/play-time",
+                json={"id": "Zelda.gbc", "core": "gbc", "ms": 120_000})
+    client.post("/api/library/games/play-time",  # ROM not present → dropped
+                json={"id": "Gone.gb", "core": "gb", "ms": 200_000})
+    items = client.get("/api/library/games/play-stats").json()["items"]
+    assert [i["id"] for i in items] == ["Zelda.gbc", "Tetris.gb"]
+    assert items[0]["play_ms"] == 120_000 and items[0]["plays"] == 1
+    assert all(i["id"] != "Gone.gb" for i in items)
+
+
 # --- title cleanup + sort --------------------------------------------------
 
 def test_clean_title():

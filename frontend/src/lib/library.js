@@ -88,6 +88,34 @@ export function postGameMatch(id, igdbId) {
   })
 }
 
+// Per-game play-time totals, most-played first — the source for the "Most played"
+// shelf rail and each game page's play-time line. Fetched directly (not via useApi)
+// so the shelf can reload it a beat after mount: the session that just ended is
+// reported by a sendBeacon during the player's teardown, which can land AFTER this
+// first read, so a single delayed re-read catches it without a loading flash.
+export function fetchPlayStats() {
+  return fetch(`${API_BASE}/library/games/play-stats`).then((r) => (r.ok ? r.json() : null))
+}
+
+// Report a finished session's elapsed play-time so the backend can add it to the
+// game's running total. Fire-and-forget and built to survive the very unload that
+// usually triggers it (quitting a game): sendBeacon first, keepalive fetch as the
+// fallback. Too-short/absurd values are sanitised server-side, so callers don't have to.
+export function postPlayTime(id, core, ms) {
+  const body = JSON.stringify({ id, core: core || null, ms: Math.round(ms) })
+  const url = `${API_BASE}/library/games/play-time`
+  if (navigator.sendBeacon) {
+    const ok = navigator.sendBeacon(url, new Blob([body], { type: 'application/json' }))
+    if (ok) return
+  }
+  fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body,
+    keepalive: true,
+  }).catch(() => {})
+}
+
 // A game's in-game battery save (SRAM) — the game's OWN save (e.g. Pokemon's
 // "Save"), one per game, stored server-side so it roams. GET serves it, POST
 // (multipart) overwrites it. The emulator captures + restores it.

@@ -353,6 +353,10 @@ class GameMetaModel(BaseModel):
     cover_image_id: str | None = None
     screenshot_ids: list[str] = []
     videos: list[GameVideoModel] = []
+    similar: list[str] = Field(
+        default=[],
+        description="game_ids of OWNED ROMs IGDB calls similar, in IGDB's relevance order",
+    )
 
 
 @router.get("/library/games/meta", response_model=GameMetaModel)
@@ -381,7 +385,28 @@ def get_game_meta(id: str = Query(description="Game id from the section listing"
         cover_image_id=row["cover_image_id"],
         screenshot_ids=row["screenshot_ids"] or [],
         videos=[GameVideoModel(**v) for v in (row["videos"] or [])],
+        similar=_owned_similar(id, row.get("similar_games")),
     )
+
+
+# The "more like this" rail: IGDB gives each game a list of similar-game ids; keep
+# only the ones you actually own, in IGDB's own relevance order, and never the game
+# itself. Games matched before the field existed have no similar list yet (they fill
+# in on the next matcher pass) → an empty rail, which the frontend just omits.
+_SIMILAR_LIMIT = 12
+
+
+def _owned_similar(game_id: str, similar_ids) -> list[str]:
+    owned = db.owned_by_igdb_ids(similar_ids or [])  # {igdb_id: game_id}
+    out, seen = [], set()
+    for iid in (similar_ids or []):
+        gid = owned.get(int(iid)) if iid is not None else None
+        if gid and gid != game_id and gid not in seen:
+            out.append(gid)
+            seen.add(gid)
+            if len(out) >= _SIMILAR_LIMIT:
+                break
+    return out
 
 
 @router.get("/library/games/screenshot")
@@ -724,6 +749,75 @@ def delete_last_played(id: str = Query(description="Game id")):
     """Drop a game from Jump Back In (keeps its save files)."""
     removed = db.delete_game_progress(id)
     return Response(status_code=204 if removed else 404)
+
+
+# --- Play-time (the "Most played" rail + the per-game total) ----------------
+#
+# The player reports how long each session actually ran; the backend accumulates it
+# per game so play-time roams across devices (the client already has this offline via
+# recents, but the total is server-owned so "most played" agrees on every device).
+
+# Sessions shorter than this are menu bounces, not play — dropped. A single report is
+# capped so a wedged/mis-behaving client can't book days of play in one shot (real
+# marathons still accrue across multiple reports).
+_MIN_PLAY_MS = 5_000
+_MAX_PLAY_MS = 6 * 60 * 60 * 1000
+
+
+class PlayTimeBody(BaseModel):
+    id: str = Field(description="Game id from the section listing")
+    core: str | None = None
+    ms: int = Field(description="Elapsed play-time for this session, in milliseconds")
+
+
+@router.post("/library/games/play-time")
+def record_play_time(body: PlayTimeBody):
+    """Add a finished session's elapsed time to a game's running total. Too-short
+    sessions are ignored; one report is clamped to a sane maximum. Returns the new
+    totals (or `counted: false` when the session was too short to count)."""
+    ms = int(body.ms)
+    if ms < _MIN_PLAY_MS:
+        return {"counted": False}
+    ms = min(ms, _MAX_PLAY_MS)
+    play_ms, plays = db.add_play_time(body.id, body.core, ms)
+    return {"counted": True, "play_ms": play_ms, "plays": plays}
+
+
+class PlayStatEntry(BaseModel):
+    id: str
+    name: str
+    core: str | None = None
+    play_ms: int
+    plays: int
+    updated_ms: int
+
+
+class PlayStatsModel(BaseModel):
+    items: list[PlayStatEntry]
+
+
+@router.get("/library/games/play-stats", response_model=PlayStatsModel)
+def get_play_stats():
+    """Per-game play-time, most-played first — the source for the "Most played" rail
+    and each game page's play-time line. Skips entries whose ROM is gone; the name
+    always comes from the live library, never a stale copy."""
+    games = library.get_section("games")
+    items = []
+    for row in db.list_play_stats():
+        gid = row["game_id"]
+        if not library.safe_path(games, settings, gid):
+            continue  # ROM removed
+        items.append(
+            {
+                "id": gid,
+                "name": library.display_name(games, gid),
+                "core": row["core"],
+                "play_ms": row["play_ms"],
+                "plays": row["plays"],
+                "updated_ms": row["updated_ms"],
+            }
+        )
+    return {"items": items}
 
 
 @router.get("/library/{section}", response_model=SectionModel)

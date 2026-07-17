@@ -51,6 +51,7 @@ import { bindingForButton } from '../lib/gamepad.js'
 import { useGamepad } from '../lib/useGamepad.js'
 import { useWakeLock } from '../lib/useWakeLock.js'
 import { useGameSaves } from '../lib/useGameSaves.js'
+import { usePlayTime } from '../lib/usePlayTime.js'
 import { useMediaQuery } from '../lib/useMediaQuery.js'
 import { moveInGrid } from '../lib/gridNav.js'
 import { saveState, loadState, listStates, deleteState, captureShot } from '../lib/saveStates.js'
@@ -670,6 +671,10 @@ export default function PlayerShell({ id, core, name, label, loadStateUrl }) {
   // quit shortly after saving and the save was gone. This survives the teardown, so
   // it can read the save out of the engine on the way out and actually write it down.
   useGameSaves(emuRef, id, state === 'PLAYING' || state === 'PAUSED')
+
+  // Tally how long this game is actually played (for the "Most played" rail). Same
+  // "on screen" window as the save owner above, and it reports on the way out too.
+  usePlayTime(id, core, state === 'PLAYING' || state === 'PAUSED')
 
   // Don't let the screen sleep mid-game. Re-acquired on every return to the tab,
   // because iOS drops the lock whenever the page is hidden and never gives it back.

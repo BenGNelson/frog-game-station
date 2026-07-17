@@ -32,6 +32,8 @@ It has a hand-drawn **frog mascot** and a **WATER / jade dark theme** — a pond
 
 - **Five console-style screens** — boot, shelf, per-system game list, and a full game page, with search reachable anywhere. The shelf leads with "Jump back in" and Favorites, so most sessions never touch the alphabet. Click the right stick (R3, or `R`) for **"surprise me"** — a random title, from anywhere.
 - **Rich IGDB metadata** — a background matcher pairs each ROM with its IGDB entry: a hero banner built from slowly crossfading screenshots, cover art, summary, genres, rating, and developer/publisher. Unmatched ROMs (a hack, or no key configured) degrade cleanly to a basic cover-and-title page — nothing ever looks broken.
+- **"More like this"** — each game page suggests similar titles **from your own library**, using IGDB's similar-games list intersected with the ROMs you actually own, so every suggestion is one you can play.
+- **Play-time + "Most played"** — Frog clocks how long you actually play each game (server-side, so it roams) and surfaces your most-played titles as their own shelf rail; each game page shows its total.
 - **Save states + battery saves (SRAM)** — your in-game "Save → Continue" battery save roams and is backed up server-side; explicit save states are captured as snapshots (with a screenshot thumbnail) and relaunched from the game page.
 - **Offline play + installable PWA** — download games to your device, add Frog to your home screen, and play offline; the shelf, list, and search all fall back to your downloaded library automatically.
 - **Full touch controls** — a from-scratch touch overlay with a real multi-touch d-pad (true diagonals), thumb-rolls between face buttons, and hit areas larger than the buttons, because thumbs undershoot.

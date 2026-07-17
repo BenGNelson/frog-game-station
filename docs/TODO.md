@@ -24,9 +24,9 @@ the git history (`git log`).
 
 ## Features
 
-- [ ] **IGDB "similar games"** / more-like-this rail — reuses the existing IGDB pipeline;
+- [x] **IGDB "similar games"** / more-like-this rail — reuses the existing IGDB pipeline;
       strong portfolio piece.
-- [ ] **Play-time stats** per game + a "most played" rail. Needs new backend play-time
+- [x] **Play-time stats** per game + a "most played" rail. Needs new backend play-time
       tracking (only recency is tracked today).
 - [ ] **Collections / tags** beyond Favorites + a "finished" flag.
 - [ ] **Set custom art** from a live in-game screenshot (ties to save-state shot capture).

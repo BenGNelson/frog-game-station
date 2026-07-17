@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildShelf, buildSystems, jumpBackIn, favoriteGames, agoLabel, stepLetter, SYSTEM_ORDER } from './shelf.js'
+import { buildShelf, buildSystems, jumpBackIn, favoriteGames, mostPlayed, agoLabel, stepLetter, SYSTEM_ORDER } from './shelf.js'
 
 const g = (id, name, label) => ({ id, name, label, core: 'gb' })
 
@@ -78,6 +78,44 @@ describe('buildShelf', () => {
   it('shows Favorites even with no recents', () => {
     const rails = buildShelf(LIBRARY, [], [{ id: '3' }])
     expect(rails.map((r) => r.id)).toEqual(['favorites', 'systems'])
+  })
+
+  it('puts Most played after Favorites, before Systems', () => {
+    const rails = buildShelf(
+      LIBRARY,
+      [{ id: '1', ts: 1 }],
+      [{ id: '3' }],
+      [{ id: '4', play_ms: 9000 }]
+    )
+    expect(rails.map((r) => r.id)).toEqual(['jump', 'favorites', 'mostPlayed', 'systems'])
+  })
+
+  it('drops the Most played row when nothing has been played', () => {
+    const rails = buildShelf(LIBRARY, [], [], [])
+    expect(rails.map((r) => r.id)).toEqual(['systems'])
+  })
+})
+
+describe('mostPlayed', () => {
+  it('re-hydrates backend stats against the live library, carrying playMs', () => {
+    const top = mostPlayed(LIBRARY, [
+      { id: '4', play_ms: 90_000 },
+      { id: '1', play_ms: 30_000 },
+    ])
+    // Order is the backend's (already most-played first); names come from the library.
+    expect(top.map((g) => [g.name, g.playMs])).toEqual([
+      ['Sonic 2', 90_000],
+      ['Pokemon Red', 30_000],
+    ])
+  })
+
+  it('drops a stat whose game has left the library', () => {
+    expect(mostPlayed(LIBRARY, [{ id: 'gone', play_ms: 5 }])).toEqual([])
+  })
+
+  it('caps the rail length', () => {
+    const stats = LIBRARY.map((g, i) => ({ id: g.id, play_ms: (i + 1) * 1000 }))
+    expect(mostPlayed(LIBRARY, stats, 2)).toHaveLength(2)
   })
 })
 
