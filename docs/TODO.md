@@ -3,6 +3,11 @@
 A prioritized backlog. Items are unchecked checkboxes grouped by theme, roughly
 priority-ordered within each group.
 
+> **Deployment status:** the standalone stack is deployed and runs as its own installable
+> PWA (its own origin, manifest, and service worker — independent of any parent app). See
+> `docs/DEPLOY.md` for the runbook. So there's no "ship it" gap; remaining work is the
+> quality/feature backlog below.
+
 ---
 
 ## Extraction cleanup & validation
@@ -17,12 +22,14 @@ player}` → `src/{frog,player}` and renamed the route `/library/play` → `/pla
 ESLint (`npm run lint`, 0 errors); added real README screenshots.
 
 **Still open**
-- [ ] **Clear the remaining 7 ESLint warnings** — all `react-hooks/exhaustive-deps` in
-      `FrogBrowser.jsx` (the `items` conditional × 4) and `PlayerShell.jsx` (× 3). Left as
-      warnings deliberately: "fixing" them means changing dependency arrays, which can change
-      behavior — revisit each on purpose, don't bulk-apply.
+- _(none — the extraction cleanup is complete.)_
 
-**Done since:** wired the gold targeted e2e suite into CI (`scripts/verify-full.sh` + a CI
+**Done since:** cleared the last 7 ESLint warnings on purpose (`npm run lint` now 0 warnings) —
+the 4 in `FrogBrowser.jsx` collapsed to a single `useMemo` around the `items` conditional
+(stable ref, no dep-array edits); the 3 in `PlayerShell.jsx` (`onFrameLoad`, the control-map
+effect, the engine gamepad-gate) kept their intentionally narrowed deps with a scoped
+`eslint-disable` + reason, since the flagged deps would re-run pointlessly and churn engine
+listeners. Earlier: wired the gold targeted e2e suite into CI (`scripts/verify-full.sh` + a CI
 step; ported `/library/play`→`/play`, replaced the parent-app `games_flip.py` with a
 standalone `routing.py`, per-test retries for flake resilience); first-run engine notice
 (the player HEADs the local engine loader and shows a friendly "not installed" card when
@@ -95,14 +102,18 @@ Tailwind greys, no unstyled states.
 - [ ] **Set custom art** from a live in-game screenshot (ties to save-state shot capture)
 - [ ] **Collections / tags** (beyond Favorites) and a "finished" flag
 - [ ] Deeper **ROM-hack** support surfacing
-- [ ] Multiple **save-state slots** with richer management
+- [~] Multiple **save-state slots** — PARTIAL: the multi-slot store (create/list/delete) is
+      already implemented backend + frontend; what's left is *richer management* (rename /
+      annotate / reorder slots).
 
 ---
 
 ## Odds & ends
 
 - [ ] **R3 = random game** (pick and jump to a random title)
-- [ ] **Left-stick fast-scroll** in long lists
+- [~] **Left-stick fast-scroll** in long lists — PARTIAL: the analog stick already drives
+      d-pad navigation with hold-repeat (`lib/useGamepad.js`); what's left is the *accelerated*
+      (velocity-scaled) fast-scroll variant.
 - [ ] Frog **`asleep` idle state driven by real time** (dozes at night)
 - [x] **Favicon / app-icon from the FrogMark** — DONE: `favicon.svg` reproduces the flat
       mark; `scripts/gen-icons.sh` renders the PWA/apple-touch PNGs from it (node + sharp).

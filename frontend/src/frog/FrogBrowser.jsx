@@ -88,8 +88,14 @@ export default function FrogBrowser() {
   // The live library wins WHENEVER it has answered — the item source is NOT gated on
   // the health probe, so a flaky /health check can never hide a reachable library
   // behind the downloaded-only view. Only when the API has handed us nothing do we
-  // fall back to the downloaded games.
-  const items = apiItems.length ? apiItems : offlineItems ?? []
+  // fall back to the downloaded games. Memoized (keyed on the fetch payload + the
+  // downloaded set, both stable between polls) so `items` keeps a stable reference —
+  // otherwise a fresh array every render churns every `items`-keyed memo below and
+  // yanks the game list's scroll/focus.
+  const items = useMemo(() => {
+    const api = data?.items ?? []
+    return api.length ? api : offlineItems ?? []
+  }, [data, offlineItems])
   // Skeleton only while we truly have nothing to show and a source might still land.
   // Keyed on `items` (not the API alone) so a reconnect refetch keeps the offline
   // shelf up rather than flashing a skeleton over it.
