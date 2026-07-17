@@ -6,14 +6,14 @@
 # Requires the stack to be UP (docker compose up -d). Runs in the official
 # Playwright image, so no host Python / Node / browser is needed.
 #
-#   scripts/verify.sh                                  # prod build on :5173
+#   scripts/verify.sh                                  # prod build on :8585
 #   BASE_URL=http://localhost:5174 scripts/verify.sh   # frontend-dev hot-reload
 #
 # Exits non-zero if any page fails (so it gates CI / the deploy script).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-BASE_URL="${BASE_URL:-http://localhost:5173}"
+BASE_URL="${BASE_URL:-http://localhost:8585}"
 # Pin Playwright to the image's bundled browser version to avoid a mismatch.
 PLAYWRIGHT_VERSION="1.60.0"
 IMAGE="mcr.microsoft.com/playwright/python:v${PLAYWRIGHT_VERSION}-noble"
