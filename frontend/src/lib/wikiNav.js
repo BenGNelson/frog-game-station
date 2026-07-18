@@ -49,3 +49,13 @@ export const emptyHistory = { stack: [], at: -1 }
 export function startHistory(title) {
   return { stack: [title], at: 0 }
 }
+
+// Controller link focus: Left/Right step through the article's links. From "nothing
+// focused" (-1), Right lands on the first link and Left on the last, so either key
+// gets you started. Clamps at the ends (no wraparound — a wall tells you you're at the
+// edge). Returns the current index unchanged when there are no links.
+export function nextLinkIndex(count, current, dir) {
+  if (count <= 0) return -1
+  if (current < 0) return dir > 0 ? 0 : count - 1
+  return Math.max(0, Math.min(count - 1, current + dir))
+}
