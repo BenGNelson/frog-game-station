@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { Trophy } from 'lucide-react'
+import { Trophy, List, ChevronRight } from 'lucide-react'
 import { coverUrl } from '../lib/library.js'
 import { FROG, systemStyle, reflection } from './theme.js'
 import { agoLabel } from './shelf.js'
@@ -150,6 +150,36 @@ function GameCard({ game, focused, finished, onFocus, onPick }) {
   )
 }
 
+// The "see all" end-cap that opens a big collection as a full letter-railed list. It
+// leads the rail (index 0) so it's one flick away, and wears the neutral jade of a
+// collection rather than any one machine's colour — the games it gathers span systems.
+function SeeAllCard({ collection, focused, onFocus, onPick }) {
+  return (
+    <button
+      type="button"
+      data-testid="frog-collection-all"
+      data-focused={focused || undefined}
+      onMouseMove={onFocus}
+      onClick={onPick}
+      className="relative flex aspect-[3/4] w-36 shrink-0 flex-col items-center justify-center gap-2 rounded-xl px-3 text-center transition-transform duration-200 sm:w-40"
+      style={{
+        background: focused ? `rgba(${FROG.jade}, 0.14)` : FROG.panel,
+        border: `1px dashed ${focused ? `rgba(${FROG.jade}, 0.7)` : FROG.line}`,
+        boxShadow: focused ? reflection(FROG.jade) : 'none',
+        transform: focused ? 'scale(1.05)' : 'scale(1)',
+      }}
+    >
+      <List className="h-7 w-7" style={{ color: `rgb(${FROG.jade})` }} aria-hidden="true" />
+      <span className="text-[13px] font-semibold" style={{ color: focused ? FROG.ink : FROG.soft }}>
+        See all
+      </span>
+      <span className="flex items-center gap-0.5 text-[11px] tabular-nums" style={{ color: FROG.faint }}>
+        {collection.count} games <ChevronRight className="h-3 w-3" aria-hidden="true" />
+      </span>
+    </button>
+  )
+}
+
 // A rail heading. Small, wide-tracked, quiet — it labels the row without competing
 // with it.
 function Heading({ children }) {
@@ -215,10 +245,22 @@ export default function Shelf({ rails, focus, finishedIds, onFocus, onPick }) {
             sits under it (with room for the reflection), not floating on its own. */}
         <div className="min-w-0 text-center lg:mt-24">
           <p className="truncate text-lg font-semibold" style={{ color: FROG.ink }}>
-            {current ? (isGame ? current.name : current.label) : 'Nothing here yet'}
+            {current
+              ? current.seeAll
+                ? current.tag
+                : isGame
+                  ? current.name
+                  : current.label
+              : 'Nothing here yet'}
           </p>
           <p className="mt-0.5 truncate text-xs font-medium" style={{ color: `rgb(${s.accent})` }}>
-            {isGame ? current?.label : current ? `${current.count} game${current.count === 1 ? '' : 's'}` : ''}
+            {current?.seeAll
+              ? `See all ${current.count} games`
+              : isGame
+                ? current?.label
+                : current
+                  ? `${current.count} game${current.count === 1 ? '' : 's'}`
+                  : ''}
           </p>
         </div>
       </aside>
@@ -255,13 +297,22 @@ export default function Shelf({ rails, focus, finishedIds, onFocus, onPick }) {
               >
                 {rail.items.map((game, i) => (
                   <Floats key={game.id} delay={i * 260}>
-                    <GameCard
-                      game={game}
-                      focused={focus.rail === r && focus.index === i}
-                      finished={finishedIds?.has(game.id)}
-                      onFocus={() => onFocus(r, i)}
-                      onPick={() => onPick(rail, game)}
-                    />
+                    {game.seeAll ? (
+                      <SeeAllCard
+                        collection={game}
+                        focused={focus.rail === r && focus.index === i}
+                        onFocus={() => onFocus(r, i)}
+                        onPick={() => onPick(rail, game)}
+                      />
+                    ) : (
+                      <GameCard
+                        game={game}
+                        focused={focus.rail === r && focus.index === i}
+                        finished={finishedIds?.has(game.id)}
+                        onFocus={() => onFocus(r, i)}
+                        onPick={() => onPick(rail, game)}
+                      />
+                    )}
                   </Floats>
                 ))}
               </div>

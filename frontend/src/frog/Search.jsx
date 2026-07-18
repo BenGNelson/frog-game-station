@@ -4,6 +4,7 @@ import { coverUrl } from '../lib/library.js'
 import { FROG, systemStyle, reflection } from './theme.js'
 import { KEYS, COLS, liveKeys } from './search.js'
 import Frog, { Reflected } from './Frog.jsx'
+import SystemChip from './SystemChip.jsx'
 
 // The search screen.
 //
@@ -195,12 +196,7 @@ export default function Search({ query, results, zone, keyIndex, resultRow, allG
                     </span>
                     {/* The system chip — results span every console, so each row has
                         to say which one it is, or "Mario" is a coin toss. */}
-                    <span
-                      className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wide"
-                      style={{ color: `rgb(${s.accent})`, background: `rgba(${s.accent}, 0.14)` }}
-                    >
-                      {g.label}
-                    </span>
+                    <SystemChip label={g.label} />
                   </button>
                 </li>
               )

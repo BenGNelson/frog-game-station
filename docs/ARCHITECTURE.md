@@ -58,6 +58,13 @@ reachable from anywhere. The shape of them is the design:
   grid truncates them. The art gets one slot, big, next to whatever you're pointing at —
   you find by reading and confirm by looking. The triggers move a *letter* at a time,
   which is what keeps a 500-game system from being sixty D-pad presses.
+- **A collection is the SAME list.** A big collection (a tag with more than a screenful of
+  games) is browsed with the exact same screen — `GameList` takes an optional `collection`
+  prop and, when set, wears the neutral collection jade instead of one machine's colour,
+  lets its big art + mascot follow the *focused* game's own system, and puts a system chip
+  on every row (a collection spans machines, so the row has to say which). Same list, same
+  letter rail, same windowing — dressed differently, not rebuilt. The way in is a "see all"
+  end-cap prepended to the collection's shelf rail (see Collections below).
 - **Clicking the right stick (R3, or `R`) is "surprise me."** It opens a random title's
   page from anywhere — a re-roll even while a game page is already open. It's a global
   `random` action in the `act` dispatcher, ahead of the per-screen handlers, and lands on
@@ -371,6 +378,15 @@ collections are the kind of state you curate on the couch and check on your phon
 roam from day one. Creating a *new* tag is fully controller-drivable — the "new collection"
 row opens the on-screen text keyboard (see "The text keyboard" above) — alongside the native
 field a touch/hardware keyboard uses.
+
+Each collection is a **shelf rail** (`tagRails`, tag-name order). A small collection is
+covered by its rail; once it grows past a screenful (`COLLECTION_LIST_MIN`) the rail gets a
+**"see all" tile prepended** — index 0, so it's reachable the instant you drop into the rail
+rather than after D-padding past every game — that opens the whole collection as the full
+letter-railed list (the shared `GameList` in collection dress; see "A collection is the SAME
+list" above). It's the 'games' screen with a `collectionTag` set instead of a `system`
+(`openSystem` / `openCollection` each clear the other, so the screen is never ambiguously
+both), and the tag rides in `place` so it survives a game launch like the open system does.
 
 ### Presentation: titles and box art
 
