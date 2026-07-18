@@ -1,12 +1,12 @@
-// Frog, offline.
+// Frog Game Station, offline.
 //
 // The shelf, search and game list are all built from one thing: a list of game
 // `items`, each `{ id, name, core, label }`. Online that list is the library API.
 // Offline the API is gone, but the games you DOWNLOADED are on the device — the
 // same manifest the rest of the Library falls back to (`allEntries()` in
 // offlineStore). This turns those manifest rows into the exact item shape the
-// shelf already knows how to draw, so offline Frog is the online Frog with a
-// smaller library, not a separate screen.
+// shelf already knows how to draw, so Frog Game Station offline is the same app online
+// with a smaller library, not a separate screen.
 //
 // The one lossy bit: a download only ever stored a `core`, never the system label
 // (the backend runs Game Boy Color on the `gba` core, so a core can't tell GBC

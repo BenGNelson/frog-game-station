@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { X, Menu, Minimize } from 'lucide-react'
 import { playerSrc, coverUrl, postCover, deleteCover, ENGINE_LOADER_URL, engineIsLocal } from '../lib/library.js'
 import { goBack } from '../lib/nav.js'
-// The player is Frog's screen — launched from a game's page, it dresses in Frog's
+// The player is Frog Game Station's screen — launched from a game's page, it dresses in its
 // clothes (the same theme + boot mascot) so play feels continuous with the browser.
 import { systemForCore, FROG } from '../frog/theme.js'
 import FrogBoot from './FrogBoot.jsx'
@@ -227,8 +227,8 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
     styleStartScreen(frameRef.current, {
       coverUrl: coverUrl(id, coverV),
       name,
-      // The player is Frog's screen, so its start screen wears Frog's colours — the
-      // launch flow (Frog shelf → start → loading frog → game) reads as one world.
+      // The player is Frog Game Station's screen, so its start screen wears the app's colours — the
+      // launch flow (shelf → start → loading frog → game) reads as one world.
       accent: FROG.jade,
       ground: FROG.ground,
       onStart: () => setBootAt(Date.now()),
@@ -314,7 +314,7 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
   }, [state])
 
   const exit = useCallback(() => {
-    // The player is Frog's screen wherever it launched, so quitting returns to Frog
+    // The player is Frog Game Station's screen wherever it launched, so quitting returns to it
     // (which restores the shelf/list you were on).
     goBack(navigate, '/frog')
   }, [navigate])

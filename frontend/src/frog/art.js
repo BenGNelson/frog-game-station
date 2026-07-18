@@ -47,7 +47,7 @@ const circles = (list, r, fill) =>
 const domes = (fill) => circles(A.eyes, null, fill)
 
 // The full character. `skin`/`shade`/`belly` are the console's costume; `asleep` shuts
-// its eyes, which is the closest thing Frog has to a personality.
+// its eyes, which is the closest thing Frog Game Station has to a personality.
 export function frogCharacterMarkup({ skin, shade, belly, id, asleep = false }) {
   const eyes = asleep
     ? A.eyes

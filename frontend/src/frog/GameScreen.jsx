@@ -12,7 +12,7 @@ import { FinishedBadge, HackBadge } from './Shelf.jsx'
 import { agoLabel } from './shelf.js'
 import Keyboard from './Keyboard.jsx'
 
-// FROG — a game's page.
+// FROG GAME STATION — a game's page.
 //
 // The one screen between picking a game and playing it: what it is, a big Play (the
 // battery save), and its save states to jump into instead. When IGDB has matched the

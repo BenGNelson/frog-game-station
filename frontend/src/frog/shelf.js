@@ -22,7 +22,7 @@ export const SYSTEM_ORDER = [
 
 // Six systems, exactly as many as fit on one screen — the whole reason the shelf
 // doesn't scroll. A system with no games still gets its tile (dimmed): a gap in the
-// row would be more confusing than an empty shelf, and it tells you what Frog
+// row would be more confusing than an empty shelf, and it tells you what Frog Game Station
 // *could* play if you dropped a ROM in.
 //
 // A label we've never seen (a new core added to the backend) lands at the end

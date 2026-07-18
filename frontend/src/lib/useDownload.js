@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { downloadKey, getEntry, downloadJob, removeDownload } from './offlineStore.js'
 
 // The offline-download state machine for one item, extracted from DownloadButton so
-// the HQ control and Frog's own (differently themed) control share ONE implementation
+// the HQ control and Frog Game Station's own (differently themed) control share ONE implementation
 // — the single-writer-of-bytes rule holds because both go through the same
 // `downloadJob`. `item` = { section, id, name, core?, urls }; `onBefore` runs once
 // before the job (games ensure the shared emulator engine first).
@@ -12,14 +12,14 @@ import { downloadKey, getEntry, downloadJob, removeDownload } from './offlineSto
 //   done → (remove) → idle
 //
 // `remove` does NOT prompt — the confirm is the caller's, so each theme asks in its
-// own voice (HQ uses window.confirm, Frog its in-screen dialog).
+// own voice (HQ uses window.confirm, Frog Game Station its in-screen dialog).
 export function useDownload(item, onBefore) {
   const key = downloadKey(item.section, item.id)
   const [state, setState] = useState('checking')
   const [pct, setPct] = useState(0)
   const [bytes, setBytes] = useState(0)
 
-  // The KEY can change without the hook unmounting: Frog keeps one persistent
+  // The KEY can change without the hook unmounting: Frog Game Station keeps one persistent
   // useDownload and re-points it at whichever game's page is open. So the guard is
   // "is this still the game I'm looking at?" (`activeKey`), not "am I mounted?" —
   // otherwise an in-flight download for game A would paint its progress/completion
