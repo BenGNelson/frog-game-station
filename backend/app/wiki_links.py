@@ -39,32 +39,44 @@ def parse_wiki_url(url):
     return {"host": parts.netloc, "title": title, "url": url.strip()}
 
 
-# Resolution priority — highest wins. Exposed so the reader can show *why* a link was
-# chosen (a "user pin" vs "from IGDB" attribution) and tests can assert the order.
-_SOURCES = ("user", "auto", "curated", "base")
+def classify_url(url):
+    """Tag a URL as a renderable MediaWiki article or a plain external link (pure).
+    `{host, title, url, kind: 'mediawiki'}` for a `/wiki/Title` page, `{host, title:
+    None, url, kind: 'external'}` for any other http(s) URL, or None if it isn't a
+    usable URL at all."""
+    mw = parse_wiki_url(url)
+    if mw:
+        return {**mw, "kind": "mediawiki"}
+    parts = urlsplit((url or "").strip())
+    if parts.scheme in ("http", "https") and parts.netloc:
+        return {"host": parts.netloc, "title": None, "url": url.strip(), "kind": "external"}
+    return None
 
 
 def resolve_wiki(meta=None, override=None, base_meta=None, curated=None):
     """Pick the effective wiki source for one game, in priority order:
 
-      1. `override`  — the user-pinned URL (game_wiki row). Always wins.
+      1. `override`  — the user-pinned URL (game_wiki row). Always wins, and may be ANY
+         link: a MediaWiki page renders in the reader, anything else becomes an
+         open-in-tab card (the escape hatch for a hack whose only guide isn't a wiki).
       2. `meta.wiki_url` — auto-derived from IGDB `websites` for this ROM.
-      3. `curated`   — a per-system default URL (wiki_sources, a later milestone).
+      3. `curated`   — a per-system default URL (wiki_sources).
       4. `base_meta.wiki_url` — the base game's auto link, for a ROM hack that has no
          wiki of its own but is 'based on' a game you own.
 
-    Each candidate must parse as a MediaWiki `/wiki/Title` URL to count; a present-but-
-    unusable link is skipped so a lower tier can still supply a readable page. Returns
-    `{host, title, url, source}` for the winner, or None when nothing resolves.
+    Tiers 2-4 must be renderable MediaWiki `/wiki/Title` pages (a homepage or a random
+    link is skipped so a lower tier can still supply a readable page). Returns
+    `{host, title, url, source, kind}` for the winner, or None when nothing resolves.
     `meta`/`base_meta` are the dicts from db.get_igdb_meta (or None)."""
-    candidates = (
-        ("user", override),
+    user = classify_url(override)
+    if user:
+        return {**user, "source": "user"}
+    for source, url in (
         ("auto", (meta or {}).get("wiki_url")),
         ("curated", curated),
         ("base", (base_meta or {}).get("wiki_url")),
-    )
-    for source, url in candidates:
+    ):
         parsed = parse_wiki_url(url)
         if parsed:
-            return {**parsed, "source": source}
+            return {**parsed, "kind": "mediawiki", "source": source}
     return None

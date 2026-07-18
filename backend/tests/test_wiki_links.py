@@ -1,8 +1,8 @@
 """Wiki data layer: the pure link resolver/parser (no network) and the game_wiki
 override accessors (against the per-test temp DB from conftest)."""
 
-from app import db
-from app.wiki_links import parse_wiki_url, resolve_wiki
+from app import db, wiki_sources
+from app.wiki_links import parse_wiki_url, resolve_wiki, classify_url
 
 
 # --- parse_wiki_url --------------------------------------------------------
@@ -75,14 +75,32 @@ class TestResolveWiki:
         got = resolve_wiki(meta={"wiki_url": None}, base_meta={"wiki_url": BASE})
         assert got["source"] == "base"
         assert got["url"] == BASE
+        assert got["kind"] == "mediawiki"
+
+    def test_user_override_can_be_an_external_link(self):
+        # The escape hatch: a user may pin a non-wiki URL — it opens in a tab.
+        got = resolve_wiki(override="https://gamefaqs.gamespot.com/gb/12345")
+        assert got == {
+            "host": "gamefaqs.gamespot.com", "title": None,
+            "url": "https://gamefaqs.gamespot.com/gb/12345",
+            "kind": "external", "source": "user",
+        }
+
+    def test_auto_and_base_reject_non_mediawiki(self):
+        # Only the user tier may be external; auto/base must be renderable, so a
+        # non-wiki auto link is skipped in favour of a renderable base link.
+        got = resolve_wiki(meta={"wiki_url": "https://fandom.com"}, base_meta={"wiki_url": BASE})
+        assert got["source"] == "base" and got["kind"] == "mediawiki"
 
     def test_none_when_nothing_resolves(self):
         assert resolve_wiki(meta={"wiki_url": None}) is None
         assert resolve_wiki() is None
 
-    def test_unusable_higher_tier_falls_through(self):
-        # An override that isn't a real /wiki/ URL is skipped so auto can still win.
-        got = resolve_wiki(override="https://example.com/", meta={"wiki_url": BULBA})
+    def test_non_url_override_falls_through_to_auto(self):
+        # A garbage (non-URL) override is skipped so auto can still win — but a valid
+        # external URL override would win as an open-in-tab card (see the escape-hatch
+        # test above), which is the point of the user tier.
+        got = resolve_wiki(override="not a url", meta={"wiki_url": BULBA})
         assert got["source"] == "auto"
         assert got["url"] == BULBA
 
@@ -127,3 +145,38 @@ class TestIgdbMetaWikiColumn:
     def test_wiki_url_defaults_null(self):
         db.upsert_igdb_meta("g1", {"matched": True, "is_hack": False, "source": "auto"})
         assert db.get_igdb_meta("g1")["wiki_url"] is None
+
+
+class TestClassifyUrl:
+    def test_mediawiki_page(self):
+        got = classify_url("https://zelda.fandom.com/wiki/Link")
+        assert got["kind"] == "mediawiki" and got["title"] == "Link"
+
+    def test_external_link(self):
+        got = classify_url("https://howlongtobeat.com/game/123")
+        assert got == {"host": "howlongtobeat.com", "title": None,
+                       "url": "https://howlongtobeat.com/game/123", "kind": "external"}
+
+    def test_garbage(self):
+        assert classify_url("not a url") is None
+        assert classify_url("") is None
+
+
+class TestCuratedHost:
+    def test_pokemon_maps_to_bulbapedia(self):
+        assert wiki_sources.curated_host("Pokemon - Crystal Version (USA)") == "bulbapedia.bulbagarden.net"
+        # A hack whose name IGDB can't match still curates by keyword.
+        assert wiki_sources.curated_host("Pokemon Kaizo Emerald") == "bulbapedia.bulbagarden.net"
+
+    def test_other_families(self):
+        assert wiki_sources.curated_host("The Legend of Zelda") == "zeldawiki.wiki"
+        assert wiki_sources.curated_host("Super Mario Land") == "www.mariowiki.com"
+
+    def test_unknown_family_is_none(self):
+        assert wiki_sources.curated_host("Some Obscure Homebrew") is None
+        assert wiki_sources.curated_host("") is None
+
+    def test_every_curated_host_is_listed(self):
+        # CURATED_HOSTS (the router's trust set) must cover every mapped host.
+        for _, host in wiki_sources._FAMILIES:
+            assert host in wiki_sources.CURATED_HOSTS

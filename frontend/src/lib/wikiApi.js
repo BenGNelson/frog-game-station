@@ -15,9 +15,10 @@ export function wikiPageUrl(id, title) {
   return title ? `${base}&title=${enc(title)}` : base
 }
 
-export function wikiSearchUrl(id, q, host) {
+export function wikiSearchUrl(id, q, host, name) {
   let u = `${API_BASE}/library/games/wiki/search?id=${enc(id)}&q=${enc(q)}`
   if (host) u += `&host=${enc(host)}`
+  if (name) u += `&name=${enc(name)}` // lets the backend curate a family wiki when unlinked
   return u
 }
 
@@ -42,9 +43,9 @@ export async function fetchWikiPage(id, title) {
 
 // Title suggestions to pin a page: { host, results: [{title, url}] }. Best-effort —
 // a failure is an empty list, not an error (the picker just shows nothing).
-export async function searchWiki(id, q, host) {
+export async function searchWiki(id, q, host, name) {
   try {
-    const r = await fetch(wikiSearchUrl(id, q, host))
+    const r = await fetch(wikiSearchUrl(id, q, host, name))
     if (!r.ok) return { results: [] }
     return r.json()
   } catch {

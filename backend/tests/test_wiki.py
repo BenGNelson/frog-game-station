@@ -268,10 +268,27 @@ class TestWikiEndpoints:
         ok = client.get("/api/library/games/wiki/search",
                         params={"id": "x.gb", "q": "z", "host": "en.wikipedia.org"})
         assert ok.json()["host"] == "en.wikipedia.org"
-        # An arbitrary host is refused (falls back to resolved, which is none here).
+        # An arbitrary host is refused; with no link/name it falls back to Wikipedia.
         bad = client.get("/api/library/games/wiki/search",
                          params={"id": "x.gb", "q": "z", "host": "evil.com"})
-        assert bad.json()["host"] is None
+        assert bad.json()["host"] == "en.wikipedia.org"
+
+    def test_search_curates_host_from_the_game_name(self, client, monkeypatch):
+        # An unlinked Pokémon hack: search defaults to Bulbapedia, not Wikipedia.
+        monkeypatch.setattr(wiki, "search", lambda host, q: [])
+        r = client.get("/api/library/games/wiki/search",
+                       params={"id": "hack.gb", "q": "kaizo", "name": "Pokemon Kaizo"})
+        assert r.json()["host"] == "bulbapedia.bulbagarden.net"
+
+    def test_page_404s_for_an_external_override(self, client, rom_dir):
+        # A non-wiki override resolves as external -> the reader opens a tab, page 404s.
+        client.post("/api/library/games/wiki",
+                    json={"id": "Tetris.gb", "wiki_url": "https://gamefaqs.gamespot.com/x"})
+        assert client.get("/api/library/games/wiki/page",
+                          params={"id": "Tetris.gb"}).status_code == 404
+        # ...but resolve still reports it, so the panel can show the open-in-tab card.
+        resolved = client.get("/api/library/games/wiki", params={"id": "Tetris.gb"}).json()["resolved"]
+        assert resolved["kind"] == "external"
 
     def test_override_set_and_resolve(self, client, rom_dir):
         # POST needs a real listed ROM (safe_path); rom_dir provides Tetris.gb.

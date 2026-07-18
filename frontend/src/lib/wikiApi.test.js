@@ -17,12 +17,15 @@ describe('wiki URL builders', () => {
     )
   })
 
-  it('search url includes host only when given', () => {
+  it('search url includes host and name only when given', () => {
     expect(wikiSearchUrl('g1', 'pika')).toBe(
       '/api/library/games/wiki/search?id=g1&q=pika'
     )
     expect(wikiSearchUrl('g1', 'pika', 'en.wikipedia.org')).toBe(
       '/api/library/games/wiki/search?id=g1&q=pika&host=en.wikipedia.org'
+    )
+    expect(wikiSearchUrl('g1', 'kaizo', null, 'Pokemon Kaizo')).toBe(
+      '/api/library/games/wiki/search?id=g1&q=kaizo&name=Pokemon%20Kaizo'
     )
   })
 })
