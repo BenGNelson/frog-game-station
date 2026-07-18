@@ -225,7 +225,7 @@ export default function FrogBrowser() {
   // Collections: the finished flag + free-form tags, server-owned so they roam. Fetched
   // once on mount; edits (on the game page) update this optimistically so the shelf's
   // Finished / per-tag rails reflect a change the instant you make it, without a round-trip.
-  const [collections, setCollections] = useState({ finished: [], tags: {} })
+  const [collections, setCollections] = useState({ finished: [], tags: {}, hacks: {} })
   // Whether the mount GET has SUCCEEDED. FrogBrowser REMOUNTS on every game launch, so a
   // collection list re-entered right after quitting a game would, for one render, see the
   // empty starting `collections` and wrongly read as "this collection is empty". This
@@ -237,7 +237,9 @@ export default function FrogBrowser() {
   // response predates those writes, so it's MERGED (not applied wholesale): the server
   // fills in every untouched game, but a touched game keeps its local membership — so a
   // slow GET can't clobber an edit, nor can skipping it lose the rest of the collections.
-  const collectionsDirty = useRef(new Set())
+  // Per-dimension (see mergeCollections): touching a game in one dimension must not make
+  // a slow mount GET drop its memberships in the others.
+  const collectionsDirty = useRef({ finished: new Set(), tags: new Set(), hacks: new Set() })
   useEffect(() => {
     let alive = true
     fetchCollections()
@@ -256,6 +258,11 @@ export default function FrogBrowser() {
     }
   }, [])
   const finishedSet = useMemo(() => new Set(collections.finished), [collections.finished])
+  // The ROM-hack map (game_id → base game's name), for the "HACK" badges across the
+  // browsing surfaces. Server-owned like the rest of collections, so a game marked a hack
+  // on the couch reads as one on the phone.
+  const hacks = collections.hacks || {}
+  const hackSet = useMemo(() => new Set(Object.keys(hacks)), [hacks])
 
   const rails = useMemo(
     () => buildShelf(items, getRecent(), getFavorites(), playStatItems, collections),
@@ -364,16 +371,25 @@ export default function FrogBrowser() {
     () => Object.keys(collections.tags).sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase())),
     [collections.tags]
   )
+  // A hack whose base ROM you own gets a one-press "Based on <base>" hop (its own zone).
+  // Validated against the LIVE library: the server resolves base_game_id off igdb_meta,
+  // which can outlive the ROM on disk — so a base that has left the library becomes plain
+  // text, never a focusable link that goes nowhere.
+  const detailBaseId =
+    meta?.is_hack && meta?.base_game_id && items.some((x) => x.id === meta.base_game_id)
+      ? meta.base_game_id
+      : null
   const detailZones = useMemo(() => {
     const z = []
     if (shots.length) z.push('hero') // the banner sits above the actions
     z.push('actions')
+    if (detailBaseId) z.push('base') // "Based on <base>", just under the actions
     if (canRematch) z.push('fix') // the "Wrong game?" control, below the facts
     z.push('tags') // "Collections" — always available (you can always tag a game)
     if (saves.length) z.push('saves')
     if (similar.length) z.push('similar') // the rail at the foot of the page
     return z
-  }, [shots.length, canRematch, saves.length, similar.length])
+  }, [shots.length, detailBaseId, canRematch, saves.length, similar.length])
 
   // Slowly crossfade the hero's background through the screenshots. Paused while the
   // lightbox is open (you're looking at one) and under reduced-motion (leave it still).
@@ -598,6 +614,14 @@ export default function FrogBrowser() {
 
   const toggleFav = () => detailGame && setFavorited(toggleFavorite(detailGame).favorited)
 
+  // Hop from a hack to the base game it's based on. One place (the controller 'base' zone
+  // and the mouse/touch prop both call it), inheriting this page's origin so Back returns
+  // where you came from — the same convention openRematch keeps.
+  const openBase = (baseId) => {
+    const g = baseId && items.find((x) => x.id === baseId)
+    if (g) openDetail(g, detailFrom)
+  }
+
   // Collections edits for the open game, all optimistic: update `collections` at once so
   // the button/chips and the shelf rails react immediately, then fire the write. `id`
   // captured up front so a game-switch mid-write can't retarget it, and added to
@@ -609,7 +633,7 @@ export default function FrogBrowser() {
   const toggleFinished = () => {
     if (!detailGame) return
     const id = detailGame.id
-    collectionsDirty.current.add(id)
+    collectionsDirty.current.finished.add(id)
     setCollections((c) => {
       const next = !c.finished.includes(id)
       postFinished(id, next)
@@ -624,7 +648,7 @@ export default function FrogBrowser() {
     const tag = cleanTag(raw)
     if (!tag) return
     const id = detailGame.id
-    collectionsDirty.current.add(id)
+    collectionsDirty.current.tags.add(id)
     setCollections((c) => {
       const members = c.tags[tag] || []
       if (members.includes(id)) return c
@@ -637,7 +661,7 @@ export default function FrogBrowser() {
   const toggleGameTag = (tag) => {
     if (!detailGame) return
     const id = detailGame.id
-    collectionsDirty.current.add(id)
+    collectionsDirty.current.tags.add(id)
     setCollections((c) => {
       const has = (c.tags[tag] || []).includes(id)
       const members = has ? (c.tags[tag] || []).filter((g) => g !== id) : [id, ...(c.tags[tag] || [])]
@@ -759,26 +783,44 @@ export default function FrogBrowser() {
     // Guard against a game switch mid-fetch (like the meta/saves fetches): only open
     // the picker if we're still on the game it was requested for — otherwise a slow
     // response would open game A's candidates over game B and a pick would mis-write.
+    // `hack` starts from the game's current state, so re-opening the picker on a hack
+    // shows the toggle already on. `index: -1` is the hack toggle row above the list.
+    const isHack = !!meta?.is_hack
     const land = (d) => {
       if (metaGameRef.current !== gid) return
-      setRematch({ candidates: d.candidates ?? [], current: d.current ?? null, matched, index: 0 })
+      const cands = d.candidates ?? []
+      // Land on the first candidate so the common "fix a wrong match" flow is unchanged;
+      // the "It's a ROM hack" toggle sits one Up above it (index -1). With no candidates
+      // to pick, start on the toggle since it's the only thing to touch.
+      setRematch({ candidates: cands, current: d.current ?? null, matched, hack: isHack, index: cands.length ? 0 : -1 })
     }
     fetch(gameCandidatesUrl(gid))
       .then((r) => (r.ok ? r.json() : { candidates: [], current: null }))
       .then(land)
       .catch(() => land({ candidates: [], current: null }))
   }
-  // Apply a pick: an igdbId re-matches, null clears. Close + refetch the game's meta
-  // on success so the page redraws as the newly-chosen game (or the basic page). On
-  // failure (IGDB unreachable → 502) keep the dialog open with an error rather than
+  // Apply a pick: an igdbId re-matches (as a hack when `isHack`), null clears. Close +
+  // refetch the game's meta on success so the page redraws as the newly-chosen game (or
+  // the basic page), and optimistically update the hack map so the badges react at once.
+  // On failure (IGDB unreachable → 502) keep the dialog open with an error rather than
   // closing silently and leaving the user thinking the fix took.
-  const applyMatch = async (igdbId) => {
+  const applyMatch = async (igdbId, isHack = false, baseName = null) => {
     const gid = detailGame?.id
     if (!gid) return
     setRematch((r) => (r ? { ...r, busy: true, error: null } : r))
     try {
-      const res = await postGameMatch(gid, igdbId)
+      const res = await postGameMatch(gid, igdbId, isHack)
       if (!res.ok) throw new Error('re-match failed')
+      // Optimistic hack-map update: mark this game dirty (so a slow mount GET merges
+      // around it) and set/clear its badge. The meta refetch fills the authoritative
+      // base name + owned-base deep-link.
+      collectionsDirty.current.hacks.add(gid)
+      setCollections((c) => {
+        const nextHacks = { ...(c.hacks || {}) }
+        if (igdbId != null && isHack) nextHacks[gid] = baseName || nextHacks[gid] || '…'
+        else delete nextHacks[gid]
+        return { ...c, hacks: nextHacks }
+      })
       setRematch(null)
       setHeroSlide(0)
       setMetaRefresh((n) => n + 1)
@@ -794,8 +836,9 @@ export default function FrogBrowser() {
     setDetailFocus((f) => {
       if (f.zone === 'actions') return f
       if (f.zone === 'tags') return { zone: 'tags', index: 0 } // always present, single target
-      // The hero / fix control are single targets; if they went away, fall to actions.
+      // The hero / base / fix controls are single targets; if they went away, fall to actions.
       if (f.zone === 'hero') return shots.length ? { zone: 'hero', index: 0 } : { zone: 'actions', index: 0 }
+      if (f.zone === 'base') return detailBaseId ? { zone: 'base', index: 0 } : { zone: 'actions', index: 0 }
       if (f.zone === 'fix') return canRematch ? { zone: 'fix', index: 0 } : { zone: 'actions', index: 0 }
       // The two list zones clamp their index and fall to actions when they empty.
       if (f.zone === 'similar') {
@@ -806,7 +849,7 @@ export default function FrogBrowser() {
       if (saves.length === 0) return { zone: 'actions', index: 0 }
       return f.index < saves.length ? f : { zone: 'saves', index: saves.length - 1 }
     })
-  }, [saves, shots.length, canRematch, similar.length])
+  }, [saves, shots.length, detailBaseId, canRematch, similar.length])
 
   // Append a key, but only if it keeps the list alive — the same dead-key rule the
   // grid dims by, enforced here so you physically cannot type into an empty result
@@ -855,11 +898,18 @@ export default function FrogBrowser() {
     // (re-match / clear), B cancels.
     if (screen === 'detail' && rematch) {
       const opts = rematchOptions(rematch)
-      if (action === 'up') setRematch((r) => ({ ...r, index: Math.max(0, r.index - 1) }))
+      // index -1 is the "It's a ROM hack" toggle above the candidate list.
+      if (action === 'up') setRematch((r) => ({ ...r, index: Math.max(-1, r.index - 1) }))
       else if (action === 'down') setRematch((r) => ({ ...r, index: Math.min(opts.length - 1, r.index + 1) }))
       else if (action === 'confirm') {
-        const o = opts[rematch.index]
-        if (o) applyMatch(o.type === 'clear' ? null : o.id)
+        if (rematch.index < 0) {
+          setRematch((r) => ({ ...r, hack: !r.hack })) // toggle hack mode
+        } else {
+          const o = opts[rematch.index]
+          // A hack borrows the chosen candidate's art but keeps its own name; 'clear'
+          // (use the basic page) is never a hack.
+          if (o) applyMatch(o.type === 'clear' ? null : o.id, o.type === 'clear' ? false : rematch.hack, o.name)
+        }
       } else if (action === 'back') setRematch(null)
       return
     }
@@ -1073,6 +1123,8 @@ export default function FrogBrowser() {
         case 'confirm':
           if (f.zone === 'hero') {
             if (shots.length) setLightbox(heroSlide) // open the hero's shots fullscreen
+          } else if (f.zone === 'base') {
+            openBase(detailBaseId) // hop to the base game this hack is based on
           } else if (f.zone === 'fix') {
             openRematch()
           } else if (f.zone === 'actions') {
@@ -1577,8 +1629,11 @@ export default function FrogBrowser() {
           onOpenSaveNoteKb={() => openKeyboard('saveNote')}
           onOpenRematch={openRematch}
           onRematchHover={(index) => setRematch((r) => (r ? { ...r, index } : r))}
-          onRematchPick={(igdbId) => applyMatch(igdbId)}
+          onRematchPick={(igdbId, isHack, name) => applyMatch(igdbId, isHack, name)}
+          onRematchToggleHack={() => setRematch((r) => (r ? { ...r, hack: !r.hack } : r))}
           onRematchCancel={() => setRematch(null)}
+          baseGameId={detailBaseId}
+          onOpenBase={openBase}
           onFocus={(zone, index) => setDetailFocus({ zone, index })}
           onPlay={() => play(detailGame)}
           onPlaySlot={(slot) => play(detailGame, slot)}
@@ -1606,6 +1661,7 @@ export default function FrogBrowser() {
           games={games}
           focus={row}
           finishedIds={finishedSet}
+          hackIds={hackSet}
           onFocus={setRow}
           onPick={(g) => openDetail(g, 'games')}
         />
@@ -1619,6 +1675,7 @@ export default function FrogBrowser() {
           rails={rails}
           focus={focus}
           finishedIds={finishedSet}
+          hackIds={hackSet}
           onFocus={(rail, index) => setFocus({ rail, index })}
           onPick={pickShelfItem}
         />
@@ -1669,7 +1726,7 @@ export default function FrogBrowser() {
                     ]
                   : rematch
                     ? [
-                        { button: 'A', label: 'Choose' },
+                        { button: 'A', label: rematch.index < 0 ? 'Toggle' : 'Choose' },
                         { button: 'B', label: 'Cancel' },
                         { button: 'D-pad', label: 'Move' },
                       ]
@@ -1696,13 +1753,15 @@ export default function FrogBrowser() {
                                 ? 'Load'
                                 : detailFocus.zone === 'hero'
                                   ? 'Screenshots'
-                                  : detailFocus.zone === 'fix'
-                                    ? 'Fix match'
-                                    : detailFocus.zone === 'similar'
-                                      ? 'Open'
-                                      : detailFocus.zone === 'tags'
-                                        ? 'Collections'
-                                        : 'Select',
+                                  : detailFocus.zone === 'base'
+                                    ? 'Base game'
+                                    : detailFocus.zone === 'fix'
+                                      ? 'Fix match'
+                                      : detailFocus.zone === 'similar'
+                                        ? 'Open'
+                                        : detailFocus.zone === 'tags'
+                                          ? 'Collections'
+                                          : 'Select',
                           },
                           { button: 'B', label: 'Back' },
                           ...(detailFocus.zone === 'saves' ? [{ button: 'Y', label: 'Edit' }] : []),

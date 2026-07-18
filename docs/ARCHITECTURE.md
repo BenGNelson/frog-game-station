@@ -392,7 +392,8 @@ Two more server-owned per-game tables, both sparse (only flagged/tagged games ge
 (game, tag) membership, so "every game in collection X" is a cheap indexed lookup, which is
 what the per-tag rails want. The tag namespace is simply the set of distinct `tag` values, so
 a tag exists exactly as long as some game wears it. One `GET /library/games/collections`
-returns everything as ids (`{ finished: [...], tags: { tag: [...] } }`); the frontend
+returns everything as ids (`{ finished: [...], tags: { tag: [...] }, hacks: { id: baseName } }`
+— the hack map rides along here too; see "ROM hacks" below); the frontend
 re-hydrates against the live library like the other rails, and edits are optimistic (writes
 via `POST finished` / `POST tags` / `DELETE tags`). This is a deliberate step *toward* the
 backend: favorites and recents are still the last client-only (this-device) holdouts, but
@@ -409,6 +410,25 @@ letter-railed list (the shared `GameList` in collection dress; see "A collection
 list" above). It's the 'games' screen with a `collectionTag` set instead of a `system`
 (`openSystem` / `openCollection` each clear the other, so the screen is never ambiguously
 both), and the tag rides in `place` so it survives a game launch like the open system does.
+
+### ROM hacks (badge + base link)
+
+A ROM hack won't match IGDB by its own name, so it falls to the basic page and reads like
+any IGDB miss. The fix reuses the **re-match** machinery: the picker has an *"It's a ROM
+hack"* toggle (index -1 above the candidate list), and picking a candidate with it on marks
+the ROM a hack **of** that game — it borrows the base's art/summary (the same borrow a normal
+manual match does) but keeps **its own name** and gets flagged. The flag is one column,
+`is_hack`, on `igdb_meta` (a hack's row already IS the base's row — same `igdb_id`/`name`/art —
+so nothing else is duplicated). The meta endpoint surfaces `is_hack` + `base_name` (the
+borrowed name) + `base_game_id` (the OWNED base ROM, resolved through the same hack-excluding
+`owned_by_igdb_ids` lookup the similar rail uses, so it can't point back at the hack itself),
+and the `collections` GET carries a `hacks` map (`game_id → base name`) so every browsing
+surface can badge a hack from one read — exactly like `finished`/`tags`. The surfacing: a
+**HACK** ribbon (top-left, amber, clear of the finished trophy) on every cover, a **HACK** chip
+on list rows, and on the game page a focusable **"Based on <base>"** line (its own `base` focus
+zone) that's a one-press hop to the base ROM when you own it. Marking is optimistic (the hack
+map updates before the round-trip, merged like the rest of collections), and the whole thing
+is server-owned, so a hack marked on the couch reads as one on the phone.
 
 ### Presentation: titles and box art
 

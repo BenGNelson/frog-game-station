@@ -8,7 +8,7 @@ import { formatPlaytime } from '../lib/format.js'
 import { useFocusTrap } from '../lib/useFocusTrap.js'
 import { FROG, systemStyle, reflection } from './theme.js'
 import { SystemFrog, Reflected } from './Frog.jsx'
-import { FinishedBadge } from './Shelf.jsx'
+import { FinishedBadge, HackBadge } from './Shelf.jsx'
 import { agoLabel } from './shelf.js'
 import Keyboard from './Keyboard.jsx'
 
@@ -79,7 +79,10 @@ export default function GameScreen({
   onOpenRematch,
   onRematchHover,
   onRematchPick,
+  onRematchToggleHack,
   onRematchCancel,
+  baseGameId,
+  onOpenBase,
   onConfirmYes,
   onConfirmNo,
 }) {
@@ -87,6 +90,7 @@ export default function GameScreen({
   const on = (zone, index) => focus.zone === zone && focus.index === index
   const rich = !!meta?.matched
   const shots = rich ? meta.screenshot_ids ?? [] : []
+  const isHack = !!meta?.is_hack
 
   const actions = (
     <div className="flex flex-wrap items-center gap-2">
@@ -161,17 +165,31 @@ export default function GameScreen({
             slide={slide}
             focused={on('hero', 0)}
             finished={finished}
+            hack={isHack}
             onOpen={onOpenShot}
             onHover={() => onFocus('hero', 0)}
           />
         ) : (
-          <BasicHeader game={game} s={s} actions={actions} finished={finished} />
+          <BasicHeader game={game} s={s} actions={actions} finished={finished} hack={isHack} />
         )}
 
         <div className="flex flex-col gap-6 px-6 pb-4 pt-5">
           {/* When rich, the hero holds the title only, so the actions live here under
               it. When basic, the header already carried them beside the cover. */}
           {rich && actions}
+
+          {/* A ROM hack says what it's based on — and, when you own the base, is a
+              one-press hop to it (its own focus zone, 'base'). */}
+          {isHack && (
+            <HackLine
+              baseName={meta.base_name}
+              baseGameId={baseGameId}
+              focused={on('base', 0)}
+              accent={s.accent}
+              onFocus={() => onFocus('base', 0)}
+              onOpenBase={onOpenBase}
+            />
+          )}
 
           {playMs > 0 && <PlayedLine ms={playMs} />}
 
@@ -272,6 +290,7 @@ export default function GameScreen({
           accent={s.accent}
           onHover={onRematchHover}
           onPick={onRematchPick}
+          onToggleHack={onRematchToggleHack}
           onCancel={onRematchCancel}
         />
       )}
@@ -301,10 +320,10 @@ export default function GameScreen({
 // The basic (unmatched / dormant / still-loading) header — a ROM hack looks exactly
 // like it did before IGDB existed: the cover, the frog wearing this machine, the
 // title, and the actions beside them.
-function BasicHeader({ game, s, actions, finished }) {
+function BasicHeader({ game, s, actions, finished, hack }) {
   return (
     <div className="flex shrink-0 gap-5 px-6 pt-6">
-      <Cover game={game} accent={s.accent} finished={finished} className="w-32 sm:w-40" />
+      <Cover game={game} accent={s.accent} finished={finished} hack={hack} className="w-32 sm:w-40" />
       <div className="flex min-w-0 flex-1 flex-col">
         <div className="flex items-start gap-3">
           <div className="min-w-0 flex-1">
@@ -333,7 +352,7 @@ function BasicHeader({ game, s, actions, finished }) {
 // banner (or A when it's focused) opens the shots fullscreen. `slide` is the active
 // screenshot index (FrogBrowser owns it so the auto-advance can pause for the lightbox
 // and the D-pad can peek); dots show where you are.
-function RichHero({ game, meta, shots, s, slide, focused, finished, onOpen, onHover }) {
+function RichHero({ game, meta, shots, s, slide, focused, finished, hack, onOpen, onHover }) {
   const n = shots.length
   const idx = n ? ((slide % n) + n) % n : 0
   return (
@@ -414,7 +433,7 @@ function RichHero({ game, meta, shots, s, slide, focused, finished, onOpen, onHo
 
         {/* Overlaid: the cover + title + facts, sitting on the scrim. */}
         <div className="absolute inset-x-0 bottom-0 flex items-end gap-4 p-5 sm:gap-5 sm:p-6">
-          <Cover game={game} accent={s.accent} finished={finished} className="w-24 sm:w-28" />
+          <Cover game={game} accent={s.accent} finished={finished} hack={hack} className="w-24 sm:w-28" />
           <div className="min-w-0 flex-1 pb-1">
             <h1
               className="text-2xl font-semibold leading-tight sm:text-3xl"
@@ -459,7 +478,7 @@ function RichHero({ game, meta, shots, s, slide, focused, finished, onOpen, onHo
 // tried here and removed: the basic header isn't clipped, so it bled over the content
 // below, and the rich hero IS clipped, so it stubbed off — the water read comes from
 // the shadow here and the hero's own waterline instead.)
-function Cover({ game, accent, finished, className = '' }) {
+function Cover({ game, accent, finished, hack, className = '' }) {
   return (
     <div
       className={`relative shrink-0 overflow-hidden rounded-2xl ${className}`}
@@ -467,6 +486,7 @@ function Cover({ game, accent, finished, className = '' }) {
     >
       <img src={coverUrl(game.id, game.cover_v)} alt="" className="aspect-[3/4] w-full object-cover" />
       {finished && <FinishedBadge />}
+      {hack && <HackBadge />}
       <div
         className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3"
         style={{ background: `linear-gradient(to top, rgba(${accent}, 0.4), transparent)` }}
@@ -758,6 +778,48 @@ function LightboxArrow({ side, onClick }) {
   )
 }
 
+// The ROM-hack line (zone 'base'): a "ROM HACK" tag + what it's based on. When you own
+// the base ROM it's a focusable, one-press hop to that game's page; when you don't, it's
+// just the honest label (no target to jump to). The base name comes off the borrowed
+// IGDB match, so it's the real game's name even though the title stays the hack's own.
+function HackLine({ baseName, baseGameId, focused, accent, onFocus, onOpenBase }) {
+  const linkable = !!baseGameId
+  const Tag = (
+    <span
+      className="rounded-full px-2 py-0.5 text-[11px] font-bold tracking-wider"
+      style={{ background: `rgba(${FROG.amber}, 0.16)`, color: `rgb(${FROG.amber})` }}
+    >
+      ROM HACK
+    </span>
+  )
+  if (!baseName) return <div className="flex">{Tag}</div>
+  const inner = (
+    <>
+      {Tag}
+      <span style={{ color: FROG.soft }}>
+        Based on <span className="font-semibold" style={{ color: linkable ? `rgb(${accent})` : FROG.ink }}>{baseName}</span>
+      </span>
+    </>
+  )
+  if (!linkable) return <div className="flex flex-wrap items-center gap-2 text-sm">{inner}</div>
+  return (
+    <button
+      type="button"
+      data-testid="frog-detail-base"
+      data-focused={focused || undefined}
+      onMouseMove={onFocus}
+      onClick={() => onOpenBase(baseGameId)}
+      className="flex w-full flex-wrap items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition-colors"
+      style={{
+        background: focused ? `rgba(${accent}, 0.14)` : 'transparent',
+        boxShadow: focused ? `inset 0 0 0 1px rgba(${accent}, 0.5)` : `inset 0 0 0 1px ${FROG.line}`,
+      }}
+    >
+      {inner}
+    </button>
+  )
+}
+
 // The "Wrong game?" affordance (zone 'fix'). Reads "Wrong game?" when a match is
 // showing, "Find on IGDB" on the basic page — both open the same picker.
 function RematchButton({ matched, focused, accent, onFocus, onClick }) {
@@ -787,11 +849,11 @@ function RematchButton({ matched, focused, accent, onFocus, onClick }) {
 // then "Use the basic page" when a match is showing. Controller-drivable (the parent
 // owns the highlight index + A/B) and tappable. Options are built in the SAME order as
 // FrogBrowser's rematchOptions so the index lines up.
-function RematchDialog({ rematch, accent, onHover, onPick, onCancel }) {
+function RematchDialog({ rematch, accent, onHover, onPick, onToggleHack, onCancel }) {
   // `matched` comes from the frozen snapshot (not the live meta) so this list is built
   // the SAME way FrogBrowser's rematchOptions builds the controller's — otherwise the
   // trailing "Clear" row could differ and the D-pad cursor would misalign with the rows.
-  const { candidates, current, index, matched, error, busy } = rematch
+  const { candidates, current, index, matched, hack, error, busy } = rematch
   const panelRef = useRef(null)
   useFocusTrap(panelRef)
   const options = [
@@ -816,13 +878,46 @@ function RematchDialog({ rematch, accent, onHover, onPick, onCancel }) {
         onClick={(e) => e.stopPropagation()}
       >
         <p id="frog-rematch-title" className="px-1 text-sm font-semibold" style={{ color: FROG.ink }}>
-          Pick the right game
+          {hack ? 'Which game is it based on?' : 'Pick the right game'}
         </p>
         <p className="mb-3 mt-0.5 px-1 text-xs leading-relaxed" style={{ color: FROG.faint }}>
           {candidates.length
-            ? 'Choose the correct IGDB match, or fall back to the basic page.'
+            ? hack
+              ? 'Pick the base game — this ROM borrows its art but keeps its own name and a “hack” badge.'
+              : 'Choose the correct IGDB match, or fall back to the basic page.'
             : 'No close matches were found for this ROM.'}
         </p>
+
+        {/* The hack toggle (index -1) — flips whether a pick means "this IS the game" or
+            "this is a HACK of it". */}
+        <button
+          type="button"
+          data-testid="frog-rematch-hack"
+          data-focused={index < 0 || undefined}
+          role="switch"
+          aria-checked={!!hack}
+          onMouseMove={() => onHover(-1)}
+          onClick={onToggleHack}
+          className="mb-2 flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left"
+          style={{
+            background: index < 0 ? `rgba(${accent}, 0.16)` : 'transparent',
+            boxShadow: index < 0 ? `inset 0 0 0 1px rgba(${accent}, 0.5)` : `inset 0 0 0 1px ${FROG.line}`,
+          }}
+        >
+          <span className="text-sm font-medium" style={{ color: hack ? FROG.ink : FROG.soft }}>
+            It’s a ROM hack
+          </span>
+          <span
+            className="flex h-5 w-9 shrink-0 items-center rounded-full px-0.5 transition-colors"
+            style={{ background: hack ? `rgb(${FROG.amber})` : FROG.line }}
+          >
+            <span
+              className="h-4 w-4 rounded-full transition-transform"
+              style={{ background: hack ? FROG.ground : FROG.soft, transform: hack ? 'translateX(16px)' : 'translateX(0)' }}
+            />
+          </span>
+        </button>
+
         <ul className="max-h-72 space-y-1 overflow-y-auto" style={{ scrollbarWidth: 'none' }}>
           {options.map((o, i) => {
             const focused = i === index
@@ -835,7 +930,7 @@ function RematchDialog({ rematch, accent, onHover, onPick, onCancel }) {
                   data-testid={isClear ? 'frog-rematch-clear' : 'frog-rematch-option'}
                   data-focused={focused || undefined}
                   onMouseMove={() => onHover(i)}
-                  onClick={() => onPick(isClear ? null : o.id)}
+                  onClick={() => onPick(isClear ? null : o.id, isClear ? false : hack, o.name)}
                   className="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left"
                   style={{
                     background: focused ? `rgba(${accent}, 0.16)` : 'transparent',

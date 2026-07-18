@@ -319,6 +319,50 @@ def test_delete_tag_endpoint(client, rom_dir):
     assert client.get("/api/library/games/collections").json()["tags"] == {}
 
 
+# --- ROM-hack flag ---------------------------------------------------------
+
+def _matched(igdb_id, name, is_hack=False):
+    return {"matched": True, "source": "manual", "igdb_id": igdb_id, "name": name, "is_hack": is_hack}
+
+
+def test_upsert_hack_flag_list_hacks_and_owned_exclusion():
+    db.upsert_igdb_meta("base.gb", _matched(100, "Pokemon Crystal"))
+    db.upsert_igdb_meta("hack.gb", _matched(100, "Pokemon Crystal", is_hack=True))
+    assert db.get_igdb_meta("hack.gb")["is_hack"] is True
+    assert db.get_igdb_meta("base.gb")["is_hack"] is False
+    assert db.list_hacks() == {"hack.gb": "Pokemon Crystal"}
+    # The base resolver returns the real (non-hack) owned base, and never the hack itself.
+    assert db.owned_base_by_igdb_id(100) == "base.gb"
+    assert db.owned_base_by_igdb_id(100, exclude_game_id="base.gb") is None  # only the hack is left
+    # The SHARED owned lookup (the "similar" rail) still counts every owned match — hacks
+    # included — so a hack you own can still surface as a similar game.
+    assert set(db.owned_by_igdb_ids([100]).values()) <= {"base.gb", "hack.gb"}
+    assert 100 in db.owned_by_igdb_ids([100])
+
+
+def test_meta_endpoint_surfaces_hack_and_links_owned_base(client, rom_dir):
+    db.upsert_igdb_meta("Zelda.gbc", _matched(100, "Zelda Oracle"))
+    db.upsert_igdb_meta("Tetris.gb", _matched(100, "Zelda Oracle", is_hack=True))
+    m = client.get("/api/library/games/meta", params={"id": "Tetris.gb"}).json()
+    assert m["is_hack"] is True
+    assert m["base_name"] == "Zelda Oracle"
+    assert m["base_game_id"] == "Zelda.gbc"  # deep-link to the owned base ROM
+    base = client.get("/api/library/games/meta", params={"id": "Zelda.gbc"}).json()
+    assert base["is_hack"] is False and base["base_name"] is None and base["base_game_id"] is None
+
+
+def test_meta_hack_without_owned_base_has_no_deep_link(client, rom_dir):
+    # A hack of a base you DON'T own: still a hack with a base name, just no link target.
+    db.upsert_igdb_meta("Tetris.gb", _matched(999, "Some Base", is_hack=True))
+    m = client.get("/api/library/games/meta", params={"id": "Tetris.gb"}).json()
+    assert m["is_hack"] is True and m["base_name"] == "Some Base" and m["base_game_id"] is None
+
+
+def test_collections_endpoint_includes_hacks(client, rom_dir):
+    db.upsert_igdb_meta("Tetris.gb", _matched(7, "Base Game", is_hack=True))
+    assert client.get("/api/library/games/collections").json()["hacks"] == {"Tetris.gb": "Base Game"}
+
+
 # --- title cleanup + sort --------------------------------------------------
 
 def test_clean_title():

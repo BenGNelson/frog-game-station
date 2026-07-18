@@ -416,6 +416,16 @@ class GameMetaModel(BaseModel):
         default=[],
         description="game_ids of OWNED ROMs IGDB calls similar, in IGDB's relevance order",
     )
+    is_hack: bool = Field(
+        default=False, description="True when this ROM is a hack borrowing the matched game's art"
+    )
+    base_name: str | None = Field(
+        default=None, description="The base game's name (when is_hack) — what it's 'based on'"
+    )
+    base_game_id: str | None = Field(
+        default=None,
+        description="game_id of the OWNED base ROM (when is_hack and you have it), for a deep-link",
+    )
 
 
 @router.get("/library/games/meta", response_model=GameMetaModel)
@@ -429,6 +439,11 @@ def get_game_meta(id: str = Query(description="Game id from the section listing"
     can_rematch = bool(configured and row and row.get("candidates"))
     if not row or not row["matched"]:
         return GameMetaModel(matched=False, configured=configured, can_rematch=can_rematch)
+    # A hack borrows the base's row, so the base's name/id come straight off it; the owned
+    # base ROM (if any) resolves through the same owned-by-igdb-id lookup the similar rail
+    # uses — which excludes hacks, so it can't point back at this ROM.
+    is_hack = bool(row.get("is_hack"))
+    base_game_id = db.owned_base_by_igdb_id(row["igdb_id"], exclude_game_id=id) if is_hack else None
     return GameMetaModel(
         matched=True,
         configured=configured,
@@ -445,6 +460,9 @@ def get_game_meta(id: str = Query(description="Game id from the section listing"
         screenshot_ids=row["screenshot_ids"] or [],
         videos=[GameVideoModel(**v) for v in (row["videos"] or [])],
         similar=_owned_similar(id, row.get("similar_games")),
+        is_hack=is_hack,
+        base_name=row["name"] if is_hack else None,
+        base_game_id=base_game_id,
     )
 
 
@@ -562,6 +580,11 @@ class RematchBody(BaseModel):
     igdb_id: int | None = Field(
         default=None, description="IGDB game id to match to; null clears to the basic page"
     )
+    is_hack: bool = Field(
+        default=False,
+        description="True marks this ROM as a HACK of the chosen game — it borrows that "
+        "game's art/summary but keeps its own name and is badged as a hack. Ignored on a clear.",
+    )
 
 
 @router.post("/library/games/meta")
@@ -596,6 +619,7 @@ def set_game_meta(body: RematchBody):
     db.upsert_igdb_meta(body.id, {
         "matched": True, "source": "manual", "confidence": 1.0,
         "candidates": candidates, "match_version": None, "rom_mtime": mtime,
+        "is_hack": body.is_hack,
         **igdb.flatten(cand),
     })
     return {"matched": True}
@@ -939,14 +963,18 @@ class CollectionsModel(BaseModel):
     tags: dict[str, list[str]] = Field(
         default={}, description="each tag → the game_ids that wear it"
     )
+    hacks: dict[str, str] = Field(
+        default={}, description="each hack game_id → the base game's name it's based on"
+    )
 
 
 @router.get("/library/games/collections", response_model=CollectionsModel)
 def get_collections():
-    """Every user collection in one read: the finished game_ids and each tag's members.
-    Ids only — the frontend re-hydrates them against the live library (dropping games
-    that have left), exactly like the shelf's other rails."""
-    return {"finished": db.list_finished(), "tags": db.tags_grouped()}
+    """Every user collection in one read: the finished game_ids, each tag's members, and
+    the ROM-hack map (game_id → base name). Ids only — the frontend re-hydrates them
+    against the live library (dropping games that have left), exactly like the shelf's
+    other rails."""
+    return {"finished": db.list_finished(), "tags": db.tags_grouped(), "hacks": db.list_hacks()}
 
 
 @router.post("/library/games/finished")

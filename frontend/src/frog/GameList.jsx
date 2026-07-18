@@ -5,7 +5,7 @@ import { windowRange, spacers } from '../lib/windowRange.js'
 import { FROG, systemStyle, reflection } from './theme.js'
 import Console from './Console.jsx'
 import { Reflected, SystemFrog } from './Frog.jsx'
-import { FinishedBadge } from './Shelf.jsx'
+import { FinishedBadge, HackBadge } from './Shelf.jsx'
 import SystemChip from './SystemChip.jsx'
 
 const ROW = 44
@@ -65,7 +65,7 @@ function CartridgeMark({ accent }) {
 // windowing. They differ only in dress — a system list wears that one machine's colour;
 // a collection spans machines, so it wears the neutral collection jade, its art + mascot
 // follow the FOCUSED game's own system, and every row carries a system chip.
-export default function GameList({ system, collection, loading = false, games, focus, finishedIds, onFocus, onPick }) {
+export default function GameList({ system, collection, loading = false, games, focus, finishedIds, hackIds, onFocus, onPick }) {
   const inCollection = !!collection
   // The list's own accent — the cursor, the highlight, the active letter. One machine's
   // colour for a system; jade for a mixed collection.
@@ -77,6 +77,7 @@ export default function GameList({ system, collection, loading = false, games, f
   const artAccent = systemStyle(artSystem).accent
   const subtitle = inCollection ? current?.label ?? '' : system
   const isFinished = (id) => !!finishedIds?.has(id)
+  const isHack = (id) => !!hackIds?.has(id)
 
   const scrollerRef = useRef(null)
   const [scrollTop, setScrollTop] = useState(0)
@@ -180,6 +181,7 @@ export default function GameList({ system, collection, loading = false, games, f
                 className="frog-rise aspect-[3/4] w-full object-cover"
               />
               {isFinished(current.id) && <FinishedBadge size={28} />}
+              {isHack(current.id) && <HackBadge />}
               <div
                 className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3"
                 style={{ background: `linear-gradient(to top, rgba(${artAccent}, 0.4), transparent)` }}
@@ -231,6 +233,15 @@ export default function GameList({ system, collection, loading = false, games, f
                   >
                     {g.name}
                   </span>
+                  {/* A ROM hack says so — it borrows the base's art but isn't the base. */}
+                  {isHack(g.id) && (
+                    <span
+                      className="shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-bold tracking-wider"
+                      style={{ background: `rgba(${FROG.amber}, 0.18)`, color: `rgb(${FROG.amber})` }}
+                    >
+                      HACK
+                    </span>
+                  )}
                   {/* A collection spans machines, so each row names its system. */}
                   {inCollection && <SystemChip label={g.label} />}
                   {isFinished(g.id) && (
