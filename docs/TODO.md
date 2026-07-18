@@ -21,14 +21,17 @@ what's below is what's left, roughly priority-ordered within each group.
       cover shows (shelf / list / page). The game page carries a focusable "Based on <base>"
       line that deep-links to the base ROM when you own it. Server-owned (`is_hack` on
       `igdb_meta`, surfaced in the meta + collections payloads), so it roams like collections.
-- [ ] **In-game wiki browser** — a peekable, app-skinned web browser *inside the player*,
-      for pulling up a game's wiki (e.g. a Pokémon wiki) mid-game. Toggle open/closed and it
-      **keeps its place** (page + scroll) across close/reopen, so you can glance and dismiss
-      without losing your spot. **Scope/feasibility first:** many wikis block being framed
-      (`X-Frame-Options` / `frame-ancestors` CSP), so decide the approach — a header-stripping
-      backend proxy, a curated set of frame-friendly wikis, or an open-in-tab fallback — and
-      how the per-game URL is chosen (search by title vs a stored per-game/per-system link)
-      before building.
+- [x] **In-game wiki browser** — shipped (on the `feat/wiki-browser` branch) as a peekable,
+      app-skinned wiki **reader** inside the player: open it over the paused game (controller
+      hotkey — default R3 — or the pause-menu tile), read, close, and reopen with the article
+      **and scroll position** intact. The feasibility call: NOT an iframe (a cross-origin frame
+      can't be controller-scrolled and the target wikis block framing) — instead the backend
+      fetches the article via the wiki's MediaWiki API, sanitizes it, and we render it
+      same-origin, so it's fully controller/touch-navigable and FROG-skinned (article images
+      ride an anti-open-proxy image proxy, keeping the app CSP locked down). Per-game links
+      resolve **user override → IGDB `websites` → curated family default → a hack's base game**;
+      an unlinked game (a hack) gets one-tap search-and-pin, and the search defaults to the
+      right wiki by family (a Pokémon hack → Bulbapedia). A non-wiki override opens in a tab.
 
 ---
 
