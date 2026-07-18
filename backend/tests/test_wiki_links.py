@@ -1,0 +1,129 @@
+"""Wiki data layer: the pure link resolver/parser (no network) and the game_wiki
+override accessors (against the per-test temp DB from conftest)."""
+
+from app import db
+from app.wiki_links import parse_wiki_url, resolve_wiki
+
+
+# --- parse_wiki_url --------------------------------------------------------
+
+class TestParseWikiUrl:
+    def test_splits_host_and_decoded_title(self):
+        got = parse_wiki_url("https://bulbapedia.bulbagarden.net/wiki/Charizard_(Pok%C3%A9mon)")
+        assert got == {
+            "host": "bulbapedia.bulbagarden.net",
+            "title": "Charizard_(Pokémon)",
+            "url": "https://bulbapedia.bulbagarden.net/wiki/Charizard_(Pok%C3%A9mon)",
+        }
+
+    def test_drops_query_and_fragment_from_identity(self):
+        got = parse_wiki_url("https://en.wikipedia.org/wiki/Pikachu?action=history#Trivia")
+        assert got["host"] == "en.wikipedia.org"
+        assert got["title"] == "Pikachu"
+
+    def test_fandom_host(self):
+        got = parse_wiki_url("https://zelda.fandom.com/wiki/Link")
+        assert got["host"] == "zelda.fandom.com"
+        assert got["title"] == "Link"
+
+    def test_rejects_non_wiki_paths(self):
+        # A homepage or a non-MediaWiki URL isn't a renderable article.
+        assert parse_wiki_url("https://example.com/") is None
+        assert parse_wiki_url("https://example.com/guide/123") is None
+
+    def test_rejects_non_http_and_empty(self):
+        assert parse_wiki_url("ftp://host/wiki/Thing") is None
+        assert parse_wiki_url("javascript:alert(1)") is None
+        assert parse_wiki_url("/wiki/Thing") is None  # no scheme/host
+        assert parse_wiki_url("") is None
+        assert parse_wiki_url(None) is None
+
+    def test_rejects_wiki_prefix_with_empty_title(self):
+        assert parse_wiki_url("https://host/wiki/") is None
+
+
+# --- resolve_wiki priority -------------------------------------------------
+
+BULBA = "https://bulbapedia.bulbagarden.net/wiki/Charizard"
+WIKIPEDIA = "https://en.wikipedia.org/wiki/Pok%C3%A9mon_Red_and_Blue"
+CURATED = "https://bulbapedia.bulbagarden.net/wiki/Curated_Page"
+BASE = "https://bulbapedia.bulbagarden.net/wiki/Base_Game"
+
+
+class TestResolveWiki:
+    def test_override_beats_everything(self):
+        got = resolve_wiki(
+            meta={"wiki_url": WIKIPEDIA}, override=BULBA, curated=CURATED,
+            base_meta={"wiki_url": BASE},
+        )
+        assert got["source"] == "user"
+        assert got["url"] == BULBA
+        assert got["host"] == "bulbapedia.bulbagarden.net"
+
+    def test_auto_when_no_override(self):
+        got = resolve_wiki(meta={"wiki_url": WIKIPEDIA}, curated=CURATED)
+        assert got["source"] == "auto"
+        assert got["title"] == "Pokémon_Red_and_Blue"
+
+    def test_curated_when_no_override_or_auto(self):
+        got = resolve_wiki(meta={"wiki_url": None}, curated=CURATED)
+        assert got["source"] == "curated"
+        assert got["url"] == CURATED
+
+    def test_base_game_link_for_a_hack(self):
+        # A hack with no wiki of its own resolves to the base game's link.
+        got = resolve_wiki(meta={"wiki_url": None}, base_meta={"wiki_url": BASE})
+        assert got["source"] == "base"
+        assert got["url"] == BASE
+
+    def test_none_when_nothing_resolves(self):
+        assert resolve_wiki(meta={"wiki_url": None}) is None
+        assert resolve_wiki() is None
+
+    def test_unusable_higher_tier_falls_through(self):
+        # An override that isn't a real /wiki/ URL is skipped so auto can still win.
+        got = resolve_wiki(override="https://example.com/", meta={"wiki_url": BULBA})
+        assert got["source"] == "auto"
+        assert got["url"] == BULBA
+
+
+# --- game_wiki override accessors (temp DB) --------------------------------
+
+class TestGameWikiAccessors:
+    def test_absent_by_default(self):
+        assert db.get_game_wiki("g1") is None
+
+    def test_set_then_get(self):
+        db.set_game_wiki("g1", BULBA)
+        assert db.get_game_wiki("g1") == BULBA
+
+    def test_set_is_upsert(self):
+        db.set_game_wiki("g1", BULBA)
+        db.set_game_wiki("g1", WIKIPEDIA)
+        assert db.get_game_wiki("g1") == WIKIPEDIA
+
+    def test_empty_url_clears_and_returns_none(self):
+        db.set_game_wiki("g1", BULBA)
+        assert db.set_game_wiki("g1", "") is None
+        assert db.get_game_wiki("g1") is None
+
+    def test_clear(self):
+        db.set_game_wiki("g1", BULBA)
+        db.clear_game_wiki("g1")
+        assert db.get_game_wiki("g1") is None
+
+    def test_isolated_per_game(self):
+        db.set_game_wiki("g1", BULBA)
+        assert db.get_game_wiki("g2") is None
+
+
+class TestIgdbMetaWikiColumn:
+    def test_wiki_url_round_trips_through_the_cache(self):
+        db.upsert_igdb_meta(
+            "g1", {"matched": True, "is_hack": False, "source": "auto", "wiki_url": BULBA}
+        )
+        assert db.get_igdb_meta("g1")["wiki_url"] == BULBA
+
+    def test_wiki_url_defaults_null(self):
+        db.upsert_igdb_meta("g1", {"matched": True, "is_hack": False, "source": "auto"})
+        assert db.get_igdb_meta("g1")["wiki_url"] is None
