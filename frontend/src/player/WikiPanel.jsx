@@ -116,8 +116,7 @@ const WikiPanel = forwardRef(function WikiPanel({
         setPhase('external')
       } else if (resolved) {
         setSource(resolved)
-        setHistory(startHistory(resolved.title))
-        await loadPage(resolved.title)
+        await loadPage(resolved.title) // seeds the history itself (h.at < 0 → startHistory)
       } else {
         setSource(null)
         setPhase('nolink')
@@ -134,6 +133,28 @@ const WikiPanel = forwardRef(function WikiPanel({
       loadSource()
     }
   }, [open, loadSource])
+
+  // Take keyboard focus on open (like every other player panel). The reader always sits
+  // over a PAUSED game, so the pause menu is still mounted and focused underneath it —
+  // without stealing focus, a desktop user's arrows/Enter/Escape would drive that hidden
+  // menu (and could hit Quit). Focusing the scroller also gives native arrow/PageDn
+  // scrolling of the article.
+  useEffect(() => {
+    if (open) scrollerRef.current?.focus()
+  }, [open])
+
+  // The reader owns its keys: Escape closes it, and stopPropagation keeps the buried
+  // pause menu (and the window Escape handler) from also acting on the same press.
+  const onKeyDown = useCallback(
+    (e) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        e.stopPropagation()
+        onClose()
+      }
+    },
+    [onClose]
+  )
 
   const onBodyClick = useCallback(
     (e) => {
@@ -187,7 +208,13 @@ const WikiPanel = forwardRef(function WikiPanel({
   }), [scrollToSection, moveLink, activateLink, back])
 
   const openInTab = () => {
-    if (source?.url) window.open(source.url, '_blank', 'noopener,noreferrer')
+    // Open the page you're actually reading (which changes as you follow links), not the
+    // originally-resolved one. For an external source there's no in-reader page, so use it.
+    const title = currentPage(history)
+    const url = source?.host && title
+      ? `https://${source.host}/wiki/${encodeURIComponent(title)}`
+      : source?.url
+    if (url) window.open(url, '_blank', 'noopener,noreferrer')
   }
 
   const accentText = `rgb(${accent})`
@@ -197,6 +224,7 @@ const WikiPanel = forwardRef(function WikiPanel({
       role="dialog"
       aria-modal="true"
       aria-label="Wiki"
+      onKeyDown={onKeyDown}
       className="absolute inset-0 z-30 flex flex-col outline-none"
       style={{
         display: open ? 'flex' : 'none',
@@ -251,8 +279,8 @@ const WikiPanel = forwardRef(function WikiPanel({
         </button>
       </div>
 
-      {/* Body */}
-      <div ref={scrollerRef} className="min-h-0 flex-1 touch-auto overflow-y-auto overscroll-contain">
+      {/* Body — focusable so the keyboard scrolls it natively (arrows / PageDn / Space). */}
+      <div ref={scrollerRef} tabIndex={-1} className="min-h-0 flex-1 touch-auto overflow-y-auto overscroll-contain outline-none">
         {phase === 'loading' && <Centered><Spinner /> Loading…</Centered>}
 
         {phase === 'error' && (
@@ -339,6 +367,7 @@ function NoLink({ gameId, gameName, accentText, onPicked }) {
   const [searched, setSearched] = useState(false)
   const [busy, setBusy] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState(null)
 
   const run = useCallback(async () => {
     if (!q.trim()) return
@@ -356,9 +385,12 @@ function NoLink({ gameId, gameName, accentText, onPicked }) {
     async (url) => {
       if (!url) return
       setSaving(true)
+      setError(null)
       try {
         await setWikiOverride(gameId, url)
         onPicked()
+      } catch {
+        setError('Couldn’t save that link — try again.')
       } finally {
         setSaving(false)
       }
@@ -395,6 +427,12 @@ function NoLink({ gameId, gameName, accentText, onPicked }) {
           {busy ? <Spinner /> : <Search className="h-4 w-4" aria-hidden="true" />}
         </button>
       </form>
+
+      {error && (
+        <p className="mb-2 rounded-lg px-3 py-2 text-center text-xs" style={{ background: FROG.panel, color: FROG.soft }}>
+          {error}
+        </p>
+      )}
 
       <ul className="space-y-1.5">
         {results.map((r) => (
