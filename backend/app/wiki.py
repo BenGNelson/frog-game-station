@@ -4,29 +4,35 @@ into something we can safely render in our own page, and cache the result.
 Why a reader and not an iframe: a cross-origin iframe can't be scrolled or navigated
 by a controller (same-origin policy), and the target wikis (Bulbapedia, Fandom,
 Wikipedia) block being framed at all. But they're all MediaWiki, whose `action=parse`
-API returns clean article HTML with no framing restrictions. We fetch that, run it
-through a strict allowlist sanitizer, rewrite its links + images to stay inside our
-app, and hand the result to the frontend to render same-origin — controller-navigable,
-FROG-skinnable, cacheable.
+API returns clean article HTML with no framing restrictions. We fetch that, sanitize
+it, rewrite its links + images to stay inside our app, and hand the result to the
+frontend to render same-origin — controller-navigable, FROG-skinnable, cacheable.
 
 Split into PURE pieces (sanitize/rewrite, host-allow checks, api-url + cache-key
 derivation — all unit-tested with no IO) and IMPURE pieces (the `requests` round-trips
 + disk cache), mirroring images.py / the screenshot proxy.
 
 SECURITY: the sanitized HTML is injected into the DOM (dangerouslySetInnerHTML) under a
-CSP that permits inline scripts, so sanitizing is load-bearing — anything not on the
-tag/attr allowlist is dropped, every `on*`/`style`/`javascript:` vector removed, and no
-element is left that can navigate the top frame. The image proxy only fetches hosts
-related to the article (never an arbitrary `src`), same anti-open-proxy discipline as
-the screenshot proxy.
+CSP that permits inline scripts, so sanitizing is load-bearing. We use **nh3** (Rust/
+html5ever) as the sanitizer rather than a hand-rolled BeautifulSoup allowlist: a
+hand-rolled `html.parser` pass is structurally exposed to parser-differential mutation
+XSS (e.g. an HTML comment the browser reparses into a live `<img onerror>`), which nh3's
+spec-compliant parse + reserialize closes. The fetchers refuse hosts that resolve to
+private/loopback/link-local addresses (`_safe_public_host`) and don't follow redirects,
+so a client-pinned `wiki_url` can't turn these into an SSRF; the image proxy additionally
+only fetches hosts related to the article (never an arbitrary host), same anti-open-proxy
+discipline as the screenshot proxy.
 """
 
 import hashlib
+import ipaddress
 import json
 import os
+import socket
 import time
 from urllib.parse import urlsplit, urlunsplit
 
+import nh3
 import requests
 from bs4 import BeautifulSoup
 
@@ -54,18 +60,14 @@ _BUILTIN_IMAGE_SUFFIXES = (
 )
 
 
-def _registrable(host: str) -> str:
-    """The last two labels of a host (a cheap 'same site' key). Good enough to let a
-    wiki's own image CDN through (archives.bulbagarden.net vs bulbapedia.bulbagarden.net
-    share 'bulbagarden.net') without a public-suffix list."""
-    return ".".join(host.lower().rsplit(".", 2)[-2:]) if host else ""
-
-
 def image_host_allowed(img_host: str, article_host: str, extra_hosts=()) -> bool:
     """Whether the image proxy may fetch from `img_host` for an article on
-    `article_host`: the article's own host, anything sharing its registrable domain,
-    the built-in MediaWiki CDNs, or an operator-configured extra host. Everything else
-    is refused — so this can't be turned into an open image proxy."""
+    `article_host`: the article's own host, a built-in MediaWiki CDN (matched by domain
+    suffix — the leading dot means `notfandom.com` won't match `.fandom.com`), or an
+    operator-configured extra host. Everything else is refused, so this can't be an open
+    image proxy. (Deliberately NO "shared registrable domain" heuristic — last-two-labels
+    treats `evil.co.uk`/`good.co.uk` as same-site; the built-in suffixes already cover
+    each wiki's own CDN, e.g. `.bulbagarden.net` for Bulbapedia's `archives.` host.)"""
     if not img_host:
         return False
     img_host = img_host.lower()
@@ -73,9 +75,38 @@ def image_host_allowed(img_host: str, article_host: str, extra_hosts=()) -> bool
         return True
     if img_host in {h.lower() for h in extra_hosts}:
         return True
-    if _registrable(img_host) and _registrable(img_host) == _registrable(article_host):
-        return True
     return any(img_host.endswith(sfx) for sfx in _BUILTIN_IMAGE_SUFFIXES)
+
+
+def _safe_public_host(host: str) -> bool:
+    """Whether `host` is a public internet host we'll make an outbound request to —
+    the SSRF guard. Refuses hosts that resolve to private/loopback/link-local/reserved
+    addresses (127.0.0.1, 169.254.169.254, 10/172/192.168, ::1, backend:8000, …), so a
+    client-pinned wiki_url can't aim the fetchers at internal services. All resolved
+    addresses must be global. (Not TOCTOU-proof against a fast DNS rebind, but it closes
+    the direct-internal-target class; the fetchers also disable redirects.)"""
+    if not host:
+        return False
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except (socket.gaierror, UnicodeError, ValueError):
+        return False
+    for info in infos:
+        addr = info[4][0].split("%")[0]  # strip any zone id
+        try:
+            ip = ipaddress.ip_address(addr)
+        except ValueError:
+            return False
+        if not ip.is_global or ip.is_reserved:
+            return False
+    return bool(infos)
+
+
+def is_safe_wiki_url(url: str) -> bool:
+    """Whether a URL is a safe outbound target to STORE as an override: http(s) with a
+    public host. Used to reject an SSRF-y pin (localhost / an internal IP) on write."""
+    parts = urlsplit((url or "").strip())
+    return parts.scheme in ("http", "https") and _safe_public_host(parts.hostname)
 
 
 def allowed_image_hosts() -> set[str]:
@@ -97,15 +128,22 @@ _ALLOWED_TAGS = {
     "table", "thead", "tbody", "tfoot", "tr", "th", "td", "caption", "colgroup", "col",
     "span", "div", "section",
 }
-# Removed subtree-and-all — script/style can execute or restyle; the rest can't render
-# safely in the reader.
-_DROP_TAGS = {"script", "style", "iframe", "object", "embed", "form", "input",
-              "button", "select", "textarea", "link", "meta", "noscript", "svg",
-              "audio", "video", "canvas", "map", "area", "base"}
-# Attributes kept on any element (href/src handled specially below). Everything else —
-# crucially every `on*` handler and inline `style` — is stripped.
+# Attributes kept on any element (href/src handled specially in the rewrite pass).
 _ALLOWED_ATTRS = {"title", "alt", "id", "colspan", "rowspan", "span", "datetime"}
+# nh3's per-tag attribute allowlist. nh3 (html5ever) does the SECURITY sanitizing —
+# `*` is the wildcard for structural attrs on any tag; `a`/`img` additionally keep the
+# href/src the rewrite pass below transforms. Everything else (every `on*` handler,
+# inline `style`, `javascript:`/`data:` URLs, comments, `<script>/<style>/<svg>/…`) is
+# stripped by nh3. See the header note on why a real sanitizer, not a hand-rolled one.
+_NH3_ATTRS = {
+    "*": _ALLOWED_ATTRS,
+    "a": _ALLOWED_ATTRS | {"href"},
+    "img": _ALLOWED_ATTRS | {"src"},
+}
 _WIKI_PREFIX = "/wiki/"
+# MediaWiki namespaces that aren't article prose — reject these as internal links (a
+# colon title with any OTHER prefix is a real article subtitle and stays navigable).
+_NON_ARTICLE_NS = {"file", "image", "media", "special", "category"}
 
 
 def _abs_url(src: str, article_host: str) -> str | None:
@@ -142,36 +180,41 @@ def _internal_title(href: str) -> str | None:
         return None
     from urllib.parse import unquote
     title = unquote(path[len(_WIKI_PREFIX):]).strip()
-    # Namespaced pages (File:, Category:, Special:, Help:) aren't article prose.
-    if not title or ":" in title:
+    if not title:
+        return None
+    # Reject only real non-article NAMESPACES (File:/Category:/…), not every colon —
+    # game articles are full of subtitle colons ("The Legend of Zelda: Ocarina of Time",
+    # "Metroid: Zero Mission"), which must stay navigable.
+    if ":" in title and title.split(":", 1)[0].strip().lower() in _NON_ARTICLE_NS:
         return None
     return title
 
 
 def sanitize_article(html: str, *, game_id: str, article_host: str, api_base: str = "/api") -> str:
-    """Turn raw MediaWiki article HTML into safe, self-contained reader HTML (pure):
+    """Turn raw MediaWiki article HTML into safe, self-contained reader HTML — two passes:
 
-      - drop `_DROP_TAGS` subtrees; unwrap any tag not in `_ALLOWED_TAGS`;
-      - strip every attribute except `_ALLOWED_ATTRS` (kills `on*`, `style`, etc.);
-      - internal `/wiki/Title` links -> `<a data-wiki-title="Title" href="#">` so a click
-        loads the next page INSIDE the reader (the frontend intercepts it);
-      - external links -> `<a data-wiki-href="url">` (frontend offers open-in-tab), href stripped;
-      - `<img>` -> our same-origin image proxy `{api_base}/library/games/wiki/img?id=&src=abs`,
-        so external images load under our `img-src 'self'` CSP; unresolvable images dropped.
+      1. **nh3 (html5ever) SANITIZES.** It drops `<script>/<style>/<svg>/<iframe>/…` and
+         HTML comments, strips every `on*`/`style`/unknown attribute and `javascript:`/
+         `data:` URL, and reserializes with a *spec-compliant* parser — so there's no
+         parser-differential mutation-XSS (the reason a hand-rolled allowlist isn't safe
+         here; see the module header). It keeps only `_ALLOWED_TAGS` + `_NH3_ATTRS`,
+         preserving `href`/`src` for the rewrite below.
+      2. **BeautifulSoup REWRITES** the already-safe result for the reader:
+         - internal `/wiki/Title` links -> `<a data-wiki-title="Title" href="#">` (in-reader nav);
+         - external links -> `<a data-wiki-href="url">` (frontend offers open-in-tab), href dropped;
+         - `<img>` -> our same-origin image proxy (external images are blocked by `img-src 'self'`);
+           an unresolvable src drops the image.
+
+    Running bs4 over nh3's output can't reintroduce script — nothing executable survives
+    pass 1 to reassemble — and pass 2 only sets values we build.
     """
-    soup = BeautifulSoup(html or "", "html.parser")
-
-    for tag in soup.find_all(_DROP_TAGS):
-        tag.decompose()
-
     from urllib.parse import quote
-    for tag in soup.find_all(True):
-        name = tag.name
-        if name not in _ALLOWED_TAGS:
-            tag.unwrap()
-            continue
+    clean = nh3.clean(html or "", tags=_ALLOWED_TAGS, attributes=_NH3_ATTRS, link_rel=None)
+    soup = BeautifulSoup(clean, "html.parser")
+
+    for tag in soup.find_all(["a", "img"]):
         attrs = tag.attrs
-        if name == "a":
+        if tag.name == "a":
             href = attrs.get("href", "")
             title = _internal_title(href)
             kept = {k: v for k, v in attrs.items() if k in _ALLOWED_ATTRS}
@@ -183,7 +226,7 @@ def sanitize_article(html: str, *, game_id: str, article_host: str, api_base: st
                 if parts.scheme in ("http", "https") and parts.netloc:
                     kept["data-wiki-href"] = href
             tag.attrs = kept
-        elif name == "img":
+        else:  # img
             abs_src = _abs_url(attrs.get("src", ""), article_host)
             if not abs_src:
                 tag.decompose()
@@ -195,8 +238,6 @@ def sanitize_article(html: str, *, game_id: str, article_host: str, api_base: st
             )
             kept["loading"] = "lazy"
             tag.attrs = kept
-        else:
-            tag.attrs = {k: v for k, v in attrs.items() if k in _ALLOWED_ATTRS}
 
     return str(soup)
 
@@ -246,10 +287,16 @@ class WikiError(Exception):
         self.not_found = not_found
 
 
+_UA = {"User-Agent": "FrogGameStation-WikiReader/1.0"}
+
+
 def _get_json(url: str, params: dict, timeout=10):
+    # SSRF guard: refuse an internal target, and never follow a redirect (an open
+    # redirect on an allowed host must not pivot the fetch inward).
+    if not _safe_public_host(urlsplit(url).hostname):
+        return None
     try:
-        resp = requests.get(url, params=params, timeout=timeout,
-                            headers={"User-Agent": "FrogGameStation-WikiReader/1.0"})
+        resp = requests.get(url, params=params, timeout=timeout, headers=_UA, allow_redirects=False)
     except requests.RequestException:
         return None
     if resp.status_code != 200:
@@ -304,9 +351,12 @@ def get_article(game_id: str, host: str, title: str) -> dict:
         return cached
 
     parse = _fetch_parse(host, title)
-    html = sanitize_article(
-        parse.get("text") or "", game_id=game_id, article_host=host
-    )
+    # formatversion=2 makes `text` a string; a pre-1.25 wiki that ignores it returns
+    # `{"*": "..."}`. Unwrap defensively so an ancient install degrades instead of 502ing.
+    text = parse.get("text")
+    if isinstance(text, dict):
+        text = text.get("*", "")
+    html = sanitize_article(text or "", game_id=game_id, article_host=host)
     payload = {
         "title": _plain_title(parse.get("displaytitle"), parse.get("title") or title),
         "html": html,
@@ -339,14 +389,26 @@ def search(host: str, query: str, limit: int = 8) -> list[dict]:
     return []
 
 
-def fetch_image(url: str, timeout=10):
-    """Fetch a wiki image → (content_bytes, content_type) or None. Caller has already
-    validated the host (image_host_allowed)."""
+def fetch_image(url: str, timeout=10, max_bytes=None):
+    """Fetch a wiki image → (content_bytes, content_type) or None. The caller has
+    validated the host is allowed for the article (image_host_allowed); this adds the
+    SSRF guard (public host, no redirects) and STREAMS with a byte cap so a huge (or
+    internal) response can't be buffered whole into memory before it's rejected."""
+    if not _safe_public_host(urlsplit(url).hostname):
+        return None
     try:
-        resp = requests.get(url, timeout=timeout, stream=False,
-                            headers={"User-Agent": "FrogGameStation-WikiReader/1.0"})
+        resp = requests.get(url, timeout=timeout, stream=True, headers=_UA, allow_redirects=False)
     except requests.RequestException:
         return None
-    if resp.status_code == 200 and resp.content:
-        return resp.content, resp.headers.get("Content-Type", "image/*")
-    return None
+    with resp:
+        if resp.status_code != 200:
+            return None
+        chunks, total = [], 0
+        for chunk in resp.iter_content(64 * 1024):
+            total += len(chunk)
+            if max_bytes and total > max_bytes:
+                return None  # oversized — abort mid-stream, don't buffer the rest
+            chunks.append(chunk)
+        if not total:
+            return None
+        return b"".join(chunks), resp.headers.get("Content-Type", "image/*")

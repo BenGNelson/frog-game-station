@@ -360,13 +360,15 @@ position intact**.
   SVG. So the reader needs **no CSP loosening** — a security win, not a compromise.
 - **Where the link comes from.** Resolved server-side (`app/wiki_links.py`) in priority
   order: a **user override** (`game_wiki` table) → the **IGDB `websites`** link auto-derived
-  by the matcher (`igdb_meta.wiki_url`, Fandom/Wikia preferred over Wikipedia) → a **curated
-  per-family default** (`app/wiki_sources.py`) → a **ROM hack's base-game** link. A game with
-  no link offers **search-and-pick** to pin one, and the search targets the right wiki by
-  family — a Pokémon hack IGDB can't match still searches **Bulbapedia**, not Wikipedia. The
-  user override may be **any** URL: a MediaWiki page renders in the reader, anything else
-  (a GameFAQs guide) becomes an **open-in-tab** card — the escape hatch when the only guide
-  isn't a wiki.
+  by the matcher (`igdb_meta.wiki_url`, a renderable Fandom/Wikia article preferred over
+  Wikipedia) → a **ROM hack's base-game** link. A game with no link offers **search-and-pick**
+  to pin one, and *that search* is where the **curated per-family** table (`app/wiki_sources.py`)
+  comes in — it steers the search at the right wiki (a Pokémon hack IGDB can't match searches
+  **Bulbapedia**, not Wikipedia) so you pick the exact page in one tap. (Curated families are
+  deliberately a search default, not a resolution tier — you can't reliably *guess* a game's
+  page URL.) The user override may be **any** URL: a MediaWiki page renders in the reader,
+  anything else (a GameFAQs guide) becomes an **open-in-tab** card — the escape hatch when the
+  only guide isn't a wiki.
 - **Mounted-persistent panel.** Unlike every other player panel (which unmounts on close),
   the reader stays in the DOM and hides via `display:none`, so the article + scroll survive
   a close/reopen — that's the "peek and keep your place". Content is fetched **lazily, one

@@ -155,6 +155,18 @@ def test_pick_wiki_ignores_non_wiki_and_empty():
     assert igdb.pick_wiki(None) is None
 
 
+def test_pick_wiki_prefers_a_real_article_over_a_fandom_homepage():
+    # A category-2 Fandom HOMEPAGE must not shadow a category-3 real article — the
+    # reader can only render /wiki/ pages, so the renderable one wins.
+    sites = [
+        {"category": 2, "url": "https://finalfantasy.fandom.com"},  # homepage, not /wiki/
+        {"category": 3, "url": WIKIPEDIA},
+    ]
+    assert igdb.pick_wiki(sites) == WIKIPEDIA
+    # With no renderable article at all, nothing is stored.
+    assert igdb.pick_wiki([{"category": 2, "url": "https://x.fandom.com"}]) is None
+
+
 def test_flatten_carries_the_wiki_url():
     out = igdb.flatten({
         "id": 7, "name": "Oracle of Seasons",

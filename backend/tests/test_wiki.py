@@ -22,8 +22,9 @@ class TestImageHostAllowed:
     def test_article_host_itself(self):
         assert wiki.image_host_allowed(self.ARTICLE, self.ARTICLE)
 
-    def test_sibling_cdn_same_registrable_domain(self):
-        # Bulbapedia serves images off archives.bulbagarden.net — same site.
+    def test_sibling_cdn_via_builtin_suffix(self):
+        # Bulbapedia serves images off archives.bulbagarden.net — allowed via the
+        # built-in `.bulbagarden.net` suffix (the registrable-domain heuristic is gone).
         assert wiki.image_host_allowed("archives.bulbagarden.net", self.ARTICLE)
 
     def test_builtin_mediawiki_cdns(self):
@@ -36,6 +37,33 @@ class TestImageHostAllowed:
     def test_refuses_unrelated_host(self):
         assert not wiki.image_host_allowed("evil.com", self.ARTICLE)
         assert not wiki.image_host_allowed("", self.ARTICLE)
+
+    def test_no_registrable_same_site_open_proxy(self):
+        # The dropped "shared last-two-labels" heuristic used to allow this (both -> co.uk).
+        assert not wiki.image_host_allowed("evil.co.uk", "good.co.uk")
+
+
+class TestSafeWikiUrl:
+    def test_rejects_internal_ip_literals(self):
+        # IP literals resolve without DNS, so these are offline-deterministic.
+        for bad in ("http://127.0.0.1/wiki/X", "https://169.254.169.254/wiki/X",
+                    "http://192.168.1.1/wiki/X", "http://10.0.0.1/wiki/X", "https://[::1]/wiki/X"):
+            assert wiki.is_safe_wiki_url(bad) is False, bad
+
+    def test_rejects_non_http_and_garbage(self):
+        assert wiki.is_safe_wiki_url("ftp://host/wiki/X") is False
+        assert wiki.is_safe_wiki_url("file:///etc/passwd") is False
+        assert wiki.is_safe_wiki_url("not a url") is False
+
+    def test_hostname_resolving_to_internal_is_rejected(self, monkeypatch):
+        monkeypatch.setattr(wiki.socket, "getaddrinfo",
+                            lambda *a, **k: [(2, 1, 6, "", ("10.1.2.3", 0))])
+        assert wiki.is_safe_wiki_url("https://backend.internal/wiki/X") is False
+
+    def test_public_hostname_accepted(self, monkeypatch):
+        monkeypatch.setattr(wiki.socket, "getaddrinfo",
+                            lambda *a, **k: [(2, 1, 6, "", ("93.184.216.34", 0))])
+        assert wiki.is_safe_wiki_url("https://en.wikipedia.org/wiki/Pikachu") is True
 
 
 # --- Pure: url helpers -----------------------------------------------------
@@ -122,6 +150,28 @@ class TestSanitizeArticle:
     def test_handles_empty(self):
         assert wiki.sanitize_article("", game_id="g1", article_host=self.HOST) == ""
 
+    def test_kills_comment_mutation_xss(self):
+        # The classic html.parser-vs-browser differential: html.parser reads this as ONE
+        # comment; a browser reparses `<!-->` as an abrupt comment-close then a live
+        # <img onerror>. nh3 (html5ever) closes it — no onerror, no live img handler.
+        out = self._san("<!--><img src=q onerror=alert(document.domain)>-->")
+        assert "onerror" not in out and "alert" not in out
+
+    def test_strips_svg_and_math_and_handlers(self):
+        out = self._san('<svg onload=alert(1)></svg><math><mtext></mtext></math>'
+                        '<p onmouseover=alert(2)>ok</p>')
+        assert "onload" not in out and "onmouseover" not in out and "alert" not in out
+        assert "<svg" not in out.lower() and "ok" in out
+
+    def test_keeps_subtitle_colon_links_navigable(self):
+        # A game article subtitle has colons but is NOT a namespace — must stay navigable.
+        out = self._san('<a href="/wiki/The_Legend_of_Zelda:_Ocarina_of_Time">OoT</a>')
+        assert 'data-wiki-title="The_Legend_of_Zelda:_Ocarina_of_Time"' in out
+
+    def test_drops_real_namespace_links(self):
+        out = self._san('<a href="/wiki/Category:Games">c</a><a href="/wiki/File:Art.png">f</a>')
+        assert "data-wiki-title" not in out  # Category:/File: are not article prose
+
 
 # --- Fetch + cache (requests stubbed) --------------------------------------
 
@@ -142,13 +192,16 @@ class _FakeResp:
 def wiki_cache(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "wiki_cache_dir", str(tmp_path / "wiki"))
     monkeypatch.setattr(settings, "wiki_enabled", True)
+    # These tests use fake hostnames and stub requests; bypass the SSRF DNS check (its
+    # own behaviour is covered by TestSafeWikiUrl) so no real resolution happens.
+    monkeypatch.setattr(wiki, "_safe_public_host", lambda host: True)
     return tmp_path
 
 
 def test_get_article_fetches_sanitizes_and_caches(wiki_cache, monkeypatch):
     calls = {"n": 0}
 
-    def fake_get(url, params=None, timeout=10, headers=None):
+    def fake_get(url, params=None, **kwargs):
         calls["n"] += 1
         return _FakeResp({
             "parse": {
@@ -249,7 +302,7 @@ class TestWikiEndpoints:
 
     def test_image_proxy_serves_allowed_host(self, client, wiki_cache, monkeypatch):
         _seed_auto()
-        monkeypatch.setattr(wiki, "fetch_image", lambda url, timeout=10: (b"PNGBYTES", "image/png"))
+        monkeypatch.setattr(wiki, "fetch_image", lambda url, **kw: (b"PNGBYTES", "image/png"))
         r = client.get("/api/library/games/wiki/img", params={
             "id": "Pikachu.gb", "src": "https://archives.bulbagarden.net/a.png"})
         assert r.status_code == 200
@@ -258,7 +311,7 @@ class TestWikiEndpoints:
     def test_image_proxy_refuses_svg(self, client, wiki_cache, monkeypatch):
         _seed_auto()
         monkeypatch.setattr(wiki, "fetch_image",
-                            lambda url, timeout=10: (b"<svg onload=alert(1)>", "image/svg+xml"))
+                            lambda url, **kw: (b"<svg onload=alert(1)>", "image/svg+xml"))
         r = client.get("/api/library/games/wiki/img", params={
             "id": "Pikachu.gb", "src": "https://archives.bulbagarden.net/x.svg"})
         assert r.status_code == 404
@@ -301,6 +354,15 @@ class TestWikiEndpoints:
     def test_override_rejects_unknown_rom(self, client, rom_dir):
         assert client.post("/api/library/games/wiki",
                            json={"id": "../etc/passwd", "wiki_url": AUTO}).status_code == 404
+
+    def test_override_rejects_ssrf_url(self, client, rom_dir):
+        # A pinned internal URL would later be fetched server-side — refuse on write.
+        r = client.post("/api/library/games/wiki",
+                        json={"id": "Tetris.gb", "wiki_url": "http://169.254.169.254/wiki/X"})
+        assert r.status_code == 400
+        # ...and nothing was stored.
+        assert client.get("/api/library/games/wiki",
+                          params={"id": "Tetris.gb"}).json()["resolved"] is None
 
 
 @pytest.fixture

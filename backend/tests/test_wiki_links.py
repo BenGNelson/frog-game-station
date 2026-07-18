@@ -46,29 +46,22 @@ class TestParseWikiUrl:
 
 BULBA = "https://bulbapedia.bulbagarden.net/wiki/Charizard"
 WIKIPEDIA = "https://en.wikipedia.org/wiki/Pok%C3%A9mon_Red_and_Blue"
-CURATED = "https://bulbapedia.bulbagarden.net/wiki/Curated_Page"
 BASE = "https://bulbapedia.bulbagarden.net/wiki/Base_Game"
 
 
 class TestResolveWiki:
     def test_override_beats_everything(self):
         got = resolve_wiki(
-            meta={"wiki_url": WIKIPEDIA}, override=BULBA, curated=CURATED,
-            base_meta={"wiki_url": BASE},
+            meta={"wiki_url": WIKIPEDIA}, override=BULBA, base_meta={"wiki_url": BASE},
         )
         assert got["source"] == "user"
         assert got["url"] == BULBA
         assert got["host"] == "bulbapedia.bulbagarden.net"
 
     def test_auto_when_no_override(self):
-        got = resolve_wiki(meta={"wiki_url": WIKIPEDIA}, curated=CURATED)
+        got = resolve_wiki(meta={"wiki_url": WIKIPEDIA})
         assert got["source"] == "auto"
         assert got["title"] == "Pokémon_Red_and_Blue"
-
-    def test_curated_when_no_override_or_auto(self):
-        got = resolve_wiki(meta={"wiki_url": None}, curated=CURATED)
-        assert got["source"] == "curated"
-        assert got["url"] == CURATED
 
     def test_base_game_link_for_a_hack(self):
         # A hack with no wiki of its own resolves to the base game's link.

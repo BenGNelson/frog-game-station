@@ -29,9 +29,9 @@ what's below is what's left, roughly priority-ordered within each group.
       fetches the article via the wiki's MediaWiki API, sanitizes it, and we render it
       same-origin, so it's fully controller/touch-navigable and FROG-skinned (article images
       ride an anti-open-proxy image proxy, keeping the app CSP locked down). Per-game links
-      resolve **user override → IGDB `websites` → curated family default → a hack's base game**;
-      an unlinked game (a hack) gets one-tap search-and-pin, and the search defaults to the
-      right wiki by family (a Pokémon hack → Bulbapedia). A non-wiki override opens in a tab.
+      resolve **user override → IGDB `websites` → a hack's base game**; an unlinked game (a
+      hack) gets one-tap search-and-pin, where a curated per-family table defaults the search
+      at the right wiki (a Pokémon hack → Bulbapedia). A non-wiki override opens in a tab.
 
 ---
 

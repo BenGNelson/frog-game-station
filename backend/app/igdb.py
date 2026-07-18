@@ -27,6 +27,7 @@ import logging
 import re
 import time
 from difflib import SequenceMatcher
+from urllib.parse import urlparse
 
 import requests
 
@@ -64,6 +65,8 @@ _FIELDS = (
 # most game-specific), 3 = Wikipedia. Preferred in that order — a Fandom/Bulbapedia-
 # style wiki is a better in-game companion than a Wikipedia article. Every other
 # category (official site, social, storefront) is ignored.
+# NOTE: IGDB is migrating `websites` toward a `type` reference; if `category` is ever
+# removed, `pick_wiki` simply returns None (no auto wiki, no crash) until updated.
 _WIKI_CATEGORIES = (2, 3)
 
 # Low-signal words dropped before token comparison, so article/preposition
@@ -146,16 +149,26 @@ def year_of(candidate: dict | None) -> int | None:
         return None
 
 
+def _is_wiki_article(url) -> bool:
+    """A renderable MediaWiki article URL — `http(s)://host/wiki/Title`. (The reader can
+    only render `/wiki/` pages; a wiki HOMEPAGE, `https://x.fandom.com`, can't be, so we
+    don't want to prefer one over a real article on another wiki.)"""
+    p = urlparse(url or "")
+    return p.scheme in ("http", "https") and bool(p.netloc) and len(p.path) > len("/wiki/") \
+        and p.path.startswith("/wiki/")
+
+
 def pick_wiki(websites) -> str | None:
-    """The best wiki URL from an IGDB `websites` list (pure). Prefers a Fandom/Wikia
-    link (category 2) over Wikipedia (3); returns None when neither is present. The URL
-    is stored as-is — whether it's a renderable MediaWiki `/wiki/Title` page is decided
-    later by resolve_wiki/parse_wiki_url, not here."""
+    """The best RENDERABLE wiki article URL from an IGDB `websites` list (pure). Considers
+    only `/wiki/Title` pages, preferring a Fandom/Wikia article (category 2) over a
+    Wikipedia one (3). Returns None when neither category has a real article — so a bare
+    Fandom homepage never shadows a good Wikipedia article (both are category-tagged, and
+    only the renderable one should win)."""
     by_cat = {}
     for w in websites or []:
         cat, url = w.get("category"), w.get("url")
-        if url and cat in _WIKI_CATEGORIES:
-            by_cat.setdefault(cat, url)  # first of each category wins
+        if url and cat in _WIKI_CATEGORIES and _is_wiki_article(url):
+            by_cat.setdefault(cat, url)  # first renderable of each category wins
     for cat in _WIKI_CATEGORIES:
         if cat in by_cat:
             return by_cat[cat]
