@@ -374,6 +374,13 @@ function RichHero({ game, meta, shots, s, slide, focused, finished, onOpen, onHo
           className="absolute inset-0"
           style={{ background: `radial-gradient(92% 82% at 16% 100%, rgba(${s.accent}, 0.30), transparent 64%)` }}
         />
+        {/* The waterline: a soft band of the machine's colour reflecting up off the pond
+            at the hero's base, so the banner reads as floating on the same water the
+            cover does. The cover's own mirrored reflection then falls through it. */}
+        <div
+          className="pointer-events-none absolute inset-x-0 bottom-0 h-14"
+          style={{ background: `linear-gradient(to top, rgba(${s.accent}, 0.14), transparent)` }}
+        />
         {/* Focus ring when the hero is the controller's focus. */}
         {focused && (
           <div
@@ -446,8 +453,12 @@ function RichHero({ game, meta, shots, s, slide, focused, finished, onOpen, onHo
   )
 }
 
-// The box-art cover, with the machine's accent edge + reflection glow. Shared by both
-// headers so a matched and unmatched game frame their cover identically.
+// The box-art cover, with the machine's accent edge + the soft reflection glow every
+// floating card in the app casts (`reflection()`). Shared by both headers so a matched
+// and unmatched game frame their cover identically. (A literal mirrored reflection was
+// tried here and removed: the basic header isn't clipped, so it bled over the content
+// below, and the rich hero IS clipped, so it stubbed off — the water read comes from
+// the shadow here and the hero's own waterline instead.)
 function Cover({ game, accent, finished, className = '' }) {
   return (
     <div

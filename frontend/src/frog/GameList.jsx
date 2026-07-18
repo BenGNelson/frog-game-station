@@ -10,6 +10,37 @@ import SystemChip from './SystemChip.jsx'
 
 const ROW = 44
 
+// A cartridge, drawn — the "thing you slot in" behind a system's list, the way the frog
+// and pond-light already say which machine you're in. A faint accent-tinted watermark
+// bleeding off the corner, no trademarked shape: a generic cart with the classic clipped
+// corner, a label window, and side grips. System lists only (a collection spans machines,
+// so no one cart fits).
+function CartridgeMark({ accent }) {
+  return (
+    <svg
+      viewBox="0 0 100 132"
+      aria-hidden="true"
+      className="pointer-events-none absolute -bottom-16 -right-10 -z-10 h-[125%] max-h-none w-auto"
+      style={{ color: `rgb(${accent})`, opacity: 0.1 }}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.4"
+      strokeLinejoin="round"
+      strokeLinecap="round"
+    >
+      {/* body, with the classic clipped top-right corner */}
+      <path d="M16 6 H68 L86 24 V116 Q86 124 78 124 H24 Q16 124 16 116 Z" />
+      {/* the label window */}
+      <rect x="27" y="44" width="46" height="42" rx="4" />
+      {/* top grip ridges + the side grips — the details that say "cartridge" */}
+      <path d="M28 16 H50" strokeWidth="4" />
+      <path d="M28 24 H44" strokeWidth="4" />
+      <path d="M16 74 V102" />
+      <path d="M86 76 V104" />
+    </svg>
+  )
+}
+
 // One system's games.
 //
 // **A text list, not a grid of covers.** This is the call I'd defend hardest, and
@@ -118,7 +149,10 @@ export default function GameList({ system, collection, loading = false, games, f
   }
 
   return (
-    <div data-testid="frog-games" className="flex min-h-0 flex-1 gap-5 px-6 pb-2">
+    <div data-testid="frog-games" className="relative isolate flex min-h-0 flex-1 gap-5 overflow-hidden px-6 pb-2">
+      {/* The machine's cartridge, faint in the corner (system lists only). `-z-10` under
+          the `isolate` keeps it behind the columns but above the app ground. */}
+      {!inCollection && <CartridgeMark accent={listAccent} />}
       {/* The one slot where art is worth looking at. */}
       <aside className="hidden w-64 shrink-0 flex-col justify-center gap-4 lg:flex">
         {/* The frog came in from the shelf still wearing this machine's colours, and

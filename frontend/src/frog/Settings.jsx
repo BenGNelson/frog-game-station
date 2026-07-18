@@ -1,4 +1,4 @@
-import { RefreshCw, KeyRound, Gamepad2 } from 'lucide-react'
+import { RefreshCw, KeyRound, Gamepad2, Volume2 } from 'lucide-react'
 import { FROG } from './theme.js'
 
 // The settings screen.
@@ -14,7 +14,7 @@ const MODES = [
   { id: 'pad', label: 'Pad' },
 ]
 
-export default function Settings({ status, loading, focus, onFocus, onRescan, rescanBusy, inputMode, onInputMode }) {
+export default function Settings({ status, loading, focus, onFocus, onRescan, rescanBusy, inputMode, onInputMode, navSfx, onNavSfx }) {
   const configured = !!status?.configured
   const running = !!status?.running
   const canRescan = configured && !running && !rescanBusy
@@ -84,6 +84,38 @@ export default function Settings({ status, loading, focus, onFocus, onRescan, re
                   }}
                 >
                   {m.label}
+                </button>
+              )
+            })}
+          </div>
+        </Card>
+
+        {/* --- Sound: soft navigation blips, off by default --- */}
+        <Card focused={focus === 'sound'} onFocus={() => onFocus('sound')}>
+          <Row icon={<Volume2 className="h-4 w-4" style={{ color: `rgb(${FROG.jade})` }} aria-hidden="true" />} title="Navigation sound" />
+          <p className="mb-3 mt-2 text-sm leading-relaxed" style={{ color: FROG.faint }}>
+            Soft blips as you move around the shelf. Off by default.
+          </p>
+          <div className="inline-flex overflow-hidden rounded-lg" style={{ border: `1px solid ${FROG.line}` }}>
+            {[
+              { on: false, label: 'Off' },
+              { on: true, label: 'On' },
+            ].map((opt) => {
+              const active = !!navSfx === opt.on
+              return (
+                <button
+                  key={opt.label}
+                  type="button"
+                  data-testid={`frog-navsfx-${opt.on ? 'on' : 'off'}`}
+                  aria-pressed={active}
+                  onClick={() => onNavSfx(opt.on)}
+                  className="px-4 py-2 text-sm font-semibold transition-colors"
+                  style={{
+                    background: active ? `rgb(${FROG.jade})` : 'transparent',
+                    color: active ? FROG.ground : FROG.soft,
+                  }}
+                >
+                  {opt.label}
                 </button>
               )
             })}
