@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { Play, Save, FolderOpen, FastForward, Maximize, Gamepad2, RotateCcw, LogOut, ImagePlus, ImageOff } from 'lucide-react'
+import { Play, Save, FolderOpen, FastForward, Maximize, Gamepad2, RotateCcw, LogOut, ImagePlus, ImageOff, BookOpen } from 'lucide-react'
 import { moveInGrid } from '../lib/gridNav.js'
 import { FROG } from '../frog/theme.js'
 import { radiantBackdrop, glowFilter } from '../lib/glow.js'
@@ -44,6 +44,8 @@ export function pauseItems(fastForward, { canFullscreen = true, hasCustomCover =
     // at all: there the button did nothing, so it isn't shown. Quit is the way out.
     ...(canFullscreen ? [{ id: 'fullscreen', label: 'Fullscreen', Icon: Maximize }] : []),
     { id: 'controls', label: 'Controls', Icon: Gamepad2 },
+    // Read this game's wiki over the paused game — opens the in-player reader.
+    { id: 'wiki', label: 'Wiki', Icon: BookOpen },
     // Grab THIS moment as the game's cover art — the live frame is already captured
     // for the next save-state thumbnail, so it's here to reuse. Reset only shows once
     // there's a user-set cover to revert.

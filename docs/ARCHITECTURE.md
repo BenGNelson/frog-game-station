@@ -336,6 +336,38 @@ airplane mode fills in the full library by itself when the network returns. Laun
 downloaded game offline hands off to the player exactly as online — it boots from the
 cached ROM and engine.
 
+### The in-game wiki reader
+
+A **peekable wiki reader** opens over the paused game (`player/WikiPanel.jsx`, reached from
+the pause menu's **Wiki** tile): read a game's wiki — a type chart, a hack's changed
+movesets — without leaving the app, then close and reopen with your **article and scroll
+position intact**.
+
+- **A reader, not an iframe — the load-bearing decision.** A cross-origin iframe cannot be
+  scrolled or navigated by a controller (same-origin policy), and the wikis worth reading
+  (Bulbapedia, Fandom, Wikipedia) block being framed at all. But they're all **MediaWiki**,
+  whose `action=parse` API returns clean article HTML with no framing restrictions. The
+  backend (`app/wiki.py`) fetches that, runs it through a strict allowlist **sanitizer**
+  (drops `<script>`/`<style>`/etc., strips every `on*`/`style` attribute), and rewrites its
+  links and images to stay inside the app. We render the result in **our own same-origin
+  page** — so it's controller/touch-navigable, FROG-skinned, and cacheable.
+- **Everything stays same-origin, CSP unchanged.** Internal `/wiki/Title` links become
+  `data-wiki-title` markers the reader follows in-panel (with a Back stack); external links
+  become `data-wiki-href` (open-in-tab). Article images are rewritten to a same-origin
+  **image proxy** (`/library/games/wiki/img`) because the app's `img-src 'self'` CSP blocks
+  external images — the proxy only fetches hosts related to the game's resolved wiki (never
+  an arbitrary URL, same anti-open-proxy discipline as the screenshot proxy), and refuses
+  SVG. So the reader needs **no CSP loosening** — a security win, not a compromise.
+- **Where the link comes from.** Resolved server-side (`app/wiki_links.py`) in priority
+  order: a **user override** (`game_wiki` table) → the **IGDB `websites`** link auto-derived
+  by the matcher (`igdb_meta.wiki_url`, Fandom/Wikia preferred over Wikipedia) → (a curated
+  per-system default) → a **ROM hack's base-game** link. A game with no link offers
+  **search-and-pick** to pin one — the way to give a wiki to a hack IGDB can't match.
+- **Mounted-persistent panel.** Unlike every other player panel (which unmounts on close),
+  the reader stays in the DOM and hides via `display:none`, so the article + scroll survive
+  a close/reopen — that's the "peek and keep your place". Content is fetched **lazily, one
+  page at a time, and cached** on disk (versioned, per-game keyed) under `/data`.
+
 ---
 
 ## Saves & SRAM
@@ -592,3 +624,8 @@ The player and readers are **real routes**, not overlays, so the phone's back ge
   candidate shortlist makes every match reversible.
 - **The EmulatorJS engine is fetched, not committed.** It's large and pinned; a fetch script
   (or the CDN) keeps the repo lean and the version deliberate.
+- **The in-game wiki is a reader, not a browser.** A cross-origin iframe can't be
+  controller-scrolled and the target wikis block framing — but they're MediaWiki, so we fetch
+  the article via its API, sanitize it, and render it same-origin. That's the only shape that
+  is controller-navigable, skinnable, and cacheable, and it keeps the app's locked-down CSP
+  intact (article images ride a same-origin, anti-open-proxy image proxy).

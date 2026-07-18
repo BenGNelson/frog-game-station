@@ -5,7 +5,7 @@ import { playerSrc, coverUrl, postCover, deleteCover, ENGINE_LOADER_URL, engineI
 import { goBack } from '../lib/nav.js'
 // The player is Frog Game Station's screen — launched from a game's page, it dresses in its
 // clothes (the same theme + boot mascot) so play feels continuous with the browser.
-import { systemForCore, FROG } from '../frog/theme.js'
+import { systemForCore, systemStyle, FROG } from '../frog/theme.js'
 import FrogBoot from './FrogBoot.jsx'
 import {
   RETROPAD,
@@ -58,6 +58,7 @@ import { saveState, loadState, listStates, deleteState, captureShot } from '../l
 import PauseMenu, { pauseItems, pauseCols } from './PauseMenu.jsx'
 import SaveStatePanel from './SaveStatePanel.jsx'
 import ControlsPanel, { controlRows } from './ControlsPanel.jsx'
+import WikiPanel from './WikiPanel.jsx'
 import ButtonLegend from './ButtonLegend.jsx'
 import RotatePrompt from './RotatePrompt.jsx'
 import TouchOverlay from './TouchOverlay.jsx'
@@ -183,6 +184,12 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
   const [controlsOpen, setControlsOpen] = useState(false)
   const [controlsFocus, setControlsFocus] = useState(0)
   const [listeningFor, setListeningFor] = useState(null) // RetroPad index awaiting a press
+
+  // The in-game wiki reader. `wikiMounted` latches true on first open and never resets,
+  // so the panel stays in the DOM (hidden) and keeps its article + scroll across a
+  // close/reopen; `wikiOpen` toggles its visibility.
+  const [wikiOpen, setWikiOpen] = useState(false)
+  const [wikiMounted, setWikiMounted] = useState(false)
 
   // The controller map in force right now: the chosen scheme, plus anything the
   // player has rebound on THIS controller.
@@ -415,6 +422,15 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
     setListeningFor(null)
   }, [])
 
+  // Open the wiki over the (already-paused) game. Mount-on-first-open so the panel
+  // persists; opened from the pause menu, so the game stays paused underneath.
+  const openWiki = useCallback(() => {
+    setWikiMounted(true)
+    setWikiOpen(true)
+  }, [])
+
+  const closeWiki = useCallback(() => setWikiOpen(false), [])
+
   const chooseScheme = useCallback(
     (scheme) => saveSettings({ ...settings, controlScheme: scheme }),
     [settings, saveSettings]
@@ -517,6 +533,9 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
         case 'controls':
           openControls()
           break
+        case 'wiki':
+          openWiki()
+          break
         case 'fullscreen':
           goFullscreen()
           dispatch('resume')
@@ -533,7 +552,7 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
           break
       }
     },
-    [fastForward, openShelf, exit, goFullscreen, openControls, doSetCover, doResetCover]
+    [fastForward, openShelf, exit, goFullscreen, openControls, openWiki, doSetCover, doResetCover]
   )
 
   const openMenu = useCallback(() => {
@@ -567,13 +586,14 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
   const onTouchAction = useCallback(
     (action) => {
       if (action === 'pauseMenu') openMenu()
+      else if (action === 'wiki') openWiki()
       else if (action === 'fastForward') {
         const on = !fastForward
         setFastForward(emuRef.current, on)
         setFF(on)
       }
     },
-    [fastForward, openMenu]
+    [fastForward, openMenu, openWiki]
   )
 
   // --- the physical controller ---------------------------------------------
@@ -584,7 +604,7 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
   // engine keeps exactly one listener per event, so overwriting would kill its
   // input handling outright.
   const menuOpenRef = useRef(false)
-  menuOpenRef.current = paused || shelfOpen || controlsOpen
+  menuOpenRef.current = paused || shelfOpen || controlsOpen || wikiOpen
   useEffect(() => {
     const emu = emuRef.current
     if (!emu) return
@@ -620,7 +640,8 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
         // Back out one layer at a time. Resuming straight from a panel would
         // un-pause the game while that panel still covered it (and leave the
         // engine's gamepad gated, so the pad would drive nothing).
-        if (controlsOpen) closeControls()
+        if (wikiOpen) closeWiki()
+        else if (controlsOpen) closeControls()
         else if (shelfOpen) setShelfOpen(false)
         else if (paused) dispatch('resume')
         else openMenu()
@@ -648,6 +669,13 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
       }
 
       if (!menuOpenRef.current) return
+
+      if (wikiOpen) {
+        // The wiki owns the pad while it's up. For now B closes it; richer nav
+        // (scroll, link-follow) lands with the controller-nav milestone.
+        if (action === 'back') closeWiki()
+        return
+      }
 
       if (controlsOpen) {
         // A one-column list, so up/down walk it and left/right do nothing.
@@ -796,11 +824,12 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
       }
       if (e.key !== 'Escape' || !isRunning(state)) return
       e.preventDefault()
-      openMenu()
+      if (wikiOpen) closeWiki()
+      else openMenu()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [state, openMenu, exit])
+  }, [state, openMenu, exit, wikiOpen, closeWiki])
 
   // Pause when the app goes to the background, and flush the battery save on the
   // way out — an iOS tab can be discarded without warning, and an unsaved SRAM is
@@ -1040,6 +1069,23 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
                     { button: 'B', label: 'Back' },
                   ]}
                 />
+              ) : null
+            }
+          />
+        )}
+
+        {/* Mounted-persistent (kept in the DOM, hidden when closed) so the article +
+            scroll survive close/reopen. */}
+        {wikiMounted && (
+          <WikiPanel
+            open={wikiOpen}
+            gameId={id}
+            gameName={name}
+            accent={systemStyle(label || systemForCore(core)).accent}
+            onClose={closeWiki}
+            legend={
+              mode === 'pad' ? (
+                <ButtonLegend hints={[{ button: 'B', label: 'Close' }]} />
               ) : null
             }
           />
