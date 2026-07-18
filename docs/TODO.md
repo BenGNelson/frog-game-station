@@ -54,11 +54,17 @@ what's below is what's left, roughly priority-ordered within each group.
 
 ## Visual flourishes
 
-- [ ] Ambient **pond** on the shelf: faint animated ripples / caustics behind the rails
-      (respect reduced-motion).
-- [ ] Extend the **per-system accent** from the frog + pond-light to the whole chrome
-      (header underline, scrollbar, focus rings) for a fuller "this machine" feel.
-- [ ] **Console-cartridge motifs:** each system's list header wears subtle label/cart art.
-- [ ] Extend the **reflection** (water) motif to the cover and the hero.
-- [ ] Optional **navigation SFX** (soft blips), off by default, a settings toggle.
-- [ ] A true-**OLED-black** variant of the ground for phones.
+- [x] Ambient **pond** on the shelf: faint animated caustics behind the rails (two slow
+      jade blobs, transform/opacity only, frozen under reduced-motion).
+- [x] Extend the **per-system accent** to the chrome: a back-lit header underline that
+      recolours with the focused machine. (Scrollbars stay hidden by design; the app drives
+      focus via `data-focused`, not real DOM focus, so a global focus-ring was moot.)
+- [x] **Console-cartridge motif:** a faint accent-tinted cartridge watermark behind each
+      system's list (system lists only — a collection spans machines).
+- [x] Extend the **reflection** (water) motif: a soft accent waterline at the hero's base
+      (the cover keeps the `reflection()` float-shadow every card casts — a literal mirror
+      was tried and removed: it bled over the unclipped basic header and stubbed off inside
+      the clipped rich hero).
+- [x] **Navigation SFX** — soft synthesized blips (`lib/sfx.js`, no audio files), off by
+      default, a Settings toggle.
+- [x] A true-**OLED-black** ground on phones (`@media (max-width: 640px)`).

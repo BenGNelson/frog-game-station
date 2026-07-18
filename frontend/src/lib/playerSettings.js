@@ -17,6 +17,8 @@ export const DEFAULTS = {
   touchOpacity: 0.75,
   touchScale: 1,
   volume: 0.5,
+  // Soft navigation blips in the browser. Off by default — sound is opt-in.
+  navSfx: false,
 
   // How the controller maps onto the game — see lib/controlPresets.js.
   controlScheme: 'letters',

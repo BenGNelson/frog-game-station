@@ -186,6 +186,28 @@ focused machine's colours, which makes it the focus indicator rather than a deco
 Frog is a **dark, single-theme** app by deliberate choice, not by omission of a light
 mode.
 
+The motif is carried by a set of small **flourishes**, all pulling on the same two
+threads — *water*, and *this machine* — and all cheap (transform/opacity animation only,
+frozen under `prefers-reduced-motion`):
+
+- **Ambient caustics** drift behind the shelf (two slow jade blobs) so the ground reads
+  as a pond at rest, under the focus-coloured pond-light.
+- **The chrome takes the machine's colour too:** a back-lit hairline under the header
+  recolours with the focused system, so "this machine" reaches the top edge — not just
+  the frog and the pond-light.
+- **A cartridge watermark** sits faint in the corner of each system's list (line art, no
+  trademarked shape; system lists only — a collection spans machines).
+- **Reflections:** the hero band gets a soft accent waterline at its base, and the
+  game-page cover keeps the `reflection()` float-shadow every card casts — the card floats
+  on the pond. (A literal mirrored cover reflection was tried and removed — it bled over
+  the unclipped basic header and clipped to a stub in the rich hero.)
+- **On a phone the ground drops to true black** (`@media (max-width: 640px)`) so an OLED
+  panel switches those pixels off — a deeper pond that also sips less battery.
+- **Optional navigation sound** — soft synthesized blips (`lib/sfx.js`, Web Audio, no
+  audio files), OFF by default, a Settings toggle. The "which action makes which sound"
+  decision is a pure function; the dispatcher plays it once, before the per-screen
+  handling, so every screen clicks the same way.
+
 ---
 
 ## The player / emulator

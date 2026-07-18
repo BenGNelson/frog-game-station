@@ -41,7 +41,8 @@ It has a hand-drawn **frog mascot** and a **WATER / jade dark theme** — a pond
 - **Full touch controls** — a from-scratch touch overlay with a real multi-touch d-pad (true diagonals), thumb-rolls between face buttons, and hit areas larger than the buttons, because thumbs undershoot.
 - **Gamepad-native** — index-arithmetic navigation drives a controller, arrow keys, and a mouse through identical code. A boot "PRESS A" both wakes the controller (iOS won't report one until a button is pressed) and tells Frog to lay itself out for a pad or a thumb.
 - **Drawn, not scraped** — console art is illustrated in-app (no official logos), so the collection has one coherent look and the repo stays publishable.
-- **A settings screen** — check the IGDB matcher's status and trigger a re-scan, set the player input mode (auto / touch / pad), all controller- and touch-drivable from a header gear.
+- **A settings screen** — check the IGDB matcher's status and trigger a re-scan, set the player input mode (auto / touch / pad), and toggle optional navigation sound, all controller- and touch-drivable from a header gear.
+- **A living WATER theme** — ambient pond caustics behind the shelf, a machine-coloured back-lit header, cover reflections, a faint cartridge watermark per system, and a true-black ground on phones (kinder to OLED). All motion respects `prefers-reduced-motion`.
 
 ## Screenshots
 

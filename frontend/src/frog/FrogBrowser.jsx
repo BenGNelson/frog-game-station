@@ -21,6 +21,7 @@ import {
 import { getFavorites } from '../lib/favorites.js'
 import { getRecentSearches, recordSearch, removeRecentSearch } from '../lib/recentSearches.js'
 import { moveInRails } from '../lib/gridNav.js'
+import { playForAction } from '../lib/sfx.js'
 import { useGamepad } from '../lib/useGamepad.js'
 import { mediaMatches } from '../lib/useMediaQuery.js'
 import { SkeletonLine } from '../components/ui.jsx'
@@ -145,6 +146,7 @@ export default function FrogBrowser() {
   const [settingsFrom, setSettingsFrom] = useState('shelf')
   const [settingsFocus, setSettingsFocus] = useState('igdb')
   const [inputMode, setInputModeState] = useState(() => readSettings(localStorage).inputMode)
+  const [navSfx, setNavSfxState] = useState(() => readSettings(localStorage).navSfx)
   const [rescanBusy, setRescanBusy] = useState(false)
   // The IGDB matcher status — polled only while the settings screen is up (one cheap
   // fetch otherwise); useApi pauses when the tab is hidden.
@@ -516,6 +518,11 @@ export default function FrogBrowser() {
     writeSettings(localStorage, { inputMode: m })
     setInputModeState(m)
   }
+  const setNavSfx = (v) => {
+    writeSettings(localStorage, { navSfx: v })
+    setNavSfxState(v)
+    if (v) playForAction('confirm', true) // a blip on enable, so it's audible immediately
+  }
   // Kick a one-off matching pass. Guarded so a double-press or a press while a pass is
   // already running is a no-op; the status poll then shows the progress.
   const doRescan = async () => {
@@ -822,6 +829,10 @@ export default function FrogBrowser() {
     // placeholder rails and strand focus the moment the real ones arrive.
     if (booting) return
 
+    // The soft navigation blip (opt-in, off by default). Fired here — before the
+    // per-screen handling — so a move/confirm/back clicks the same way on every screen.
+    playForAction(action, navSfx)
+
     // A confirm dialog on the game page traps ALL input until it's resolved (A yes /
     // B no) — ahead of even the global X-search toggle, or X would slip past it and
     // leave the dialog stranded open behind the search screen.
@@ -1013,7 +1024,7 @@ export default function FrogBrowser() {
     // Settings: two focus rows, up/down between them. On the IGDB card A re-scans; on
     // the input-mode row A and left/right cycle Auto → Touch → Pad. B closes.
     if (screen === 'settings') {
-      const rows = ['igdb', 'inputMode']
+      const rows = ['igdb', 'inputMode', 'sound']
       const idx = rows.indexOf(settingsFocus)
       const modes = ['auto', 'touch', 'pad']
       const cycleMode = (dir) =>
@@ -1029,13 +1040,17 @@ export default function FrogBrowser() {
           setSettingsFocus(rows[Math.min(rows.length - 1, idx + 1)])
           return
         case 'confirm':
-          settingsFocus === 'igdb' ? doRescan() : cycleMode(1)
+          if (settingsFocus === 'igdb') doRescan()
+          else if (settingsFocus === 'inputMode') cycleMode(1)
+          else setNavSfx(!navSfx)
           return
         case 'left':
           if (settingsFocus === 'inputMode') cycleMode(-1)
+          else if (settingsFocus === 'sound') setNavSfx(false)
           return
         case 'right':
           if (settingsFocus === 'inputMode') cycleMode(1)
+          else if (settingsFocus === 'sound') setNavSfx(true)
           return
         default:
       }
@@ -1344,9 +1359,11 @@ export default function FrogBrowser() {
   return (
     <div
       data-testid="frog"
-      className="fixed inset-0 z-50 flex flex-col overflow-hidden"
+      className="frog-root fixed inset-0 z-50 flex flex-col overflow-hidden"
       style={{
-        background: FROG.ground,
+        // Feed the palette token to the CSS ground rule, so the default background stays
+        // single-sourced from FROG.ground while the phone media query overrides to #000.
+        '--frog-ground': FROG.ground,
         paddingTop: 'env(safe-area-inset-top)',
         paddingLeft: 'env(safe-area-inset-left)',
         paddingRight: 'env(safe-area-inset-right)',
@@ -1357,6 +1374,21 @@ export default function FrogBrowser() {
         paddingBottom: 'env(safe-area-inset-bottom)',
       }}
     >
+      {/* Ambient caustics — the pond's own slow shimmer, only at rest on the shelf
+          (a game list or the player wants a still ground). Sits under the pond light. */}
+      {screen === 'shelf' && (
+        <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
+          <div
+            className="frog-caustic frog-caustic-a"
+            style={{ background: `radial-gradient(38% 38% at 32% 42%, rgba(${FROG.jade}, 0.06), transparent 70%)` }}
+          />
+          <div
+            className="frog-caustic frog-caustic-b"
+            style={{ background: `radial-gradient(44% 44% at 70% 62%, rgba(${FROG.jade}, 0.05), transparent 70%)` }}
+          />
+        </div>
+      )}
+
       {/* The pond light. It takes the colour of whatever is in focus, which is the
           single cheapest way to make a machine feel *selected* rather than outlined. */}
       <div
@@ -1364,7 +1396,12 @@ export default function FrogBrowser() {
         style={{ background: `radial-gradient(120% 80% at 50% 100%, rgba(${accent}, 0.14), transparent 70%)` }}
       />
 
-      <header className="relative flex items-center justify-between gap-4 px-6 py-3">
+      {/* The chrome wears the focused machine's colour too: a hairline under the header
+          that recolours with everything else, so "this machine" reaches the top edge. */}
+      <header
+        className="relative flex items-center justify-between gap-4 px-6 py-3 transition-[box-shadow] duration-500"
+        style={{ boxShadow: `inset 0 -1px 0 rgba(${accent}, 0.45), 0 7px 20px -14px rgba(${accent}, 0.6)` }}
+      >
         {screen === 'games' && collectionTag ? (
           <CollectionListHeader tag={collectionTag} count={games.length} loading={!collectionsLoaded} />
         ) : screen === 'games' && system ? (
@@ -1500,6 +1537,8 @@ export default function FrogBrowser() {
           rescanBusy={rescanBusy}
           inputMode={inputMode}
           onInputMode={setInputMode}
+          navSfx={navSfx}
+          onNavSfx={setNavSfx}
         />
       ) : screen === 'detail' && detailGame ? (
         <GameScreen
