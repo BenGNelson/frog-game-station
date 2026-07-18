@@ -21,7 +21,7 @@ from fastapi import APIRouter, Query
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, Field
 
-from app import db, library, wiki, wiki_links
+from app import db, library, wiki, wiki_links, wiki_sources
 from app.config import settings
 from app.images import write_atomic
 
@@ -53,12 +53,12 @@ def _resolve(game_id: str):
 
 def _known_wiki_host(host: str) -> bool:
     """Whether `host` is a real wiki domain we'll talk to for a client-supplied search —
-    a built-in MediaWiki family or an operator-allowed host. Bounds the search endpoint
-    to wiki hosts instead of an arbitrary-URL fetch."""
+    a built-in MediaWiki family, a curated per-family host, or an operator-allowed host.
+    Bounds the search endpoint to wiki hosts instead of an arbitrary-URL fetch."""
     if not host:
         return False
     host = host.lower()
-    if host in wiki.allowed_image_hosts():
+    if host in wiki.allowed_image_hosts() or host in wiki_sources.CURATED_HOSTS:
         return True
     return any(host.endswith(sfx) for sfx in wiki._BUILTIN_IMAGE_SUFFIXES)
 
@@ -84,8 +84,8 @@ def get_wiki_page(
     if not settings.wiki_enabled:
         return Response(status_code=404)
     resolved = _resolve(id)
-    if not resolved:
-        return Response(status_code=404)
+    if not resolved or resolved.get("kind") != "mediawiki":
+        return Response(status_code=404)  # external links open in a tab, not the reader
     page = title or resolved["title"]
     try:
         article = wiki.get_article(id, resolved["host"], page)
@@ -136,11 +136,13 @@ def get_wiki_image(
 def search_wiki(
     id: str = Query(description="Game id from the section listing"),
     q: str = Query(description="Text to search wiki page titles for"),
-    host: str | None = Query(default=None, description="Wiki host to search; defaults to the resolved one"),
+    host: str | None = Query(default=None, description="Wiki host to search; defaults to the resolved/curated one"),
+    name: str | None = Query(default=None, description="Game name, to pick a curated family wiki when unlinked"),
 ):
     """MediaWiki title suggestions for `q` — to find and pin the right page for a game
-    (e.g. a ROM hack IGDB can't match). Searches the game's resolved wiki, or a
-    client-supplied `host` restricted to known wiki domains."""
+    (e.g. a ROM hack IGDB can't match). Host preference: an explicit `host` (restricted
+    to known wikis) → the game's resolved wiki → a curated family wiki for `name` (a
+    Pokémon hack → Bulbapedia) → Wikipedia as the universal fallback."""
     if not settings.wiki_enabled:
         return {"results": []}
     search_host = None
@@ -148,10 +150,11 @@ def search_wiki(
         search_host = host
     else:
         resolved = _resolve(id)
-        if resolved:
+        if resolved and resolved.get("kind") == "mediawiki":
             search_host = resolved["host"]
-    if not search_host:
-        return {"results": [], "host": None}
+        elif name:
+            search_host = wiki_sources.curated_host(name)
+        search_host = search_host or "en.wikipedia.org"
     return {"host": search_host, "results": wiki.search(search_host, q)}
 
 

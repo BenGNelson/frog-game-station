@@ -24,7 +24,6 @@ const WikiPanel = forwardRef(function WikiPanel({
   gameName,
   accent = FROG.jade,
   onClose,
-  defaultSearchHost = 'en.wikipedia.org',
   legend = null,
 }, ref) {
   const [phase, setPhase] = useState('idle') // idle|loading|reading|nolink|error
@@ -110,7 +109,12 @@ const WikiPanel = forwardRef(function WikiPanel({
         setPhase('error')
         return
       }
-      if (resolved) {
+      if (resolved && resolved.kind === 'external') {
+        // A pinned non-wiki link (a GameFAQs guide, say) — we can't render it, so it's
+        // an open-in-tab card. The escape hatch for a hack whose guide isn't a wiki.
+        setSource(resolved)
+        setPhase('external')
+      } else if (resolved) {
         setSource(resolved)
         setHistory(startHistory(resolved.title))
         await loadPage(resolved.title)
@@ -258,12 +262,26 @@ const WikiPanel = forwardRef(function WikiPanel({
           </Centered>
         )}
 
+        {phase === 'external' && source && (
+          <Centered>
+            <ExternalLink className="mb-2 h-8 w-8" style={{ color: accentText }} aria-hidden="true" />
+            <p style={{ color: FROG.ink }}>This link isn’t a wiki we can render.</p>
+            <p className="mb-1 text-xs" style={{ color: FROG.faint }}>{source.host}</p>
+            <button
+              onClick={openInTab}
+              className="mt-2 rounded-lg px-4 py-2 text-sm active:opacity-70"
+              style={{ background: FROG.panel, color: FROG.ink }}
+            >
+              Open in browser
+            </button>
+          </Centered>
+        )}
+
         {phase === 'nolink' && (
           <NoLink
             gameId={gameId}
             gameName={gameName}
             accentText={accentText}
-            defaultHost={defaultSearchHost}
             onPicked={loadSource}
           />
         )}
@@ -314,19 +332,25 @@ function Spinner() {
 
 // Shown when a game has no wiki linked yet: search for one and pin it. Touch/keyboard
 // entry here; controller text entry arrives with the reusable on-screen keyboard.
-function NoLink({ gameId, gameName, accentText, defaultHost, onPicked }) {
+function NoLink({ gameId, gameName, accentText, onPicked }) {
   const [q, setQ] = useState(gameName || '')
   const [results, setResults] = useState([])
+  const [host, setHost] = useState(null) // which wiki the backend curated for us
+  const [searched, setSearched] = useState(false)
   const [busy, setBusy] = useState(false)
   const [saving, setSaving] = useState(false)
 
   const run = useCallback(async () => {
     if (!q.trim()) return
     setBusy(true)
-    const { results } = await searchWiki(gameId, q, defaultHost)
-    setResults(results || [])
+    // No explicit host — the backend curates one from the game name (a Pokémon hack
+    // -> Bulbapedia), falling back to Wikipedia.
+    const res = await searchWiki(gameId, q, null, gameName)
+    setResults(res.results || [])
+    setHost(res.host || null)
+    setSearched(true)
     setBusy(false)
-  }, [gameId, q, defaultHost])
+  }, [gameId, q, gameName])
 
   const pick = useCallback(
     async (url) => {
@@ -348,7 +372,7 @@ function NoLink({ gameId, gameName, accentText, defaultHost, onPicked }) {
         <BookOpen className="h-8 w-8" style={{ color: accentText }} aria-hidden="true" />
         <p className="text-sm font-semibold" style={{ color: FROG.ink }}>No wiki linked yet</p>
         <p className="text-xs" style={{ color: FROG.faint }}>
-          Search {defaultHost} and pin a page for this game.
+          {searched && host ? `Results from ${host} — pick a page to pin it.` : 'Search for this game’s wiki and pin a page.'}
         </p>
       </div>
 
