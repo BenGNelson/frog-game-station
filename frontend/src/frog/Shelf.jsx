@@ -27,6 +27,21 @@ export function FinishedBadge({ size = 24 }) {
     </span>
   )
 }
+// The ROM-hack ribbon — top-LEFT so it never collides with the finished trophy
+// (top-right), in the amber cartridge-label colour. Exported so every cover badges a
+// hack the same way. It says a game is a hack (borrowing its base's art), not the base.
+export function HackBadge() {
+  return (
+    <span
+      className="absolute left-1.5 top-1.5 rounded-full px-1.5 py-0.5 text-[9px] font-bold leading-none tracking-wider"
+      style={{ background: `rgba(${FROG.amber}, 0.94)`, color: FROG.ground, boxShadow: '0 2px 8px rgba(0,0,0,0.55)' }}
+      title="ROM hack"
+      aria-label="ROM hack"
+    >
+      HACK
+    </span>
+  )
+}
 import Console from './Console.jsx'
 
 // The shelf: Frog's home screen.
@@ -103,7 +118,7 @@ function SystemTile({ system, focused, onFocus, onPick }) {
   )
 }
 
-function GameCard({ game, focused, finished, onFocus, onPick }) {
+function GameCard({ game, focused, finished, hack, onFocus, onPick }) {
   const s = systemStyle(game.label)
 
   return (
@@ -130,6 +145,7 @@ function GameCard({ game, focused, finished, onFocus, onPick }) {
           style={{ opacity: focused ? 1 : 0.72 }}
         />
         {finished && <FinishedBadge />}
+        {hack && <HackBadge />}
         {/* The system's colour washes up from the bottom, so a cover you half-recognize
             still tells you which machine it's for before you read anything. */}
         <div
@@ -190,7 +206,7 @@ function Heading({ children }) {
   )
 }
 
-export default function Shelf({ rails, focus, finishedIds, onFocus, onPick }) {
+export default function Shelf({ rails, focus, finishedIds, hackIds, onFocus, onPick }) {
   const railRefs = useRef([])
   // The mascot dozes after hours (closed eyes), on the wall clock.
   const dozing = useDozing()
@@ -309,6 +325,7 @@ export default function Shelf({ rails, focus, finishedIds, onFocus, onPick }) {
                         game={game}
                         focused={focus.rail === r && focus.index === i}
                         finished={finishedIds?.has(game.id)}
+                        hack={hackIds?.has(game.id)}
                         onFocus={() => onFocus(r, i)}
                         onPick={() => onPick(rail, game)}
                       />

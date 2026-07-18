@@ -40,8 +40,8 @@ describe('tagsForGame', () => {
 
 describe('mergeCollections', () => {
   it('applies the server wholesale when nothing is dirty', () => {
-    const server = { finished: ['a'], tags: { RPG: ['a', 'b'] } }
-    expect(mergeCollections(server, { finished: [], tags: {} }, new Set())).toEqual(server)
+    const server = { finished: ['a'], tags: { RPG: ['a', 'b'] }, hacks: { 'h.gb': 'Base' } }
+    expect(mergeCollections(server, { finished: [], tags: {}, hacks: {} }, new Set())).toEqual(server)
   })
 
   it('keeps the local edit for a dirty game but fills in the rest from the server', () => {
@@ -58,5 +58,25 @@ describe('mergeCollections', () => {
     // The user just UN-finished 'a' locally; the stale server still lists it.
     const merged = mergeCollections({ finished: ['a', 'c'], tags: {} }, { finished: ['c'], tags: {} }, new Set(['a']))
     expect(merged.finished).toEqual(['c']) // 'a' dropped (local removal wins), 'c' kept
+  })
+
+  it('merges the hack map: server truth, but a dirty game keeps its local hack state', () => {
+    // Server still has the old hack for 'x'; locally the user just marked 'y' a hack
+    // (dirty) and un-marked 'x' (dirty removal). 'z' is an untouched server hack.
+    const server = { finished: [], tags: {}, hacks: { x: 'Old Base', z: 'Zed Base' } }
+    const local = { finished: [], tags: {}, hacks: { y: 'New Base' } }
+    const merged = mergeCollections(server, local, { finished: new Set(), tags: new Set(), hacks: new Set(['x', 'y']) })
+    expect(merged.hacks).toEqual({ z: 'Zed Base', y: 'New Base' }) // x dropped, y kept, z filled in
+  })
+
+  it('is per-dimension: a hack-only edit never drops the game’s server finished/tags', () => {
+    // The GET is still in flight, so local finished/tags are empty. The user marks 'g'
+    // (finished + tagged on the server) a hack — only the `hacks` dimension is dirty.
+    const server = { finished: ['g'], tags: { RPG: ['g'] }, hacks: {} }
+    const local = { finished: [], tags: {}, hacks: { g: 'Base' } }
+    const merged = mergeCollections(server, local, { finished: new Set(), tags: new Set(), hacks: new Set(['g']) })
+    expect(merged.finished).toEqual(['g']) // NOT dropped — 'g' isn't dirty for finished
+    expect(merged.tags.RPG).toEqual(['g']) // NOT dropped — 'g' isn't dirty for tags
+    expect(merged.hacks).toEqual({ g: 'Base' })
   })
 })

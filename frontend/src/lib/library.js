@@ -103,11 +103,11 @@ export function postMetaRescan() {
 }
 // Manually fix a game's IGDB match: an igdbId re-matches to it, null clears to the
 // basic page. Resolves when the server has stored it (caller then refetches meta).
-export function postGameMatch(id, igdbId) {
+export function postGameMatch(id, igdbId, isHack = false) {
   return fetch(`${API_BASE}/library/games/meta`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id, igdb_id: igdbId }),
+    body: JSON.stringify({ id, igdb_id: igdbId, is_hack: isHack }),
   })
 }
 

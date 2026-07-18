@@ -75,6 +75,9 @@ CREATE TABLE IF NOT EXISTS igdb_meta (
     match_version  TEXT,              -- matcher logic version this row was made with
     rom_mtime      REAL,              -- ROM mtime at match time (change detection)
     similar_games  TEXT,              -- JSON array of IGDB ids IGDB calls "similar"
+    is_hack        INTEGER NOT NULL DEFAULT 0, -- 1 = this ROM is a HACK of the matched
+                                      -- game (borrows its art/summary, keeps its own
+                                      -- name), not the game itself
     updated_at     REAL NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_igdb_meta_igdb_id ON igdb_meta (igdb_id);
@@ -125,6 +128,9 @@ _MIGRATIONS = [
     "ALTER TABLE igdb_meta ADD COLUMN match_version TEXT",
     # IGDB's "similar games" ids on each cached match (the "more like this" rail).
     "ALTER TABLE igdb_meta ADD COLUMN similar_games TEXT",
+    # The ROM-hack flag: this ROM borrows the matched game's art but is a hack OF it,
+    # not the game itself. A pre-existing DB gets it here (default 0 = not a hack).
+    "ALTER TABLE igdb_meta ADD COLUMN is_hack INTEGER NOT NULL DEFAULT 0",
 ]
 
 
@@ -216,7 +222,7 @@ _IGDB_COLS = (
     "game_id", "igdb_id", "matched", "name", "summary", "release_year", "rating",
     "developer", "publisher", "genres", "cover_image_id", "screenshot_ids",
     "videos", "candidates", "confidence", "source", "match_version", "rom_mtime",
-    "similar_games", "updated_at",
+    "similar_games", "is_hack", "updated_at",
 )
 
 
@@ -232,6 +238,7 @@ def upsert_igdb_meta(game_id, record, updated_at=None):
     row["game_id"] = game_id
     row["updated_at"] = updated_at
     row["matched"] = 1 if row["matched"] else 0
+    row["is_hack"] = 1 if row["is_hack"] else 0  # NOT NULL — coerce like `matched`
     row["source"] = row["source"] or "auto"
     for col in _IGDB_JSON_COLS:
         row[col] = json.dumps(row[col]) if row[col] is not None else None
@@ -257,6 +264,7 @@ def get_igdb_meta(game_id):
         return None
     out = dict(r)
     out["matched"] = bool(out["matched"])
+    out["is_hack"] = bool(out.get("is_hack"))
     for col in _IGDB_JSON_COLS:
         out[col] = json.loads(out[col]) if out[col] else None
     return out
@@ -309,6 +317,38 @@ def owned_by_igdb_ids(igdb_ids):
             tuple(ids),
         ).fetchall()
     return {r["igdb_id"]: r["game_id"] for r in rows}
+
+
+def owned_base_by_igdb_id(igdb_id, exclude_game_id=None):
+    """The game_id of a MATCHED, NON-HACK ROM you own for this IGDB id — the base a hack
+    is 'based on'. Kept SEPARATE from owned_by_igdb_ids (which the similar rail uses and
+    must keep counting hacks as owned) so the base link excludes hacks and the hack ROM
+    itself without changing what "owned" means everywhere else. None if you don't own a
+    real base."""
+    if igdb_id is None:
+        return None
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT game_id FROM igdb_meta WHERE matched = 1 AND COALESCE(is_hack, 0) = 0 AND igdb_id = ?",
+            (int(igdb_id),),
+        ).fetchall()
+    for r in rows:
+        if r["game_id"] != exclude_game_id:
+            return r["game_id"]
+    return None
+
+
+def list_hacks():
+    """{game_id: base_name} for every ROM flagged as a hack — the base game's name is
+    the matched IGDB name it borrows. Powers the "HACK" badges across the browsing
+    surfaces (one read, like list_finished / tags_grouped) so a tile can be marked
+    without a per-game meta fetch. Only matched rows can be hacks (a hack borrows a
+    base), so this is naturally sparse."""
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT game_id, name FROM igdb_meta WHERE is_hack = 1 AND matched = 1"
+        ).fetchall()
+    return {r["game_id"]: r["name"] for r in rows}
 
 
 # --- Collections: the "finished" flag + free-form tags ----------------------

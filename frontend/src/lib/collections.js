@@ -58,24 +58,45 @@ export function tagsForGame(tags, gameId) {
 // mount-time GET can land AFTER the user has already edited a game — its response
 // predates that write, so applying it wholesale would revert the edit, and dropping it
 // wholesale would lose every OTHER game's server state it carried. So: take the server as
-// the base of truth, but for each game the user has touched since the fetch (`dirty`),
-// keep the LOCAL membership. Untouched games fill in from the server; edits survive.
+// the base of truth, but for each game the user has touched since the fetch, keep the
+// LOCAL membership. Untouched games fill in from the server; edits survive.
+//
+// `dirty` is PER-DIMENSION — `{ finished, tags, hacks }` of game-id Sets — so touching a
+// game in ONE dimension (say, marking it a hack) doesn't make the merge drop its OTHER
+// memberships (its finished flag / tags), which local state for those dimensions may not
+// yet hold if the GET is still in flight. (A bare Set is accepted for back-compat and
+// applies to all three dimensions.)
 export function mergeCollections(server, local, dirty) {
-  const dirtySet = dirty instanceof Set ? dirty : new Set(dirty || [])
+  const all = dirty instanceof Set ? dirty : null
+  const asSet = (v) => (v instanceof Set ? v : new Set(v || []))
+  const dFin = all ?? asSet(dirty?.finished)
+  const dTags = all ?? asSet(dirty?.tags)
+  const dHacks = all ?? asSet(dirty?.hacks)
   const sFin = server?.finished ?? []
   const sTags = server?.tags ?? {}
-  if (!dirtySet.size) return { finished: [...sFin], tags: { ...sTags } }
+  const sHacks = server?.hacks ?? {}
+  if (!dFin.size && !dTags.size && !dHacks.size) {
+    return { finished: [...sFin], tags: { ...sTags }, hacks: { ...sHacks } }
+  }
 
   const localFin = new Set(local.finished)
-  const finished = sFin.filter((id) => !dirtySet.has(id))
-  for (const id of dirtySet) if (localFin.has(id)) finished.unshift(id)
+  const finished = sFin.filter((id) => !dFin.has(id))
+  for (const id of dFin) if (localFin.has(id)) finished.unshift(id)
 
   const tags = {}
   for (const tag of new Set([...Object.keys(sTags), ...Object.keys(local.tags)])) {
     const localMembers = new Set(local.tags[tag] ?? [])
-    const members = (sTags[tag] ?? []).filter((id) => !dirtySet.has(id))
-    for (const id of dirtySet) if (localMembers.has(id)) members.unshift(id)
+    const members = (sTags[tag] ?? []).filter((id) => !dTags.has(id))
+    for (const id of dTags) if (localMembers.has(id)) members.unshift(id)
     if (members.length) tags[tag] = members
   }
-  return { finished, tags }
+
+  // The hack map (game_id → base name): server truth, except a game touched since the
+  // fetch keeps its LOCAL hack state — so marking/unmarking a hack survives a slow GET.
+  const localHacks = local.hacks ?? {}
+  const hacks = {}
+  for (const [id, base] of Object.entries(sHacks)) if (!dHacks.has(id)) hacks[id] = base
+  for (const id of dHacks) if (localHacks[id]) hacks[id] = localHacks[id]
+
+  return { finished, tags, hacks }
 }

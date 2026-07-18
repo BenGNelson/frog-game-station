@@ -15,8 +15,12 @@ what's below is what's left, roughly priority-ordered within each group.
 
 ## Features
 
-- [ ] **Deeper ROM-hack support surfacing** — **define scope first**: what exactly to
-      surface (base-game linkage? hack metadata? a badge on the tile?) before building.
+- [x] **Deeper ROM-hack support surfacing** — shipped (badge + base link, borrow art): mark
+      a game as "a ROM hack of <base>" via a toggle in the rematch picker — it borrows the
+      base's IGDB art/summary but keeps its own name and wears a **HACK** badge everywhere the
+      cover shows (shelf / list / page). The game page carries a focusable "Based on <base>"
+      line that deep-links to the base ROM when you own it. Server-owned (`is_hack` on
+      `igdb_meta`, surfaced in the meta + collections payloads), so it roams like collections.
 - [ ] **In-game wiki browser** — a peekable, app-skinned web browser *inside the player*,
       for pulling up a game's wiki (e.g. a Pokémon wiki) mid-game. Toggle open/closed and it
       **keeps its place** (page + scroll) across close/reopen, so you can glance and dismiss
@@ -39,6 +43,14 @@ what's below is what's left, roughly priority-ordered within each group.
       lazy-loading is already applied where it matters.)
 
 ### Follow-ups from shipped features
+
+- [ ] **Mark a ROM hack that has no IGDB candidates** — marking uses the rematch picker,
+      which only opens when IGDB returned a candidate shortlist. A hack whose cleaned filename
+      yields zero candidates (or an unmatched base) can't be marked / linked. Needs a base-game
+      **search** in the picker (type a name → IGDB search → pick), reusing the on-screen
+      keyboard. The base deep-link also requires the base ROM to be IGDB-matched (an unmatched
+      base degrades to plain "Based on <name>" text — inherent, since an unmatched ROM has no
+      id to resolve by).
 
 - [x] **Controller on-screen keyboard for creating NEW tags / naming saves** — shipped: a
       reusable on-screen text keyboard (`lib/keyboard.js` + `frog/Keyboard.jsx`, auto-title-case
