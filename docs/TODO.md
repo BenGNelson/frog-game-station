@@ -34,13 +34,18 @@ what's below is what's left, roughly priority-ordered within each group.
 
 ## Quality & polish
 
-- [ ] **Touch ergonomics (remaining):** search-field keyboard **auto-raise on iOS** (iOS
-      blocks programmatic focus outside a user gesture — needs an on-device solution) and
-      **swipe momentum** on rails (already default on modern iOS — verify it's actually needed
-      before touching it). _Letter-rail tap targets already shipped._
-- [ ] **Perf: art-cache warm-up** — prefetch covers so browsing is instant. Marginal for the
-      current one-cover-at-a-time game list; more relevant if a cover grid ever lands. (Image
-      lazy-loading is already applied where it matters.)
+- [ ] **Touch ergonomics — search-field keyboard auto-raise on iOS.** _(Deferred, not
+      dropped.)_ iOS blocks programmatic focus outside a user gesture, so there's no clean
+      web fix — it needs an on-device solution and is low-value next to the rest. Parked with
+      eyes open rather than left dangling. _Swipe momentum: **closed** — it's been the default
+      in iOS Safari since iOS 13 (`-webkit-overflow-scrolling` is a no-op now); nothing to
+      build. Letter-rail tap targets already shipped._
+- [x] **Perf: art-cache warm-up** — shipped: the game list's one big art slot re-fetches on
+      every cursor move, so it now warms the neighbours. `lib/prefetchCovers.js` kicks off
+      image loads for the rows just off the cursor (nearest-first, cache-version aware) so the
+      cover is already in the browser cache when you land there — no fetch flash. Gated to the
+      `lg` breakpoint (below it the art aside doesn't render). (Image lazy-loading was already
+      applied where it matters.)
 
 ### Follow-ups from shipped features
 

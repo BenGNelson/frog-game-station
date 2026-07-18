@@ -57,7 +57,11 @@ reachable from anywhere. The shape of them is the design:
   rectangles, so you end up reading the labels anyway. Retro titles are also long, and a
   grid truncates them. The art gets one slot, big, next to whatever you're pointing at —
   you find by reading and confirm by looking. The triggers move a *letter* at a time,
-  which is what keeps a 500-game system from being sixty D-pad presses.
+  which is what keeps a 500-game system from being sixty D-pad presses. That one slot
+  re-fetches on every cursor move, so it warms the neighbours: `lib/prefetchCovers.js`
+  kicks off image loads for the rows just off the cursor (nearest-first), landing them in
+  the browser cache before you arrive — gated to the `lg` breakpoint, since below it the
+  art aside doesn't render and there's nothing to warm.
 - **A collection is the SAME list.** A big collection (a tag with more than a screenful of
   games) is browsed with the exact same screen — `GameList` takes an optional `collection`
   prop and, when set, wears the neutral collection jade instead of one machine's colour,
