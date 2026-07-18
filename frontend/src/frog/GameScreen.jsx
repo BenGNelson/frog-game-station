@@ -10,6 +10,7 @@ import { FROG, systemStyle, reflection } from './theme.js'
 import { SystemFrog, Reflected } from './Frog.jsx'
 import { FinishedBadge } from './Shelf.jsx'
 import { agoLabel } from './shelf.js'
+import Keyboard from './Keyboard.jsx'
 
 // FROG — a game's page.
 //
@@ -30,6 +31,7 @@ import { agoLabel } from './shelf.js'
 export default function GameScreen({
   game,
   meta,
+  native = false,
   favorited,
   saves,
   loadingSaves,
@@ -39,6 +41,7 @@ export default function GameScreen({
   tags = [],
   allTags = [],
   tagPicker,
+  keyboard,
   download,
   focus,
   confirm,
@@ -55,8 +58,14 @@ export default function GameScreen({
   onOpenTags,
   onToggleTag,
   onAddTag,
+  onOpenNewTag,
   onTagPickerFocus,
   onCloseTags,
+  onKeyboardHover,
+  onKeyboardPress,
+  onCloseKeyboard,
+  onOpenSaveLabelKb,
+  onOpenSaveNoteKb,
   onDownload,
   saveEditor,
   onOpenSaveEditor,
@@ -213,10 +222,12 @@ export default function GameScreen({
           tags={tags}
           allTags={allTags}
           focus={tagPicker}
+          native={native}
           accent={s.accent}
           onFocus={onTagPickerFocus}
           onToggle={onToggleTag}
           onAdd={onAddTag}
+          onOpenNew={onOpenNewTag}
           onClose={onCloseTags}
         />
       )}
@@ -224,11 +235,34 @@ export default function GameScreen({
       {saveEditor && (
         <SaveEditor
           editor={saveEditor}
+          native={native}
           accent={s.accent}
           onEdit={onEditSaveField}
           onFocus={onSaveEditorFocus}
+          onOpenLabel={onOpenSaveLabelKb}
+          onOpenNote={onOpenSaveNoteKb}
           onDelete={onDeleteFromEditor}
           onClose={onCloseSaveEditor}
+        />
+      )}
+
+      {keyboard && (
+        <Keyboard
+          title={
+            keyboard.target === 'tag'
+              ? 'New collection'
+              : keyboard.target === 'saveNote'
+                ? 'Save note'
+                : 'Save name'
+          }
+          placeholder={keyboard.target === 'saveNote' ? 'Note (optional)' : 'Name'}
+          text={keyboard.text}
+          pos={keyboard.pos}
+          shift={keyboard.shift}
+          accent={s.accent}
+          onHover={onKeyboardHover}
+          onPress={onKeyboardPress}
+          onClose={onCloseKeyboard}
         />
       )}
 
@@ -881,10 +915,12 @@ function CollectionsRow({ tags, focused, accent, onFocus, onOpen }) {
 }
 
 // The tag picker (input-trapped, like the re-match dialog). The parent owns the D-pad
-// highlight over the EXISTING tags (A toggles this game's membership); the new-collection
-// field above the list is a native input for touch/keyboard — the controller drives the
-// list, a keyboard or thumb creates a brand-new tag. `focus.index` addresses the tag list.
-function TagPicker({ tags, allTags, focus, accent, onFocus, onToggle, onAdd, onClose }) {
+// highlight; `focus.index` addresses the EXISTING tags (A toggles this game's
+// membership), with -1 reserved for the "new collection" row above the list. How a NEW
+// tag gets its name depends on the input: a thumb/keyboard types into the native field,
+// a controller opens the on-screen keyboard (A on the new row). `focus.index` is dead in
+// touch mode — a finger taps directly.
+function TagPicker({ tags, allTags, focus, native, accent, onFocus, onToggle, onAdd, onOpenNew, onClose }) {
   const panelRef = useRef(null)
   useFocusTrap(panelRef)
   const [draft, setDraft] = useState('')
@@ -919,42 +955,62 @@ function TagPicker({ tags, allTags, focus, accent, onFocus, onToggle, onAdd, onC
           Tag this game to group it into a rail on your shelf.
         </p>
 
-        <div
-          className="mb-3 flex items-center gap-2 rounded-xl px-2 py-1"
-          style={{ border: `1px solid ${FROG.line}` }}
-        >
-          <input
-            data-testid="frog-tag-input"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault()
-                submit()
-              } else if (e.key === 'Escape') {
-                // While the field is focused the global handler routes Escape to the
-                // search toggle (its INPUT special-case), which the picker's input-trap
-                // then swallows — so close the picker here instead of relying on it.
-                e.preventDefault()
-                onClose()
-              }
-            }}
-            placeholder="New collection…"
-            maxLength={40}
-            className="min-w-0 flex-1 bg-transparent px-2 py-1.5 text-sm outline-none"
-            style={{ color: FROG.ink }}
-          />
+        {native ? (
+          // Touch / physical keyboard: the native field, as familiar as any other.
+          <div
+            className="mb-3 flex items-center gap-2 rounded-xl px-2 py-1"
+            style={{ border: `1px solid ${FROG.line}` }}
+          >
+            <input
+              data-testid="frog-tag-input"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  submit()
+                } else if (e.key === 'Escape') {
+                  // While the field is focused the global handler routes Escape to the
+                  // search toggle (its INPUT special-case), which the picker's input-trap
+                  // then swallows — so close the picker here instead of relying on it.
+                  e.preventDefault()
+                  onClose()
+                }
+              }}
+              placeholder="New collection…"
+              maxLength={40}
+              className="min-w-0 flex-1 bg-transparent px-2 py-1.5 text-sm outline-none"
+              style={{ color: FROG.ink }}
+            />
+            <button
+              type="button"
+              aria-label="Create collection"
+              onClick={submit}
+              disabled={!draft.trim()}
+              className="shrink-0 rounded-lg p-1.5"
+              style={{ color: draft.trim() ? `rgb(${accent})` : FROG.faint }}
+            >
+              <Plus className="h-5 w-5" aria-hidden="true" />
+            </button>
+          </div>
+        ) : (
+          // Controller: a focusable row that opens the on-screen keyboard on A.
           <button
             type="button"
-            aria-label="Create collection"
-            onClick={submit}
-            disabled={!draft.trim()}
-            className="shrink-0 rounded-lg p-1.5"
-            style={{ color: draft.trim() ? `rgb(${accent})` : FROG.faint }}
+            data-testid="frog-tag-new"
+            data-focused={focus.index < 0 || undefined}
+            onMouseMove={() => onFocus(-1)}
+            onClick={onOpenNew}
+            className="mb-3 flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-medium"
+            style={{
+              background: focus.index < 0 ? `rgba(${accent}, 0.16)` : 'transparent',
+              boxShadow: focus.index < 0 ? `inset 0 0 0 1px rgba(${accent}, 0.5)` : `inset 0 0 0 1px ${FROG.line}`,
+              color: focus.index < 0 ? FROG.ink : FROG.soft,
+            }}
           >
-            <Plus className="h-5 w-5" aria-hidden="true" />
+            <Plus className="h-4 w-4" aria-hidden="true" /> New collection…
           </button>
-        </div>
+        )}
 
         {allTags.length > 0 ? (
           <ul className="max-h-64 space-y-1 overflow-y-auto" style={{ scrollbarWidth: 'none' }}>
@@ -1003,10 +1059,11 @@ function TagPicker({ tags, allTags, focus, accent, onFocus, onToggle, onAdd, onC
   )
 }
 
-// The save-state editor (input-trapped, like the tag picker). Rename via the native name
-// field, annotate via the note field (keyboard/thumb), and pin or delete via the two
-// D-pad-reachable rows (parent owns `index`: 0 = pin, 1 = delete). Closing persists.
-function SaveEditor({ editor, accent, onEdit, onFocus, onDelete, onClose }) {
+// The save-state editor (input-trapped, like the tag picker). Four D-pad-reachable rows
+// — name (0), note (1), pin (2), delete (3). A thumb/keyboard types the name and note
+// into native fields; a controller opens the on-screen keyboard on the name/note rows.
+// Pin and delete are pure toggles either way. Closing persists.
+function SaveEditor({ editor, native, accent, onEdit, onFocus, onOpenLabel, onOpenNote, onDelete, onClose }) {
   const panelRef = useRef(null)
   useFocusTrap(panelRef)
   const { label, note, pinned, index } = editor
@@ -1045,46 +1102,73 @@ function SaveEditor({ editor, accent, onEdit, onFocus, onDelete, onClose }) {
           Give it a name, add a note, pin it to the top.
         </p>
 
-        <input
-          data-testid="frog-save-name"
-          value={label}
-          onChange={(e) => onEdit({ label: e.target.value })}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === 'Escape') {
-              e.preventDefault()
-              onClose()
-            }
-          }}
-          placeholder="Name (optional)"
-          maxLength={40}
-          className="mb-2 w-full rounded-xl px-3 py-2 text-sm outline-none"
-          style={field}
-        />
-        <textarea
-          data-testid="frog-save-note"
-          value={note}
-          onChange={(e) => onEdit({ note: e.target.value })}
-          onKeyDown={(e) => {
-            if (e.key === 'Escape') {
-              e.preventDefault()
-              onClose()
-            }
-          }}
-          placeholder="Note (optional)"
-          maxLength={280}
-          rows={2}
-          className="mb-3 w-full resize-none rounded-xl px-3 py-2 text-sm outline-none"
-          style={field}
-        />
+        {native ? (
+          <>
+            <input
+              data-testid="frog-save-name"
+              value={label}
+              onChange={(e) => onEdit({ label: e.target.value })}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === 'Escape') {
+                  e.preventDefault()
+                  onClose()
+                }
+              }}
+              placeholder="Name (optional)"
+              maxLength={40}
+              className="mb-2 w-full rounded-xl px-3 py-2 text-sm outline-none"
+              style={field}
+            />
+            <textarea
+              data-testid="frog-save-note"
+              value={note}
+              onChange={(e) => onEdit({ note: e.target.value })}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  e.preventDefault()
+                  onClose()
+                }
+              }}
+              placeholder="Note (optional)"
+              maxLength={280}
+              rows={2}
+              className="mb-3 w-full resize-none rounded-xl px-3 py-2 text-sm outline-none"
+              style={field}
+            />
+          </>
+        ) : (
+          // Controller: name and note are focusable rows showing their current text (or a
+          // placeholder), each opening the on-screen keyboard on A.
+          <>
+            <FieldRow
+              testid="frog-save-name-row"
+              value={label}
+              placeholder="Name (optional)"
+              on={index === 0}
+              accent={accent}
+              onFocus={() => onFocus(0)}
+              onOpen={onOpenLabel}
+            />
+            <FieldRow
+              testid="frog-save-note-row"
+              value={note}
+              placeholder="Note (optional)"
+              on={index === 1}
+              accent={accent}
+              onFocus={() => onFocus(1)}
+              onOpen={onOpenNote}
+            />
+          </>
+        )}
 
         <button
           type="button"
           data-testid="frog-save-pin"
-          data-focused={index === 0 || undefined}
-          onMouseMove={() => onFocus(0)}
+          data-focused={index === 2 || undefined}
+          onMouseMove={() => onFocus(2)}
           onClick={() => onEdit({ pinned: !pinned })}
-          className="mb-1.5 flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left"
-          style={rowStyle(index === 0, false)}
+          className="mb-1.5 mt-1 flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left"
+          style={rowStyle(index === 2, false)}
         >
           <span className="flex items-center gap-2 text-sm font-medium" style={{ color: FROG.ink }}>
             <Pin className="h-4 w-4" fill={pinned ? 'currentColor' : 'none'} style={{ color: pinned ? `rgb(${accent})` : FROG.soft }} aria-hidden="true" />
@@ -1096,11 +1180,11 @@ function SaveEditor({ editor, accent, onEdit, onFocus, onDelete, onClose }) {
         <button
           type="button"
           data-testid="frog-save-delete"
-          data-focused={index === 1 || undefined}
-          onMouseMove={() => onFocus(1)}
+          data-focused={index === 3 || undefined}
+          onMouseMove={() => onFocus(3)}
           onClick={onDelete}
           className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-medium"
-          style={{ color: 'rgb(239, 90, 90)', ...rowStyle(index === 1, true) }}
+          style={{ color: 'rgb(239, 90, 90)', ...rowStyle(index === 3, true) }}
         >
           <Trash2 className="h-4 w-4" aria-hidden="true" /> Delete save
         </button>
@@ -1115,6 +1199,31 @@ function SaveEditor({ editor, accent, onEdit, onFocus, onDelete, onClose }) {
         </button>
       </div>
     </div>
+  )
+}
+
+// A read-out-and-edit row: the field's current text (or a muted placeholder when empty),
+// focusable by the D-pad and opening the on-screen keyboard on A. The controller's stand-in
+// for a native text field.
+function FieldRow({ testid, value, placeholder, on, accent, onFocus, onOpen }) {
+  return (
+    <button
+      type="button"
+      data-testid={testid}
+      data-focused={on || undefined}
+      onMouseMove={onFocus}
+      onClick={onOpen}
+      className="mb-2 flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left"
+      style={{
+        background: on ? `rgba(${accent}, 0.16)` : 'transparent',
+        boxShadow: on ? `inset 0 0 0 1px rgba(${accent}, 0.5)` : `inset 0 0 0 1px ${FROG.line}`,
+      }}
+    >
+      <Pencil className="h-4 w-4 shrink-0" style={{ color: on ? `rgb(${accent})` : FROG.faint }} aria-hidden="true" />
+      <span className="min-w-0 flex-1 truncate text-sm" style={{ color: value ? FROG.ink : FROG.faint }}>
+        {value || placeholder}
+      </span>
+    </button>
   )
 }
 

@@ -40,10 +40,11 @@ what's below is what's left, roughly priority-ordered within each group.
 
 ### Follow-ups from shipped features
 
-- [ ] **Controller on-screen keyboard for creating NEW tags / naming saves** — today a
-      hardware/touch keyboard is needed to type a *new* tag or a save-state name; assigning
-      existing tags and toggling pin/finished are already fully controller-drivable. A reusable
-      grid-keyboard (the search screen has the pattern) would close the couch-controller gap.
+- [x] **Controller on-screen keyboard for creating NEW tags / naming saves** — shipped: a
+      reusable on-screen text keyboard (`lib/keyboard.js` + `frog/Keyboard.jsx`, auto-title-case
+      + Shift override) opens over the tag picker / save editor, so a gamepad can name a new
+      collection and a save state's label/note with no hardware keyboard. Touch keeps its native
+      fields; a physical keyboard has full parity.
 - [ ] **Tag-filtered list view** — a vertical, letter-railed list for a collection (like a
       system's game list), for tags with many games. The per-tag shelf rail covers small ones.
 

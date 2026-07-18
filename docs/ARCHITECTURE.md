@@ -77,9 +77,10 @@ reachable from anywhere. The shape of them is the design:
     finished toggle is a one-tap status (its own action, a trophy badge on every cover, and
     a "Finished" shelf rail). Tags are a *set* — a "Collections" focus zone opens a picker
     (input-trapped like the re-match dialog): the D-pad walks the existing tags and A toggles
-    this game's membership; a native text field above the list creates a brand-new tag
-    (touch keyboard / hardware keyboard — the controller drives the list, a keyboard or thumb
-    makes new tags). Each tag becomes its own shelf rail. Optimistic: an edit updates the
+    this game's membership; the "new collection" row above the list creates a brand-new tag —
+    a native field for touch, and for a controller the **on-screen keyboard** (see below), so
+    a couch gamepad can name a collection with no hardware keyboard. Each tag becomes its own
+    shelf rail. Optimistic: an edit updates the
     client `collections` state at once (so the rails react immediately) and fires the write.
   - **When IGDB has matched the ROM, the page fills with the real game** — a large hero
     banner whose **background *is* the screenshots, slowly crossfading** (no separate
@@ -131,6 +132,23 @@ reuse the very same results-zone cursor, so a controller walks them and A re-run
 thumb taps, exactly like the game rows — no third focus zone. The store is the same
 localStorage shape as recents/favorites (`lib/recentSearches.js`: newest-first, deduped
 case-insensitively, capped, DOM-free-testable), and a ✕ forgets one.
+
+### The text keyboard — free text a controller can reach
+
+Search's grid is a *search* keyboard (all-caps, no space, dead-keys dimmed); it deliberately
+can't write arbitrary text. But two places need arbitrary text — naming a **new collection**
+and a **save state's label/note** — and on a couch there's no hardware keyboard. So there's a
+second, general-purpose on-screen keyboard (`lib/keyboard.js` model + `frog/Keyboard.jsx`
+view): five alphabetical rows of letters/digits/light-punctuation, then a function row
+(Shift · Space · Backspace · Done). It **auto-title-cases for free** — a letter capitalises
+at the start of the field or after a space, so "elite four" lands as "Elite Four" without a
+single Shift press — and the Shift key overrides that for the one next letter ("NPC",
+"eShop"). It opens **over** the tag picker / save editor (a finger never sees it — touch keeps
+the native fields), is driven by the same one dispatcher as everything else (D-pad walks the
+board, A presses the lit key, B peels a character, Done commits), and a physical keyboard
+types straight into it (full parity, same as search). The model is pure and DOM-free-tested;
+`FrogBrowser` owns the `{ text, shift, pos }` and feeds every press — pad, click, or real key
+— through `applyKey`, so no source is a special case.
 
 ### Settings — a small utility overlay
 
@@ -310,9 +328,10 @@ one folder, keyed by a hash of its id.
     **note**, and a **pin**. It's stored in a per-slot `{slot}.json` sidecar beside the state
     (so it roams and is deleted with it), and the listing sorts **pinned-first, then newest**
     — an order all three surfaces (both save shelves + Jump Back In) inherit for free. The
-    editor mirrors the tag picker: native fields for the text, the D-pad for the pin/delete
-    toggles. Deleting a state also removes its sidecar; clearing every field drops it, so an
-    untouched save stays sidecar-free.
+    editor mirrors the tag picker: four D-pad rows (name · note · pin · delete), where the
+    name/note rows use the native fields on touch and open the on-screen keyboard for a
+    controller, and the pin/delete rows are pure toggles either way. Deleting a state also
+    removes its sidecar; clearing every field drops it, so an untouched save stays sidecar-free.
 
 ### Why the parent owns saves
 
@@ -349,9 +368,9 @@ re-hydrates against the live library like the other rails, and edits are optimis
 via `POST finished` / `POST tags` / `DELETE tags`). This is a deliberate step *toward* the
 backend: favorites and recents are still the last client-only (this-device) holdouts, but
 collections are the kind of state you curate on the couch and check on your phone, so they
-roam from day one. **Known limitation:** creating a *new* tag needs the native text field
-(touch / hardware keyboard); a controller-only on-screen keyboard for new tags is a follow-up
-(assigning *existing* tags is fully controller-drivable).
+roam from day one. Creating a *new* tag is fully controller-drivable — the "new collection"
+row opens the on-screen text keyboard (see "The text keyboard" above) — alongside the native
+field a touch/hardware keyboard uses.
 
 ### Presentation: titles and box art
 

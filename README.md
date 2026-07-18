@@ -23,7 +23,7 @@ Frog Game Station is a portfolio-quality, self-hosted web app that turns a folde
 
 Most emulator front-ends pick one audience. Frog is built for two, as first-class citizens:
 
-- **Couch + controller.** A five-screen, console-style UI you drive entirely with a gamepad (or keyboard): boot → shelf → game list → game page, with search reachable from anywhere. Rails, cursors, and a letter-at-a-time list keep hundreds of games one flick away.
+- **Couch + controller.** A five-screen, console-style UI you drive entirely with a gamepad (or keyboard): boot → shelf → game list → game page, with search reachable from anywhere. Rails, cursors, and a letter-at-a-time list keep hundreds of games one flick away. Even free text — naming a collection or a save state — has an on-screen keyboard, so you never need a hardware keyboard on the couch.
 - **Phone + thumb.** The exact same browser, touch-first: real tap targets on every tile and row, an on-screen keyboard for search, on-screen touch controls in the player, and an installable PWA so you can add it to your home screen and play downloaded games offline.
 
 It has a hand-drawn **frog mascot** and a **WATER / jade dark theme** — a pond-and-lilypad motif where things float, reflect, and ripple. And it enriches each game with **[IGDB](https://www.igdb.com)** metadata (cover art, screenshots, summary, genres, rating) via a background matcher, so a bare filename becomes a real game page.
