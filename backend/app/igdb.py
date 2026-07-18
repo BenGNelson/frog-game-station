@@ -57,8 +57,14 @@ _FIELDS = (
     "name,summary,first_release_date,rating,total_rating,"
     "genres.name,involved_companies.company.name,involved_companies.developer,"
     "involved_companies.publisher,cover.image_id,screenshots.image_id,"
-    "videos.video_id,videos.name,similar_games"
+    "videos.video_id,videos.name,similar_games,websites.url,websites.category"
 )
+
+# IGDB `website.category` enum values that name a WIKI. 2 = Fandom/Wikia (usually the
+# most game-specific), 3 = Wikipedia. Preferred in that order — a Fandom/Bulbapedia-
+# style wiki is a better in-game companion than a Wikipedia article. Every other
+# category (official site, social, storefront) is ignored.
+_WIKI_CATEGORIES = (2, 3)
 
 # Low-signal words dropped before token comparison, so article/preposition
 # differences ("The Legend of Zelda" vs "Legend of Zelda, The") don't cost score.
@@ -140,6 +146,22 @@ def year_of(candidate: dict | None) -> int | None:
         return None
 
 
+def pick_wiki(websites) -> str | None:
+    """The best wiki URL from an IGDB `websites` list (pure). Prefers a Fandom/Wikia
+    link (category 2) over Wikipedia (3); returns None when neither is present. The URL
+    is stored as-is — whether it's a renderable MediaWiki `/wiki/Title` page is decided
+    later by resolve_wiki/parse_wiki_url, not here."""
+    by_cat = {}
+    for w in websites or []:
+        cat, url = w.get("category"), w.get("url")
+        if url and cat in _WIKI_CATEGORIES:
+            by_cat.setdefault(cat, url)  # first of each category wins
+    for cat in _WIKI_CATEGORIES:
+        if cat in by_cat:
+            return by_cat[cat]
+    return None
+
+
 def flatten(candidate: dict | None) -> dict:
     """Flatten a chosen IGDB game dict into our stored fields (pure). Missing
     pieces come back as None / []."""
@@ -176,6 +198,9 @@ def flatten(candidate: dict | None) -> dict:
         # IGDB's own "more like this" — a list of IGDB game ids. Stored raw; the
         # library endpoint later intersects them with the ROMs you actually own.
         "similar_games": [int(i) for i in (candidate.get("similar_games") or []) if i],
+        # Best wiki link (Fandom/Wikia > Wikipedia) — the auto default source for the
+        # in-game wiki reader; a user override in game_wiki takes precedence.
+        "wiki_url": pick_wiki(candidate.get("websites")),
     }
 
 

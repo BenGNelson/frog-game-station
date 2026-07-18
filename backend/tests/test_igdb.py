@@ -129,6 +129,38 @@ def test_flatten_none_and_sparse():
     assert sparse["developer"] is None and sparse["screenshot_ids"] == []
     assert sparse["rating"] is None and sparse["release_year"] is None
     assert sparse["similar_games"] == []
+    assert sparse["wiki_url"] is None
+
+
+FANDOM = "https://zelda.fandom.com/wiki/Oracle_of_Seasons"
+WIKIPEDIA = "https://en.wikipedia.org/wiki/Oracle_of_Seasons"
+
+
+def test_pick_wiki_prefers_fandom_then_wikipedia():
+    # Fandom (cat 2) wins over Wikipedia (cat 3) when both are present...
+    both = [
+        {"category": 1, "url": "https://zelda.nintendo.com"},  # official — ignored
+        {"category": 3, "url": WIKIPEDIA},
+        {"category": 2, "url": FANDOM},
+    ]
+    assert igdb.pick_wiki(both) == FANDOM
+    # ...and Wikipedia is the fallback when there's no Fandom link.
+    assert igdb.pick_wiki([{"category": 3, "url": WIKIPEDIA}]) == WIKIPEDIA
+
+
+def test_pick_wiki_ignores_non_wiki_and_empty():
+    assert igdb.pick_wiki([{"category": 1, "url": "https://x.com"}]) is None
+    assert igdb.pick_wiki([{"category": 2, "url": ""}]) is None
+    assert igdb.pick_wiki([]) is None
+    assert igdb.pick_wiki(None) is None
+
+
+def test_flatten_carries_the_wiki_url():
+    out = igdb.flatten({
+        "id": 7, "name": "Oracle of Seasons",
+        "websites": [{"category": 2, "url": FANDOM}, {"category": 3, "url": WIKIPEDIA}],
+    })
+    assert out["wiki_url"] == FANDOM
 
 
 def test_image_url_builds_size_template():
