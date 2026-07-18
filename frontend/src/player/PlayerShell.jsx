@@ -872,10 +872,17 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
           return
         }
       }
+      // The wiki owns Escape while it's open (its own handler stops propagation) — this
+      // is the focus-independent fallback. It must come BEFORE the isRunning gate, since
+      // the reader always sits over a PAUSED game (isRunning is PLAYING-only).
+      if (e.key === 'Escape' && wikiOpen) {
+        e.preventDefault()
+        closeWiki()
+        return
+      }
       if (e.key !== 'Escape' || !isRunning(state)) return
       e.preventDefault()
-      if (wikiOpen) closeWiki()
-      else openMenu()
+      openMenu()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
