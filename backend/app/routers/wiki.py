@@ -119,13 +119,13 @@ def get_wiki_image(
         if os.path.isfile(cached):
             return FileResponse(cached, headers=_IMG_CACHE_HEADERS)
 
-    got = wiki.fetch_image(src)
+    got = wiki.fetch_image(src, max_bytes=_MAX_IMAGE_BYTES)
     if not got:
-        return Response(status_code=404)
+        return Response(status_code=404)  # unreachable / internal / oversized
     content, ctype = got
     ext = _IMAGE_EXT.get((ctype or "").split(";")[0].strip().lower())
-    if not ext or len(content) > _MAX_IMAGE_BYTES:
-        return Response(status_code=404)  # unknown/oversized/SVG → refuse
+    if not ext:
+        return Response(status_code=404)  # unknown type / SVG → refuse
     out = os.path.join(cache_dir, key + ext)
     os.makedirs(cache_dir, exist_ok=True)
     write_atomic(out, content)
@@ -144,7 +144,7 @@ def search_wiki(
     to known wikis) → the game's resolved wiki → a curated family wiki for `name` (a
     Pokémon hack → Bulbapedia) → Wikipedia as the universal fallback."""
     if not settings.wiki_enabled:
-        return {"results": []}
+        return {"host": None, "results": []}
     search_host = None
     if host and _known_wiki_host(host):
         search_host = host
@@ -173,5 +173,10 @@ def set_wiki_override(body: WikiOverrideBody):
     games = library.get_section("games")
     if not games or not library.safe_path(games, settings, body.id):
         return Response(status_code=404)
-    db.set_game_wiki(body.id, (body.wiki_url or "").strip() or None)
+    url = (body.wiki_url or "").strip() or None
+    # SSRF guard: a pinned URL is later fetched server-side, so reject anything but an
+    # http(s) link to a public host (no localhost / internal IPs). Clearing (None) is ok.
+    if url and not wiki.is_safe_wiki_url(url):
+        return Response(status_code=400)
+    db.set_game_wiki(body.id, url)
     return {"resolved": _resolve(body.id)}
