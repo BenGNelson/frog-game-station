@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Trophy, Tag } from 'lucide-react'
 import { coverUrl, ALPHABET, letterOf } from '../lib/library.js'
+import { neighborCoverUrls, prefetchCovers } from '../lib/prefetchCovers.js'
+import { useMediaQuery } from '../lib/useMediaQuery.js'
 import { windowRange, spacers } from '../lib/windowRange.js'
 import { FROG, systemStyle, reflection } from './theme.js'
 import Console from './Console.jsx'
@@ -110,6 +112,15 @@ export default function GameList({ system, collection, loading = false, games, f
     const el = scrollerRef.current?.querySelector('[data-focused]')
     el?.scrollIntoView({ block: 'center', behavior: 'auto' })
   }, [focus, games])
+
+  // Warm the covers just off the cursor so the big art aside swaps instantly instead
+  // of flashing blank as you scroll. Only the `lg` aside ever shows a cover, so below
+  // that breakpoint there's nothing to warm — don't spend a phone's bandwidth on art
+  // it won't render.
+  const showsArt = useMediaQuery('(min-width: 1024px)')
+  useEffect(() => {
+    if (showsArt) prefetchCovers(neighborCoverUrls(games, focus))
+  }, [focus, games, showsArt])
 
   // windowRange is 1-D and axis-agnostic; the names read horizontal because Big
   // Picture's rails got there first. 496 rows mounted at once is what made those
