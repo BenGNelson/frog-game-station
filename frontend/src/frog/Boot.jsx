@@ -6,7 +6,7 @@ import { FROG } from './theme.js'
 //
 // It exists for a reason, not for a logo: **iOS does not report a connected
 // controller until a button is pressed on it.** `gamepadconnected` never fires on
-// a sleeping pad. So something has to ask you to press a button before Frog can
+// a sleeping pad. So something has to ask you to press a button before Frog Game Station can
 // know whether you're holding one — and "PRESS A" on a boot screen is a far nicer
 // way to ask than a banner that says "no controller detected".
 //

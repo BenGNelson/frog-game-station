@@ -4,14 +4,14 @@ import { useFocusTrap } from '../lib/useFocusTrap.js'
 import { ROWS, effectiveCaps } from '../lib/keyboard.js'
 import { FROG } from './theme.js'
 
-// FROG — the on-screen keyboard.
+// FROG GAME STATION — the on-screen keyboard.
 //
 // The board a controller types on when there's free text to write that isn't a search:
 // a new collection's name, a save state's label or note. Touch never sees it (a finger
 // gets the device's own keyboard, same as search); this is the couch's answer to "I
 // have no keyboard and I need to name this".
 //
-// Presentational, like every other Frog screen: FrogBrowser owns the text, the cursor,
+// Presentational, like every other Frog Game Station screen: FrogBrowser owns the text, the cursor,
 // and the shift, and routes D-pad / keyboard / click all through the same `applyKey`.
 // This draws the draft and the board, lights the key under the cursor, and reports
 // hovers and presses back. The letters relabel to the case they'll actually produce,

@@ -8,7 +8,7 @@
 // a keypress does to the text) live here so a test can answer them instead of a
 // thumb on a pad.
 //
-// Presentational-and-owner split, same as the rest of Frog: the <Keyboard> component
+// Presentational-and-owner split, same as the rest of Frog Game Station: the <Keyboard> component
 // draws a board and a cursor; FrogBrowser owns the { text, shift, pos } and feeds
 // every press through `applyKey`. That's what lets the same board be driven by a
 // D-pad, a mouse click, or a real keyboard with none of them a special case.

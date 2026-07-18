@@ -44,7 +44,7 @@ export function HackBadge() {
 }
 import Console from './Console.jsx'
 
-// The shelf: Frog's home screen.
+// The shelf: Frog Game Station's home screen.
 //
 // The shape of it is the argument. Every other front-end opens on a wall of box art
 // and makes you hunt; this opens on the two things that are actually true of a games

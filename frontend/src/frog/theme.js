@@ -1,6 +1,6 @@
-// Frog's whole look lives here — every screen reads its colors from this file.
+// Frog Game Station's whole look lives here — every screen reads its colors from this file.
 //
-// FROG'S MOTIF IS WATER. Things float, reflect, and ripple. Cards hover over a dark
+// FROG GAME STATION'S MOTIF IS WATER. Things float, reflect, and ripple. Cards hover over a dark
 // pond with a soft reflection under them; selecting one sends out a ripple. The
 // palette is a near-black GREEN ground, one jade accent, and constant-RGB tokens
 // (not Tailwind color classes) so the look is fixed and deliberate.

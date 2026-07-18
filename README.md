@@ -21,7 +21,7 @@ Frog Game Station is a portfolio-quality, self-hosted web app that turns a folde
 
 ## What it is
 
-Most emulator front-ends pick one audience. Frog is built for two, as first-class citizens:
+Most emulator front-ends pick one audience. Frog Game Station is built for two, as first-class citizens:
 
 - **Couch + controller.** A five-screen, console-style UI you drive entirely with a gamepad (or keyboard): boot → shelf → game list → game page, with search reachable from anywhere. Rails, cursors, and a letter-at-a-time list keep hundreds of games one flick away. Even free text — naming a collection or a save state — has an on-screen keyboard, so you never need a hardware keyboard on the couch.
 - **Phone + thumb.** The exact same browser, touch-first: real tap targets on every tile and row, an on-screen keyboard for search, on-screen touch controls in the player, and an installable PWA so you can add it to your home screen and play downloaded games offline.
@@ -33,14 +33,14 @@ It has a hand-drawn **frog mascot** and a **WATER / jade dark theme** — a pond
 - **Five console-style screens** — boot, shelf, per-system game list, and a full game page, with search reachable anywhere. The shelf leads with "Jump back in" and Favorites, so most sessions never touch the alphabet. Click the right stick (R3, or `R`) for **"surprise me"** — a random title, from anywhere.
 - **Rich IGDB metadata** — a background matcher pairs each ROM with its IGDB entry: a hero banner built from slowly crossfading screenshots, cover art, summary, genres, rating, and developer/publisher. Unmatched ROMs (a hack, or no key configured) degrade cleanly to a basic cover-and-title page — nothing ever looks broken.
 - **"More like this"** — each game page suggests similar titles **from your own library**, using IGDB's similar-games list intersected with the ROMs you actually own, so every suggestion is one you can play.
-- **Play-time + "Most played"** — Frog clocks how long you actually play each game (server-side, so it roams) and surfaces your most-played titles as their own shelf rail; each game page shows its total.
+- **Play-time + "Most played"** — Frog Game Station clocks how long you actually play each game (server-side, so it roams) and surfaces your most-played titles as their own shelf rail; each game page shows its total.
 - **Collections & a finished flag** — mark games finished (a trophy badge everywhere the cover shows) and sort your library into free-form collections, each its own shelf rail — and once a collection outgrows its rail, a "see all" tile opens it as a full, letter-railed list. Server-side, so your collections and completion roam from the couch to your phone.
 - **Set your own cover art** — grab the current frame mid-game ("Set as Cover" in the pause menu) and it becomes that game's box art everywhere — perfect for ROM hacks and titles with no match. Revert any time.
 - **ROM-hack aware** — mark a game as "a ROM hack of &lt;base game&gt;" (a toggle in the match picker): it borrows the base's art and details but keeps its own name, wears a **HACK** badge everywhere, and its page links straight to the base game when you own it.
 - **Save states + battery saves (SRAM)** — your in-game "Save → Continue" battery save roams and is backed up server-side; explicit save states are captured as snapshots (with a screenshot thumbnail) and relaunched from the game page. Rename, annotate, and pin your save states so the one you want is named and on top.
-- **Offline play + installable PWA** — download games to your device, add Frog to your home screen, and play offline; the shelf, list, and search all fall back to your downloaded library automatically.
+- **Offline play + installable PWA** — download games to your device, add Frog Game Station to your home screen, and play offline; the shelf, list, and search all fall back to your downloaded library automatically.
 - **Full touch controls** — a from-scratch touch overlay with a real multi-touch d-pad (true diagonals), thumb-rolls between face buttons, and hit areas larger than the buttons, because thumbs undershoot.
-- **Gamepad-native** — index-arithmetic navigation drives a controller, arrow keys, and a mouse through identical code. A boot "PRESS A" both wakes the controller (iOS won't report one until a button is pressed) and tells Frog to lay itself out for a pad or a thumb.
+- **Gamepad-native** — index-arithmetic navigation drives a controller, arrow keys, and a mouse through identical code. A boot "PRESS A" both wakes the controller (iOS won't report one until a button is pressed) and tells Frog Game Station to lay itself out for a pad or a thumb.
 - **Drawn, not scraped** — console art is illustrated in-app (no official logos), so the collection has one coherent look and the repo stays publishable.
 - **A settings screen** — check the IGDB matcher's status and trigger a re-scan, set the player input mode (auto / touch / pad), and toggle optional navigation sound, all controller- and touch-drivable from a header gear.
 - **A living WATER theme** — ambient pond caustics behind the shelf, a machine-coloured back-lit header, cover reflections, a faint cartridge watermark per system, and a true-black ground on phones (kinder to OLED). All motion respects `prefers-reduced-motion`.
@@ -104,7 +104,7 @@ the one or two things to set (`ROMS_DIR`, and IGDB credentials for cover art).
 
 The EmulatorJS engine is **not** committed to the repo (it's large and pinned to v4.2.3). `scripts/fetch-emulatorjs.sh` downloads it into `frontend/public/emulatorjs/` (gitignored); alternatively the player can be pointed at the public CDN.
 
-IGDB is optional. Without credentials, Frog runs fine — every game just shows the basic cover-and-title page. To enable rich metadata, register a free Twitch application and set `IGDB_CLIENT_ID` / `IGDB_CLIENT_SECRET` in `.env`.
+IGDB is optional. Without credentials, Frog Game Station runs fine — every game just shows the basic cover-and-title page. To enable rich metadata, register a free Twitch application and set `IGDB_CLIENT_ID` / `IGDB_CLIENT_SECRET` in `.env`.
 
 ## Configuration
 
@@ -144,7 +144,7 @@ Backend internal port is `8000`, with the API mounted at `/api`. Data directorie
 
 The frontend degrades gracefully when the backend is absent, so a lot of UI iteration can happen with just the dev server.
 
-To run Frog as its **own installable PWA** (its own home-screen icon and offline scope), serve it at its own HTTPS origin — see [`docs/DEPLOY.md`](docs/DEPLOY.md).
+To run Frog Game Station as its **own installable PWA** (its own home-screen icon and offline scope), serve it at its own HTTPS origin — see [`docs/DEPLOY.md`](docs/DEPLOY.md).
 
 ## Testing
 

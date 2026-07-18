@@ -1,4 +1,4 @@
-// Favorite games — starred on a game's page, browsed as a rail in Frog. Stored
+// Favorite games — starred on a game's page, browsed as a rail in Frog Game Station. Stored
 // client-side (this device), the same as "recently played" and in-browser saves;
 // it graduates to the backend when save-roaming does. Storage is injected so the
 // logic is unit-testable without a DOM.

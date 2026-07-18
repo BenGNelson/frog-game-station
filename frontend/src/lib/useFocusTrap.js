@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 
-// Give an overlay real-modal manners ON TOP of Frog's virtual-cursor navigation.
+// Give an overlay real-modal manners ON TOP of Frog Game Station's virtual-cursor navigation.
 // The screens are driven by a global window key handler (arrows move a cursor, Enter
 // acts on it), and real DOM focus is otherwise suppressed — so a dialog opening is
 // invisible to a screen reader and Tab can wander into the page behind it. This hook,

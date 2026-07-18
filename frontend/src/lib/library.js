@@ -207,11 +207,11 @@ export function gameOfflineUrls(id, core) {
 }
 
 // --- Games: per-system drill-in ---------------------------------------------
-// Frog browses one system at a time (Game Boy alone has hundreds of titles). These
+// Frog Game Station browses one system at a time (Game Boy alone has hundreds of titles). These
 // pure helpers shape the data behind that; the components just draw it.
 
 // The letter buckets, in display order: A–Z then '#' (numeric/other titles) last.
-// Frog's game-list letter rail (GameList.jsx) reads it.
+// Frog Game Station's game-list letter rail (GameList.jsx) reads it.
 export const ALPHABET = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ', '#']
 
 // One system's games, alphabetised by title (natural compare so "Pokemon 2"

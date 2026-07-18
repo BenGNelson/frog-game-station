@@ -31,13 +31,13 @@ render a screen. That separation is the backbone of everything below.
 
 ## The five screens
 
-Frog is five screens — **boot → shelf → game list → game page** — with **search**
+Frog Game Station is five screens — **boot → shelf → game list → game page** — with **search**
 reachable from anywhere. The shape of them is the design:
 
 - **The boot exists for a reason, not for a logo.** iOS does not report a connected
   controller until a button is pressed on it, so *something* has to ask for that press.
   "PRESS A" is a nicer way to ask than a "no controller detected" banner — and the press
-  is also what tells Frog whether to lay itself out for a pad or a thumb. A faint version
+  is also what tells Frog Game Station whether to lay itself out for a pad or a thumb. A faint version
   stamp sits in the corner (the app version, injected from `package.json` at build via a
   Vite `define` → `import.meta.env.VITE_APP_VERSION`) — a quiet portfolio signature.
 - **The rails, in order: "Jump back in", Favorites, "Most played", "Finished", then one
@@ -180,10 +180,10 @@ machine, name it in plain text.
 
 ### The WATER theme
 
-Frog has **its own theme**, and it commits to it. The motif is **WATER** — things float,
+Frog Game Station has **its own theme**, and it commits to it. The motif is **WATER** — things float,
 reflect, and ripple, on a green-black (jade) ground. The frog mascot itself wears the
 focused machine's colours, which makes it the focus indicator rather than a decoration.
-Frog is a **dark, single-theme** app by deliberate choice, not by omission of a light
+Frog Game Station is a **dark, single-theme** app by deliberate choice, not by omission of a light
 mode.
 
 The motif is carried by a set of small **flourishes**, all pulling on the same two
@@ -226,12 +226,12 @@ colours), and the **button-legend glyphs** keep the real controller's face-butto
 
 - **A skinned start screen.** The box-art start screen is styled by injecting CSS into the
   player document (the engine's Start button, which is also the iOS audio unlock, has to
-  stay there). It wears Frog's colours: a jade glow over the green-black pond, with the
+  stay there). It wears Frog Game Station's colours: a jade glow over the green-black pond, with the
   cover art floating and a **reflection** cast into the water below — the same signature as
   the mascot's reflected art. So the whole launch — shelf → start screen → the loading frog
   → the game — is one continuous world rather than a screen that abruptly changes colour.
   The styler takes the palette as parameters (`accent`, `ground`) so the bridge stays
-  theme-agnostic; the player passes Frog's.
+  theme-agnostic; the player passes Frog Game Station's.
 - **The whole start screen is the tap target, and there is no top bar.** iOS only lets a
   game begin *with sound* from a real touch, so a full-screen tap layer sits over
   everything and, on a real tap, clicks the engine's Start button from inside that
@@ -277,7 +277,7 @@ Worth stating so nobody plans around a fantasy:
 
 | Want | Reality |
 |---|---|
-| Force landscape | **No.** iOS ignores the manifest's `orientation`, and `screen.orientation.lock()` is behind an off-by-default experimental flag. Frog detects portrait and shows a rotate prompt (controller mode only — touch has a real portrait layout). |
+| Force landscape | **No.** iOS ignores the manifest's `orientation`, and `screen.orientation.lock()` is behind an off-by-default experimental flag. Frog Game Station detects portrait and shows a rotate prompt (controller mode only — touch has a real portrait layout). |
 | Fullscreen API | Absent on iPhone; webkit-prefixed on iPad. The **installed PWA** is the real fullscreen path. Fullscreen must target the player's *wrapper*, not the iframe, or the game goes fullscreen without its controls. |
 | Haptics | **None.** WebKit has no vibration API. The press glow carries the whole feel. |
 | Wake lock | Works (iOS 16.4+), but is **released whenever the page hides and never returned** — it must be re-acquired on every `visibilitychange`. |
@@ -319,7 +319,7 @@ control inside it — a focused button would let a physical Enter fire *both* th
 so the key router stays the single driver while assistive tech still enters and announces the
 dialog.
 
-**Frog works offline.** The shelf, game list, and search are all built from one array of
+**Frog Game Station works offline.** The shelf, game list, and search are all built from one array of
 `{ id, name, core, label }` items — online that's the library API; offline it's the games
 you've **downloaded** (an on-device manifest). A pure mapping turns a manifest row into
 that shape, deriving each system `label` from the stored core. The **live library wins
@@ -327,7 +327,7 @@ whenever it has answered** — the fallback engages only when the API has handed
 nothing (deliberately *not* gated on a health probe, so a flaky probe never hides a
 reachable library behind the downloaded-only view). An **"Offline" chip** appears exactly
 when it did fall back. The library fetch is **one-shot** (polling churned array refs and
-yanked the scroll), re-running once on the **offline→online edge** so a Frog opened in
+yanked the scroll), re-running once on the **offline→online edge** so a Frog Game Station opened in
 airplane mode fills in the full library by itself when the network returns. Launching a
 downloaded game offline hands off to the player exactly as online — it boots from the
 cached ROM and engine.
@@ -519,7 +519,7 @@ SQLite-cache pattern, not an external script.
 
 ## Packaging (Docker / nginx / PWA / offline)
 
-Frog is a self-contained Docker Compose stack:
+Frog Game Station is a self-contained Docker Compose stack:
 
 - **backend** — the FastAPI app (uvicorn), API mounted at `/api` on internal port `8000`.
   ROMs are mounted **read-only** from `GAMES_ROM_DIR`; the `/data` named volume holds the
@@ -542,7 +542,7 @@ mount** (only when the base is a local path — a CDN base is assumed present) a
 missing, shows a friendly "engine not installed" card with the one command to fix it. So
 the not-yet-fetched state explains itself instead of looking like a bug.
 
-Frog is an **installable PWA**: a manifest + service worker make it addable to a home
+Frog Game Station is an **installable PWA**: a manifest + service worker make it addable to a home
 screen and let downloaded games play **offline** (the shelf, list, and search fall back to
 the on-device downloaded manifest, and the player boots from the cached ROM + engine).
 

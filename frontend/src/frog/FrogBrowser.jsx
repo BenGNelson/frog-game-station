@@ -40,7 +40,7 @@ import GameScreen from './GameScreen.jsx'
 import GameList, { GameListHeader, CollectionListHeader } from './GameList.jsx'
 import './frog.css'
 
-// FROG — the games browser.
+// FROG GAME STATION — the games browser.
 //
 // One screen at a time, one thing in focus, everything reachable from a D-pad
 // without ever touching the glass. It's a front-end for a couch and a controller —
@@ -62,7 +62,7 @@ const MOVES = new Set(['up', 'down', 'left', 'right', 'railPrev', 'railNext'])
 // TAG_MAXLEN, shared from collections.js for the same reason).
 const NOTE_MAXLEN = 280
 
-// Frog's place, held for the life of the tab rather than the life of the component.
+// Frog Game Station's place, held for the life of the tab rather than the life of the component.
 //
 // This has to live outside React. FrogBrowser UNMOUNTS every time you launch a game
 // (the player is a different route), so with `useState` alone, quitting a game would
@@ -75,7 +75,7 @@ export default function FrogBrowser() {
   const navigate = useNavigate()
   const { online } = useOnline()
 
-  // Re-fetch the library once the server becomes reachable again, so a Frog opened in
+  // Re-fetch the library once the server becomes reachable again, so Frog Game Station opened in
   // airplane mode fills in the full library on its own when the network returns —
   // WITHOUT polling, which would churn a steady online session's data every interval
   // (each poll a fresh array ref, yanking the game list's scroll back to focus). The
@@ -1262,7 +1262,7 @@ export default function FrogBrowser() {
     },
   })
 
-  // Keyboard parity, so a desktop drives it identically. Frog is a controller app,
+  // Keyboard parity, so a desktop drives it identically. Frog Game Station is a controller app,
   // but "I'm at my laptop and I want to check something" must not require a pad.
   // Held in a ref because the listener is installed once — reading `screen`/`typeKey`
   // straight from the closure would freeze them at their first-render values.

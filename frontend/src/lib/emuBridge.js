@@ -448,9 +448,9 @@ export function styleStartScreen(frame, { coverUrl, name, onStart, accent, groun
   }
   if (!doc?.head || doc.getElementById(START_STYLE_ID)) return false
 
-  // Frog's water identity by default (green-black pond, jade glow); falls back to the
+  // Frog Game Station's water identity by default (green-black pond, jade glow); falls back to the
   // Games violet if no palette is passed. PlayerShell hands in FROG's colours — the
-  // player is Frog's screen now, so the launch flow (shelf → start → loading frog →
+  // player is Frog Game Station's screen now, so the launch flow (shelf → start → loading frog →
   // game) should read as one continuous world, not a violet screen that turns green.
   const rgb = accent || sectionAccent('games').rgb
   // A hex, deliberately: the pond gradient appends an alpha (`${bg}00`), which only
@@ -465,7 +465,7 @@ export function styleStartScreen(frame, { coverUrl, name, onStart, accent, groun
       transform: scale(1.25);
       opacity: 0.5;
     }
-    /* The pond: Frog's green-black ground with a jade glow welling up from below,
+    /* The pond: Frog Game Station's green-black ground with a jade glow welling up from below,
        instead of the app-wide violet radiance. */
     .ejs_parent::after {
       content: '';
@@ -493,7 +493,7 @@ export function styleStartScreen(frame, { coverUrl, name, onStart, accent, groun
         0 0 80px -10px rgba(${rgb},0.55);
       animation: hq-float 5s ease-in-out infinite;
     }
-    /* Frog's signature: the thing floating on the pond throws a soft reflection down
+    /* Frog Game Station's signature: the thing floating on the pond throws a soft reflection down
        into it. A mirrored, fading copy of the art, tucked right under it. */
     .hq-start-reflect {
       width: 132px; aspect-ratio: 3/4;
@@ -513,7 +513,7 @@ export function styleStartScreen(frame, { coverUrl, name, onStart, accent, groun
       font: 600 18px/1.3 system-ui, -apple-system, sans-serif;
       text-shadow: 0 2px 20px rgba(0,0,0,0.7);
     }
-    /* The cue: how to start it, in Frog's jade — and it names the A button, so a
+    /* The cue: how to start it, in Frog Game Station's jade — and it names the A button, so a
        controller player learns they don't have to reach for the glass. */
     .hq-start-cue {
       margin: 2px 0 0; letter-spacing: 0.24em;
@@ -620,7 +620,7 @@ export function styleStartScreen(frame, { coverUrl, name, onStart, accent, groun
       art.alt = ''
       column.appendChild(art)
 
-      // Frog's water reflection: a mirrored, fading copy of the art on the pond below.
+      // Frog Game Station's water reflection: a mirrored, fading copy of the art on the pond below.
       const reflect = doc.createElement('img')
       reflect.className = 'hq-start-reflect'
       reflect.src = coverUrl
@@ -644,7 +644,7 @@ export function styleStartScreen(frame, { coverUrl, name, onStart, accent, groun
     host.insertBefore(column, button)
     column.appendChild(button)
 
-    // How to start it, in Frog's jade. "TAP TO PLAY" because a tap is the one thing
+    // How to start it, in Frog Game Station's jade. "TAP TO PLAY" because a tap is the one thing
     // that works everywhere — on iOS a pad literally can't start a game with sound, so
     // promising "PRESS A" there was a lie. Pressing A on iOS bounces this cue instead
     // (flashStartCue), which reads as "no — tap".

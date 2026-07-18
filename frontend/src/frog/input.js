@@ -1,13 +1,13 @@
-// How Frog reads its controls — touch (fingers) or pad (a gamepad, or a desktop
+// How Frog Game Station reads its controls — touch (fingers) or pad (a gamepad, or a desktop
 // keyboard/mouse, which drive the same grid-and-focus model).
 //
-// Frog was born controller-first, but it's also the Library's games screen, and on
+// Frog Game Station was born controller-first, but it's also the Library's games screen, and on
 // a phone there's no controller — so the same browser has to be first-class by
 // touch. Rather than fork into two apps, it tracks ONE mode and lets each screen
 // adapt the couple of places where a finger and a D-pad genuinely want different
 // things (chiefly: the search keyboard).
 
-// The mode Frog opens in, before any input has happened. A coarse pointer — a
+// The mode Frog Game Station opens in, before any input has happened. A coarse pointer — a
 // phone or tablet touchscreen — means fingers, so start in touch; a fine pointer —
 // a desktop mouse — means the keyboard/pad model. Either way the first real input
 // flips it (see below), so this is only the opening guess.

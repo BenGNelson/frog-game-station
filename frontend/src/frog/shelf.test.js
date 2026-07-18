@@ -18,7 +18,7 @@ describe('buildSystems', () => {
 
   it('keeps a system with no games — dimmed, not missing', () => {
     // A gap in the row is more confusing than an empty shelf, and it's the only
-    // thing that tells you what Frog *could* play if you dropped a ROM in.
+    // thing that tells you what Frog Game Station *could* play if you dropped a ROM in.
     const snes = buildSystems(LIBRARY).find((s) => s.label === 'Super Nintendo')
     expect(snes.count).toBe(0)
   })
