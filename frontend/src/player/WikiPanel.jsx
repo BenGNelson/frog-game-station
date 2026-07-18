@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { ArrowLeft, X, ExternalLink, Search, BookOpen, Loader2 } from 'lucide-react'
 import { FROG } from '../frog/theme.js'
 import { fetchWikiSource, fetchWikiPage, searchWiki, setWikiOverride } from '../lib/wikiApi.js'
 import {
-  wikiLinkTarget, pushPage, goBack, currentPage, canGoBack, startHistory, emptyHistory,
+  wikiLinkTarget, pushPage, goBack, currentPage, canGoBack, startHistory, emptyHistory, nextLinkIndex,
 } from '../lib/wikiNav.js'
 import '../frog/frog.css'
+
+const LINK_SELECTOR = 'a[data-wiki-title], a[data-wiki-href]'
 
 // The in-game wiki reader. NOT an iframe: a cross-origin iframe can't be scrolled or
 // navigated by a controller, and the wikis worth reading block being framed anyway.
@@ -16,7 +18,7 @@ import '../frog/frog.css'
 // stays mounted for the session and only hides via `display:none`. That's what keeps
 // your article + scroll position across a close/reopen — "peek and keep your place".
 // It loads once, on first open.
-export default function WikiPanel({
+const WikiPanel = forwardRef(function WikiPanel({
   open,
   gameId,
   gameName,
@@ -24,7 +26,7 @@ export default function WikiPanel({
   onClose,
   defaultSearchHost = 'en.wikipedia.org',
   legend = null,
-}) {
+}, ref) {
   const [phase, setPhase] = useState('idle') // idle|loading|reading|nolink|error
   const [source, setSource] = useState(null) // resolved {host, title, url, source}
   const [article, setArticle] = useState(null) // {title, html, sections}
@@ -35,10 +37,30 @@ export default function WikiPanel({
   const loadedRef = useRef(false)
   const scrollerRef = useRef(null)
   const bodyRef = useRef(null)
+  const linkFocusRef = useRef(-1) // controller link focus; -1 = reading, not on a link
 
   const scrollTop = () => {
     if (scrollerRef.current) scrollerRef.current.scrollTop = 0
   }
+
+  // --- controller link focus (a highlighted <a> the pad steps through) -------
+  const links = () => Array.from(bodyRef.current?.querySelectorAll(LINK_SELECTOR) || [])
+
+  const clearLinkFocus = useCallback(() => {
+    bodyRef.current?.querySelector('a.wiki-focus')?.classList.remove('wiki-focus')
+    linkFocusRef.current = -1
+  }, [])
+
+  const moveLink = useCallback((dir) => {
+    const els = links()
+    if (!els.length) return
+    const next = nextLinkIndex(els.length, linkFocusRef.current, dir)
+    els[linkFocusRef.current]?.classList.remove('wiki-focus')
+    const el = els[next]
+    el?.classList.add('wiki-focus')
+    el?.scrollIntoView({ block: 'center', behavior: 'auto' })
+    linkFocusRef.current = next
+  }, [])
 
   // Fetch one article and make it current. `push` appends to the in-reader history
   // (following a link); otherwise it replaces (the initial load / a back step).
@@ -51,6 +73,7 @@ export default function WikiPanel({
         setArticle(art)
         setPhase('reading')
         setHistory((h) => (push ? pushPage(h, title) : h.at < 0 ? startHistory(title) : h))
+        clearLinkFocus()
         scrollTop()
       } catch (e) {
         if (article) setFlash(e.status === 404 ? 'That page has no article.' : 'Could not load that page.')
@@ -59,8 +82,23 @@ export default function WikiPanel({
         setPageBusy(false)
       }
     },
-    [gameId, article]
+    [gameId, article, clearLinkFocus]
   )
+
+  // Follow a resolved link target — the shared path for a tap and a controller A.
+  const follow = useCallback(
+    (target) => {
+      if (!target) return
+      if (target.type === 'internal') loadPage(target.title, { push: true })
+      else if (target.type === 'external') window.open(target.href, '_blank', 'noopener,noreferrer')
+    },
+    [loadPage]
+  )
+
+  const activateLink = useCallback(() => {
+    const el = links()[linkFocusRef.current]
+    if (el) follow(wikiLinkTarget(el))
+  }, [follow])
 
   // Resolve which wiki this game points at, then load its default page (or offer
   // search when nothing is linked).
@@ -98,18 +136,51 @@ export default function WikiPanel({
       const target = wikiLinkTarget(e.target, bodyRef.current)
       if (!target) return
       e.preventDefault()
-      if (target.type === 'internal') loadPage(target.title, { push: true })
-      else if (target.type === 'external') window.open(target.href, '_blank', 'noopener,noreferrer')
+      follow(target)
     },
-    [loadPage]
+    [follow]
   )
 
+  // Returns whether it actually went back — PlayerShell closes the panel when it can't.
   const back = useCallback(() => {
-    if (!canGoBack(history)) return
+    if (!canGoBack(history)) return false
     const next = goBack(history)
     setHistory(next)
     loadPage(currentPage(next)) // replace, don't push
+    return true
   }, [history, loadPage])
+
+  // Scroll to the previous/next section heading — fast structural nav (triggers).
+  const scrollToSection = useCallback((dir) => {
+    const scroller = scrollerRef.current
+    const body = bodyRef.current
+    if (!scroller || !body) return
+    const heads = Array.from(body.querySelectorAll('h1, h2, h3'))
+    if (!heads.length) return
+    const sTop = scroller.getBoundingClientRect().top
+    const tops = heads.map((h) => h.getBoundingClientRect().top - sTop + scroller.scrollTop)
+    const cur = scroller.scrollTop
+    let target
+    if (dir > 0) target = tops.find((t) => t > cur + 4)
+    else {
+      const before = tops.filter((t) => t < cur - 4)
+      target = before.length ? before[before.length - 1] : 0
+    }
+    if (target != null) scroller.scrollTo({ top: Math.max(0, target - 8), behavior: 'auto' })
+  }, [])
+
+  // The controller surface PlayerShell drives while the panel owns the pad.
+  useImperativeHandle(ref, () => ({
+    scroll(dy) { scrollerRef.current?.scrollBy({ top: dy, behavior: 'auto' }) },
+    page(dir) {
+      const el = scrollerRef.current
+      if (el) el.scrollBy({ top: dir * el.clientHeight * 0.85, behavior: 'auto' })
+    },
+    section: scrollToSection,
+    moveLink,
+    activate: activateLink,
+    back,
+  }), [scrollToSection, moveLink, activateLink, back])
 
   const openInTab = () => {
     if (source?.url) window.open(source.url, '_blank', 'noopener,noreferrer')
@@ -224,7 +295,9 @@ export default function WikiPanel({
       {legend && <div className="shrink-0 px-3 py-2">{legend}</div>}
     </div>
   )
-}
+})
+
+export default WikiPanel
 
 function Centered({ children }) {
   return (

@@ -120,6 +120,10 @@ function EngineMissing({ onBack }) {
   )
 }
 
+// One d-pad/stick step of wiki scroll. Repeats while held (the pad loop re-fires
+// up/down), so a held direction reads as a smooth scroll rather than a jump.
+const WIKI_SCROLL_STEP = 90
+
 export default function PlayerShell({ id, core, name, label, coverV, loadStateUrl }) {
   const navigate = useNavigate()
 
@@ -422,14 +426,24 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
     setListeningFor(null)
   }, [])
 
-  // Open the wiki over the (already-paused) game. Mount-on-first-open so the panel
-  // persists; opened from the pause menu, so the game stays paused underneath.
-  const openWiki = useCallback(() => {
-    setWikiMounted(true)
+  // Imperative controls the wiki panel exposes (scroll / link nav / back), driven from
+  // the gamepad handler below while the reader owns the pad.
+  const wikiRef = useRef(null)
+  // How the reader was opened: from the pause menu (game already paused → close returns
+  // to the menu) or by the hotkey mid-play (pause now → close resumes the game).
+  const wikiFromGameRef = useRef(false)
+
+  const openWiki = useCallback((fromGame = false) => {
+    wikiFromGameRef.current = fromGame
+    setWikiMounted(true) // mount-on-first-open, then it persists (keeps scroll/article)
     setWikiOpen(true)
+    if (fromGame) dispatch('pause') // the hotkey fires mid-play; pause under the reader
   }, [])
 
-  const closeWiki = useCallback(() => setWikiOpen(false), [])
+  const closeWiki = useCallback(() => {
+    setWikiOpen(false)
+    if (wikiFromGameRef.current) dispatch('resume') // hotkey-opened → back to the game
+  }, [])
 
   const chooseScheme = useCallback(
     (scheme) => saveSettings({ ...settings, controlScheme: scheme }),
@@ -447,6 +461,19 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
   const captureBinding = useCallback(
     (buttonIndex, id) => {
       if (listeningFor == null) return false
+
+      // The wiki hotkey is an app action, not a RetroPad button — it can take ANY
+      // button except the app's own Menu/Guide. It MAY collide with a game button
+      // (then that button also acts in-game); that's on the player, said in the panel.
+      if (listeningFor === 'wiki') {
+        if (buttonIndex === 9 || buttonIndex === 16) {
+          setError('That button belongs to the app — pick another.')
+        } else {
+          saveSettings({ ...settings, wikiHotkey: buttonIndex })
+        }
+        setListeningFor(null)
+        return true
+      }
 
       // The Menu button is the app's (short press = the game's START, long press =
       // this menu). Handing it to the game as well would make every long press do
@@ -629,8 +656,16 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
     onDisconnect: () => setPadActive(false),
 
     // While the Controls screen is waiting for a press, that press IS the binding —
-    // it must not also move the cursor. Returning true swallows it.
-    onRawButton: (index, id) => captureBinding(index, id),
+    // it must not also move the cursor. Returning true swallows it. Otherwise, in-game,
+    // the wiki hotkey opens the reader straight from play (default R3; rebindable).
+    onRawButton: (index, id) => {
+      if (captureBinding(index, id)) return true
+      if (index === settings.wikiHotkey && isRunning(state)) {
+        openWiki(true)
+        return true
+      }
+      return false
+    },
 
     // The Menu button is ours alone (START is left unbound in the preset, so this
     // can't double-fire): a short press is the game's START, a long press opens
@@ -671,9 +706,23 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
       if (!menuOpenRef.current) return
 
       if (wikiOpen) {
-        // The wiki owns the pad while it's up. For now B closes it; richer nav
-        // (scroll, link-follow) lands with the controller-nav milestone.
-        if (action === 'back') closeWiki()
+        // The reader owns the pad. Sticks/D-pad scroll (both arrive here as up/down
+        // with velocity-scaled repeat); shoulders page; triggers jump section; D-pad
+        // left/right steps the focused link; A opens it; B goes back, then closes.
+        const w = wikiRef.current
+        switch (action) {
+          case 'up': w?.scroll(-WIKI_SCROLL_STEP); break
+          case 'down': w?.scroll(WIKI_SCROLL_STEP); break
+          case 'left': w?.moveLink(-1); break
+          case 'right': w?.moveLink(1); break
+          case 'railPrev': w?.page(-1); break
+          case 'railNext': w?.page(1); break
+          case 'jumpPrev': w?.section(-1); break
+          case 'jumpNext': w?.section(1); break
+          case 'confirm': w?.activate(); break
+          case 'back': if (!w?.back()) closeWiki(); break
+          default: break
+        }
         return
       }
 
@@ -683,6 +732,7 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
         else if (action === 'confirm') {
           const row = rows[controlsFocus]
           if (row === 'reset') resetBindings()
+          else if (row === 'wiki') setListeningFor('wiki')
           else if (row.startsWith('bind:')) setListeningFor(Number(row.slice(5)))
           else chooseScheme(row)
         } else if (action === 'up' || action === 'down') {
@@ -1032,6 +1082,7 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
             scheme={settings.controlScheme}
             bindings={bindingsFor(settings, padId)}
             listeningFor={listeningFor}
+            wikiHotkey={settings.wikiHotkey}
             focus={controlsFocus}
             onFocus={setControlsFocus}
             onScheme={chooseScheme}
@@ -1078,6 +1129,7 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
             scroll survive close/reopen. */}
         {wikiMounted && (
           <WikiPanel
+            ref={wikiRef}
             open={wikiOpen}
             gameId={id}
             gameName={name}
@@ -1085,7 +1137,12 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
             onClose={closeWiki}
             legend={
               mode === 'pad' ? (
-                <ButtonLegend hints={[{ button: 'B', label: 'Close' }]} />
+                <ButtonLegend
+                  hints={[
+                    { button: 'A', label: 'Open link' },
+                    { button: 'B', label: 'Back' },
+                  ]}
+                />
               ) : null
             }
           />

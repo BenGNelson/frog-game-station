@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  wikiLinkTarget, pushPage, goBack, currentPage, canGoBack, startHistory, emptyHistory,
+  wikiLinkTarget, pushPage, goBack, currentPage, canGoBack, startHistory, emptyHistory, nextLinkIndex,
 } from './wikiNav.js'
 
 // Fake DOM nodes — the helper only reads `dataset` and `parentNode`, so plain
@@ -84,5 +84,23 @@ describe('history stack', () => {
   it('pushes onto an empty history', () => {
     const h = pushPage(emptyHistory, 'First')
     expect(h).toEqual({ stack: ['First'], at: 0 })
+  })
+})
+
+describe('nextLinkIndex', () => {
+  it('starts at the first link on Right, the last on Left, from nothing focused', () => {
+    expect(nextLinkIndex(5, -1, 1)).toBe(0)
+    expect(nextLinkIndex(5, -1, -1)).toBe(4)
+  })
+
+  it('steps and clamps at the ends (no wraparound)', () => {
+    expect(nextLinkIndex(5, 2, 1)).toBe(3)
+    expect(nextLinkIndex(5, 2, -1)).toBe(1)
+    expect(nextLinkIndex(5, 4, 1)).toBe(4) // already last
+    expect(nextLinkIndex(5, 0, -1)).toBe(0) // already first
+  })
+
+  it('is a no-op when there are no links', () => {
+    expect(nextLinkIndex(0, -1, 1)).toBe(-1)
   })
 })

@@ -367,6 +367,15 @@ position intact**.
   the reader stays in the DOM and hides via `display:none`, so the article + scroll survive
   a close/reopen — that's the "peek and keep your place". Content is fetched **lazily, one
   page at a time, and cached** on disk (versioned, per-game keyed) under `/data`.
+- **Both hands: touch and controller.** Because the article is our own DOM, the pad drives
+  it fully — the panel exposes an imperative surface (`useImperativeHandle`) that PlayerShell
+  drives while the reader owns the pad: **stick/D-pad scroll** (velocity-scaled), **shoulders
+  page**, **triggers jump between section headings**, **D-pad ←/→ step a highlighted link**,
+  **A follows it**, **B goes back then closes**. A **bindable hotkey** opens the reader
+  straight from play — default **R3** (right-stick click: unbound in the retro preset and
+  unused by these cores, so it's collision-free), rebindable in the Controls panel like any
+  button. Opening from the hotkey pauses the game and closing resumes it; opening from the
+  pause menu returns there.
 
 ---
 
