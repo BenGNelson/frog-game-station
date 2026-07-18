@@ -16,7 +16,7 @@ import { ensureEmulatorEngine, cacheGameSram } from '../lib/offlineStore.js'
 import { offlineGamesToItems } from './offline.js'
 import { getRecent, recordPlayed } from '../lib/recentGames.js'
 import {
-  fetchCollections, postFinished, postTag, deleteTag, cleanTag, tagsForGame, mergeCollections,
+  fetchCollections, postFinished, postTag, deleteTag, cleanTag, tagsForGame, mergeCollections, TAG_MAXLEN,
 } from '../lib/collections.js'
 import { getFavorites } from '../lib/favorites.js'
 import { getRecentSearches, recordSearch, removeRecentSearch } from '../lib/recentSearches.js'
@@ -29,6 +29,7 @@ import { defaultFrogMode, nextFrogMode, usesNativeKeyboard } from './input.js'
 import { FROG, systemStyle } from './theme.js'
 import { buildShelf, hydrate, stepLetter } from './shelf.js'
 import { searchGames, matches, KEYS, gridMove } from './search.js'
+import { ROWS as KB_ROWS, keyAt, moveKey, applyKey, appendChar, deleteChar } from '../lib/keyboard.js'
 import Frog, { FrogMark, Reflected } from './Frog.jsx'
 import Boot from './Boot.jsx'
 import Shelf from './Shelf.jsx'
@@ -54,6 +55,11 @@ import './frog.css'
 // opens a whole screen); everything else — the triggers, a stray button — is inert,
 // and inert must mean inert, not "quietly re-render into an identical focus object".
 const MOVES = new Set(['up', 'down', 'left', 'right', 'railPrev', 'railNext'])
+
+// The save-state note length cap, by code point — kept in one place so the on-screen
+// keyboard and the persist-on-close trim can't drift apart (the tag/label cap is
+// TAG_MAXLEN, shared from collections.js for the same reason).
+const NOTE_MAXLEN = 280
 
 // Frog's place, held for the life of the tab rather than the life of the component.
 //
@@ -178,8 +184,12 @@ export default function FrogBrowser() {
   // The "Wrong game?" picker: null, or { candidates, current, matched, index }. Bumping
   // metaRefresh re-fetches the open game's meta after a manual re-match/clear.
   const [rematch, setRematch] = useState(null)
-  const [tagPicker, setTagPicker] = useState(null) // { index } while the picker is open
+  const [tagPicker, setTagPicker] = useState(null) // { index } while the picker is open (index -1 = the "new" row)
   const [saveEditor, setSaveEditor] = useState(null) // { slot, index, label, note, pinned }
+  // The on-screen keyboard, opened OVER the tag picker / save editor when a controller
+  // needs to write free text (a new collection, a save's name/note). `target` says which
+  // field the committed text lands in; `text`/`shift`/`pos` are the board's own state.
+  const [keyboard, setKeyboard] = useState(null) // { target, text, shift, pos, max } | null
   const [metaRefresh, setMetaRefresh] = useState(0)
 
   // Per-game play-time totals (the "Most played" rail + the game-page line). FrogBrowser
@@ -500,6 +510,7 @@ export default function FrogBrowser() {
     setRematch(null)
     setTagPicker(null)
     setSaveEditor(null)
+    setKeyboard(null)
     setHeroSlide(0)
     // Clear the previous game's metadata SYNCHRONOUSLY here, not only in the fetch
     // effect (which runs after paint): otherwise the new game's page renders for one
@@ -515,6 +526,7 @@ export default function FrogBrowser() {
     setRematch(null)
     setTagPicker(null)
     setSaveEditor(null)
+    setKeyboard(null)
     setScreen(detailFrom)
   }
   // "Surprise me": jump to a random title's page. Opens the game page (not straight into
@@ -612,7 +624,7 @@ export default function FrogBrowser() {
     const label = cleanTag(e.label) // same collapse/cap as tags; empty → default name
     // Cap by CODE POINT (spread) to match Python's slice, like cleanTag — so an emoji
     // note near the cap truncates the same on both ends.
-    const note = [...(e.note || '').trim()].slice(0, 280).join('') || null
+    const note = [...(e.note || '').trim()].slice(0, NOTE_MAXLEN).join('') || null
     const pinned = !!e.pinned
     const o = e.orig
     if (label === o.label && (note || '') === (o.note || '') && pinned === o.pinned) return // unchanged
@@ -628,6 +640,34 @@ export default function FrogBrowser() {
     const slot = saveEditor?.slot
     setSaveEditor(null)
     if (slot) requestDeleteSave(slot)
+  }
+
+  // The on-screen keyboard. Opened from a field the controller can't type into
+  // directly — the new-collection name, a save's label or note — seeded with that
+  // field's current text and a per-target length cap (the same caps the commit paths
+  // enforce). It sits OVER the picker/editor that opened it and hands its text back on
+  // Done. A finger never gets here: touch keeps the native fields.
+  const KB_MAX = { tag: TAG_MAXLEN, saveLabel: TAG_MAXLEN, saveNote: NOTE_MAXLEN }
+  const openKeyboard = (target) => {
+    const seed =
+      target === 'saveLabel' ? saveEditor?.label || '' : target === 'saveNote' ? saveEditor?.note || '' : ''
+    setKeyboard({ target, text: seed, shift: false, pos: { r: 0, c: 0 }, max: KB_MAX[target] ?? 40 })
+  }
+  const commitKeyboard = () => {
+    const kb = keyboard
+    setKeyboard(null)
+    if (!kb) return
+    if (kb.target === 'tag') addGameTag(kb.text)
+    else if (kb.target === 'saveLabel') editSaveField({ label: kb.text })
+    else if (kb.target === 'saveNote') editSaveField({ note: kb.text })
+  }
+  // Activate a key (from A on the cursor, or a mouse click on any key). A `done` key
+  // commits and closes; everything else edits the text and moves the cursor to it.
+  const pressKeyboardKey = (r, c) => {
+    if (!keyboard) return
+    const next = applyKey(keyboard, keyAt({ r, c }), { maxLen: keyboard.max })
+    if (next.done) commitKeyboard()
+    else setKeyboard((k) => (k ? { ...k, text: next.text, shift: next.shift, pos: { r, c } } : k))
   }
   const deleteSave = async (slot) => {
     // Drop the row at once (optimistic): the focus-clamp effect then moves the cursor off
@@ -765,27 +805,52 @@ export default function FrogBrowser() {
       return
     }
 
-    // The tag picker traps input: up/down walk the EXISTING tags, A toggles this game's
-    // membership, B closes. (Creating a NEW tag is the native field, driven by a keyboard
-    // or thumb — the D-pad drives the list.)
+    // The on-screen keyboard traps input ahead of the picker/editor it sits over:
+    // the D-pad walks the board, A presses the lit key, B peels a character (empty →
+    // cancel back to the field), and a Done key commits.
+    if (screen === 'detail' && keyboard) {
+      if (action === 'up' || action === 'down' || action === 'left' || action === 'right') {
+        setKeyboard((k) => (k ? { ...k, pos: moveKey(k.pos, action) } : k))
+      } else if (action === 'confirm') {
+        pressKeyboardKey(keyboard.pos.r, keyboard.pos.c)
+      } else if (action === 'back') {
+        if (keyboard.text) setKeyboard((k) => (k ? deleteChar(k) : k))
+        else setKeyboard(null)
+      }
+      return
+    }
+
+    // The tag picker traps input: up/down walk the "new collection" row (index -1) and
+    // the EXISTING tags below it; A opens the keyboard on the new row, or toggles this
+    // game's membership on a tag; B closes.
     if (screen === 'detail' && tagPicker) {
       const n = allTags.length
-      if (action === 'up') setTagPicker((t) => ({ index: Math.max(0, t.index - 1) }))
-      else if (action === 'down') setTagPicker((t) => ({ index: Math.max(0, Math.min(n - 1, t.index + 1)) }))
+      // The "new collection" row (index -1) exists only in pad mode; in touch mode the
+      // native field stands in its place, so the D-pad floor stays at 0 there and can't
+      // land on an unrendered row (which would pop the on-screen keyboard over the input).
+      const floor = native ? 0 : -1
+      if (action === 'up') setTagPicker((t) => ({ index: Math.max(floor, t.index - 1) }))
+      else if (action === 'down') setTagPicker((t) => ({ index: Math.min(n - 1, t.index + 1) }))
       else if (action === 'confirm') {
-        const tag = allTags[tagPicker.index]
-        if (tag) toggleGameTag(tag)
+        if (tagPicker.index < 0) openKeyboard('tag')
+        else {
+          const tag = allTags[tagPicker.index]
+          if (tag) toggleGameTag(tag)
+        }
       } else if (action === 'back') setTagPicker(null)
       return
     }
 
-    // The save-state editor traps input: up/down move over its two toggles (0 = pin,
-    // 1 = delete), A activates, B closes (persisting). The name/note are native fields.
+    // The save-state editor traps input: up/down move over its four rows (0 = name,
+    // 1 = note, 2 = pin, 3 = delete), A activates (name/note open the keyboard), B
+    // closes (persisting).
     if (screen === 'detail' && saveEditor) {
       if (action === 'up') setSaveEditor((e) => ({ ...e, index: Math.max(0, e.index - 1) }))
-      else if (action === 'down') setSaveEditor((e) => ({ ...e, index: Math.min(1, e.index + 1) }))
+      else if (action === 'down') setSaveEditor((e) => ({ ...e, index: Math.min(3, e.index + 1) }))
       else if (action === 'confirm') {
-        if (saveEditor.index === 0) editSaveField({ pinned: !saveEditor.pinned })
+        if (saveEditor.index === 0) openKeyboard('saveLabel')
+        else if (saveEditor.index === 1) openKeyboard('saveNote')
+        else if (saveEditor.index === 2) editSaveField({ pinned: !saveEditor.pinned })
         else deleteFromEditor()
       } else if (action === 'back') closeSaveEditor()
       return
@@ -953,7 +1018,7 @@ export default function FrogBrowser() {
             else if (f.index === 2) startOrRemoveDownload()
             else toggleFinished()
           } else if (f.zone === 'tags') {
-            setTagPicker({ index: 0 })
+            setTagPicker({ index: native ? 0 : -1 })
           } else if (f.zone === 'similar') {
             // Open the picked similar game. Inherit THIS page's origin (never 'detail')
             // so Back returns to the screen you came from, not a dead-ended game page —
@@ -1103,7 +1168,18 @@ export default function FrogBrowser() {
     }
   }
   const kbd = useRef({})
-  kbd.current = { screen, typeKey, del }
+  kbd.current = {
+    screen,
+    typeKey,
+    del,
+    // The on-screen keyboard's physical-key path (see the handler below). Held here for
+    // the same reason as `typeKey`: the listener is installed once and must read live state.
+    kbActive: !!keyboard,
+    kbChar: (ch) => setKeyboard((k) => (k ? appendChar(k, ch, { maxLen: k.max }) : k)),
+    kbDel: () => setKeyboard((k) => (k ? deleteChar(k) : k)),
+    kbCommit: commitKeyboard,
+    kbCancel: () => setKeyboard(null),
+  }
   useEffect(() => {
     const onKey = (e) => {
       // The native search field (touch mode, but reachable with a Magic Keyboard)
@@ -1123,8 +1199,41 @@ export default function FrogBrowser() {
         }
         return
       }
-      // On the search screen a real keyboard should just... type, bypassing the grid.
+      // The on-screen keyboard takes physical keys directly (parity with the search
+      // grid): a real keyboard types straight into the draft — case and all — Backspace
+      // deletes, Enter commits, Escape cancels. The arrow keys are left to fall through
+      // to the action map below, so a keyboard can still walk the board's cursor the way
+      // a D-pad does; only the text keys are consumed here.
+      if (kbd.current.kbActive) {
+        // A Cmd/Ctrl/Alt chord is a browser/OS shortcut (reload, paste, select-all),
+        // not text — let it through untouched rather than swallowing it as a stray letter.
+        if (e.metaKey || e.ctrlKey || e.altKey) return
+        if (e.key.length === 1) {
+          e.preventDefault()
+          kbd.current.kbChar(e.key)
+          return
+        }
+        if (e.key === 'Backspace') {
+          e.preventDefault()
+          kbd.current.kbDel()
+          return
+        }
+        if (e.key === 'Enter') {
+          e.preventDefault()
+          kbd.current.kbCommit()
+          return
+        }
+        if (e.key === 'Escape') {
+          e.preventDefault()
+          kbd.current.kbCancel()
+          return
+        }
+        // fall through: arrows (and PageUp/Down) reach `act` and move the cursor
+      }
+      // On the search screen a real keyboard should just... type, bypassing the grid —
+      // but never eat a Cmd/Ctrl/Alt shortcut (paste, reload) as a query character.
       if (kbd.current.screen === 'search') {
+        if (e.metaKey || e.ctrlKey || e.altKey) return
         if (e.key.length === 1 && /[a-z0-9]/i.test(e.key)) {
           e.preventDefault()
           kbd.current.typeKey(e.key.toUpperCase())
@@ -1348,6 +1457,7 @@ export default function FrogBrowser() {
         <GameScreen
           game={detailGame}
           meta={meta}
+          native={native}
           favorited={favorited}
           saves={saves}
           loadingSaves={savesLoading}
@@ -1357,6 +1467,7 @@ export default function FrogBrowser() {
           tags={detailTags}
           allTags={allTags}
           tagPicker={tagPicker}
+          keyboard={keyboard}
           download={dl}
           focus={detailFocus}
           confirm={confirm}
@@ -1366,11 +1477,17 @@ export default function FrogBrowser() {
           rematch={rematch}
           onOpenSimilar={(g) => openDetail(g, detailFrom)}
           onToggleFinished={toggleFinished}
-          onOpenTags={() => setTagPicker({ index: 0 })}
+          onOpenTags={() => setTagPicker({ index: native ? 0 : -1 })}
           onToggleTag={toggleGameTag}
           onAddTag={addGameTag}
+          onOpenNewTag={() => openKeyboard('tag')}
           onTagPickerFocus={(index) => setTagPicker({ index })}
           onCloseTags={() => setTagPicker(null)}
+          onKeyboardHover={(r, c) => setKeyboard((k) => (k ? { ...k, pos: { r, c } } : k))}
+          onKeyboardPress={pressKeyboardKey}
+          onCloseKeyboard={() => setKeyboard(null)}
+          onOpenSaveLabelKb={() => openKeyboard('saveLabel')}
+          onOpenSaveNoteKb={() => openKeyboard('saveNote')}
           onOpenRematch={openRematch}
           onRematchHover={(index) => setRematch((r) => (r ? { ...r, index } : r))}
           onRematchPick={(igdbId) => applyMatch(igdbId)}
@@ -1451,7 +1568,13 @@ export default function FrogBrowser() {
                   { button: 'X', label: 'Close' },
                 ]
             : screen === 'detail'
-              ? confirm
+              ? keyboard
+                ? [
+                    { button: 'A', label: 'Press' },
+                    { button: 'B', label: keyboard.text ? 'Delete' : 'Cancel' },
+                    { button: 'D-pad', label: 'Move' },
+                  ]
+                : confirm
                 ? [
                     { button: 'A', label: 'Confirm' },
                     { button: 'B', label: 'Cancel' },
@@ -1469,13 +1592,16 @@ export default function FrogBrowser() {
                       ]
                     : tagPicker
                       ? [
-                          { button: 'A', label: 'Toggle' },
+                          { button: 'A', label: tagPicker.index < 0 ? 'Type' : 'Toggle' },
                           { button: 'B', label: 'Done' },
                           { button: 'D-pad', label: 'Move' },
                         ]
                       : saveEditor
                         ? [
-                            { button: 'A', label: saveEditor.index === 1 ? 'Delete' : 'Pin' },
+                            {
+                              button: 'A',
+                              label: ['Name', 'Note', 'Pin', 'Delete'][saveEditor.index] ?? 'Select',
+                            },
                             { button: 'B', label: 'Done' },
                             { button: 'D-pad', label: 'Move' },
                           ]

@@ -33,13 +33,17 @@ export function deleteTag(id, tag) {
   return fetch(`${API_BASE}/library/games/tags?${q}`, { method: 'DELETE' }).catch(() => {})
 }
 
+// The tag / save-label length cap, by CODE POINT. Shared so the on-screen keyboard, the
+// optimistic clean, and the backend all agree on one number instead of three loose 40s.
+export const TAG_MAXLEN = 40
+
 // The same tag-cleaning the backend does (collapse whitespace, cap length), applied
 // client-side so an optimistic update matches what the server will store. The cap is by
 // CODE POINT (spread, not slice) to match Python's str slicing — otherwise an emoji /
 // surrogate-pair tag near the cap would truncate differently here and orphan a rail.
 export function cleanTag(tag) {
   const collapsed = (tag || '').split(/\s+/).filter(Boolean).join(' ')
-  return [...collapsed].slice(0, 40).join('')
+  return [...collapsed].slice(0, TAG_MAXLEN).join('')
 }
 
 // The tags a single game wears, from the grouped {tag: [ids]} map — sorted like the
