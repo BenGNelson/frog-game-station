@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Trophy } from 'lucide-react'
+import { Trophy, Tag } from 'lucide-react'
 import { coverUrl, ALPHABET, letterOf } from '../lib/library.js'
 import { windowRange, spacers } from '../lib/windowRange.js'
 import { FROG, systemStyle, reflection } from './theme.js'
 import Console from './Console.jsx'
 import { Reflected, SystemFrog } from './Frog.jsx'
 import { FinishedBadge } from './Shelf.jsx'
+import SystemChip from './SystemChip.jsx'
 
 const ROW = 44
 
@@ -28,9 +29,22 @@ const ROW = 44
 //
 // The letter rail on the right is the fast lane: the triggers jump letter to letter,
 // so getting to "Super Mario World" is two flicks and not sixty presses.
-export default function GameList({ system, games, focus, finishedIds, onFocus, onPick }) {
-  const s = systemStyle(system)
+// One system's games — OR one collection's, when `collection` (a tag name) is passed.
+// The two are the same screen: the list, the big-art aside, the letter rail, the
+// windowing. They differ only in dress — a system list wears that one machine's colour;
+// a collection spans machines, so it wears the neutral collection jade, its art + mascot
+// follow the FOCUSED game's own system, and every row carries a system chip.
+export default function GameList({ system, collection, loading = false, games, focus, finishedIds, onFocus, onPick }) {
+  const inCollection = !!collection
+  // The list's own accent — the cursor, the highlight, the active letter. One machine's
+  // colour for a system; jade for a mixed collection.
+  const listAccent = inCollection ? FROG.jade : systemStyle(system).accent
   const current = games[focus] ?? null
+  // The machine the big art + the mascot dress as. In a collection it follows the focused
+  // game (its own system, recolouring as you scroll); in a system list it's the one system.
+  const artSystem = inCollection ? current?.label : system
+  const artAccent = systemStyle(artSystem).accent
+  const subtitle = inCollection ? current?.label ?? '' : system
   const isFinished = (id) => !!finishedIds?.has(id)
 
   const scrollerRef = useRef(null)
@@ -83,6 +97,26 @@ export default function GameList({ system, games, focus, finishedIds, onFocus, o
   const live = useMemo(() => new Set(games.map((g) => letterOf(g.name))), [games])
   const currentLetter = current ? letterOf(current.name) : null
 
+  // A collection can empty out from under this view (un-tag its last member on a game
+  // page, come back) — a system never can (an empty system isn't openable). Rather than
+  // a bare three-column layout with nothing in it, say so plainly — but not while the
+  // collections fetch is still in flight (a remount after a game launch), or the loading
+  // gap would misread as "empty".
+  if (inCollection && !games.length) {
+    return (
+      <div data-testid="frog-games" className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 px-8 text-center">
+        <Reflected>
+          <SystemFrog size={96} system={null} asleep={!loading} />
+        </Reflected>
+        <p className="text-sm" style={{ color: FROG.soft }}>
+          {loading
+            ? 'Loading…'
+            : `Nothing in “${collection}” anymore — every game has left this collection.`}
+        </p>
+      </div>
+    )
+  }
+
   return (
     <div data-testid="frog-games" className="flex min-h-0 flex-1 gap-5 px-6 pb-2">
       {/* The one slot where art is worth looking at. */}
@@ -91,7 +125,7 @@ export default function GameList({ system, games, focus, finishedIds, onFocus, o
             it stays. It's the thread that makes three screens feel like one app. */}
         <div className="flex justify-center pb-8">
           <Reflected scale={0.45}>
-            <SystemFrog size={76} system={system} />
+            <SystemFrog size={76} system={artSystem} />
           </Reflected>
         </div>
 
@@ -100,8 +134,8 @@ export default function GameList({ system, games, focus, finishedIds, onFocus, o
             <div
               className="frog-float relative overflow-hidden rounded-2xl"
               style={{
-                border: `1px solid rgba(${s.accent}, 0.35)`,
-                boxShadow: reflection(s.accent),
+                border: `1px solid rgba(${artAccent}, 0.35)`,
+                boxShadow: reflection(artAccent),
                 background: '#000',
               }}
             >
@@ -114,14 +148,14 @@ export default function GameList({ system, games, focus, finishedIds, onFocus, o
               {isFinished(current.id) && <FinishedBadge size={28} />}
               <div
                 className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3"
-                style={{ background: `linear-gradient(to top, rgba(${s.accent}, 0.4), transparent)` }}
+                style={{ background: `linear-gradient(to top, rgba(${artAccent}, 0.4), transparent)` }}
               />
             </div>
             <p className="mt-3 text-sm font-semibold leading-snug" style={{ color: FROG.ink }}>
               {current.name}
             </p>
-            <p className="mt-0.5 text-xs" style={{ color: `rgb(${s.accent})` }}>
-              {system}
+            <p className="mt-0.5 text-xs" style={{ color: `rgb(${artAccent})` }}>
+              {subtitle}
             </p>
           </>
         )}
@@ -145,27 +179,29 @@ export default function GameList({ system, games, focus, finishedIds, onFocus, o
                   className="flex w-full items-center gap-3 rounded-lg px-3 text-left transition-colors"
                   style={{
                     height: ROW,
-                    background: on ? `rgba(${s.accent}, 0.16)` : 'transparent',
-                    boxShadow: on ? `inset 0 0 0 1px rgba(${s.accent}, 0.5)` : 'none',
+                    background: on ? `rgba(${listAccent}, 0.16)` : 'transparent',
+                    boxShadow: on ? `inset 0 0 0 1px rgba(${listAccent}, 0.5)` : 'none',
                   }}
                 >
-                  {/* The cursor: a lit edge on the focused row, in the machine's colour. */}
+                  {/* The cursor: a lit edge on the focused row, in the list's colour. */}
                   <span
                     className="h-5 w-[3px] shrink-0 rounded-full"
                     style={{
-                      background: on ? `rgb(${s.accent})` : 'transparent',
-                      boxShadow: on ? `0 0 12px rgba(${s.accent}, 0.9)` : 'none',
+                      background: on ? `rgb(${listAccent})` : 'transparent',
+                      boxShadow: on ? `0 0 12px rgba(${listAccent}, 0.9)` : 'none',
                     }}
                   />
                   <span
-                    className="truncate text-[15px]"
+                    className="min-w-0 flex-1 truncate text-[15px]"
                     style={{ color: on ? FROG.ink : FROG.soft, fontWeight: on ? 600 : 400 }}
                   >
                     {g.name}
                   </span>
+                  {/* A collection spans machines, so each row names its system. */}
+                  {inCollection && <SystemChip label={g.label} />}
                   {isFinished(g.id) && (
                     <Trophy
-                      className="ml-auto h-3.5 w-3.5 shrink-0"
+                      className="h-3.5 w-3.5 shrink-0"
                       style={{ color: `rgb(${FROG.jade})` }}
                       fill="currentColor"
                       aria-label="Finished"
@@ -199,7 +235,7 @@ export default function GameList({ system, games, focus, finishedIds, onFocus, o
               className="flex flex-1 items-center justify-center rounded text-[11px] font-semibold leading-none"
               style={{
                 color: on ? FROG.ground : has ? FROG.soft : FROG.faint,
-                background: on ? `rgb(${s.accent})` : 'transparent',
+                background: on ? `rgb(${listAccent})` : 'transparent',
                 opacity: has ? 1 : 0.3,
               }}
             >
@@ -208,6 +244,31 @@ export default function GameList({ system, games, focus, finishedIds, onFocus, o
           )
         })}
       </nav>
+    </div>
+  )
+}
+
+// A collection's header — a tag glyph, its name, how many — in the neutral collection
+// jade (its games span machines, so no one console colour fits). Mirrors GameListHeader.
+export function CollectionListHeader({ tag, count, loading = false }) {
+  return (
+    <div className="flex min-w-0 items-center gap-3">
+      <span
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+        style={{ background: `rgba(${FROG.jade}, 0.16)`, border: `1px solid rgba(${FROG.jade}, 0.4)` }}
+      >
+        <Tag className="h-4 w-4" style={{ color: `rgb(${FROG.jade})` }} aria-hidden="true" />
+      </span>
+      <div className="min-w-0">
+        <h1 className="truncate text-lg font-semibold leading-none" style={{ color: FROG.ink }}>
+          {tag}
+        </h1>
+        {/* While the mount fetch is still in flight (a post-launch remount) the count
+            isn't known yet — a bare "0 games" would contradict the body's "Loading…". */}
+        <p className="mt-1 text-[11px] tabular-nums" style={{ color: `rgb(${FROG.jade})` }}>
+          {loading ? '…' : `${count} game${count === 1 ? '' : 's'}`}
+        </p>
+      </div>
     </div>
   )
 }

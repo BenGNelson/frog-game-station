@@ -5,7 +5,7 @@
 // "does an empty system still show?" answerable by a test instead of by squinting
 // at an iPad.
 
-import { letterOf } from '../lib/library.js'
+import { letterOf, naturalCompare } from '../lib/library.js'
 import { SYSTEMS } from './theme.js'
 
 // The order the consoles sit in. Chronological, which is also roughly the order
@@ -98,19 +98,38 @@ export function buildShelf(items = [], recent = [], favorites = [], played = [],
   ]
 }
 
+// A collection with MORE than this many games earns a "see all" end-cap on its rail —
+// past a screenful, a horizontal scroll gets unwieldy and the full vertical, letter-railed
+// list is the better way through. Smaller collections are covered by the rail itself, so
+// they don't get one (nothing to "see all" that isn't already in view).
+export const COLLECTION_LIST_MIN = 8
+
 // One rail per collection (tag), in tag-name order — each a game rail like Favorites,
-// re-hydrated against the live library. A tag with no live games left shows nothing.
+// re-hydrated against the live library. A tag with no live games left shows nothing. A
+// large collection gets a "see all" tile PREPENDED (index 0, so it's reachable the instant
+// you drop into the rail rather than after D-padding past every game) that opens the whole
+// collection as a full list.
 export function tagRails(items = [], tags = {}) {
   return Object.keys(tags || {})
     .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()))
-    .map((tag) => ({
-      id: `tag:${tag}`,
-      title: tag,
-      tag,
-      kind: 'game',
-      items: hydrate(items, tags[tag].map((id) => ({ id }))),
-    }))
+    .map((tag) => {
+      const games = hydrate(items, tags[tag].map((id) => ({ id })))
+      const items_ =
+        games.length > COLLECTION_LIST_MIN
+          ? [{ id: `collection:${tag}`, seeAll: true, tag, count: games.length }, ...games]
+          : games
+      return { id: `tag:${tag}`, title: tag, tag, kind: 'game', items: items_ }
+    })
     .filter((rail) => rail.items.length)
+}
+
+// A collection's games as a flat, naturally-sorted list — the source for the full
+// letter-railed list view (the same sort a system's list uses, so the letter rail and
+// trigger-jumps behave identically). Re-hydrated against the live library like every
+// other rail, so a game that has left the library simply drops out.
+export function collectionGames(items = [], tags = {}, tag) {
+  const ids = (tags && tags[tag]) || []
+  return hydrate(items, ids.map((id) => ({ id }))).sort((a, b) => naturalCompare(a.name, b.name))
 }
 
 // The letters this list actually has, IN THE ORDER THE LIST IS SORTED, each mapped

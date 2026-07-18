@@ -27,7 +27,7 @@ import { SkeletonLine } from '../components/ui.jsx'
 import ButtonLegend from '../player/ButtonLegend.jsx'
 import { defaultFrogMode, nextFrogMode, usesNativeKeyboard } from './input.js'
 import { FROG, systemStyle } from './theme.js'
-import { buildShelf, hydrate, stepLetter } from './shelf.js'
+import { buildShelf, hydrate, stepLetter, collectionGames } from './shelf.js'
 import { searchGames, matches, KEYS, gridMove } from './search.js'
 import { ROWS as KB_ROWS, keyAt, moveKey, applyKey, appendChar, deleteChar } from '../lib/keyboard.js'
 import Frog, { FrogMark, Reflected } from './Frog.jsx'
@@ -36,7 +36,7 @@ import Shelf from './Shelf.jsx'
 import Search from './Search.jsx'
 import SettingsPanel from './Settings.jsx'
 import GameScreen from './GameScreen.jsx'
-import GameList, { GameListHeader } from './GameList.jsx'
+import GameList, { GameListHeader, CollectionListHeader } from './GameList.jsx'
 import './frog.css'
 
 // FROG — the games browser.
@@ -68,7 +68,7 @@ const NOTE_MAXLEN = 280
 // replay the whole boot animation, ask you to PRESS A again, and dump you back on
 // rail zero — having forgotten which system you were three hundred games into. The
 // boot is once per app open; your place survives a session.
-const place = { booted: false, screen: 'shelf', system: null, focus: { rail: 0, index: 0 }, row: 0 }
+const place = { booted: false, screen: 'shelf', system: null, collection: null, focus: { rail: 0, index: 0 }, row: 0 }
 
 export default function FrogBrowser() {
   const navigate = useNavigate()
@@ -117,6 +117,10 @@ export default function FrogBrowser() {
   // 'boot' → 'shelf' ⇄ 'games'; 'search'/'detail'/'settings' are transient overlays.
   const [screen, setScreen] = useState(place.booted ? place.screen : 'boot')
   const [system, setSystem] = useState(place.system)
+  // The 'games' screen shows one system's games OR one collection's — never both. Which
+  // it is comes down to whether a collection tag is set (openSystem / openCollection each
+  // clear the other), so the screen, the header, and the list styling all fork on this.
+  const [collectionTag, setCollectionTag] = useState(place.collection)
 
   const [focus, setFocus] = useState(place.focus)
   const [memory, setMemory] = useState({})
@@ -220,6 +224,13 @@ export default function FrogBrowser() {
   // once on mount; edits (on the game page) update this optimistically so the shelf's
   // Finished / per-tag rails reflect a change the instant you make it, without a round-trip.
   const [collections, setCollections] = useState({ finished: [], tags: {} })
+  // Whether the mount GET has SUCCEEDED. FrogBrowser REMOUNTS on every game launch, so a
+  // collection list re-entered right after quitting a game would, for one render, see the
+  // empty starting `collections` and wrongly read as "this collection is empty". This
+  // tells the list "still loading" so it holds that message until real data lands — and,
+  // crucially, only a SUCCESSFUL load flips it (a failed/offline fetch leaves it false, so
+  // an intact collection is never falsely reported emptied; it stays a loading state).
+  const [collectionsLoaded, setCollectionsLoaded] = useState(false)
   // Games the user has optimistically edited since the mount GET was issued. The GET's
   // response predates those writes, so it's MERGED (not applied wholesale): the server
   // fills in every untouched game, but a touched game keeps its local membership — so a
@@ -229,7 +240,13 @@ export default function FrogBrowser() {
     let alive = true
     fetchCollections()
       .then((d) => {
-        if (alive && d) setCollections((local) => mergeCollections(d, local, collectionsDirty.current))
+        // Only real data counts as "loaded" — a non-ok GET resolves to null (see
+        // fetchCollections), and treating that as loaded is exactly what would surface an
+        // intact collection as "emptied" on a post-launch remount while the backend blips.
+        if (alive && d) {
+          setCollections((local) => mergeCollections(d, local, collectionsDirty.current))
+          setCollectionsLoaded(true)
+        }
       })
       .catch(() => {})
     return () => {
@@ -242,7 +259,12 @@ export default function FrogBrowser() {
     () => buildShelf(items, getRecent(), getFavorites(), playStatItems, collections),
     [items, playStatItems, collections]
   )
-  const games = useMemo(() => (system ? systemGames(items, system) : []), [items, system])
+  // The 'games' screen's list: a collection's members (naturally sorted, spanning
+  // systems) when a tag is open, otherwise the focused system's games.
+  const games = useMemo(
+    () => (collectionTag ? collectionGames(items, collections.tags, collectionTag) : system ? systemGames(items, system) : []),
+    [items, system, collectionTag, collections.tags]
+  )
   // Searched across EVERY system, not just the open one — from the shelf you haven't
   // picked a console yet, and "which box is Zelda in" is exactly what search is for.
   const results = useMemo(() => searchGames(items, query), [items, query])
@@ -381,7 +403,7 @@ export default function FrogBrowser() {
               ? searchFrom
               : detailFrom
             : screen
-    Object.assign(place, { booted: true, screen: persistScreen, system, focus, row })
+    Object.assign(place, { booted: true, screen: persistScreen, system, collection: collectionTag, focus, row })
   })
 
   // Typing narrows the list under the cursor: keep the result focus in range, and if
@@ -436,6 +458,16 @@ export default function FrogBrowser() {
 
   const openSystem = useCallback((label) => {
     setSystem(label)
+    setCollectionTag(null) // a system and a collection are mutually exclusive views
+    setRow(0)
+    setScreen('games')
+  }, [])
+
+  // Open a collection as the full letter-railed list (the 'games' screen, in collection
+  // dress). Clears the system for the same reason openSystem clears the collection.
+  const openCollection = useCallback((tag) => {
+    setCollectionTag(tag)
+    setSystem(null)
     setRow(0)
     setScreen('games')
   }, [])
@@ -539,6 +571,22 @@ export default function FrogBrowser() {
     if (!items.length) return
     const g = items[Math.floor(Math.random() * items.length)]
     openDetail(g, screen === 'detail' ? detailFrom : screen)
+  }
+
+  // The one place the shelf decides what picking an item DOES, so a controller A and a
+  // mouse click can't drift apart: a system tile opens its system, a "see all" tile opens
+  // the collection list, a Jump-back-in card resumes straight into play (no page between),
+  // and anything else opens the game page. (Y / 'alt' is deliberately NOT this — it always
+  // opens the page, even for a Jump card — so it stays a separate branch.)
+  const pickShelfItem = (rail, item) => {
+    if (!item) return
+    if (rail.kind === 'system') {
+      if (item.count > 0) openSystem(item.label)
+    } else if (item.seeAll) {
+      openCollection(item.tag)
+    } else if (rail.id === 'jump') {
+      play(item)
+    } else openDetail(item, 'shelf')
   }
 
   const toggleFav = () => detailGame && setFavorited(toggleFavorite(detailGame).favorited)
@@ -1068,15 +1116,7 @@ export default function FrogBrowser() {
       switch (action) {
         case 'confirm': {
           const rail = rails[focus.rail]
-          const item = rail?.items?.[focus.index]
-          if (!item) return
-          if (rail.kind === 'system') {
-            if (item.count > 0) openSystem(item.label)
-          } else if (rail.id === 'jump') {
-            // "Jump back in" is the fast-resume lane: straight into the game (battery
-            // save), no page in between. Every other game opens its page (Y does too).
-            play(item)
-          } else openDetail(item, 'shelf')
+          pickShelfItem(rail, rail?.items?.[focus.index])
           return
         }
         case 'back':
@@ -1085,7 +1125,9 @@ export default function FrogBrowser() {
         case 'alt': {
           const rail = rails[focus.rail]
           const item = rail?.items?.[focus.index]
-          if (rail?.kind === 'game' && item) openDetail(item, 'shelf')
+          // Y opens a game's page; on the "see all" tile it opens the collection list.
+          if (item?.seeAll) openCollection(item.tag)
+          else if (rail?.kind === 'game' && item) openDetail(item, 'shelf')
           return
         }
         default: {
@@ -1285,7 +1327,11 @@ export default function FrogBrowser() {
   // at while searching (jade until you've pointed at one), or the shelf's focus.
   const focusedSystem =
     screen === 'games'
-      ? system
+      ? // A collection spans systems, so the pond follows the focused game's own machine;
+        // a system list is simply that system.
+        collectionTag
+        ? games[row]?.label ?? null
+        : system
       : screen === 'detail'
         ? detailGame?.label
         : screen === 'search'
@@ -1319,7 +1365,9 @@ export default function FrogBrowser() {
       />
 
       <header className="relative flex items-center justify-between gap-4 px-6 py-3">
-        {screen === 'games' && system ? (
+        {screen === 'games' && collectionTag ? (
+          <CollectionListHeader tag={collectionTag} count={games.length} loading={!collectionsLoaded} />
+        ) : screen === 'games' && system ? (
           <GameListHeader system={system} count={games.length} />
         ) : (
           <div className="flex min-w-0 items-center gap-2">
@@ -1514,6 +1562,8 @@ export default function FrogBrowser() {
       ) : screen === 'games' ? (
         <GameList
           system={system}
+          collection={collectionTag}
+          loading={!!collectionTag && !collectionsLoaded}
           games={games}
           focus={row}
           finishedIds={finishedSet}
@@ -1531,13 +1581,7 @@ export default function FrogBrowser() {
           focus={focus}
           finishedIds={finishedSet}
           onFocus={(rail, index) => setFocus({ rail, index })}
-          onPick={(rail, item) =>
-            rail.kind === 'system'
-              ? item.count > 0 && openSystem(item.label)
-              : rail.id === 'jump'
-                ? play(item)
-                : openDetail(item, 'shelf')
-          }
+          onPick={pickShelfItem}
         />
       )}
 

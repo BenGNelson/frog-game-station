@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildShelf, buildSystems, jumpBackIn, favoriteGames, mostPlayed, tagRails, agoLabel, stepLetter, SYSTEM_ORDER } from './shelf.js'
+import { buildShelf, buildSystems, jumpBackIn, favoriteGames, mostPlayed, tagRails, collectionGames, COLLECTION_LIST_MIN, agoLabel, stepLetter, SYSTEM_ORDER } from './shelf.js'
 
 const g = (id, name, label) => ({ id, name, label, core: 'gb' })
 
@@ -116,6 +116,35 @@ describe('tagRails', () => {
 
   it('drops a tag whose games have all left the library', () => {
     expect(tagRails(LIBRARY, { Ghosts: ['gone'] })).toEqual([])
+  })
+
+  it('leaves a small collection as a plain game rail — no "see all"', () => {
+    const rails = tagRails(LIBRARY, { Adventure: ['1', '2'] })
+    expect(rails[0].items.every((it) => !it.seeAll)).toBe(true)
+  })
+
+  it('prepends a "see all" tile once a collection grows past the threshold', () => {
+    // A synthetic big library + one tag holding all of it.
+    const big = Array.from({ length: COLLECTION_LIST_MIN + 3 }, (_, i) =>
+      g(`b${i}`, `Big Game ${i}`, 'Game Boy')
+    )
+    const rail = tagRails(big, { Huge: big.map((x) => x.id) })[0]
+    expect(rail.items[0]).toMatchObject({ id: 'collection:Huge', seeAll: true, tag: 'Huge', count: big.length })
+    // The games still follow, and the tile is the only non-game.
+    expect(rail.items.slice(1).map((x) => x.id)).toEqual(big.map((x) => x.id))
+    expect(rail.items.filter((it) => it.seeAll)).toHaveLength(1)
+  })
+})
+
+describe('collectionGames', () => {
+  it('re-hydrates a tag\'s members and natural-sorts them by name', () => {
+    const list = collectionGames(LIBRARY, { Mix: ['4', '1', '2'] }, 'Mix')
+    expect(list.map((x) => x.name)).toEqual(["Link's Awakening", 'Pokemon Red', 'Sonic 2'])
+  })
+
+  it('drops members that have left the library, and is empty for an unknown tag', () => {
+    expect(collectionGames(LIBRARY, { Mix: ['1', 'gone'] }, 'Mix').map((x) => x.id)).toEqual(['1'])
+    expect(collectionGames(LIBRARY, {}, 'Nope')).toEqual([])
   })
 })
 

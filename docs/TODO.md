@@ -45,8 +45,10 @@ what's below is what's left, roughly priority-ordered within each group.
       + Shift override) opens over the tag picker / save editor, so a gamepad can name a new
       collection and a save state's label/note with no hardware keyboard. Touch keeps its native
       fields; a physical keyboard has full parity.
-- [ ] **Tag-filtered list view** — a vertical, letter-railed list for a collection (like a
-      system's game list), for tags with many games. The per-tag shelf rail covers small ones.
+- [x] **Tag-filtered list view** — shipped: a big collection (a tag past `COLLECTION_LIST_MIN`
+      games) gets a "see all" tile prepended to its shelf rail that opens it as the full
+      vertical, letter-railed list — the shared `GameList` in collection dress (jade accent,
+      per-row system chips, art following the focused game). Small collections stay rail-only.
 
 ---
 
