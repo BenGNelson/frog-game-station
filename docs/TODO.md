@@ -34,6 +34,13 @@ what's below is what's left, roughly priority-ordered within each group.
 
 ## Quality & polish
 
+- [ ] **Save-state shelf: default the controller cursor to "Save new", not the newest
+      save.** Opening the save-state menu from the pause screen currently lands the cursor on
+      the most recent save state (`openShelf` in `frontend/src/player/PlayerShell.jsx` sets
+      `shelfFocus` to `1` — index `0` is the "Save new" tile, `1` is the newest save). Change
+      it to default to the **Save-new tile** (index `0`). (Note: the current behaviour is
+      deliberate — the comment argues you open the shelf to *load* more often than to save —
+      so flipping it is a conscious preference change; update that comment too.)
 - [ ] **Touch ergonomics — search-field keyboard auto-raise on iOS.** _(Deferred, not
       dropped.)_ iOS blocks programmatic focus outside a user gesture, so there's no clean
       web fix — it needs an on-device solution and is low-value next to the rest. Parked with
