@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { X, Menu, Minimize } from 'lucide-react'
 import { playerSrc, coverUrl, postCover, deleteCover, ENGINE_LOADER_URL, engineIsLocal } from '../lib/library.js'
 import { goBack } from '../lib/nav.js'
 // The player is Frog Game Station's screen — launched from a game's page, it dresses in its
 // clothes (the same theme + boot mascot) so play feels continuous with the browser.
-import { systemForCore, FROG } from '../frog/theme.js'
+import { systemForCore, systemStyle, FROG } from '../frog/theme.js'
 import FrogBoot from './FrogBoot.jsx'
 import {
   RETROPAD,
@@ -58,6 +58,8 @@ import { saveState, loadState, listStates, deleteState, captureShot } from '../l
 import PauseMenu, { pauseItems, pauseCols } from './PauseMenu.jsx'
 import SaveStatePanel from './SaveStatePanel.jsx'
 import ControlsPanel, { controlRows } from './ControlsPanel.jsx'
+import WikiPanel from './WikiPanel.jsx'
+import PokedexPanel from './PokedexPanel.jsx'
 import ButtonLegend from './ButtonLegend.jsx'
 import RotatePrompt from './RotatePrompt.jsx'
 import TouchOverlay from './TouchOverlay.jsx'
@@ -118,6 +120,10 @@ function EngineMissing({ onBack }) {
     </div>
   )
 }
+
+// One d-pad/stick step of wiki scroll. Repeats while held (the pad loop re-fires
+// up/down), so a held direction reads as a smooth scroll rather than a jump.
+const WIKI_SCROLL_STEP = 90
 
 export default function PlayerShell({ id, core, name, label, coverV, loadStateUrl }) {
   const navigate = useNavigate()
@@ -183,6 +189,16 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
   const [controlsOpen, setControlsOpen] = useState(false)
   const [controlsFocus, setControlsFocus] = useState(0)
   const [listeningFor, setListeningFor] = useState(null) // RetroPad index awaiting a press
+
+  // The in-game wiki reader. `wikiMounted` latches true on first open and never resets,
+  // so the panel stays in the DOM (hidden) and keeps its article + scroll across a
+  // close/reopen; `wikiOpen` toggles its visibility.
+  const [wikiOpen, setWikiOpen] = useState(false)
+  const [wikiMounted, setWikiMounted] = useState(false)
+
+  // The in-game Pokédex reference (Pokémon games only) — same mounted-persistent shape.
+  const [pokedexOpen, setPokedexOpen] = useState(false)
+  const [pokedexMounted, setPokedexMounted] = useState(false)
 
   // The controller map in force right now: the chosen scheme, plus anything the
   // player has rebound on THIS controller.
@@ -415,6 +431,64 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
     setListeningFor(null)
   }, [])
 
+  // Imperative controls the wiki panel exposes (scroll / link nav / back), driven from
+  // the gamepad handler below while the reader owns the pad.
+  const wikiRef = useRef(null)
+  // How the reader was opened: from the pause menu (game already paused → close returns
+  // to the menu) or by the hotkey mid-play (pause now → close resumes the game).
+  const wikiFromGameRef = useRef(false)
+
+  const openWiki = useCallback((fromGame = false) => {
+    wikiFromGameRef.current = fromGame
+    setWikiMounted(true) // mount-on-first-open, then it persists (keeps scroll/article)
+    setWikiOpen(true)
+    if (fromGame) dispatch('pause') // the hotkey fires mid-play; pause under the reader
+  }, [])
+
+  const closeWiki = useCallback(() => {
+    setWikiOpen(false)
+    if (wikiFromGameRef.current) dispatch('resume') // hotkey-opened → back to the game
+  }, [])
+
+  // The Pokédex panel — identical open/close shape (pause on hotkey-open, resume on close).
+  const pokedexRef = useRef(null)
+  const pokedexFromGameRef = useRef(false)
+
+  const openPokedex = useCallback((fromGame = false) => {
+    pokedexFromGameRef.current = fromGame
+    setPokedexMounted(true)
+    setPokedexOpen(true)
+    if (fromGame) dispatch('pause')
+  }, [])
+
+  const closePokedex = useCallback(() => {
+    setPokedexOpen(false)
+    if (pokedexFromGameRef.current) dispatch('resume')
+  }, [])
+
+  // "Read on Bulbapedia" from the Pokédex — hand off to the wiki reader: hide the Pokédex
+  // (no resume; the reader takes over) and open the reader deep-linked to the Pokémon's
+  // Bulbapedia page. The reader inherits the resume duty so closing it behaves the same as
+  // if opened directly. `pendingRead` defers openTo until the panel has mounted (its ref).
+  const [pendingRead, setPendingRead] = useState(null)
+  const readFromPokedex = useCallback((bulbapediaTitle) => {
+    setPokedexOpen(false)
+    wikiFromGameRef.current = pokedexFromGameRef.current
+    setWikiMounted(true)
+    setWikiOpen(true)
+    setPendingRead(bulbapediaTitle)
+  }, [])
+  // useLayoutEffect (not useEffect): it runs during commit, BEFORE WikiPanel's passive
+  // load-once effect flushes — so openTo sets the panel's loadedRef in time and the
+  // load-once effect stands down. With a passive effect, the child's load-once fires first
+  // and races openTo, landing on the game's default wiki instead of the deep-linked page.
+  useLayoutEffect(() => {
+    if (pendingRead && wikiOpen && wikiRef.current) {
+      wikiRef.current.openTo({ host: 'bulbapedia.bulbagarden.net', title: pendingRead })
+      setPendingRead(null)
+    }
+  }, [pendingRead, wikiOpen])
+
   const chooseScheme = useCallback(
     (scheme) => saveSettings({ ...settings, controlScheme: scheme }),
     [settings, saveSettings]
@@ -431,6 +505,20 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
   const captureBinding = useCallback(
     (buttonIndex, id) => {
       if (listeningFor == null) return false
+
+      // The wiki hotkey is an app action, not a RetroPad button — it can take ANY
+      // button except the app's own Menu/Guide. It MAY collide with a game button
+      // (then that button also acts in-game); that's on the player, said in the panel.
+      if (listeningFor === 'wiki' || listeningFor === 'pokedex') {
+        if (buttonIndex === 9 || buttonIndex === 16) {
+          setError('That button belongs to the app — pick another.')
+        } else {
+          const key = listeningFor === 'wiki' ? 'wikiHotkey' : 'pokedexHotkey'
+          saveSettings({ ...settings, [key]: buttonIndex })
+        }
+        setListeningFor(null)
+        return true
+      }
 
       // The Menu button is the app's (short press = the game's START, long press =
       // this menu). Handing it to the game as well would make every long press do
@@ -517,6 +605,12 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
         case 'controls':
           openControls()
           break
+        case 'wiki':
+          openWiki()
+          break
+        case 'pokedex':
+          openPokedex()
+          break
         case 'fullscreen':
           goFullscreen()
           dispatch('resume')
@@ -533,7 +627,7 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
           break
       }
     },
-    [fastForward, openShelf, exit, goFullscreen, openControls, doSetCover, doResetCover]
+    [fastForward, openShelf, exit, goFullscreen, openControls, openWiki, openPokedex, doSetCover, doResetCover]
   )
 
   const openMenu = useCallback(() => {
@@ -549,6 +643,10 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
 
   // iPhone has no Fullscreen API, so the button is a no-op there and isn't shown.
   const canFullscreen = supportsFullscreen()
+
+  // Whether this is a Pokémon game — gates the Pokédex pause tile + hotkey. Same
+  // keyword the backend detects on (the ROM title, so it catches hacks too).
+  const isPokemon = /pok[eé]mon/i.test(name || '')
 
   // Held upright, the game goes across the top and the controls fill the space
   // below it — so the iframe has to give up the bottom half. In landscape it stays
@@ -567,13 +665,15 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
   const onTouchAction = useCallback(
     (action) => {
       if (action === 'pauseMenu') openMenu()
+      else if (action === 'wiki') openWiki()
+      else if (action === 'pokedex') openPokedex()
       else if (action === 'fastForward') {
         const on = !fastForward
         setFastForward(emuRef.current, on)
         setFF(on)
       }
     },
-    [fastForward, openMenu]
+    [fastForward, openMenu, openWiki, openPokedex]
   )
 
   // --- the physical controller ---------------------------------------------
@@ -584,7 +684,7 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
   // engine keeps exactly one listener per event, so overwriting would kill its
   // input handling outright.
   const menuOpenRef = useRef(false)
-  menuOpenRef.current = paused || shelfOpen || controlsOpen
+  menuOpenRef.current = paused || shelfOpen || controlsOpen || wikiOpen || pokedexOpen
   useEffect(() => {
     const emu = emuRef.current
     if (!emu) return
@@ -595,9 +695,9 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state === 'PLAYING'])
 
-  const menuItems = pauseItems(fastForward, { canFullscreen, hasCustomCover })
+  const menuItems = pauseItems(fastForward, { canFullscreen, hasCustomCover, isPokemon })
 
-  const rows = controlRows()
+  const rows = controlRows(isPokemon)
 
   useGamepad({
     onPadButton: (id) => {
@@ -609,8 +709,21 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
     onDisconnect: () => setPadActive(false),
 
     // While the Controls screen is waiting for a press, that press IS the binding —
-    // it must not also move the cursor. Returning true swallows it.
-    onRawButton: (index, id) => captureBinding(index, id),
+    // it must not also move the cursor. Returning true swallows it. Otherwise, in-game,
+    // the wiki hotkey opens the reader straight from play (default R3; rebindable).
+    onRawButton: (index, id) => {
+      if (captureBinding(index, id)) return true
+      if (index === settings.wikiHotkey && isRunning(state)) {
+        openWiki(true)
+        return true
+      }
+      // The Pokédex hotkey (default L3) — only meaningful for a Pokémon game.
+      if (index === settings.pokedexHotkey && isRunning(state) && isPokemon) {
+        openPokedex(true)
+        return true
+      }
+      return false
+    },
 
     // The Menu button is ours alone (START is left unbound in the preset, so this
     // can't double-fire): a short press is the game's START, a long press opens
@@ -620,7 +733,9 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
         // Back out one layer at a time. Resuming straight from a panel would
         // un-pause the game while that panel still covered it (and leave the
         // engine's gamepad gated, so the pad would drive nothing).
-        if (controlsOpen) closeControls()
+        if (wikiOpen) closeWiki()
+        else if (pokedexOpen) closePokedex()
+        else if (controlsOpen) closeControls()
         else if (shelfOpen) setShelfOpen(false)
         else if (paused) dispatch('resume')
         else openMenu()
@@ -649,12 +764,42 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
 
       if (!menuOpenRef.current) return
 
+      if (wikiOpen) {
+        // The reader owns the pad. Sticks/D-pad scroll (both arrive here as up/down
+        // with velocity-scaled repeat); shoulders page; triggers jump section; D-pad
+        // left/right steps the focused link; A opens it; B goes back, then closes.
+        const w = wikiRef.current
+        switch (action) {
+          case 'up': w?.scroll(-WIKI_SCROLL_STEP); break
+          case 'down': w?.scroll(WIKI_SCROLL_STEP); break
+          case 'left': w?.moveLink(-1); break
+          case 'right': w?.moveLink(1); break
+          case 'railPrev': w?.page(-1); break
+          case 'railNext': w?.page(1); break
+          case 'jumpPrev': w?.section(-1); break
+          case 'jumpNext': w?.section(1); break
+          case 'confirm': w?.activate(); break
+          case 'search': w?.changeWiki(); break // X — drop the wiki and re-search
+          case 'back': if (!w?.back()) closeWiki(); break
+          default: break
+        }
+        return
+      }
+
+      if (pokedexOpen) {
+        // The Pokédex owns the pad. It routes the action itself by view (list nav vs
+        // detail scroll) and returns false only to ask us to close (Back at the list root).
+        if (pokedexRef.current?.handleAction(action) === false) closePokedex()
+        return
+      }
+
       if (controlsOpen) {
         // A one-column list, so up/down walk it and left/right do nothing.
         if (action === 'back') closeControls()
         else if (action === 'confirm') {
           const row = rows[controlsFocus]
           if (row === 'reset') resetBindings()
+          else if (row === 'wiki' || row === 'pokedex') setListeningFor(row)
           else if (row.startsWith('bind:')) setListeningFor(Number(row.slice(5)))
           else chooseScheme(row)
         } else if (action === 'up' || action === 'down') {
@@ -794,13 +939,26 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
           return
         }
       }
+      // The wiki owns Escape while it's open (its own handler stops propagation) — this
+      // is the focus-independent fallback. It must come BEFORE the isRunning gate, since
+      // the reader always sits over a PAUSED game (isRunning is PLAYING-only).
+      if (e.key === 'Escape' && wikiOpen) {
+        e.preventDefault()
+        closeWiki()
+        return
+      }
+      if (e.key === 'Escape' && pokedexOpen) {
+        e.preventDefault()
+        closePokedex()
+        return
+      }
       if (e.key !== 'Escape' || !isRunning(state)) return
       e.preventDefault()
       openMenu()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [state, openMenu, exit])
+  }, [state, openMenu, exit, wikiOpen, closeWiki, pokedexOpen, closePokedex])
 
   // Pause when the app goes to the background, and flush the battery save on the
   // way out — an iOS tab can be discarded without warning, and an unsaved SRAM is
@@ -980,6 +1138,7 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
           fastForward={fastForward}
           canFullscreen={canFullscreen}
           hasCustomCover={hasCustomCover}
+          isPokemon={isPokemon}
           notice={coverNotice}
           focus={menuFocus}
           onFocus={setMenuFocus}
@@ -1003,6 +1162,9 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
             scheme={settings.controlScheme}
             bindings={bindingsFor(settings, padId)}
             listeningFor={listeningFor}
+            wikiHotkey={settings.wikiHotkey}
+            pokedexHotkey={settings.pokedexHotkey}
+            isPokemon={isPokemon}
             focus={controlsFocus}
             onFocus={setControlsFocus}
             onScheme={chooseScheme}
@@ -1037,6 +1199,54 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
                   hints={[
                     { button: 'A', label: shelfFocus === 0 ? 'Save' : 'Load' },
                     { button: 'Y', label: 'Delete' },
+                    { button: 'B', label: 'Back' },
+                  ]}
+                />
+              ) : null
+            }
+          />
+        )}
+
+        {/* Mounted-persistent (kept in the DOM, hidden when closed) so the article +
+            scroll survive close/reopen. */}
+        {wikiMounted && (
+          <WikiPanel
+            ref={wikiRef}
+            open={wikiOpen}
+            gameId={id}
+            gameName={name}
+            accent={systemStyle(label || systemForCore(core)).accent}
+            onClose={closeWiki}
+            legend={
+              mode === 'pad' ? (
+                <ButtonLegend
+                  hints={[
+                    { button: 'A', label: 'Open link' },
+                    { button: 'X', label: 'Change wiki' },
+                    { button: 'B', label: 'Back' },
+                  ]}
+                />
+              ) : null
+            }
+          />
+        )}
+
+        {/* The Pokédex — also mounted-persistent (keeps the browsed list + selection). */}
+        {pokedexMounted && (
+          <PokedexPanel
+            ref={pokedexRef}
+            open={pokedexOpen}
+            gameId={id}
+            gameName={name}
+            accent={systemStyle(label || systemForCore(core)).accent}
+            onClose={closePokedex}
+            onReadWiki={readFromPokedex}
+            legend={
+              mode === 'pad' ? (
+                <ButtonLegend
+                  hints={[
+                    { button: 'A', label: 'Select' },
+                    { button: 'Y', label: 'Dex' },
                     { button: 'B', label: 'Back' },
                   ]}
                 />

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
-import { ChevronLeft, Check, RotateCcw, Gamepad2 } from 'lucide-react'
+import { ChevronLeft, Check, RotateCcw, Gamepad2, BookOpen } from 'lucide-react'
 import { SCHEMES, BINDABLE, resolveBindings, describeBinding } from '../lib/controlPresets.js'
+import { bindingForButton } from '../lib/gamepad.js'
 import { FROG } from '../frog/theme.js'
 import { glowFilter } from '../lib/glow.js'
 
@@ -18,7 +19,10 @@ export default function ControlsPanel({
   padName,
   scheme,
   bindings,
-  listeningFor, // the RetroPad index waiting for a press, or null
+  listeningFor, // the RetroPad index (or 'wiki'/'pokedex') waiting for a press, or null
+  wikiHotkey, // the raw pad-button index bound to the wiki reader
+  pokedexHotkey, // the raw pad-button index bound to the Pokédex (Pokémon games only)
+  isPokemon, // whether to show the Pokédex hotkey row
   focus,
   onFocus,
   onScheme,
@@ -26,9 +30,9 @@ export default function ControlsPanel({
   onReset,
   onBack,
 }) {
-  // Scheme cards first, then one row per button, then Reset — one flat list so the
-  // d-pad just walks it.
-  const rows = [...Object.keys(SCHEMES), ...BINDABLE.map((b) => `bind:${b.index}`), 'reset']
+  // Scheme cards first, then one row per button, the shortcut hotkeys, then Reset — one
+  // flat list so the d-pad just walks it (shared with PlayerShell via controlRows).
+  const rows = controlRows(isPokemon)
   const resolved = resolveBindings({ scheme, custom: bindings })
 
   const panelRef = useRef(null)
@@ -105,6 +109,28 @@ export default function ControlsPanel({
             )
           })}
         </div>
+
+        <h3 className="mb-2 mt-5 text-xs font-medium uppercase tracking-wide" style={{ color: FROG.faint }}>Shortcut</h3>
+        <HotkeyRow
+          label="Wiki"
+          value={describeBinding(bindingForButton(wikiHotkey))}
+          listening={listeningFor === 'wiki'}
+          focused={rows[focus] === 'wiki'}
+          onSelect={() => onListen('wiki')}
+          onHover={() => onFocus(rows.indexOf('wiki'))}
+        />
+        {isPokemon && (
+          <div className="mt-1.5">
+            <HotkeyRow
+              label="Pokédex"
+              value={describeBinding(bindingForButton(pokedexHotkey))}
+              listening={listeningFor === 'pokedex'}
+              focused={rows[focus] === 'pokedex'}
+              onSelect={() => onListen('pokedex')}
+              onHover={() => onFocus(rows.indexOf('pokedex'))}
+            />
+          </div>
+        )}
 
         <button
           onClick={onReset}
@@ -187,8 +213,45 @@ function BindRow({ name, value, custom, listening, focused, onSelect, onHover })
   )
 }
 
+// The wiki-hotkey binding row — an app action (opens the reader), not a game button,
+// so it reads "opens the wiki" and can take ANY button (a game button will also act
+// in-game; the engine reads the pad itself and we can't intercept it mid-play).
+function HotkeyRow({ label, value, listening, focused, onSelect, onHover }) {
+  return (
+    <button
+      onClick={onSelect}
+      onMouseEnter={onHover}
+      aria-current={focused || undefined}
+      className="flex w-full items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors"
+      style={{
+        background: focused ? `rgba(${FROG.jade}, 0.14)` : FROG.panel,
+        borderColor: focused ? `rgba(${FROG.jade}, 0.6)` : FROG.line,
+        boxShadow: focused ? `0 0 0 2px rgba(${FROG.jade}, 0.5)` : 'none',
+      }}
+    >
+      <span className="flex items-center gap-2 text-sm font-medium" style={{ color: FROG.ink }}>
+        <BookOpen className="h-4 w-4" style={{ color: FROG.soft }} aria-hidden="true" />
+        {label}
+        <span style={{ color: FROG.faint }}>opens the wiki</span>
+      </span>
+      {listening ? (
+        <span className="animate-pulse text-sm font-medium" style={{ color: `rgb(${FROG.jade})` }}>Press a button…</span>
+      ) : (
+        <span className="text-sm" style={{ color: FROG.soft }}>{value}</span>
+      )}
+    </button>
+  )
+}
+
 // The flat row order the d-pad walks. Exported so PlayerShell can drive focus
-// against exactly what's on screen.
-export function controlRows() {
-  return [...Object.keys(SCHEMES), ...BINDABLE.map((b) => `bind:${b.index}`), 'reset']
+// against exactly what's on screen. 'wiki' (and, for Pokémon games, 'pokedex') are
+// the app-level hotkey bindings — not game buttons — sitting between them and Reset.
+export function controlRows(isPokemon = false) {
+  return [
+    ...Object.keys(SCHEMES),
+    ...BINDABLE.map((b) => `bind:${b.index}`),
+    'wiki',
+    ...(isPokemon ? ['pokedex'] : []),
+    'reset',
+  ]
 }

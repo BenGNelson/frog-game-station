@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { Play, Save, FolderOpen, FastForward, Maximize, Gamepad2, RotateCcw, LogOut, ImagePlus, ImageOff } from 'lucide-react'
+import { Play, Save, FolderOpen, FastForward, Maximize, Gamepad2, RotateCcw, LogOut, ImagePlus, ImageOff, BookOpen, BookMarked } from 'lucide-react'
 import { moveInGrid } from '../lib/gridNav.js'
 import { FROG } from '../frog/theme.js'
 import { radiantBackdrop, glowFilter } from '../lib/glow.js'
@@ -28,7 +28,7 @@ export function pauseCols(count) {
 // The menu's contents, exported so the controller can walk the same grid the
 // touch/keyboard user sees — one source of truth for what's on screen and what
 // index each thing sits at.
-export function pauseItems(fastForward, { canFullscreen = true, hasCustomCover = false } = {}) {
+export function pauseItems(fastForward, { canFullscreen = true, hasCustomCover = false, isPokemon = false } = {}) {
   return [
     { id: 'resume', label: 'Resume', Icon: Play, primary: true },
     { id: 'save', label: 'Save State', Icon: Save },
@@ -44,6 +44,10 @@ export function pauseItems(fastForward, { canFullscreen = true, hasCustomCover =
     // at all: there the button did nothing, so it isn't shown. Quit is the way out.
     ...(canFullscreen ? [{ id: 'fullscreen', label: 'Fullscreen', Icon: Maximize }] : []),
     { id: 'controls', label: 'Controls', Icon: Gamepad2 },
+    // Read this game's wiki over the paused game — opens the in-player reader.
+    { id: 'wiki', label: 'Wiki', Icon: BookOpen },
+    // Pokémon games only: the structured Pokédex reference.
+    ...(isPokemon ? [{ id: 'pokedex', label: 'Pokédex', Icon: BookMarked }] : []),
     // Grab THIS moment as the game's cover art — the live frame is already captured
     // for the next save-state thumbnail, so it's here to reuse. Reset only shows once
     // there's a user-set cover to revert.
@@ -54,8 +58,8 @@ export function pauseItems(fastForward, { canFullscreen = true, hasCustomCover =
   ]
 }
 
-export default function PauseMenu({ open, name, fastForward, canFullscreen, hasCustomCover, notice, focus, onFocus, onAction, legend }) {
-  const items = pauseItems(fastForward, { canFullscreen, hasCustomCover })
+export default function PauseMenu({ open, name, fastForward, canFullscreen, hasCustomCover, isPokemon, notice, focus, onFocus, onAction, legend }) {
+  const items = pauseItems(fastForward, { canFullscreen, hasCustomCover, isPokemon })
   const cols = pauseCols(items.length)
   const orphan = items.length % cols === 1 && items.length > cols
 

@@ -336,6 +336,82 @@ airplane mode fills in the full library by itself when the network returns. Laun
 downloaded game offline hands off to the player exactly as online — it boots from the
 cached ROM and engine.
 
+### The in-game wiki reader
+
+A **peekable wiki reader** opens over the paused game (`player/WikiPanel.jsx`, reached from
+the pause menu's **Wiki** tile): read a game's wiki — a type chart, a hack's changed
+movesets — without leaving the app, then close and reopen with your **article and scroll
+position intact**.
+
+- **A reader, not an iframe — the load-bearing decision.** A cross-origin iframe cannot be
+  scrolled or navigated by a controller (same-origin policy), and the wikis worth reading
+  (Bulbapedia, Fandom, Wikipedia) block being framed at all. But they're all **MediaWiki**,
+  whose `action=parse` API returns clean article HTML with no framing restrictions. The
+  backend (`app/wiki.py`) fetches that, runs it through a strict allowlist **sanitizer**
+  (drops `<script>`/`<style>`/etc., strips every `on*`/`style` attribute), and rewrites its
+  links and images to stay inside the app. We render the result in **our own same-origin
+  page** — so it's controller/touch-navigable, FROG-skinned, and cacheable.
+- **Everything stays same-origin, CSP unchanged.** Internal `/wiki/Title` links become
+  `data-wiki-title` markers the reader follows in-panel (with a Back stack); external links
+  become `data-wiki-href` (open-in-tab). Article images are rewritten to a same-origin
+  **image proxy** (`/library/games/wiki/img`) because the app's `img-src 'self'` CSP blocks
+  external images — the proxy only fetches hosts related to the game's resolved wiki (never
+  an arbitrary URL, same anti-open-proxy discipline as the screenshot proxy), and refuses
+  SVG. So the reader needs **no CSP loosening** — a security win, not a compromise.
+- **Where the link comes from.** Resolved server-side (`app/wiki_links.py`) in priority
+  order: a **user override** (`game_wiki` table) → a **curated default page**
+  (`app/wiki_sources.py` — a Pokémon game defaults to its **Bulbapedia walkthrough**, a
+  game-specific guide that beats a generic link) → the **IGDB `websites`** link auto-derived
+  by the matcher (`igdb_meta.wiki_url`) → a **ROM hack's base-game** link. A game with none of
+  those offers **search-and-pick** to pin one, and that search is steered by the **curated
+  per-family** host table (a Pokémon hack IGDB can't match searches **Bulbapedia**, not
+  Wikipedia). The user override may be **any** URL: a MediaWiki page renders, anything else (a
+  GameFAQs guide) becomes an **open-in-tab** card. And a **"Change wiki"** control (⟳ / X) drops
+  the current wiki back to search, so you're never stuck on the wrong one.
+- **Mounted-persistent panel.** Unlike every other player panel (which unmounts on close),
+  the reader stays in the DOM and hides via `display:none`, so the article + scroll survive
+  a close/reopen — that's the "peek and keep your place". Content is fetched **lazily, one
+  page at a time, and cached** on disk (versioned, per-game keyed) under `/data`.
+- **Deep-linkable from elsewhere.** The reader can be opened to a specific page on a specific
+  wiki (`WikiPanel.openTo({host, title})` + a page-endpoint `host` param restricted to
+  known/curated wikis) — the Pokédex's "Read on Bulbapedia" uses it. Sanitized image URLs carry
+  their article's host so a deep-linked article's images still validate + load.
+- **Both hands: touch and controller.** Because the article is our own DOM, the pad drives
+  it fully — the panel exposes an imperative surface (`useImperativeHandle`) that PlayerShell
+  drives while the reader owns the pad: **stick/D-pad scroll** (velocity-scaled), **shoulders
+  page**, **triggers jump between section headings**, **D-pad ←/→ step a highlighted link**,
+  **A follows it**, **B goes back then closes**. A **bindable hotkey** opens the reader
+  straight from play — default **R3** (right-stick click: unbound in the retro preset and
+  unused by these cores, so it's collision-free), rebindable in the Controls panel like any
+  button. Opening from the hotkey pauses the game and closing resumes it; opening from the
+  pause menu returns there.
+
+### The in-game Pokédex reference
+
+For a **Pokémon game (or hack)**, a second in-player panel (`player/PokedexPanel.jsx`, a
+Pokémon-only pause tile + an **L3** hotkey) browses the dex and shows each Pokémon's sprite,
+types, base stats, and evolution chain. It's the *structured* companion to the wiki reader's
+prose.
+
+- **PokeAPI for structured data, Bulbapedia for prose.** The data comes from **PokeAPI**
+  (`app/pokedex.py` → pokeapi.co): free, key-less, **static-hosted** JSON whose Fair-Use policy
+  asks consumers to cache locally — a fit for our disk cache. `get_pokemon` composes three
+  cached calls (pokemon + species + evolution-chain) into one DTO; the evolution chain is
+  flattened into render stages and each node enriched with its types. Bulbapedia (via the wiki
+  reader's deep-link) stays the prose layer.
+- **Scope from the ROM title.** `pokedex_scope(name, is_hack)` maps a game to a PokeAPI regional
+  dex *by game* (remakes get their dex's region — FireRed → Kanto), longest-keyword-first; a
+  hack's arbitrary roster defaults to the **national** dex, and a region↔national toggle
+  overrides either way.
+- **Sprites via a tight proxy.** Sprites live on `raw.githubusercontent.com/PokeAPI/sprites`;
+  the app CSP blocks external images, so they ride a proxy scoped to *only* that host+path
+  (`get_pokedex_sprite`), reusing the wiki image proxy's SSRF guard + disk cache — not an open
+  GitHub-raw proxy.
+- **Same panel shape as the wiki reader** — forwardRef + `useImperativeHandle`,
+  mounted-persistent, focus-on-open + Escape `stopPropagation` — so it keeps the browsed list
+  and selected Pokémon across close/reopen and is fully controller/touch-navigable. The pad
+  drives it through one `handleAction` the panel routes by view (list vs detail).
+
 ---
 
 ## Saves & SRAM
@@ -592,3 +668,14 @@ The player and readers are **real routes**, not overlays, so the phone's back ge
   candidate shortlist makes every match reversible.
 - **The EmulatorJS engine is fetched, not committed.** It's large and pinned; a fetch script
   (or the CDN) keeps the repo lean and the version deliberate.
+- **The in-game wiki is a reader, not a browser.** A cross-origin iframe can't be
+  controller-scrolled and the target wikis block framing — but they're MediaWiki, so we fetch
+  the article via its API, sanitize it, and render it same-origin. That's the only shape that
+  is controller-navigable, skinnable, and cacheable, and it keeps the app's locked-down CSP
+  intact (article images ride a same-origin, anti-open-proxy image proxy).
+- **The Pokédex is structured data (PokeAPI), not scraped prose.** A Pokémon game's real
+  mid-battle need is types/stats/evolutions, which prose serves badly. PokeAPI is free, static,
+  and cache-friendly (its Fair-Use policy asks for local caching) and gives clean typed JSON, so
+  we render a native Pokédex and leave Bulbapedia (deep-linked) for the prose. Same
+  mounted-persistent, controller-navigable panel shape as the wiki reader; sprites ride a proxy
+  scoped to only the PokeAPI sprites host+path.

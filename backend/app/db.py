@@ -78,6 +78,11 @@ CREATE TABLE IF NOT EXISTS igdb_meta (
     is_hack        INTEGER NOT NULL DEFAULT 0, -- 1 = this ROM is a HACK of the matched
                                       -- game (borrows its art/summary, keeps its own
                                       -- name), not the game itself
+    wiki_url       TEXT,              -- auto-derived wiki link (IGDB `websites`), the
+                                      -- default source for the in-game wiki reader; a
+                                      -- USER override lives in game_wiki so it isn't
+                                      -- stomped by the matcher (source guards the ROW,
+                                      -- not a re-derived column)
     updated_at     REAL NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_igdb_meta_igdb_id ON igdb_meta (igdb_id);
@@ -102,6 +107,19 @@ CREATE TABLE IF NOT EXISTS game_tags (
     PRIMARY KEY (game_id, tag)
 );
 CREATE INDEX IF NOT EXISTS idx_game_tags_tag ON game_tags (tag);
+
+-- User-set wiki link per game — the manual override for the in-game wiki reader.
+-- Kept SEPARATE from igdb_meta.wiki_url (which the matcher re-derives from IGDB on
+-- each pass) so a link you pinned by hand survives every re-match: the matcher's
+-- `source` guard protects the igdb_meta ROW, not a derived column, so a plain column
+-- would be stomped. Same sparse pattern as game_flags — only overridden games get a
+-- row, and it's the FIRST thing resolve_wiki() consults. Also the only way to give a
+-- wiki to a ROM hack IGDB can't match.
+CREATE TABLE IF NOT EXISTS game_wiki (
+    game_id    TEXT PRIMARY KEY,
+    wiki_url   TEXT NOT NULL,
+    updated_ms INTEGER NOT NULL
+);
 """
 
 
@@ -131,6 +149,10 @@ _MIGRATIONS = [
     # The ROM-hack flag: this ROM borrows the matched game's art but is a hack OF it,
     # not the game itself. A pre-existing DB gets it here (default 0 = not a hack).
     "ALTER TABLE igdb_meta ADD COLUMN is_hack INTEGER NOT NULL DEFAULT 0",
+    # Auto-derived wiki link (from IGDB `websites`) — the default source for the
+    # in-game wiki reader. A pre-existing DB backfills it on the next matcher pass
+    # (the _MATCH_VERSION bump forces a re-fetch).
+    "ALTER TABLE igdb_meta ADD COLUMN wiki_url TEXT",
 ]
 
 
@@ -222,7 +244,7 @@ _IGDB_COLS = (
     "game_id", "igdb_id", "matched", "name", "summary", "release_year", "rating",
     "developer", "publisher", "genres", "cover_image_id", "screenshot_ids",
     "videos", "candidates", "confidence", "source", "match_version", "rom_mtime",
-    "similar_games", "is_hack", "updated_at",
+    "similar_games", "is_hack", "wiki_url", "updated_at",
 )
 
 
@@ -349,6 +371,43 @@ def list_hacks():
             "SELECT game_id, name FROM igdb_meta WHERE is_hack = 1 AND matched = 1"
         ).fetchall()
     return {r["game_id"]: r["name"] for r in rows}
+
+
+# --- Per-game wiki override -------------------------------------------------
+
+def get_game_wiki(game_id):
+    """A game's user-set wiki URL, or None if it has no override (then the reader
+    falls back to the auto-derived igdb_meta.wiki_url — see resolve_wiki)."""
+    with get_conn() as conn:
+        r = conn.execute(
+            "SELECT wiki_url FROM game_wiki WHERE game_id = ?", (game_id,)
+        ).fetchone()
+    return r["wiki_url"] if r else None
+
+
+def set_game_wiki(game_id, wiki_url, now_ms=None):
+    """Pin a game's wiki URL by hand. Overrides the auto-derived link and survives
+    every matcher pass. An empty/None url clears the override (keeps the table sparse,
+    reverting to the auto default)."""
+    if now_ms is None:
+        now_ms = int(time.time() * 1000)
+    with get_conn() as conn:
+        if wiki_url:
+            conn.execute(
+                "INSERT INTO game_wiki (game_id, wiki_url, updated_ms) VALUES (?, ?, ?)"
+                " ON CONFLICT(game_id) DO UPDATE SET"
+                " wiki_url = excluded.wiki_url, updated_ms = excluded.updated_ms",
+                (game_id, wiki_url, now_ms),
+            )
+        else:
+            conn.execute("DELETE FROM game_wiki WHERE game_id = ?", (game_id,))
+    return wiki_url or None
+
+
+def clear_game_wiki(game_id):
+    """Drop a game's wiki override, reverting to the auto-derived link."""
+    with get_conn() as conn:
+        conn.execute("DELETE FROM game_wiki WHERE game_id = ?", (game_id,))
 
 
 # --- Collections: the "finished" flag + free-form tags ----------------------
