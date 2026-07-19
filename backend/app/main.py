@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 from app.config import settings
 from app.db import init_db
 from app.igdb_sync import init_matcher
-from app.routers import library, wiki
+from app.routers import library, pokedex, wiki
 
 
 @asynccontextmanager
@@ -82,3 +82,4 @@ def health():
 # library.py's "/library" becomes "/api/library".
 app.include_router(library.router, prefix="/api", tags=["Library"])
 app.include_router(wiki.router, prefix="/api", tags=["Wiki"])
+app.include_router(pokedex.router, prefix="/api", tags=["Pokedex"])

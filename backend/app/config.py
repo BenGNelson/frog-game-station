@@ -65,6 +65,12 @@ class Settings(BaseSettings):
     # slowly; a day keeps it fresh without hammering the source.
     wiki_cache_ttl: int = 86400
 
+    # --- Pokédex reference (the in-game Pokédex for Pokémon games) ---
+    # On by default; when off, the Pokédex tile/panel is hidden. Data comes from PokeAPI
+    # (pokeapi.co) and is cached under the wiki cache dir; PokeAPI is static so the cache
+    # is effectively permanent.
+    pokedex_enabled: bool = True
+
     # --- Backend ---
     api_port: int = 8000
     # SQLite cache (lives on a Docker volume so it survives rebuilds). Not a

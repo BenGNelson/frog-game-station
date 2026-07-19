@@ -1,7 +1,10 @@
 """The Pokédex data layer: pure detection/scope/name/URL/evolution helpers (no IO) and
 the composed PokeAPI fetches with `_api` stubbed (no network)."""
 
-from app import pokedex
+import pytest
+
+from app import db, pokedex
+from app.config import settings
 
 
 # --- detection + scope -----------------------------------------------------
@@ -173,3 +176,69 @@ def test_get_pokemon_composes_the_dto(monkeypatch):
 def test_get_pokemon_none_on_missing(monkeypatch):
     monkeypatch.setattr(pokedex, "_api", lambda path, params=None: None)
     assert pokedex.get_pokemon(9999) is None
+
+
+# --- endpoints -------------------------------------------------------------
+
+class TestPokedexEndpoints:
+    def test_detect_pokemon_game(self, client):
+        r = client.get("/api/library/games/pokedex",
+                       params={"id": "poke.gb", "name": "Pokemon - Red Version (USA)"})
+        body = r.json()
+        assert body["enabled"] and body["is_pokemon"] and body["scope"] == "kanto"
+
+    def test_detect_non_pokemon(self, client):
+        r = client.get("/api/library/games/pokedex",
+                       params={"id": "z.gb", "name": "The Legend of Zelda"})
+        assert r.json() == {"enabled": True, "is_pokemon": False, "scope": None}
+
+    def test_detect_hack_defaults_national(self, client):
+        db.upsert_igdb_meta("hack.gb", {"matched": True, "is_hack": True, "source": "manual"})
+        r = client.get("/api/library/games/pokedex",
+                       params={"id": "hack.gb", "name": "Pokemon Kaizo Emerald"})
+        assert r.json()["scope"] == "national"
+
+    def test_detect_disabled(self, client, monkeypatch):
+        monkeypatch.setattr(settings, "pokedex_enabled", False)
+        assert client.get("/api/library/games/pokedex",
+                          params={"id": "p.gb", "name": "Pokemon Red"}).json()["enabled"] is False
+
+    def test_list_endpoint(self, client, monkeypatch):
+        monkeypatch.setattr(pokedex, "list_dex", lambda scope, api_base="/api": [{"id": 1, "display": "Bulbasaur"}])
+        r = client.get("/api/library/games/pokedex/list", params={"scope": "kanto"})
+        assert r.json() == {"scope": "kanto", "pokemon": [{"id": 1, "display": "Bulbasaur"}]}
+
+    def test_list_rejects_bad_scope(self, client):
+        # A slug with path characters can't reach list_dex (no PokeAPI URL injection).
+        r = client.get("/api/library/games/pokedex/list", params={"scope": "../../evil"})
+        assert r.json()["pokemon"] == []
+
+    def test_pokemon_endpoint(self, client, monkeypatch):
+        monkeypatch.setattr(pokedex, "get_pokemon", lambda num, api_base="/api": {"id": num, "display": "Pikachu"})
+        assert client.get("/api/library/games/pokedex/pokemon", params={"num": 25}).json()["display"] == "Pikachu"
+
+    def test_pokemon_404(self, client, monkeypatch):
+        monkeypatch.setattr(pokedex, "get_pokemon", lambda num, api_base="/api": None)
+        assert client.get("/api/library/games/pokedex/pokemon", params={"num": 9999}).status_code == 404
+
+    def test_pokemon_rejects_bad_num(self, client):
+        # Query validation (ge=1) rejects a non-positive / non-int id.
+        assert client.get("/api/library/games/pokedex/pokemon", params={"num": 0}).status_code == 422
+
+    def test_sprite_refuses_non_pokeapi_host(self, client):
+        r = client.get("/api/library/games/pokedex/sprite", params={"src": "https://evil.com/x.png"})
+        assert r.status_code == 404
+
+    def test_sprite_serves_allowed(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(settings, "wiki_cache_dir", str(tmp_path))
+        monkeypatch.setattr(pokedex, "fetch_sprite", lambda url, **kw: (b"PNGBYTES", "image/png"))
+        r = client.get("/api/library/games/pokedex/sprite", params={
+            "src": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/25.png"})
+        assert r.status_code == 200 and r.content == b"PNGBYTES"
+
+    def test_sprite_refuses_svg(self, client, tmp_path, monkeypatch):
+        monkeypatch.setattr(settings, "wiki_cache_dir", str(tmp_path))
+        monkeypatch.setattr(pokedex, "fetch_sprite", lambda url, **kw: (b"<svg/>", "image/svg+xml"))
+        r = client.get("/api/library/games/pokedex/sprite", params={
+            "src": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/25.svg"})
+        assert r.status_code == 404
