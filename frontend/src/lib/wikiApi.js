@@ -6,14 +6,17 @@ import { API_BASE } from './useApi.js'
 
 const enc = encodeURIComponent
 
-export function wikiSourceUrl(id) {
-  return `${API_BASE}/library/games/wiki?id=${enc(id)}`
+export function wikiSourceUrl(id, name) {
+  let u = `${API_BASE}/library/games/wiki?id=${enc(id)}`
+  if (name) u += `&name=${enc(name)}` // lets the backend pick a curated default page
+  return u
 }
 
-export function wikiPageUrl(id, title, host) {
+export function wikiPageUrl(id, title, host, name) {
   let u = `${API_BASE}/library/games/wiki/page?id=${enc(id)}`
   if (title) u += `&title=${enc(title)}`
   if (host) u += `&host=${enc(host)}` // a deep-link to a specific (curated) wiki, e.g. Bulbapedia
+  if (name) u += `&name=${enc(name)}` // for the curated default when no explicit host
   return u
 }
 
@@ -25,16 +28,16 @@ export function wikiSearchUrl(id, q, host, name) {
 }
 
 // The game's resolved wiki source: { enabled, resolved: {host, title, url, source}|null }.
-export async function fetchWikiSource(id) {
-  const r = await fetch(wikiSourceUrl(id))
+export async function fetchWikiSource(id, name) {
+  const r = await fetch(wikiSourceUrl(id, name))
   if (!r.ok) throw new Error(`wiki source ${r.status}`)
   return r.json()
 }
 
 // One sanitized article: { host, title, html, sections }. A 404 (no such page /
 // no wiki) is surfaced via err.status so the panel can distinguish it.
-export async function fetchWikiPage(id, title, host) {
-  const r = await fetch(wikiPageUrl(id, title, host))
+export async function fetchWikiPage(id, title, host, name) {
+  const r = await fetch(wikiPageUrl(id, title, host, name))
   if (!r.ok) {
     const err = new Error(`wiki page ${r.status}`)
     err.status = r.status

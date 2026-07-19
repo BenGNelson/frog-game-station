@@ -71,7 +71,7 @@ const WikiPanel = forwardRef(function WikiPanel({
       setPageBusy(true)
       setFlash(null)
       try {
-        const art = await fetchWikiPage(gameId, title, deepHostRef.current)
+        const art = await fetchWikiPage(gameId, title, deepHostRef.current, gameName)
         setArticle(art)
         setPhase('reading')
         setHistory((h) => (push ? pushPage(h, title) : h.at < 0 ? startHistory(title) : h))
@@ -84,7 +84,7 @@ const WikiPanel = forwardRef(function WikiPanel({
         setPageBusy(false)
       }
     },
-    [gameId, article, clearLinkFocus]
+    [gameId, gameName, article, clearLinkFocus]
   )
 
   // Follow a resolved link target — the shared path for a tap and a controller A.
@@ -108,7 +108,7 @@ const WikiPanel = forwardRef(function WikiPanel({
     setPhase('loading')
     deepHostRef.current = null // a normal open reads the game's own wiki
     try {
-      const { enabled, resolved } = await fetchWikiSource(gameId)
+      const { enabled, resolved } = await fetchWikiSource(gameId, gameName)
       if (!enabled) {
         setPhase('error')
         return
@@ -128,7 +128,7 @@ const WikiPanel = forwardRef(function WikiPanel({
     } catch {
       setPhase('error')
     }
-  }, [gameId, loadPage])
+  }, [gameId, gameName, loadPage])
 
   // Load once, the first time the panel is opened for this game.
   useEffect(() => {

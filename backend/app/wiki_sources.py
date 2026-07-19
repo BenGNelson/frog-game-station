@@ -11,6 +11,9 @@ The main payoff is ROM hacks: a Pokémon hack IGDB can't match still defaults it
 search to Bulbapedia instead of Wikipedia.
 """
 
+import re
+from urllib.parse import quote
+
 # (title keywords, wiki host). First match wins; all-lowercase keywords, matched as
 # substrings of the lowercased title. Every host is a real MediaWiki (Fandom or
 # standalone) whose api.php the content fetcher can read.
@@ -43,4 +46,63 @@ def curated_host(name):
     for keywords, host in _FAMILIES:
         if any(k in n for k in keywords):
             return host
+    return None
+
+
+# --- Curated default PAGE (a specific /wiki/ page, not just a host) ----------
+
+_BULBAPEDIA = "bulbapedia.bulbagarden.net"
+
+
+def _squash(name):
+    """Lowercase + drop non-alphanumerics, so 'Pokémon - Fire Red (USA)' and 'FireRed'
+    both match the 'firered' keyword."""
+    return re.sub(r"[^a-z0-9]", "", (name or "").lower())
+
+
+# Game keyword -> the Bulbapedia WALKTHROUGH page (Walkthrough: namespace) for a Pokémon
+# game. Checked longest-keyword-first (so 'firered' beats 'red', 'heartgold' beats
+# 'gold'). These are hub pages linking each chapter + the Pokémon/locations — the right
+# default for a Pokémon game, far more useful than searching the species encyclopedia.
+_WALKTHROUGHS = sorted(
+    [
+        ("firered", "Pokémon FireRed and LeafGreen"),
+        ("leafgreen", "Pokémon FireRed and LeafGreen"),
+        ("heartgold", "Pokémon HeartGold and SoulSilver"),
+        ("soulsilver", "Pokémon HeartGold and SoulSilver"),
+        ("omegaruby", "Pokémon Omega Ruby and Alpha Sapphire"),
+        ("alphasapphire", "Pokémon Omega Ruby and Alpha Sapphire"),
+        ("red", "Pokémon Red and Blue"),
+        ("blue", "Pokémon Red and Blue"),
+        ("green", "Pokémon Red and Blue"),
+        ("yellow", "Pokémon Yellow"),
+        ("gold", "Pokémon Gold and Silver"),
+        ("silver", "Pokémon Gold and Silver"),
+        ("crystal", "Pokémon Crystal"),
+        ("ruby", "Pokémon Ruby and Sapphire"),
+        ("sapphire", "Pokémon Ruby and Sapphire"),
+        ("emerald", "Pokémon Emerald"),
+        ("diamond", "Pokémon Diamond and Pearl"),
+        ("pearl", "Pokémon Diamond and Pearl"),
+        ("platinum", "Pokémon Platinum"),
+        ("black", "Pokémon Black and White"),
+        ("white", "Pokémon Black and White"),
+    ],
+    key=lambda kv: -len(kv[0]),
+)
+
+
+def curated_wiki_url(name):
+    """A curated default wiki PAGE for a game — currently the Bulbapedia walkthrough for a
+    mainline Pokémon game (matched by keyword), or None. Only for Pokémon titles; other
+    families just get the search host (curated_host). A hack that reuses a base-game name
+    gets that base's walkthrough as a starting point (the 'Change wiki' button reassigns
+    it if the hack diverges)."""
+    if not curated_host(name) == _BULBAPEDIA:
+        return None
+    squashed = _squash(name)
+    for keyword, page in _WALKTHROUGHS:
+        if keyword in squashed:
+            title = quote(("Walkthrough:" + page).replace(" ", "_"), safe=":_")
+            return f"https://{_BULBAPEDIA}/wiki/{title}"
     return None

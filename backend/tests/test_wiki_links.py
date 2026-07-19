@@ -70,6 +70,17 @@ class TestResolveWiki:
         assert got["url"] == BASE
         assert got["kind"] == "mediawiki"
 
+    def test_curated_default_beats_auto(self):
+        # A curated default PAGE (a Pokémon walkthrough) wins over the IGDB auto link.
+        curated = "https://bulbapedia.bulbagarden.net/wiki/Walkthrough:Pok%C3%A9mon_Yellow"
+        got = resolve_wiki(meta={"wiki_url": WIKIPEDIA}, curated=curated)
+        assert got["source"] == "curated"
+        assert got["title"] == "Walkthrough:Pokémon_Yellow"  # underscores kept (MediaWiki space encoding)
+
+    def test_curated_still_loses_to_a_user_pin(self):
+        got = resolve_wiki(override=BULBA, curated="https://bulbapedia.bulbagarden.net/wiki/Walkthrough:X")
+        assert got["source"] == "user"
+
     def test_user_override_can_be_an_external_link(self):
         # The escape hatch: a user may pin a non-wiki URL — it opens in a tab.
         got = resolve_wiki(override="https://gamefaqs.gamespot.com/gb/12345")
@@ -173,3 +184,19 @@ class TestCuratedHost:
         # CURATED_HOSTS (the router's trust set) must cover every mapped host.
         for _, host in wiki_sources._FAMILIES:
             assert host in wiki_sources.CURATED_HOSTS
+
+
+class TestCuratedWikiUrl:
+    def test_pokemon_games_map_to_their_walkthrough(self):
+        u = wiki_sources.curated_wiki_url("Pokemon - FireRed Version (USA)")
+        assert u == "https://bulbapedia.bulbagarden.net/wiki/Walkthrough:Pok%C3%A9mon_FireRed_and_LeafGreen"
+        assert "Walkthrough:Pok%C3%A9mon_Yellow" in wiki_sources.curated_wiki_url("Pokemon Yellow")
+
+    def test_longest_keyword_wins(self):
+        # 'firered' beats 'red'; 'heartgold' beats 'gold'.
+        assert "FireRed" in wiki_sources.curated_wiki_url("Pokemon FireRed")
+        assert "HeartGold" in wiki_sources.curated_wiki_url("Pokemon HeartGold")
+
+    def test_non_pokemon_and_unknown_are_none(self):
+        assert wiki_sources.curated_wiki_url("The Legend of Zelda") is None  # not a Pokémon title
+        assert wiki_sources.curated_wiki_url("Pokemon Some Fan Game") is None  # no mainline keyword

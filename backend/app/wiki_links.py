@@ -53,28 +53,28 @@ def classify_url(url):
     return None
 
 
-def resolve_wiki(meta=None, override=None, base_meta=None):
+def resolve_wiki(meta=None, override=None, base_meta=None, curated=None):
     """Pick the effective wiki source for one game, in priority order:
 
-      1. `override`  — the user-pinned URL (game_wiki row). Always wins, and may be ANY
+      1. `override` — the user-pinned URL (game_wiki row). Always wins, and may be ANY
          link: a MediaWiki page renders in the reader, anything else becomes an
          open-in-tab card (the escape hatch for a hack whose only guide isn't a wiki).
-      2. `meta.wiki_url` — auto-derived from IGDB `websites` for this ROM.
-      3. `base_meta.wiki_url` — the base game's auto link, for a ROM hack that has no
+      2. `curated` — a curated default PAGE for a known game (wiki_sources.curated_wiki_url),
+         e.g. a Pokémon game's Bulbapedia walkthrough. Beats the IGDB auto link because a
+         game-specific guide is a better default than whatever `websites` happened to list.
+      3. `meta.wiki_url` — auto-derived from IGDB `websites` for this ROM.
+      4. `base_meta.wiki_url` — the base game's auto link, for a ROM hack that has no
          wiki of its own but is 'based on' a game you own.
 
-    Tiers 2-3 must be renderable MediaWiki `/wiki/Title` pages (a homepage or a random
+    Tiers 2-4 must be renderable MediaWiki `/wiki/Title` pages (a homepage or a random
     link is skipped so a lower tier can still supply a readable page). Returns
     `{host, title, url, source, kind}` for the winner, or None when nothing resolves.
-    `meta`/`base_meta` are the dicts from db.get_igdb_meta (or None).
-
-    NOTE: the curated per-family wikis (wiki_sources) are NOT a resolution tier — you
-    can't reliably guess a game's page URL. They instead steer the no-link SEARCH toward
-    the right wiki (see routers/wiki.search_wiki), where the user picks the exact page."""
+    `meta`/`base_meta` are the dicts from db.get_igdb_meta (or None)."""
     user = classify_url(override)
     if user:
         return {**user, "source": "user"}
     for source, url in (
+        ("curated", curated),
         ("auto", (meta or {}).get("wiki_url")),
         ("base", (base_meta or {}).get("wiki_url")),
     ):
