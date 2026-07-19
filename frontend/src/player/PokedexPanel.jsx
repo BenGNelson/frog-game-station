@@ -186,17 +186,22 @@ const PokedexPanel = forwardRef(function PokedexPanel({
           <p className="truncate text-sm font-semibold" style={{ color: FROG.ink }}>
             {view === 'detail' ? (detail?.display || 'Pokémon') : scopeLabel(scope)}
           </p>
-          {view === 'detail' && detail && (
+          {view === 'detail' && detail ? (
             <p className="text-[11px]" style={{ color: FROG.faint }}>#{String(detail.id).padStart(3, '0')}</p>
+          ) : (
+            view === 'list' && list.length > 0 && (
+              <p className="text-[11px]" style={{ color: FROG.faint }}>{list.length} Pokémon</p>
+            )
           )}
         </div>
 
         {view === 'list' && canToggle && (
           <button onClick={toggleScope}
+                  aria-label={scope === 'national' ? `Show ${scopeLabel(regionScope)} dex` : 'Show all Pokémon'}
                   className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs active:opacity-70"
                   style={{ background: FROG.panel, color: FROG.soft }}>
             <Globe className="h-3.5 w-3.5" aria-hidden="true" />
-            {scope === 'national' ? scopeLabel(regionScope) : 'National'}
+            {scope === 'national' ? scopeLabel(regionScope) : 'All'}
           </button>
         )}
         <button onClick={onClose} aria-label="Close Pokédex"

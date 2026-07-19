@@ -37,10 +37,12 @@ _IMAGE_EXT = {
 _IMG_CACHE_HEADERS = {"Cache-Control": "public, max-age=2592000, immutable"}
 
 
-def _resolve(game_id: str):
-    """The effective wiki source for a game (or None): user override > IGDB auto >
-    curated (later milestone) > a hack's base-game link. Gathers the rows resolve_wiki
-    needs — the game's meta, its override, and, for a hack, the owned base game's meta."""
+def _resolve(game_id: str, name: str = ""):
+    """The effective wiki source for a game (or None): user override > curated default page
+    (e.g. a Pokémon game's Bulbapedia walkthrough, from `name`) > IGDB auto > a hack's
+    base-game link. Gathers the rows resolve_wiki needs — the game's meta, its override,
+    and, for a hack, the owned base game's meta. `name` (the display title) is what the
+    curated-page lookup keys on, so callers that have it (the source/page endpoints) pass it."""
     meta = db.get_igdb_meta(game_id)
     override = db.get_game_wiki(game_id)
     base_meta = None
@@ -48,7 +50,8 @@ def _resolve(game_id: str):
         base_id = db.owned_base_by_igdb_id(meta["igdb_id"], exclude_game_id=game_id)
         if base_id:
             base_meta = db.get_igdb_meta(base_id)
-    return wiki_links.resolve_wiki(meta=meta, override=override, base_meta=base_meta)
+    curated = wiki_sources.curated_wiki_url(name) if name else None
+    return wiki_links.resolve_wiki(meta=meta, override=override, base_meta=base_meta, curated=curated)
 
 
 def _known_wiki_host(host: str) -> bool:
@@ -64,12 +67,15 @@ def _known_wiki_host(host: str) -> bool:
 
 
 @router.get("/library/games/wiki")
-def get_wiki_source(id: str = Query(description="Game id from the section listing")):
+def get_wiki_source(
+    id: str = Query(description="Game id from the section listing"),
+    name: str = Query(default="", description="Game display name, for the curated default page"),
+):
     """The game's resolved wiki source: whether the feature is on, and if a wiki was
-    found, its host/title/url and WHY (user pin, IGDB, base game)."""
+    found, its host/title/url and WHY (user pin, curated default, IGDB, base game)."""
     if not settings.wiki_enabled:
         return {"enabled": False, "resolved": None}
-    resolved = _resolve(id)
+    resolved = _resolve(id, name)
     return {"enabled": True, "resolved": resolved}
 
 
@@ -78,6 +84,7 @@ def get_wiki_page(
     id: str = Query(description="Game id from the section listing"),
     title: str | None = Query(default=None, description="Page to load; defaults to the resolved page"),
     host: str | None = Query(default=None, description="Explicit wiki host — a deep-link, restricted to known/curated wikis"),
+    name: str = Query(default="", description="Game display name, for the curated default page"),
 ):
     """One wiki article, sanitized into safe reader HTML + a section list. The host is
     normally the game's resolved wiki (never the client's). A `host` param is a DEEP-LINK
@@ -93,7 +100,7 @@ def get_wiki_page(
         use_host = host
         page = title
     else:
-        resolved = _resolve(id)
+        resolved = _resolve(id, name)
         if not resolved or resolved.get("kind") != "mediawiki":
             return Response(status_code=404)  # external links open in a tab, not the reader
         use_host = resolved["host"]
