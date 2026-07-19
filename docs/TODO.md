@@ -32,6 +32,41 @@ what's below is what's left, roughly priority-ordered within each group.
       resolve **user override → IGDB `websites` → a hack's base game**; an unlinked game (a
       hack) gets one-tap search-and-pin, where a curated per-family table defaults the search
       at the right wiki (a Pokémon hack → Bulbapedia). A non-wiki override opens in a tab.
+      Pokémon games now default to their **Bulbapedia walkthrough** (a curated page, not the
+      species search).
+- [x] **In-game Pokédex reference** — shipped (on the `feat/pokedex` branch, stacked on
+      `feat/wiki-browser`): for a Pokémon game (or hack), a second in-player panel that browses
+      the dex and shows each Pokémon's sprite, types, base stats, and evolution chain (typed +
+      clickable), with a "Read on Bulbapedia" deep-link into the wiki reader. Structured data
+      from **PokeAPI** (cached; sprites via an anti-open-proxy proxy). Scope detected from the
+      ROM title (regional dex, hacks → national), with a region↔national toggle. Reached from a
+      Pokémon-only pause tile + an L3 hotkey.
+
+### In-game reference — follow-ups (feat/pokedex)
+
+- [ ] **General walkthrough default for ALL games (StrategyWiki).** Pokémon games default to
+      their Bulbapedia walkthrough; extend that to every game via **StrategyWiki** (a MediaWiki
+      of community game guides — verified it covers Super Metroid, SMW, Chrono Trigger, FF VI,
+      etc.). For a game with nothing better, search StrategyWiki for the cleaned ROM name,
+      **fuzzy-match** the result against the title (reuse `igdb.score`/`best_match`), and if
+      confident, default to that guide — resolved once, cached. New ladder: user pin → Pokémon
+      walkthrough → IGDB link → **StrategyWiki match** → hack base → search. Conservative:
+      auto-default only on a confident match, else fall to search-and-pin (the ⟳ "Change wiki"
+      button covers misses). One new source module + a resolve/cache step + the priority tweak.
+- [ ] **Wikis for ROM hacks (e.g. Pokémon Unbound).** Popular hacks have their OWN dedicated
+      wikis (Unbound, Radical Red, Emerald Rogue, …) — often a Fandom or standalone MediaWiki.
+      Detect/curate these so a hack defaults to its own wiki instead of the base game's. Likely
+      a curated per-hack table (keyed off the hack name) + the general search fallback; the
+      `is_hack` flag + base-game link already exist to hang this off.
+- [ ] **Pokédex: make it as easy to navigate as possible.** The list is a 1-D up/down list
+      today. Add letter/number jumping (a rail or trigger-jump like the game list), faster
+      analog-stick scroll, and search-while-browsing (the on-screen keyboard for a controller).
+      Consider a cover-grid option and remembering the last-viewed Pokémon per game.
+- [ ] **Cross-link walkthrough Pokémon → our Pokédex.** In a Bulbapedia walkthrough the Pokémon
+      links currently navigate within Bulbapedia; instead route a `…(Pokémon)` link to OUR
+      Pokédex detail (open the Pokédex panel to that species). The backend already knows each
+      species' Bulbapedia title, so the mapping is there — the reader would recognize a species
+      link and hand it to the Pokédex rather than loading another wiki page.
 
 ---
 
