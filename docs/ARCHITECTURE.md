@@ -362,12 +362,27 @@ position intact**.
   order: a **user override** (`game_wiki` table) → a **curated default page**
   (`app/wiki_sources.py` — a Pokémon game defaults to its **Bulbapedia walkthrough**, a
   game-specific guide that beats a generic link) → the **IGDB `websites`** link auto-derived
-  by the matcher (`igdb_meta.wiki_url`) → a **ROM hack's base-game** link. A game with none of
+  by the matcher (`igdb_meta.wiki_url`) → a **franchise-wiki page** matched for the game
+  (`app/family_wiki.py`) → a **ROM hack's base-game** link. A game with none of
   those offers **search-and-pick** to pin one, and that search is steered by the **curated
   per-family** host table (a Pokémon hack IGDB can't match searches **Bulbapedia**, not
   Wikipedia). The user override may be **any** URL: a MediaWiki page renders, anything else (a
   GameFAQs guide) becomes an **open-in-tab** card. And a **"Change wiki"** control (⟳ / X) drops
   the current wiki back to search, so you're never stuck on the wrong one.
+- **The franchise-wiki fallback** (`app/family_wiki.py`) turns the curated per-family host
+  table into an **auto default** for the games IGDB's `websites` misses: it reuses the table
+  that already aims the manual search (Mario→mariowiki, Zelda→zeldawiki, Sonic→the Sonic Fandom,
+  …) and looks the game up on that wiki. Matching is **deliberately conservative** — a franchise
+  wiki is full of near-duplicate titles (ports, remakes, "list of…"), so it never *fuzzy*-
+  guesses. Two exact tests only: an `action=query` **direct page probe** (redirect-resolved,
+  trying the wiki's `Foo: Bar` colon form the ROM spells as `Foo - Bar`), then an **exact
+  normalized-title** match among `opensearch` suggestions (shortest wins — the base game over a
+  `(8-bit)`/`(handheld)` variant). Anything else resolves to nothing (the search box still
+  covers it). The result (a URL, or `None`) is disk-cached per game family. This tier sits below
+  IGDB auto (game-specific) and above the base-game link, and its network lookup is **skipped
+  entirely** when a higher DB-only tier already wins. (StrategyWiki was the first candidate for
+  this and is unusable: it sits behind a Cloudflare JS challenge that 403s every server-side
+  fetch — search *and* article — so nothing this app renders could ever load from it.)
 - **Mounted-persistent panel.** Unlike every other player panel (which unmounts on close),
   the reader stays in the DOM and hides via `display:none`, so the article + scroll survive
   a close/reopen — that's the "peek and keep your place". Content is fetched **lazily, one

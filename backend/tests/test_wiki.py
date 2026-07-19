@@ -3,7 +3,7 @@
 
 import pytest
 
-from app import db, wiki
+from app import db, family_wiki, wiki
 from app.config import settings
 
 
@@ -381,6 +381,33 @@ class TestWikiEndpoints:
         assert r.status_code == 200
         assert r.json()["resolved"]["source"] == "user"
         assert r.json()["resolved"]["host"] == "tetris.fandom.com"
+
+    def test_family_wiki_fallback_when_nothing_else_resolves(self, client, monkeypatch):
+        # A game with no IGDB wiki but a known franchise: the franchise-wiki page becomes the
+        # default, tagged so the panel can explain why.
+        monkeypatch.setattr(family_wiki, "resolve",
+                            lambda name: "https://metroidwiki.org/wiki/Super_Metroid")
+        r = client.get("/api/library/games/wiki",
+                       params={"id": "SuperMetroid.sfc", "name": "Super Metroid"})
+        resolved = r.json()["resolved"]
+        assert resolved["source"] == "family"
+        assert resolved["host"] == "metroidwiki.org"
+        assert resolved["title"] == "Super_Metroid"  # underscores kept (MediaWiki space encoding)
+
+    def test_family_wiki_search_skipped_when_a_higher_tier_wins(self, client, monkeypatch):
+        # The IGDB auto link outranks the franchise wiki, so its network search must not run.
+        _seed_auto()
+        monkeypatch.setattr(family_wiki, "resolve",
+                            lambda name: pytest.fail("franchise wiki searched despite an auto link"))
+        r = client.get("/api/library/games/wiki",
+                       params={"id": "Pikachu.gb", "name": "Metroid"})
+        assert r.json()["resolved"]["source"] == "auto"
+
+    def test_no_family_wiki_match_resolves_to_none(self, client, monkeypatch):
+        monkeypatch.setattr(family_wiki, "resolve", lambda name: None)
+        r = client.get("/api/library/games/wiki",
+                       params={"id": "Obscure.sfc", "name": "Obscure Homebrew"})
+        assert r.json()["resolved"] is None
 
     def test_override_rejects_unknown_rom(self, client, rom_dir):
         assert client.post("/api/library/games/wiki",

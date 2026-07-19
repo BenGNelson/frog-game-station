@@ -53,7 +53,7 @@ def classify_url(url):
     return None
 
 
-def resolve_wiki(meta=None, override=None, base_meta=None, curated=None):
+def resolve_wiki(meta=None, override=None, base_meta=None, curated=None, family=None):
     """Pick the effective wiki source for one game, in priority order:
 
       1. `override` — the user-pinned URL (game_wiki row). Always wins, and may be ANY
@@ -63,10 +63,12 @@ def resolve_wiki(meta=None, override=None, base_meta=None, curated=None):
          e.g. a Pokémon game's Bulbapedia walkthrough. Beats the IGDB auto link because a
          game-specific guide is a better default than whatever `websites` happened to list.
       3. `meta.wiki_url` — auto-derived from IGDB `websites` for this ROM.
-      4. `base_meta.wiki_url` — the base game's auto link, for a ROM hack that has no
+      4. `family` — a page matched on the game's franchise wiki (wiki_sources.curated_host),
+         the general fallback for anything IGDB didn't cover.
+      5. `base_meta.wiki_url` — the base game's auto link, for a ROM hack that has no
          wiki of its own but is 'based on' a game you own.
 
-    Tiers 2-4 must be renderable MediaWiki `/wiki/Title` pages (a homepage or a random
+    Tiers 2-5 must be renderable MediaWiki `/wiki/Title` pages (a homepage or a random
     link is skipped so a lower tier can still supply a readable page). Returns
     `{host, title, url, source, kind}` for the winner, or None when nothing resolves.
     `meta`/`base_meta` are the dicts from db.get_igdb_meta (or None)."""
@@ -76,6 +78,7 @@ def resolve_wiki(meta=None, override=None, base_meta=None, curated=None):
     for source, url in (
         ("curated", curated),
         ("auto", (meta or {}).get("wiki_url")),
+        ("family", family),
         ("base", (base_meta or {}).get("wiki_url")),
     ):
         parsed = parse_wiki_url(url)

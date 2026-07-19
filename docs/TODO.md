@@ -44,15 +44,19 @@ what's below is what's left, roughly priority-ordered within each group.
 
 ### In-game reference — follow-ups (feat/pokedex)
 
-- [ ] **General walkthrough default for ALL games (StrategyWiki).** Pokémon games default to
-      their Bulbapedia walkthrough; extend that to every game via **StrategyWiki** (a MediaWiki
-      of community game guides — verified it covers Super Metroid, SMW, Chrono Trigger, FF VI,
-      etc.). For a game with nothing better, search StrategyWiki for the cleaned ROM name,
-      **fuzzy-match** the result against the title (reuse `igdb.score`/`best_match`), and if
-      confident, default to that guide — resolved once, cached. New ladder: user pin → Pokémon
-      walkthrough → IGDB link → **StrategyWiki match** → hack base → search. Conservative:
-      auto-default only on a confident match, else fall to search-and-pin (the ⟳ "Change wiki"
-      button covers misses). One new source module + a resolve/cache step + the priority tweak.
+- [x] **General wiki default for ALL games (franchise wikis).** Shipped as `app/family_wiki.py`
+      (on `feat/strategywiki`). Pokémon games default to their Bulbapedia walkthrough; this
+      extends that to every game with a known franchise via the **curated per-family host table**
+      that already aims the manual search (Mario→mariowiki, Zelda→zeldawiki, Sonic→Fandom, …). For
+      a game with nothing better, it looks the title up on that wiki and defaults to the page.
+      Ladder: user pin → Pokémon walkthrough → IGDB link → **franchise-wiki match** → hack base →
+      search; the network lookup is skipped when a higher DB-only tier wins. **Conservative — no
+      fuzzy guessing** (a franchise wiki is full of near-duplicate ports/remakes/"list of…"): an
+      `action=query` direct page probe (redirect-resolved, colon-form aware) + an exact
+      normalized-title `opensearch` match (shortest wins, so the base game beats a `(8-bit)`
+      variant), else nothing (search-and-pin covers it). Disk-cached per family.
+      _StrategyWiki (the original plan) turned out unusable — a Cloudflare JS challenge 403s every
+      server-side fetch, search and article alike._
 - [ ] **Wikis for ROM hacks (e.g. Pokémon Unbound).** Popular hacks have their OWN dedicated
       wikis (Unbound, Radical Red, Emerald Rogue, …) — often a Fandom or standalone MediaWiki.
       Detect/curate these so a hack defaults to its own wiki instead of the base game's. Likely
