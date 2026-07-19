@@ -10,9 +10,11 @@ export function wikiSourceUrl(id) {
   return `${API_BASE}/library/games/wiki?id=${enc(id)}`
 }
 
-export function wikiPageUrl(id, title) {
-  const base = `${API_BASE}/library/games/wiki/page?id=${enc(id)}`
-  return title ? `${base}&title=${enc(title)}` : base
+export function wikiPageUrl(id, title, host) {
+  let u = `${API_BASE}/library/games/wiki/page?id=${enc(id)}`
+  if (title) u += `&title=${enc(title)}`
+  if (host) u += `&host=${enc(host)}` // a deep-link to a specific (curated) wiki, e.g. Bulbapedia
+  return u
 }
 
 export function wikiSearchUrl(id, q, host, name) {
@@ -31,8 +33,8 @@ export async function fetchWikiSource(id) {
 
 // One sanitized article: { host, title, html, sections }. A 404 (no such page /
 // no wiki) is surfaced via err.status so the panel can distinguish it.
-export async function fetchWikiPage(id, title) {
-  const r = await fetch(wikiPageUrl(id, title))
+export async function fetchWikiPage(id, title, host) {
+  const r = await fetch(wikiPageUrl(id, title, host))
   if (!r.ok) {
     const err = new Error(`wiki page ${r.status}`)
     err.status = r.status

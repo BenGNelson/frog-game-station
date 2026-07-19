@@ -77,38 +77,58 @@ def get_wiki_source(id: str = Query(description="Game id from the section listin
 def get_wiki_page(
     id: str = Query(description="Game id from the section listing"),
     title: str | None = Query(default=None, description="Page to load; defaults to the resolved page"),
+    host: str | None = Query(default=None, description="Explicit wiki host — a deep-link, restricted to known/curated wikis"),
 ):
     """One wiki article, sanitized into safe reader HTML + a section list. The host is
-    the game's resolved wiki (never the client's), so `title` can only load a page on
-    that same wiki — following an internal link, not fetching arbitrary sites."""
+    normally the game's resolved wiki (never the client's). A `host` param is a DEEP-LINK
+    (e.g. the Pokédex -> Bulbapedia): allowed only for a known/curated wiki, so it's still
+    server-validated — never an arbitrary site."""
     if not settings.wiki_enabled:
         return Response(status_code=404)
-    resolved = _resolve(id)
-    if not resolved or resolved.get("kind") != "mediawiki":
-        return Response(status_code=404)  # external links open in a tab, not the reader
-    page = title or resolved["title"]
+    if host:
+        # Deep-link: an explicit curated/known wiki + title (the reader renders a page on a
+        # wiki that isn't necessarily the game's own).
+        if not _known_wiki_host(host) or not title:
+            return Response(status_code=404)
+        use_host = host
+        page = title
+    else:
+        resolved = _resolve(id)
+        if not resolved or resolved.get("kind") != "mediawiki":
+            return Response(status_code=404)  # external links open in a tab, not the reader
+        use_host = resolved["host"]
+        page = title or resolved["title"]
     try:
-        article = wiki.get_article(id, resolved["host"], page)
+        article = wiki.get_article(id, use_host, page)
     except wiki.WikiError as e:
         return Response(status_code=404 if e.not_found else 502)
-    return {"host": resolved["host"], **article}
+    return {"host": use_host, **article}
 
 
 @router.get("/library/games/wiki/img")
 def get_wiki_image(
     id: str = Query(description="Game id from the section listing"),
     src: str = Query(description="Absolute image URL from the sanitized article"),
+    host: str | None = Query(default=None, description="The article's host (from the sanitized URL)"),
 ):
     """Proxy one article image under our own origin (the app CSP blocks external
-    images). Refuses any host not related to the game's resolved wiki — so it's not an
-    open proxy — and refuses SVG (script vector). Cached on disk; served immutably."""
+    images). The image must belong to the ARTICLE's host — which is either the game's
+    resolved wiki or, for a deep-link, a known/curated wiki — so it's not an open proxy;
+    SVG is refused (script vector). Cached on disk; served immutably."""
     if not settings.wiki_enabled:
         return Response(status_code=404)
-    resolved = _resolve(id)
-    if not resolved:
+    # The article host: an explicit (deep-link) host must be a known/curated wiki; else
+    # fall back to the game's resolved wiki. Either way it's server-validated, so a
+    # tampered `host` param can't widen what the proxy will fetch.
+    if host and _known_wiki_host(host):
+        article_host = host
+    else:
+        resolved = _resolve(id)
+        article_host = resolved["host"] if resolved else None
+    if not article_host:
         return Response(status_code=404)
     img_host = urlsplit(src).netloc
-    if not wiki.image_host_allowed(img_host, resolved["host"], wiki.allowed_image_hosts()):
+    if not wiki.image_host_allowed(img_host, article_host, wiki.allowed_image_hosts()):
         return Response(status_code=404)
 
     cache_dir = os.path.join(settings.wiki_cache_dir, "img")

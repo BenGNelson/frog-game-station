@@ -37,6 +37,9 @@ const WikiPanel = forwardRef(function WikiPanel({
   const scrollerRef = useRef(null)
   const bodyRef = useRef(null)
   const linkFocusRef = useRef(-1) // controller link focus; -1 = reading, not on a link
+  // A deep-link host (e.g. Bulbapedia from the Pokédex): when set, pages load from THIS
+  // wiki instead of the game's resolved one. null = the game's own wiki (normal open).
+  const deepHostRef = useRef(null)
 
   const scrollTop = () => {
     if (scrollerRef.current) scrollerRef.current.scrollTop = 0
@@ -68,7 +71,7 @@ const WikiPanel = forwardRef(function WikiPanel({
       setPageBusy(true)
       setFlash(null)
       try {
-        const art = await fetchWikiPage(gameId, title)
+        const art = await fetchWikiPage(gameId, title, deepHostRef.current)
         setArticle(art)
         setPhase('reading')
         setHistory((h) => (push ? pushPage(h, title) : h.at < 0 ? startHistory(title) : h))
@@ -103,6 +106,7 @@ const WikiPanel = forwardRef(function WikiPanel({
   // search when nothing is linked).
   const loadSource = useCallback(async () => {
     setPhase('loading')
+    deepHostRef.current = null // a normal open reads the game's own wiki
     try {
       const { enabled, resolved } = await fetchWikiSource(gameId)
       if (!enabled) {
@@ -205,7 +209,18 @@ const WikiPanel = forwardRef(function WikiPanel({
     moveLink,
     activate: activateLink,
     back,
-  }), [scrollToSection, moveLink, activateLink, back])
+    // Deep-link the reader to a specific page on a specific (curated) wiki, bypassing the
+    // game's own resolution — the Pokédex's "Read on Bulbapedia". Marks the panel loaded so
+    // the load-once effect won't also run loadSource and clobber it.
+    openTo({ host, title }) {
+      loadedRef.current = true
+      deepHostRef.current = host
+      setPhase('loading')
+      setSource({ host, title, url: `https://${host}/wiki/${encodeURIComponent(title)}`, kind: 'mediawiki' })
+      setHistory(startHistory(title))
+      loadPage(title)
+    },
+  }), [scrollToSection, moveLink, activateLink, back, loadPage])
 
   const openInTab = () => {
     // Open the page you're actually reading (which changes as you follow links), not the

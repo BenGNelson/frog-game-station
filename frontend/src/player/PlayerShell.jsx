@@ -466,6 +466,25 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
     if (pokedexFromGameRef.current) dispatch('resume')
   }, [])
 
+  // "Read on Bulbapedia" from the Pokédex — hand off to the wiki reader: hide the Pokédex
+  // (no resume; the reader takes over) and open the reader deep-linked to the Pokémon's
+  // Bulbapedia page. The reader inherits the resume duty so closing it behaves the same as
+  // if opened directly. `pendingRead` defers openTo until the panel has mounted (its ref).
+  const [pendingRead, setPendingRead] = useState(null)
+  const readFromPokedex = useCallback((bulbapediaTitle) => {
+    setPokedexOpen(false)
+    wikiFromGameRef.current = pokedexFromGameRef.current
+    setWikiMounted(true)
+    setWikiOpen(true)
+    setPendingRead(bulbapediaTitle)
+  }, [])
+  useEffect(() => {
+    if (pendingRead && wikiOpen && wikiRef.current) {
+      wikiRef.current.openTo({ host: 'bulbapedia.bulbagarden.net', title: pendingRead })
+      setPendingRead(null)
+    }
+  }, [pendingRead, wikiOpen])
+
   const chooseScheme = useCallback(
     (scheme) => saveSettings({ ...settings, controlScheme: scheme }),
     [settings, saveSettings]
@@ -1215,6 +1234,7 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
             gameName={name}
             accent={systemStyle(label || systemForCore(core)).accent}
             onClose={closePokedex}
+            onReadWiki={readFromPokedex}
             legend={
               mode === 'pad' ? (
                 <ButtonLegend

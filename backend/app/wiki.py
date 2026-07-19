@@ -232,9 +232,14 @@ def sanitize_article(html: str, *, game_id: str, article_host: str, api_base: st
                 tag.decompose()
                 continue
             kept = {k: v for k, v in attrs.items() if k in _ALLOWED_ATTRS}
+            # `host` records which article this image belongs to, so the proxy validates
+            # the image against THIS article's host — needed when the article isn't the
+            # game's own resolved wiki (a Pokédex deep-link to Bulbapedia). The proxy
+            # re-checks the host is legitimate, so a tampered param can't widen it.
             kept["src"] = (
                 f"{api_base}/library/games/wiki/img"
-                f"?id={quote(game_id, safe='')}&src={quote(abs_src, safe='')}"
+                f"?id={quote(game_id, safe='')}&host={quote(article_host, safe='')}"
+                f"&src={quote(abs_src, safe='')}"
             )
             kept["loading"] = "lazy"
             tag.attrs = kept
@@ -246,7 +251,8 @@ def sanitize_article(html: str, *, game_id: str, article_host: str, api_base: st
 
 # Bump when the sanitizer / payload shape changes, so cached articles made by older
 # logic are ignored instead of served stale (mirrors the matcher's _MATCH_VERSION).
-_CACHE_VERSION = "1"
+# v2: image proxy URLs now carry the article `host` (for cross-wiki deep-links).
+_CACHE_VERSION = "2"
 
 
 def _cache_path(game_id: str, host: str, title: str) -> str:
