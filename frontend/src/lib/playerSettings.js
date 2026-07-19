@@ -30,6 +30,9 @@ export const DEFAULTS = {
   // stick click / R3): the retro preset doesn't bind it and no emulated core uses a
   // stick click, so it's collision-free while playing. Rebindable in Controls.
   wikiHotkey: 11,
+  // The Pokédex hotkey (Pokémon games only). Default 10 (left stick click / L3) — the
+  // other collision-free stick click, the sibling of the wiki's R3.
+  pokedexHotkey: 10,
 }
 
 // This device's overrides for one specific controller.

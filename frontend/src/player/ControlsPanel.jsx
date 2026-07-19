@@ -19,8 +19,10 @@ export default function ControlsPanel({
   padName,
   scheme,
   bindings,
-  listeningFor, // the RetroPad index (or 'wiki') waiting for a press, or null
+  listeningFor, // the RetroPad index (or 'wiki'/'pokedex') waiting for a press, or null
   wikiHotkey, // the raw pad-button index bound to the wiki reader
+  pokedexHotkey, // the raw pad-button index bound to the Pokédex (Pokémon games only)
+  isPokemon, // whether to show the Pokédex hotkey row
   focus,
   onFocus,
   onScheme,
@@ -28,9 +30,9 @@ export default function ControlsPanel({
   onReset,
   onBack,
 }) {
-  // Scheme cards first, then one row per button, the wiki hotkey, then Reset — one
+  // Scheme cards first, then one row per button, the shortcut hotkeys, then Reset — one
   // flat list so the d-pad just walks it (shared with PlayerShell via controlRows).
-  const rows = controlRows()
+  const rows = controlRows(isPokemon)
   const resolved = resolveBindings({ scheme, custom: bindings })
 
   const panelRef = useRef(null)
@@ -117,6 +119,18 @@ export default function ControlsPanel({
           onSelect={() => onListen('wiki')}
           onHover={() => onFocus(rows.indexOf('wiki'))}
         />
+        {isPokemon && (
+          <div className="mt-1.5">
+            <HotkeyRow
+              label="Pokédex"
+              value={describeBinding(bindingForButton(pokedexHotkey))}
+              listening={listeningFor === 'pokedex'}
+              focused={rows[focus] === 'pokedex'}
+              onSelect={() => onListen('pokedex')}
+              onHover={() => onFocus(rows.indexOf('pokedex'))}
+            />
+          </div>
+        )}
 
         <button
           onClick={onReset}
@@ -230,8 +244,14 @@ function HotkeyRow({ label, value, listening, focused, onSelect, onHover }) {
 }
 
 // The flat row order the d-pad walks. Exported so PlayerShell can drive focus
-// against exactly what's on screen. 'wiki' is the app-level wiki-hotkey binding
-// (not a game button), sitting between the game buttons and Reset.
-export function controlRows() {
-  return [...Object.keys(SCHEMES), ...BINDABLE.map((b) => `bind:${b.index}`), 'wiki', 'reset']
+// against exactly what's on screen. 'wiki' (and, for Pokémon games, 'pokedex') are
+// the app-level hotkey bindings — not game buttons — sitting between them and Reset.
+export function controlRows(isPokemon = false) {
+  return [
+    ...Object.keys(SCHEMES),
+    ...BINDABLE.map((b) => `bind:${b.index}`),
+    'wiki',
+    ...(isPokemon ? ['pokedex'] : []),
+    'reset',
+  ]
 }
