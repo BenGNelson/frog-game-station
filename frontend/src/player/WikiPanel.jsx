@@ -198,6 +198,20 @@ const WikiPanel = forwardRef(function WikiPanel({
     if (target != null) scroller.scrollTo({ top: Math.max(0, target - 8), behavior: 'auto' })
   }, [])
 
+  // Change/clear the wiki: drop any user pin and return to the search, so you're never
+  // stuck on a wiki you picked (or an auto one you don't want). This is the escape hatch.
+  // Defined BEFORE useImperativeHandle — it's in that hook's deps, so a later `const`
+  // would be a temporal-dead-zone crash on render.
+  const changeWiki = useCallback(async () => {
+    try { await setWikiOverride(gameId, null) } catch { /* clearing is best-effort */ }
+    deepHostRef.current = null
+    setSource(null)
+    setArticle(null)
+    setHistory(emptyHistory)
+    clearLinkFocus()
+    setPhase('nolink')
+  }, [gameId, clearLinkFocus])
+
   // The controller surface PlayerShell drives while the panel owns the pad.
   useImperativeHandle(ref, () => ({
     scroll(dy) { scrollerRef.current?.scrollBy({ top: dy, behavior: 'auto' }) },
@@ -232,18 +246,6 @@ const WikiPanel = forwardRef(function WikiPanel({
       : source?.url
     if (url) window.open(url, '_blank', 'noopener,noreferrer')
   }
-
-  // Change/clear the wiki: drop any user pin and return to the search, so you're never
-  // stuck on a wiki you picked (or an auto one you don't want). This is the escape hatch.
-  const changeWiki = useCallback(async () => {
-    try { await setWikiOverride(gameId, null) } catch { /* clearing is best-effort */ }
-    deepHostRef.current = null
-    setSource(null)
-    setArticle(null)
-    setHistory(emptyHistory)
-    clearLinkFocus()
-    setPhase('nolink')
-  }, [gameId, clearLinkFocus])
 
   const accentText = `rgb(${accent})`
 
