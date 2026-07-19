@@ -20,16 +20,14 @@ import json
 import os
 import re
 import time
-from urllib.parse import quote, urlsplit
-
-from app import wiki  # reuse _safe_public_host / _get_json / fetch_image (single-sourced)
+from app import wiki, wiki_sources  # reuse networking (wiki) + spin-off detection (wiki_sources)
 from app.config import settings
 from app.images import write_atomic
 
 _POKEAPI = "https://pokeapi.co/api/v2"
-# Sprites are on GitHub, NOT pokeapi.co. Proxy only this host + path (anti-open-proxy).
+# Sprites are on GitHub, NOT pokeapi.co. The proxy builds these URLs server-side from a
+# Pokémon id, so there's no client-supplied sprite URL to validate.
 _SPRITE_HOST = "raw.githubusercontent.com"
-_SPRITE_PATH_PREFIX = "/PokeAPI/sprites/"
 _SPRITE_BASE = f"https://{_SPRITE_HOST}/PokeAPI/sprites/master/sprites/pokemon"
 
 # PokeAPI is static; cache effectively forever (a version bump busts it).
@@ -71,6 +69,7 @@ _GAME_DEX = sorted(
         ("gold", "original-johto"), ("silver", "original-johto"), ("crystal", "original-johto"),
         ("ruby", "hoenn"), ("sapphire", "hoenn"), ("emerald", "hoenn"),
         ("diamond", "original-sinnoh"), ("pearl", "original-sinnoh"), ("platinum", "extended-sinnoh"),
+        ("black2", "updated-unova"), ("white2", "updated-unova"),
         ("black", "original-unova"), ("white", "original-unova"),
         ("sword", "galar"), ("shield", "galar"),
         ("scarlet", "paldea"), ("violet", "paldea"),
@@ -85,7 +84,9 @@ def pokedex_scope(name, is_hack=False) -> str:
     'national'. A hack's roster is arbitrary and unknowable, so a flagged hack defaults to
     the whole national dex; a mainline title maps by keyword; anything unrecognized falls
     back to national. The panel's region↔national toggle can override either way."""
-    if is_hack:
+    # A hack's roster is unknowable, and a spin-off's region isn't its color/version word
+    # ('Mystery Dungeon: Red Rescue Team' is not the Kanto RPG) — both default to national.
+    if is_hack or wiki_sources.is_spinoff(name):
         return "national"
     squashed = _squash(name)
     for keyword, dex in _GAME_DEX:
@@ -141,17 +142,13 @@ def sprite_raw_url(pid, art=False) -> str:
     return f"{_SPRITE_BASE}/{pid}.png"
 
 
-def sprite_proxy_url(raw, api_base="/api") -> str:
-    """Rewrite a raw sprite URL to our same-origin sprite proxy (external images are blocked
-    by the app's `img-src 'self'` CSP)."""
-    return f"{api_base}/library/games/pokedex/sprite?src={quote(raw, safe='')}"
-
-
-def sprite_host_allowed(url) -> bool:
-    """Whether the sprite proxy may fetch `url` — ONLY https raw.githubusercontent.com under
-    /PokeAPI/sprites/. Keeps it from being an open GitHub-raw proxy."""
-    p = urlsplit(url or "")
-    return p.scheme == "https" and p.netloc == _SPRITE_HOST and p.path.startswith(_SPRITE_PATH_PREFIX)
+def sprite_proxy_url(pid, art=False, api_base="/api") -> str:
+    """Our same-origin sprite-proxy URL for a Pokémon id (external images are blocked by the
+    app's `img-src 'self'` CSP). The proxy builds the raw PokeAPI URL server-side from
+    id+art — there's NO client-supplied URL, so nothing can smuggle a path past the host
+    check (an earlier `?src=` form let `..` reach arbitrary raw.githubusercontent.com files)."""
+    u = f"{api_base}/library/games/pokedex/sprite?id={int(pid)}"
+    return u + "&art=1" if art else u
 
 
 def flatten_evolution(chain, api_base="/api") -> list:
@@ -169,7 +166,7 @@ def flatten_evolution(chain, api_base="/api") -> list:
             if name:
                 stage.append({
                     "name": name, "id": pid, "display": display_name(name),
-                    "sprite": sprite_proxy_url(sprite_raw_url(pid), api_base) if pid else None,
+                    "sprite": sprite_proxy_url(pid, api_base=api_base) if pid else None,
                 })
             nxt.extend(node.get("evolves_to") or [])
         if stage:
@@ -254,7 +251,7 @@ def list_dex(dex_slug: str, api_base="/api") -> list:
             out.append({
                 "id": pid, "name": name, "display": display_name(name),
                 "number": entry.get("entry_number"),
-                "sprite": sprite_proxy_url(sprite_raw_url(pid), api_base),
+                "sprite": sprite_proxy_url(pid, api_base=api_base),
             })
     return out
 
@@ -266,8 +263,13 @@ def get_pokemon(num: int, api_base="/api") -> dict | None:
     poke = _api(f"pokemon/{int(num)}")
     if not poke:
         return None
-    slug = poke.get("name")
     species = _api(f"pokemon-species/{int(num)}") or {}
+    # The DISPLAY name comes from the SPECIES, not the pokemon variety: /pokemon/{id}
+    # returns the default variety, whose name is form-suffixed for form-differentiated
+    # species ('deoxys-normal', 'giratina-altered'). Using that would show the wrong name
+    # and 404 the Bulbapedia deep-link. The species name is the bare 'deoxys'. (id/types/
+    # stats/sprite stay on `poke` — the default-form sprite {id}.png is correct.)
+    slug = species.get("name") or poke.get("name")
 
     evolutions = []
     chain_url = (species.get("evolution_chain") or {}).get("url")
@@ -291,8 +293,8 @@ def get_pokemon(num: int, api_base="/api") -> dict | None:
         "flavor": _en_flavor(species),
         "genus": genus,
         "evolutions": evolutions,
-        "sprite": sprite_proxy_url(sprite_raw_url(poke.get("id")), api_base),
-        "artwork": sprite_proxy_url(sprite_raw_url(poke.get("id"), art=True), api_base),
+        "sprite": sprite_proxy_url(poke.get("id"), api_base=api_base),
+        "artwork": sprite_proxy_url(poke.get("id"), art=True, api_base=api_base),
         "bulbapedia_title": bulbapedia_title(slug),
     }
 

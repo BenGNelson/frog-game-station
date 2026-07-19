@@ -11,7 +11,6 @@ only fetches raw.githubusercontent.com/PokeAPI/sprites paths (server-checked), m
 the wiki image proxy's discipline.
 """
 
-import hashlib
 import os
 import re
 
@@ -26,8 +25,9 @@ from app.routers.wiki import _IMAGE_EXT, _IMG_CACHE_HEADERS, _MAX_IMAGE_BYTES
 router = APIRouter()
 
 # A dex scope is a PokeAPI pokedex slug ('kanto', 'original-johto', 'national') — lowercase
-# letters + hyphens only. Validated so the slug can't inject path segments into the API URL.
-_SCOPE_RE = re.compile(r"^[a-z][a-z0-9-]{0,40}$")
+# letters + hyphens only. `\Z` (not `$`, which also matches before a trailing newline) so
+# the slug can't carry a control char; the API host is a literal prefix regardless.
+_SCOPE_RE = re.compile(r"^[a-z][a-z0-9-]{0,40}\Z")
 
 
 @router.get("/library/games/pokedex")
@@ -70,24 +70,26 @@ def get_pokedex_pokemon(num: int = Query(ge=1, le=100000, description="National 
 
 
 @router.get("/library/games/pokedex/sprite")
-def get_pokedex_sprite(src: str = Query(description="A PokeAPI sprite URL from a list/detail payload")):
+def get_pokedex_sprite(
+    id: int = Query(ge=1, le=100000, description="Pokémon / species id"),
+    art: bool = Query(default=False, description="The large official artwork instead of the thumbnail"),
+):
     """Proxy one Pokémon sprite under our own origin (the app CSP blocks external images).
-    Refuses any URL that isn't a raw.githubusercontent.com PokeAPI-sprites path — so it's
-    not an open GitHub-raw proxy. Cached on disk; served immutably. Mirrors the wiki image
-    proxy."""
+    The raw PokeAPI-sprites URL is built SERVER-SIDE from id+art — there's no client-supplied
+    URL, so it can't be turned into an open GitHub-raw proxy (an earlier `?src=` form let a
+    `..` path escape the sprites folder). SVG refused; cached on disk; served immutably."""
     if not settings.pokedex_enabled:
         return Response(status_code=404)
-    if not pokedex.sprite_host_allowed(src):
-        return Response(status_code=404)
+    raw = pokedex.sprite_raw_url(id, art)
 
     cache_dir = os.path.join(settings.wiki_cache_dir, "pokedex", "sprites")
-    key = hashlib.sha1(src.encode()).hexdigest()
+    key = f"{id}-art" if art else str(id)  # id is an int → safe filename, no hash needed
     for ext in _IMAGE_EXT.values():
         cached = os.path.join(cache_dir, key + ext)
         if os.path.isfile(cached):
             return FileResponse(cached, headers=_IMG_CACHE_HEADERS)
 
-    got = pokedex.fetch_sprite(src, max_bytes=_MAX_IMAGE_BYTES)
+    got = pokedex.fetch_sprite(raw, max_bytes=_MAX_IMAGE_BYTES)
     if not got:
         return Response(status_code=404)  # unreachable / internal / oversized
     content, ctype = got

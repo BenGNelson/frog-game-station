@@ -42,6 +42,6 @@ export function filterDex(list, query) {
   const s = (query || '').trim().toLowerCase()
   if (!s) return list || []
   return (list || []).filter(
-    (p) => p.display.toLowerCase().includes(s) || String(p.number).includes(s)
+    (p) => (p.display || '').toLowerCase().includes(s) || String(p.number).includes(s)
   )
 }
