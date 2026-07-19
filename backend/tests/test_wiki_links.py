@@ -200,3 +200,8 @@ class TestCuratedWikiUrl:
     def test_non_pokemon_and_unknown_are_none(self):
         assert wiki_sources.curated_wiki_url("The Legend of Zelda") is None  # not a Pokémon title
         assert wiki_sources.curated_wiki_url("Pokemon Some Fan Game") is None  # no mainline keyword
+
+    def test_spinoffs_get_no_walkthrough(self):
+        # A spin-off's color word isn't a mainline game — no walkthrough curation.
+        assert wiki_sources.curated_wiki_url("Pokemon Mystery Dungeon: Red Rescue Team") is None
+        assert wiki_sources.is_spinoff("Pokemon Ranger")

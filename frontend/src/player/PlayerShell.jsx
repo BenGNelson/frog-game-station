@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { X, Menu, Minimize } from 'lucide-react'
 import { playerSrc, coverUrl, postCover, deleteCover, ENGINE_LOADER_URL, engineIsLocal } from '../lib/library.js'
@@ -478,7 +478,11 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
     setWikiOpen(true)
     setPendingRead(bulbapediaTitle)
   }, [])
-  useEffect(() => {
+  // useLayoutEffect (not useEffect): it runs during commit, BEFORE WikiPanel's passive
+  // load-once effect flushes — so openTo sets the panel's loadedRef in time and the
+  // load-once effect stands down. With a passive effect, the child's load-once fires first
+  // and races openTo, landing on the game's default wiki instead of the deep-linked page.
+  useLayoutEffect(() => {
     if (pendingRead && wikiOpen && wikiRef.current) {
       wikiRef.current.openTo({ host: 'bulbapedia.bulbagarden.net', title: pendingRead })
       setPendingRead(null)

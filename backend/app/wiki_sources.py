@@ -53,6 +53,24 @@ def curated_host(name):
 
 _BULBAPEDIA = "bulbapedia.bulbagarden.net"
 
+# Pokémon SPIN-OFFS (not mainline RPGs). They're still Pokémon games, but their regional
+# scope and mainline walkthrough don't apply — 'Mystery Dungeon: Red Rescue Team' matching
+# 'red' would wrongly default to the Kanto dex + the Red/Blue walkthrough. A match here
+# suppresses both (fall to the national dex / a plain search).
+_SPINOFF_MARKERS = (
+    "mystery dungeon", "rescue team", "ranger", "pinball", "stadium", "snap",
+    "trozei", "conquest", "shuffle", "rumble", "colosseum", "gale of darkness",
+    "trading card", "picross", "unite", "masters", "café", "cafe", "channel",
+    "battle revolution", "puzzle league", "typing", "dash", "quest",
+)
+
+
+def is_spinoff(name):
+    """Whether a Pokémon title is a spin-off (not a mainline RPG) — its regional scope /
+    walkthrough shouldn't be inferred from a color/version keyword."""
+    n = (name or "").lower()
+    return any(m in n for m in _SPINOFF_MARKERS)
+
 
 def _squash(name):
     """Lowercase + drop non-alphanumerics, so 'Pokémon - Fire Red (USA)' and 'FireRed'
@@ -98,7 +116,7 @@ def curated_wiki_url(name):
     families just get the search host (curated_host). A hack that reuses a base-game name
     gets that base's walkthrough as a starting point (the 'Change wiki' button reassigns
     it if the hack diverges)."""
-    if not curated_host(name) == _BULBAPEDIA:
+    if curated_host(name) != _BULBAPEDIA or is_spinoff(name):
         return None
     squashed = _squash(name)
     for keyword, page in _WALKTHROUGHS:

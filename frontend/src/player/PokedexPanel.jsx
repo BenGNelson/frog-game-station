@@ -70,10 +70,12 @@ const PokedexPanel = forwardRef(function PokedexPanel({
   }, [open, loadInitial])
 
   // Take keyboard focus on open (the panel sits over a paused game with the pause menu
-  // still focused underneath) — same reason as the wiki reader.
+  // still focused underneath) — same reason as the wiki reader. Focuses the ACTIVE view's
+  // scroller (also on a view switch), so reopening in detail keeps Escape/scroll working
+  // (the list scroller is display:none in detail view and can't hold focus).
   useEffect(() => {
-    if (open) scrollerRef.current?.focus()
-  }, [open])
+    if (open) (view === 'detail' ? detailScrollerRef : scrollerRef).current?.focus()
+  }, [open, view])
 
   // Keep the focused dex row on screen as the controller cursor walks it.
   useEffect(() => {
@@ -97,7 +99,7 @@ const PokedexPanel = forwardRef(function PokedexPanel({
   }, [])
 
   const toList = useCallback(() => {
-    setView('list')
+    setView('list') // the [open, view] focus effect refocuses the list scroller
     setTimeout(() => scrollerRef.current?.focus(), 0)
   }, [])
 

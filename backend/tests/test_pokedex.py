@@ -47,6 +47,16 @@ class TestPokedexScope:
     def test_unknown_falls_back_to_national(self):
         assert pokedex.pokedex_scope("Pokemon Some Fan Game") == "national"
 
+    def test_spinoffs_dont_infer_a_region_from_a_color_word(self):
+        # 'Mystery Dungeon: Red Rescue Team' is not the Kanto RPG — don't scope to kanto.
+        assert pokedex.pokedex_scope("Pokemon Mystery Dungeon: Red Rescue Team") == "national"
+        assert pokedex.pokedex_scope("Pokemon Mystery Dungeon: Blue Rescue Team") == "national"
+
+    def test_black2_white2_use_the_expanded_unova_dex(self):
+        assert pokedex.pokedex_scope("Pokemon Black 2") == "updated-unova"
+        assert pokedex.pokedex_scope("Pokemon White 2") == "updated-unova"
+        assert pokedex.pokedex_scope("Pokemon Black") == "original-unova"  # base still original
+
 
 # --- name + URL helpers ----------------------------------------------------
 
@@ -65,22 +75,14 @@ class TestNames:
 
 class TestSprites:
     def test_raw_url(self):
+        # Built server-side from the id (deterministic) — the raw PokeAPI-sprites GitHub URL.
         assert pokedex.sprite_raw_url(25).endswith("/sprites/pokemon/25.png")
         assert "official-artwork/6.png" in pokedex.sprite_raw_url(6, art=True)
 
-    def test_proxy_url(self):
-        u = pokedex.sprite_proxy_url("https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/25.png")
-        assert u.startswith("/api/library/games/pokedex/sprite?src=")
-        assert "25.png" in u  # encoded original in the src param
-
-    def test_host_allowed(self):
-        ok = "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/25.png"
-        assert pokedex.sprite_host_allowed(ok)
-
-    def test_host_refused(self):
-        assert not pokedex.sprite_host_allowed("https://evil.com/PokeAPI/sprites/x.png")
-        assert not pokedex.sprite_host_allowed("https://raw.githubusercontent.com/other/repo/x.png")
-        assert not pokedex.sprite_host_allowed("http://raw.githubusercontent.com/PokeAPI/sprites/x.png")
+    def test_proxy_url_carries_id_not_a_client_url(self):
+        # The proxy URL carries id+art, NOT a client-supplied raw URL (no `..` to smuggle).
+        assert pokedex.sprite_proxy_url(25) == "/api/library/games/pokedex/sprite?id=25"
+        assert pokedex.sprite_proxy_url(6, art=True) == "/api/library/games/pokedex/sprite?id=6&art=1"
 
 
 # --- evolution flattening --------------------------------------------------
@@ -96,7 +98,7 @@ class TestFlattenEvolution:
                 {"species": _sp("charizard", 6), "evolves_to": []}]}]}
         stages = pokedex.flatten_evolution(chain)
         assert [[p["display"] for p in s] for s in stages] == [["Charmander"], ["Charmeleon"], ["Charizard"]]
-        assert stages[2][0]["id"] == 6 and "6.png" in stages[2][0]["sprite"]
+        assert stages[2][0]["id"] == 6 and stages[2][0]["sprite"].endswith("?id=6")
 
     def test_branching_chain(self):
         chain = {"species": _sp("eevee", 133), "evolves_to": [
@@ -153,7 +155,7 @@ def test_list_dex_shape(monkeypatch):
     lst = pokedex.list_dex("kanto")
     assert [p["display"] for p in lst] == ["Bulbasaur", "Pikachu"]
     assert lst[1] == {"id": 25, "name": "pikachu", "display": "Pikachu", "number": 25,
-                      "sprite": pokedex.sprite_proxy_url(pokedex.sprite_raw_url(25))}
+                      "sprite": pokedex.sprite_proxy_url(25)}
 
 
 def test_list_dex_empty_on_failure(monkeypatch):
@@ -173,8 +175,22 @@ def test_get_pokemon_composes_the_dto(monkeypatch):
     # Evolution chain flattened (Pichu -> Pikachu -> Raichu), each enriched with types.
     assert [[q["display"] for q in s] for s in p["evolutions"]] == [["Pichu"], ["Pikachu"], ["Raichu"]]
     assert p["evolutions"][0][0]["types"] == ["electric"]  # pichu, from its /pokemon fetch
-    assert p["artwork"].startswith("/api/library/games/pokedex/sprite?src=")
-    assert "official-artwork" in p["artwork"] and "25.png" in p["artwork"]
+    assert p["sprite"] == pokedex.sprite_proxy_url(25)
+    assert p["artwork"] == pokedex.sprite_proxy_url(25, art=True)
+
+
+def test_get_pokemon_uses_species_name_for_forms(monkeypatch):
+    # A form-differentiated species: /pokemon/386 is 'deoxys-normal' but display + the
+    # Bulbapedia deep-link must use the bare species name 'deoxys'.
+    fake = {
+        "pokemon/386": {"id": 386, "name": "deoxys-normal", "types": [], "stats": []},
+        "pokemon-species/386": {"name": "deoxys"},
+    }
+    monkeypatch.setattr(pokedex, "_api", lambda path, params=None: fake.get(path))
+    p = pokedex.get_pokemon(386)
+    assert p["display"] == "Deoxys"
+    assert p["bulbapedia_title"] == "Deoxys_(Pokémon)"
+    assert p["id"] == 386  # id/sprite still from the default-form pokemon record
 
 
 def test_get_pokemon_none_on_missing(monkeypatch):
@@ -229,20 +245,22 @@ class TestPokedexEndpoints:
         # Query validation (ge=1) rejects a non-positive / non-int id.
         assert client.get("/api/library/games/pokedex/pokemon", params={"num": 0}).status_code == 422
 
-    def test_sprite_refuses_non_pokeapi_host(self, client):
-        r = client.get("/api/library/games/pokedex/sprite", params={"src": "https://evil.com/x.png"})
-        assert r.status_code == 404
+    def test_sprite_rejects_bad_id(self, client):
+        # No client URL to smuggle — the id is bounds-validated; the fetched URL is built
+        # server-side from it (sprite_raw_url), so there's no open-proxy surface.
+        assert client.get("/api/library/games/pokedex/sprite", params={"id": 0}).status_code == 422
 
-    def test_sprite_serves_allowed(self, client, tmp_path, monkeypatch):
+    def test_sprite_serves_by_id(self, client, tmp_path, monkeypatch):
         monkeypatch.setattr(settings, "wiki_cache_dir", str(tmp_path))
-        monkeypatch.setattr(pokedex, "fetch_sprite", lambda url, **kw: (b"PNGBYTES", "image/png"))
-        r = client.get("/api/library/games/pokedex/sprite", params={
-            "src": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/25.png"})
+        seen = {}
+        monkeypatch.setattr(pokedex, "fetch_sprite",
+                            lambda url, **kw: seen.update(url=url) or (b"PNGBYTES", "image/png"))
+        r = client.get("/api/library/games/pokedex/sprite", params={"id": 25, "art": "true"})
         assert r.status_code == 200 and r.content == b"PNGBYTES"
+        assert seen["url"] == pokedex.sprite_raw_url(25, art=True)  # server-built, from id+art
 
     def test_sprite_refuses_svg(self, client, tmp_path, monkeypatch):
         monkeypatch.setattr(settings, "wiki_cache_dir", str(tmp_path))
         monkeypatch.setattr(pokedex, "fetch_sprite", lambda url, **kw: (b"<svg/>", "image/svg+xml"))
-        r = client.get("/api/library/games/pokedex/sprite", params={
-            "src": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/25.svg"})
+        r = client.get("/api/library/games/pokedex/sprite", params={"id": 25})
         assert r.status_code == 404
