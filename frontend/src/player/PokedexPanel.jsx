@@ -3,7 +3,7 @@ import { ArrowLeft, X, BookOpen, Loader2, Globe, ChevronRight } from 'lucide-rea
 import { FROG } from '../frog/theme.js'
 import { moveInGrid } from '../lib/gridNav.js'
 import { fetchPokedexInfo, fetchPokedexList, fetchPokemon } from '../lib/pokedexApi.js'
-import { typeColor, statPercent, filterDex, STAT_LABELS, STAT_ORDER } from '../lib/pokedex.js'
+import { typeColor, statPercent, statTotal, filterDex, STAT_LABELS, STAT_ORDER } from '../lib/pokedex.js'
 import '../frog/frog.css'
 
 const SCROLL_STEP = 96
@@ -243,7 +243,7 @@ const PokedexPanel = forwardRef(function PokedexPanel({
         {detailBusy && <Centered><Spinner /> Loading…</Centered>}
         {!detailBusy && !detail && <Centered><BookOpen className="mb-2 h-8 w-8 opacity-40" aria-hidden="true" />Couldn’t load that Pokémon.</Centered>}
         {!detailBusy && detail && (
-          <Detail p={detail} accentText={accentText} onReadWiki={readWiki} />
+          <Detail p={detail} accentText={accentText} onReadWiki={readWiki} onSelect={openDetail} />
         )}
       </div>
 
@@ -277,7 +277,30 @@ function DexRow({ p, focused, onFocus, onOpen }) {
   )
 }
 
-function Detail({ p, accentText, onReadWiki }) {
+// One node in the evolution chain — a larger sprite, its types, tappable to jump to it.
+function EvoNode({ s, current, accentText, onSelect }) {
+  return (
+    <button
+      onClick={onSelect}
+      disabled={current}
+      className="flex flex-col items-center gap-0.5 rounded-lg px-1.5 py-1 transition-colors disabled:cursor-default"
+      style={{ background: current ? `rgba(${FROG.jade}, 0.12)` : 'transparent' }}
+    >
+      <img src={s.sprite} alt="" loading="lazy" className="h-16 w-16" style={{ imageRendering: 'pixelated' }} />
+      <span className="text-[11px] font-medium" style={{ color: current ? accentText : FROG.soft }}>{s.display}</span>
+      {s.types && s.types.length > 0 && (
+        <span className="flex gap-0.5">
+          {s.types.map((t) => (
+            <span key={t} className="rounded px-1 py-px text-[8px] font-semibold capitalize text-black"
+                  style={{ background: typeColor(t) }}>{t}</span>
+          ))}
+        </span>
+      )}
+    </button>
+  )
+}
+
+function Detail({ p, accentText, onReadWiki, onSelect }) {
   return (
     <div className="mx-auto max-w-2xl px-4 py-4">
       {/* Hero: artwork + types */}
@@ -298,34 +321,39 @@ function Detail({ p, accentText, onReadWiki }) {
         </p>
       )}
 
-      {/* Base stats */}
-      <h3 className="mb-2 mt-5 text-xs font-medium uppercase tracking-wide" style={{ color: FROG.faint }}>Base stats</h3>
+      {/* Base stats — with a total */}
+      <div className="mb-2 mt-5 flex items-baseline justify-between">
+        <h3 className="text-xs font-medium uppercase tracking-wide" style={{ color: FROG.faint }}>Base stats</h3>
+        {statTotal(p.stats) > 0 && (
+          <span className="text-[11px]" style={{ color: FROG.faint }}>
+            Total <span className="tabular-nums" style={{ color: FROG.soft }}>{statTotal(p.stats)}</span>
+          </span>
+        )}
+      </div>
       <div className="space-y-1.5">
         {STAT_ORDER.filter((k) => p.stats?.[k] != null).map((k) => (
           <div key={k} className="flex items-center gap-2">
             <span className="w-9 shrink-0 text-[11px] font-medium" style={{ color: FROG.soft }}>{STAT_LABELS[k]}</span>
             <span className="w-8 shrink-0 text-right text-xs tabular-nums" style={{ color: FROG.ink }}>{p.stats[k]}</span>
-            <div className="h-2 flex-1 overflow-hidden rounded-full" style={{ background: 'rgba(255,255,255,0.08)' }}>
-              <div className="h-full rounded-full" style={{ width: `${statPercent(p.stats[k])}%`, background: accentText }} />
+            <div className="h-2.5 flex-1 overflow-hidden rounded-full" style={{ background: 'rgba(255,255,255,0.08)' }}>
+              <div className="h-full rounded-full transition-[width]" style={{ width: `${statPercent(p.stats[k])}%`, background: accentText }} />
             </div>
           </div>
         ))}
       </div>
 
-      {/* Evolution chain */}
+      {/* Evolution chain — larger, typed, and clickable (tap to jump to that Pokémon) */}
       {p.evolutions && p.evolutions.length > 1 && (
         <>
           <h3 className="mb-2 mt-5 text-xs font-medium uppercase tracking-wide" style={{ color: FROG.faint }}>Evolutions</h3>
-          <div className="flex items-center justify-center gap-1 overflow-x-auto pb-1">
+          <div className="flex items-stretch justify-center gap-1.5 overflow-x-auto pb-1">
             {p.evolutions.map((stage, si) => (
-              <div key={si} className="flex items-center gap-1">
-                {si > 0 && <ChevronRight className="h-4 w-4 shrink-0" style={{ color: FROG.faint }} aria-hidden="true" />}
-                <div className="flex flex-col gap-1">
+              <div key={si} className="flex items-center gap-1.5">
+                {si > 0 && <ChevronRight className="h-5 w-5 shrink-0" style={{ color: FROG.faint }} aria-hidden="true" />}
+                <div className="flex flex-col gap-2">
                   {stage.map((s) => (
-                    <div key={s.id} className="flex flex-col items-center" style={{ opacity: s.id === p.id ? 1 : 0.85 }}>
-                      <img src={s.sprite} alt="" loading="lazy" className="h-12 w-12" style={{ imageRendering: 'pixelated' }} />
-                      <span className="text-[10px]" style={{ color: s.id === p.id ? accentText : FROG.faint }}>{s.display}</span>
-                    </div>
+                    <EvoNode key={s.id} s={s} current={s.id === p.id} accentText={accentText}
+                             onSelect={() => s.id !== p.id && onSelect?.(s.id)} />
                   ))}
                 </div>
               </div>

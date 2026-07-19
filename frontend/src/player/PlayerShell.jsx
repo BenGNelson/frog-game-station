@@ -775,6 +775,7 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
           case 'jumpPrev': w?.section(-1); break
           case 'jumpNext': w?.section(1); break
           case 'confirm': w?.activate(); break
+          case 'search': w?.changeWiki(); break // X — drop the wiki and re-search
           case 'back': if (!w?.back()) closeWiki(); break
           default: break
         }
@@ -1217,6 +1218,7 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
                 <ButtonLegend
                   hints={[
                     { button: 'A', label: 'Open link' },
+                    { button: 'X', label: 'Change wiki' },
                     { button: 'B', label: 'Back' },
                   ]}
                 />

@@ -1,5 +1,5 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
-import { ArrowLeft, X, ExternalLink, Search, BookOpen, Loader2 } from 'lucide-react'
+import { ArrowLeft, X, ExternalLink, Search, BookOpen, Loader2, RefreshCw } from 'lucide-react'
 import { FROG } from '../frog/theme.js'
 import { fetchWikiSource, fetchWikiPage, searchWiki, setWikiOverride } from '../lib/wikiApi.js'
 import {
@@ -220,7 +220,8 @@ const WikiPanel = forwardRef(function WikiPanel({
       setHistory(startHistory(title))
       loadPage(title)
     },
-  }), [scrollToSection, moveLink, activateLink, back, loadPage])
+    changeWiki,
+  }), [scrollToSection, moveLink, activateLink, back, loadPage, changeWiki])
 
   const openInTab = () => {
     // Open the page you're actually reading (which changes as you follow links), not the
@@ -231,6 +232,18 @@ const WikiPanel = forwardRef(function WikiPanel({
       : source?.url
     if (url) window.open(url, '_blank', 'noopener,noreferrer')
   }
+
+  // Change/clear the wiki: drop any user pin and return to the search, so you're never
+  // stuck on a wiki you picked (or an auto one you don't want). This is the escape hatch.
+  const changeWiki = useCallback(async () => {
+    try { await setWikiOverride(gameId, null) } catch { /* clearing is best-effort */ }
+    deepHostRef.current = null
+    setSource(null)
+    setArticle(null)
+    setHistory(emptyHistory)
+    clearLinkFocus()
+    setPhase('nolink')
+  }, [gameId, clearLinkFocus])
 
   const accentText = `rgb(${accent})`
 
@@ -274,6 +287,16 @@ const WikiPanel = forwardRef(function WikiPanel({
           )}
         </div>
 
+        {(phase === 'reading' || phase === 'external') && (
+          <button
+            onClick={changeWiki}
+            aria-label="Change wiki"
+            className="flex items-center rounded-lg px-2.5 py-1.5 text-sm active:opacity-70"
+            style={{ background: FROG.panel, color: FROG.soft }}
+          >
+            <RefreshCw className="h-4 w-4" aria-hidden="true" />
+          </button>
+        )}
         {source?.url && (
           <button
             onClick={openInTab}
@@ -375,8 +398,21 @@ function Spinner() {
 
 // Shown when a game has no wiki linked yet: search for one and pin it. Touch/keyboard
 // entry here; controller text entry arrives with the reusable on-screen keyboard.
+// Strip the ROM-name cruft that makes a search miss — region tags "(USA)", "Version",
+// and separators — so "Pokemon - FireRed Version (USA)" seeds the search as
+// "Pokemon FireRed" (which a wiki can actually find).
+function cleanSearchSeed(name) {
+  return (name || '')
+    .replace(/\([^)]*\)/g, ' ')
+    .replace(/\[[^\]]*\]/g, ' ')
+    .replace(/\bversions?\b/gi, ' ')
+    .replace(/[-_:]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 function NoLink({ gameId, gameName, accentText, onPicked }) {
-  const [q, setQ] = useState(gameName || '')
+  const [q, setQ] = useState(() => cleanSearchSeed(gameName))
   const [results, setResults] = useState([])
   const [host, setHost] = useState(null) // which wiki the backend curated for us
   const [searched, setSearched] = useState(false)

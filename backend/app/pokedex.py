@@ -178,6 +178,17 @@ def flatten_evolution(chain, api_base="/api") -> list:
     return stages
 
 
+def _add_evolution_types(stages) -> None:
+    """Enrich each evolution node (in place) with its `types` — so the chain shows type
+    badges without a per-chip fetch on the client. One cached /pokemon call per node
+    (PokeAPI is static, so this is a one-time cost); chains are small (a handful of nodes,
+    Eevee's the outlier at 9)."""
+    for stage in stages:
+        for node in stage:
+            poke = _api(f"pokemon/{node['id']}") if node.get("id") else None
+            node["types"] = [t["type"]["name"] for t in (poke or {}).get("types", []) if t.get("type")]
+
+
 def _en_flavor(species) -> str | None:
     """The first English flavor-text entry, whitespace-normalized (old-gen text is full of
     literal \\n/\\f control chars)."""
@@ -264,6 +275,7 @@ def get_pokemon(num: int, api_base="/api") -> dict | None:
         chain = _api(f"evolution-chain/{_id_from_url(chain_url)}")
         if chain:
             evolutions = flatten_evolution(chain.get("chain"), api_base)
+            _add_evolution_types(evolutions)
 
     genus = next((g["genus"] for g in species.get("genera") or []
                   if (g.get("language") or {}).get("name") == "en"), None)

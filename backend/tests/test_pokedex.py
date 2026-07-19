@@ -138,6 +138,9 @@ _FAKE = {
         "species": _sp("pichu", 172), "evolves_to": [
             {"species": _sp("pikachu", 25), "evolves_to": [
                 {"species": _sp("raichu", 26), "evolves_to": []}]}]}},
+    # Evolution nodes are enriched with types via a /pokemon fetch each.
+    "pokemon/172": {"types": [{"type": {"name": "electric"}}]},
+    "pokemon/26": {"types": [{"type": {"name": "electric"}}]},
 }
 
 
@@ -167,8 +170,9 @@ def test_get_pokemon_composes_the_dto(monkeypatch):
     assert p["flavor"] == "When several of these POKéMON gather."  # whitespace normalized
     assert p["genus"] == "Mouse Pokémon"
     assert p["bulbapedia_title"] == "Pikachu_(Pokémon)"
-    # Evolution chain flattened (Pichu -> Pikachu -> Raichu).
+    # Evolution chain flattened (Pichu -> Pikachu -> Raichu), each enriched with types.
     assert [[q["display"] for q in s] for s in p["evolutions"]] == [["Pichu"], ["Pikachu"], ["Raichu"]]
+    assert p["evolutions"][0][0]["types"] == ["electric"]  # pichu, from its /pokemon fetch
     assert p["artwork"].startswith("/api/library/games/pokedex/sprite?src=")
     assert "official-artwork" in p["artwork"] and "25.png" in p["artwork"]
 
