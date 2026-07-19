@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { typeColor, statPercent, filterDex, STAT_LABELS, STAT_ORDER } from './pokedex.js'
+import { typeColor, statPercent, statTotal, filterDex, STAT_LABELS, STAT_ORDER } from './pokedex.js'
 
 describe('typeColor', () => {
   it('returns a colour per known type and a fallback', () => {
@@ -16,6 +16,16 @@ describe('statPercent', () => {
     expect(statPercent(255)).toBe(100) // clamps
     expect(statPercent(0)).toBe(0)
     expect(statPercent(undefined)).toBe(0)
+  })
+})
+
+describe('statTotal', () => {
+  it('sums the six base stats', () => {
+    expect(statTotal({ hp: 78, attack: 84, defense: 78, 'special-attack': 109, 'special-defense': 85, speed: 100 })).toBe(534)
+  })
+  it('is 0 for missing/empty', () => {
+    expect(statTotal(null)).toBe(0)
+    expect(statTotal({})).toBe(0)
   })
 })
 

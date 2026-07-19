@@ -30,6 +30,12 @@ export function statPercent(value, max = 180) {
   return Math.max(0, Math.min(100, Math.round((value / max) * 100)))
 }
 
+// The base-stat total (the "BST" everyone compares), summed over the stats present.
+export function statTotal(stats) {
+  if (!stats) return 0
+  return STAT_ORDER.reduce((sum, k) => sum + (stats[k] || 0), 0)
+}
+
 // Filter a dex list by a query — matches the display name (substring, case-insensitive)
 // or the dex number. Empty query returns the list unchanged.
 export function filterDex(list, query) {
