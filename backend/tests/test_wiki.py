@@ -138,8 +138,9 @@ class TestSanitizeArticle:
     def test_image_rewritten_to_proxy(self):
         out = self._san('<img src="//archives.bulbagarden.net/a.png" alt="art">')
         # The & in the query is HTML-escaped to &amp; in the attribute (correct — the
-        # browser decodes it back to & when reading src).
-        assert "/library/games/wiki/img?id=g1&amp;src=" in out
+        # browser decodes it back to & when reading src). The article host rides along so
+        # the proxy validates the image against the right wiki (cross-wiki deep-links).
+        assert "/library/games/wiki/img?id=g1&amp;host=bulbapedia.bulbagarden.net&amp;src=" in out
         assert "archives.bulbagarden.net" in out  # encoded original in the src param
         assert 'alt="art"' in out
 
@@ -293,6 +294,36 @@ class TestWikiEndpoints:
     def test_page_404_when_no_wiki(self, client):
         assert client.get("/api/library/games/wiki/page",
                           params={"id": "none.gb"}).status_code == 404
+
+    def test_page_deep_link_to_a_curated_host(self, client, monkeypatch):
+        # The Pokédex deep-link: an explicit curated host (Bulbapedia) renders even for a
+        # game with no resolved wiki of its own.
+        seen = {}
+        monkeypatch.setattr(wiki, "get_article",
+                            lambda gid, host, title: seen.update(host=host, title=title) or {"title": title, "html": "<p>p</p>", "sections": []})
+        r = client.get("/api/library/games/wiki/page", params={
+            "id": "unlinked.gb", "title": "Pikachu_(Pokémon)", "host": "bulbapedia.bulbagarden.net"})
+        assert r.status_code == 200 and r.json()["host"] == "bulbapedia.bulbagarden.net"
+        assert seen == {"host": "bulbapedia.bulbagarden.net", "title": "Pikachu_(Pokémon)"}
+
+    def test_page_deep_link_rejects_unknown_host(self, client):
+        # An explicit host must be a known/curated wiki — no arbitrary-site fetch.
+        r = client.get("/api/library/games/wiki/page", params={
+            "id": "x.gb", "title": "Whatever", "host": "evil.com"})
+        assert r.status_code == 404
+
+    def test_image_deep_link_host_validated(self, client, wiki_cache, monkeypatch):
+        # A deep-linked article's images validate against the curated article host, not
+        # the game's own wiki (which may be none).
+        monkeypatch.setattr(wiki, "fetch_image", lambda url, **kw: (b"PNG", "image/png"))
+        ok = client.get("/api/library/games/wiki/img", params={
+            "id": "unlinked.gb", "host": "bulbapedia.bulbagarden.net",
+            "src": "https://archives.bulbagarden.net/a.png"})
+        assert ok.status_code == 200
+        # A tampered host that isn't a known wiki is refused (falls back to resolve = none).
+        bad = client.get("/api/library/games/wiki/img", params={
+            "id": "unlinked.gb", "host": "evil.com", "src": "https://evil.com/a.png"})
+        assert bad.status_code == 404
 
     def test_image_proxy_refuses_unrelated_host(self, client):
         _seed_auto()

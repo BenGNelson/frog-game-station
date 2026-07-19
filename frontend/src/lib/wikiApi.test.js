@@ -17,6 +17,12 @@ describe('wiki URL builders', () => {
     )
   })
 
+  it('page url carries an explicit deep-link host', () => {
+    expect(wikiPageUrl('g1', 'Pikachu_(Pokémon)', 'bulbapedia.bulbagarden.net')).toBe(
+      '/api/library/games/wiki/page?id=g1&title=Pikachu_(Pok%C3%A9mon)&host=bulbapedia.bulbagarden.net'
+    )
+  })
+
   it('search url includes host and name only when given', () => {
     expect(wikiSearchUrl('g1', 'pika')).toBe(
       '/api/library/games/wiki/search?id=g1&q=pika'
