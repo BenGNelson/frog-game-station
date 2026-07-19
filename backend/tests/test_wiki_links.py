@@ -77,6 +77,19 @@ class TestResolveWiki:
         assert got["source"] == "curated"
         assert got["title"] == "Walkthrough:Pokémon_Yellow"  # underscores kept (MediaWiki space encoding)
 
+    def test_family_wiki_beats_the_base_game_link(self):
+        # A hack with no wiki of its own: a matched franchise-wiki page is a better default
+        # than the base game's generic link.
+        fam = "https://metroidwiki.org/wiki/Super_Metroid"
+        got = resolve_wiki(meta={"wiki_url": None}, base_meta={"wiki_url": BASE}, family=fam)
+        assert got["source"] == "family"
+        assert got["url"] == fam
+
+    def test_family_wiki_loses_to_auto(self):
+        # The IGDB auto link is game-specific and outranks the searched franchise page.
+        got = resolve_wiki(meta={"wiki_url": WIKIPEDIA}, family="https://metroidwiki.org/wiki/X")
+        assert got["source"] == "auto"
+
     def test_curated_still_loses_to_a_user_pin(self):
         got = resolve_wiki(override=BULBA, curated="https://bulbapedia.bulbagarden.net/wiki/Walkthrough:X")
         assert got["source"] == "user"
@@ -173,7 +186,7 @@ class TestCuratedHost:
         assert wiki_sources.curated_host("Pokemon Kaizo Emerald") == "bulbapedia.bulbagarden.net"
 
     def test_other_families(self):
-        assert wiki_sources.curated_host("The Legend of Zelda") == "zeldawiki.wiki"
+        assert wiki_sources.curated_host("The Legend of Zelda") == "www.zeldawiki.wiki"
         assert wiki_sources.curated_host("Super Mario Land") == "www.mariowiki.com"
 
     def test_unknown_family_is_none(self):

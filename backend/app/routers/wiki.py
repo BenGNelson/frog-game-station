@@ -21,7 +21,7 @@ from fastapi import APIRouter, Query
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, Field
 
-from app import db, library, wiki, wiki_links, wiki_sources
+from app import db, family_wiki, library, wiki, wiki_links, wiki_sources
 from app.config import settings
 from app.images import write_atomic
 
@@ -39,10 +39,11 @@ _IMG_CACHE_HEADERS = {"Cache-Control": "public, max-age=2592000, immutable"}
 
 def _resolve(game_id: str, name: str = ""):
     """The effective wiki source for a game (or None): user override > curated default page
-    (e.g. a Pokémon game's Bulbapedia walkthrough, from `name`) > IGDB auto > a hack's
-    base-game link. Gathers the rows resolve_wiki needs — the game's meta, its override,
-    and, for a hack, the owned base game's meta. `name` (the display title) is what the
-    curated-page lookup keys on, so callers that have it (the source/page endpoints) pass it."""
+    (e.g. a Pokémon game's Bulbapedia walkthrough, from `name`) > IGDB auto > a page matched
+    on the game's franchise wiki > a hack's base-game link. Gathers the rows resolve_wiki
+    needs — the game's meta, its override, and, for a hack, the owned base game's meta. `name`
+    (the display title) is what the curated-page and franchise-wiki lookups key on, so callers
+    that have it (the source/page endpoints) pass it."""
     meta = db.get_igdb_meta(game_id)
     override = db.get_game_wiki(game_id)
     base_meta = None
@@ -51,7 +52,19 @@ def _resolve(game_id: str, name: str = ""):
         if base_id:
             base_meta = db.get_igdb_meta(base_id)
     curated = wiki_sources.curated_wiki_url(name) if name else None
-    return wiki_links.resolve_wiki(meta=meta, override=override, base_meta=base_meta, curated=curated)
+    # First pass WITHOUT the franchise-wiki tier: user/curated/auto are DB-only and all
+    # outrank it, so a hit among them skips its network search entirely.
+    resolved = wiki_links.resolve_wiki(meta=meta, override=override, base_meta=base_meta, curated=curated)
+    if resolved and resolved.get("source") in ("user", "curated", "auto"):
+        return resolved
+    # Nothing better resolved: try the game's franchise wiki (network, cached). It outranks
+    # the base-game fallback, so re-resolve with it slotted in.
+    family = family_wiki.resolve(name) if name else None
+    if not family:
+        return resolved
+    return wiki_links.resolve_wiki(
+        meta=meta, override=override, base_meta=base_meta, curated=curated, family=family
+    )
 
 
 def _known_wiki_host(host: str) -> bool:
