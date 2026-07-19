@@ -19,8 +19,8 @@ from urllib.parse import quote
 # standalone) whose api.php the content fetcher can read.
 _FAMILIES = (
     (("pokemon", "pokémon"), "bulbapedia.bulbagarden.net"),
-    (("zelda",), "zeldawiki.wiki"),
-    (("metroid",), "metroidwiki.org"),
+    (("zelda",), "www.zeldawiki.wiki"),
+    (("metroid",), "www.metroidwiki.org"),
     (("kirby",), "wikirby.com"),
     (("mario", "luigi", "yoshi", "wario"), "www.mariowiki.com"),
     (("donkey kong",), "www.mariowiki.com"),
