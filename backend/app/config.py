@@ -51,6 +51,26 @@ class Settings(BaseSettings):
     igdb_sync_enabled: bool = True
     igdb_sync_interval: int = 86400
 
+    # --- Wiki reader (the in-game wiki browser) ---
+    # On by default; when off, the in-game Wiki panel reports "not configured".
+    wiki_enabled: bool = True
+    # Extra image/asset hosts the wiki image-proxy may fetch from, comma-separated —
+    # ON TOP of the article's own host/domain and the built-in MediaWiki CDN list.
+    # Only add a host you trust; the proxy fetches (and caches) images from it.
+    wiki_proxy_allow_hosts: str = ""
+    # Where fetched + sanitized wiki articles are cached (writable volume, like the
+    # DB), so a re-open is instant and the source isn't re-hit within the TTL.
+    wiki_cache_dir: str = "/data/wiki"
+    # How long a cached article is served before a re-fetch (seconds). Wikis change
+    # slowly; a day keeps it fresh without hammering the source.
+    wiki_cache_ttl: int = 86400
+
+    # --- Pokédex reference (the in-game Pokédex for Pokémon games) ---
+    # On by default; when off, the Pokédex tile/panel is hidden. Data comes from PokeAPI
+    # (pokeapi.co) and is cached under the wiki cache dir; PokeAPI is static so the cache
+    # is effectively permanent.
+    pokedex_enabled: bool = True
+
     # --- Backend ---
     api_port: int = 8000
     # SQLite cache (lives on a Docker volume so it survives rebuilds). Not a

@@ -27,6 +27,7 @@ import logging
 import re
 import time
 from difflib import SequenceMatcher
+from urllib.parse import urlparse
 
 import requests
 
@@ -57,8 +58,16 @@ _FIELDS = (
     "name,summary,first_release_date,rating,total_rating,"
     "genres.name,involved_companies.company.name,involved_companies.developer,"
     "involved_companies.publisher,cover.image_id,screenshots.image_id,"
-    "videos.video_id,videos.name,similar_games"
+    "videos.video_id,videos.name,similar_games,websites.url,websites.category"
 )
+
+# IGDB `website.category` enum values that name a WIKI. 2 = Fandom/Wikia (usually the
+# most game-specific), 3 = Wikipedia. Preferred in that order — a Fandom/Bulbapedia-
+# style wiki is a better in-game companion than a Wikipedia article. Every other
+# category (official site, social, storefront) is ignored.
+# NOTE: IGDB is migrating `websites` toward a `type` reference; if `category` is ever
+# removed, `pick_wiki` simply returns None (no auto wiki, no crash) until updated.
+_WIKI_CATEGORIES = (2, 3)
 
 # Low-signal words dropped before token comparison, so article/preposition
 # differences ("The Legend of Zelda" vs "Legend of Zelda, The") don't cost score.
@@ -140,6 +149,32 @@ def year_of(candidate: dict | None) -> int | None:
         return None
 
 
+def _is_wiki_article(url) -> bool:
+    """A renderable MediaWiki article URL — `http(s)://host/wiki/Title`. (The reader can
+    only render `/wiki/` pages; a wiki HOMEPAGE, `https://x.fandom.com`, can't be, so we
+    don't want to prefer one over a real article on another wiki.)"""
+    p = urlparse(url or "")
+    return p.scheme in ("http", "https") and bool(p.netloc) and len(p.path) > len("/wiki/") \
+        and p.path.startswith("/wiki/")
+
+
+def pick_wiki(websites) -> str | None:
+    """The best RENDERABLE wiki article URL from an IGDB `websites` list (pure). Considers
+    only `/wiki/Title` pages, preferring a Fandom/Wikia article (category 2) over a
+    Wikipedia one (3). Returns None when neither category has a real article — so a bare
+    Fandom homepage never shadows a good Wikipedia article (both are category-tagged, and
+    only the renderable one should win)."""
+    by_cat = {}
+    for w in websites or []:
+        cat, url = w.get("category"), w.get("url")
+        if url and cat in _WIKI_CATEGORIES and _is_wiki_article(url):
+            by_cat.setdefault(cat, url)  # first renderable of each category wins
+    for cat in _WIKI_CATEGORIES:
+        if cat in by_cat:
+            return by_cat[cat]
+    return None
+
+
 def flatten(candidate: dict | None) -> dict:
     """Flatten a chosen IGDB game dict into our stored fields (pure). Missing
     pieces come back as None / []."""
@@ -176,6 +211,9 @@ def flatten(candidate: dict | None) -> dict:
         # IGDB's own "more like this" — a list of IGDB game ids. Stored raw; the
         # library endpoint later intersects them with the ROMs you actually own.
         "similar_games": [int(i) for i in (candidate.get("similar_games") or []) if i],
+        # Best wiki link (Fandom/Wikia > Wikipedia) — the auto default source for the
+        # in-game wiki reader; a user override in game_wiki takes precedence.
+        "wiki_url": pick_wiki(candidate.get("websites")),
     }
 
 

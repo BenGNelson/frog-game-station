@@ -4,3 +4,5 @@ pydantic-settings>=2.2
 python-multipart>=0.0.18
 Pillow>=10.3
 requests>=2.31
+beautifulsoup4>=4.12
+nh3>=0.2
