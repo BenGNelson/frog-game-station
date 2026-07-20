@@ -58,10 +58,14 @@ export default function SaveStatePanel({
   }, [onCols])
 
   // Take the keys the moment the shelf opens, so a desktop player drives it without
-  // clicking into it first.
+  // clicking into it first — and RE-take them whenever the list changes. A delete routes
+  // through a confirm dialog whose focus trap, on close, restores focus to the button that
+  // opened it; when that was a card's Delete button the card is now gone, so focus would
+  // fall to <body> and the shelf go keyboard-dead. Re-focusing the panel (the delete has
+  // already landed and the dialog unmounted by the time the list shrinks) keeps it live.
   useEffect(() => {
     panelRef.current?.focus()
-  }, [])
+  }, [states.length])
 
   // Keep the focused cell on screen when the cursor walks past the fold.
   useEffect(() => {
@@ -121,7 +125,10 @@ export default function SaveStatePanel({
       {/* touch-auto: the player wrapper turns touch-action off so a thumb on the
           d-pad can't drag the page — but that inherits here too, and this list
           has to be scrollable with a finger. */}
-      <div className="min-h-0 flex-1 touch-auto overflow-y-auto overscroll-contain px-3 pb-4">
+      {/* pb-6 keeps a gap above the button-legend footer; scroll-pb-8 makes the d-pad's
+          scrollIntoView stop short of the footer so a focused (scaled + ringed) last-row
+          card isn't tucked under it. */}
+      <div className="min-h-0 flex-1 touch-auto overflow-y-auto overscroll-contain scroll-pb-8 px-3 pb-6 pt-3">
         <div ref={gridRef} className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           <button
             onClick={onSave}
@@ -164,7 +171,13 @@ export default function SaveStatePanel({
         )}
       </div>
 
-      {legend && <div className="shrink-0 px-3 pb-3">{legend}</div>}
+      {/* The controller-button legend is a footer, set off from the last row of states by a
+          hairline so the two don't read as one block. */}
+      {legend && (
+        <div className="shrink-0 border-t px-3 pb-3 pt-3" style={{ borderColor: FROG.line }}>
+          {legend}
+        </div>
+      )}
     </div>
   )
 }
