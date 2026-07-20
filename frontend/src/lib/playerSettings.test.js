@@ -8,6 +8,7 @@ import {
   bindingsFor,
   withBinding,
   clearBindings,
+  resetControls,
 } from './playerSettings.js'
 
 // A stand-in for localStorage, including the index-based key() walk that
@@ -145,6 +146,27 @@ describe('control bindings, per controller', () => {
 
   it('does nothing when there is no controller to key against', () => {
     expect(withBinding(DEFAULTS, null, 8, 'BUTTON_2')).toBe(DEFAULTS)
+  })
+
+  it('resetControls restores the WHOLE setup — rebinds, scheme, and hotkeys', () => {
+    // The bug: "Reset" only cleared per-button rebinds, so changing the scheme or a
+    // hotkey and hitting Reset looked like it did nothing.
+    let s = withBinding(DEFAULTS, XBOX, 8, 'BUTTON_2')
+    s = { ...s, controlScheme: 'positions', wikiHotkey: 3, pokedexHotkey: 2, ffHotkey: 5 }
+    const out = resetControls(s, XBOX)
+    expect(bindingsFor(out, XBOX)).toEqual({}) // rebinds cleared
+    expect(out.controlScheme).toBe(DEFAULTS.controlScheme) // 'letters'
+    expect(out.wikiHotkey).toBe(DEFAULTS.wikiHotkey) // 11
+    expect(out.pokedexHotkey).toBe(DEFAULTS.pokedexHotkey) // 10
+    expect(out.ffHotkey).toBe(DEFAULTS.ffHotkey) // null
+  })
+
+  it('resetControls leaves OTHER controllers’ rebinds alone', () => {
+    let s = withBinding(DEFAULTS, XBOX, 8, 'BUTTON_2')
+    s = withBinding(s, OTHER, 8, 'BUTTON_4')
+    const out = resetControls(s, XBOX)
+    expect(bindingsFor(out, XBOX)).toEqual({})
+    expect(bindingsFor(out, OTHER)[8]).toBe('BUTTON_4')
   })
 
   it('round-trips through storage', () => {

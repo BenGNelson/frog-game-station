@@ -45,7 +45,7 @@ import {
   migrateLegacyEjsKeys,
   bindingsFor,
   withBinding,
-  clearBindings,
+  resetControls,
 } from '../lib/playerSettings.js'
 import { bindingForButton } from '../lib/gamepad.js'
 import { useGamepad } from '../lib/useGamepad.js'
@@ -554,8 +554,12 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
     [settings, saveSettings]
   )
 
+  // "Reset this controller to the defaults" — restore the whole controller setup, not just
+  // per-button rebinds: the scheme (letters/positions) and the Wiki/Pokédex/Fast-Forward
+  // hotkeys go back to shipped defaults too. (Clearing only the rebind map looked like it did
+  // nothing when what you'd changed was the scheme or a hotkey.)
   const resetBindings = useCallback(
-    () => saveSettings(clearBindings(settings, padId)),
+    () => saveSettings(resetControls(settings, padId)),
     [settings, padId, saveSettings]
   )
 

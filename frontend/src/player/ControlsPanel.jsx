@@ -181,7 +181,7 @@ export default function ControlsPanel({
             color: resetFocused ? FROG.ink : FROG.soft,
           }}
         >
-          <RotateCcw className="h-4 w-4" aria-hidden="true" /> Reset this controller to the defaults
+          <RotateCcw className="h-4 w-4" aria-hidden="true" /> Reset controls to the defaults
         </button>
 
         <p className="mt-4 text-center text-[11px] leading-relaxed" style={{ color: FROG.faint }}>

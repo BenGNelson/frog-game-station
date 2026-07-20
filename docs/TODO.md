@@ -40,6 +40,22 @@ Open items carry an inline tag; completed (`[x]`) items are left untagged — th
       dead-space cleanup this used to fold in — merging Save/Load, demoting "Set as Cover" — shipped
       with the pause-menu UX review below.)_
 
+- [ ] [P2] **Controls screen — readability + layout rework.** The controller diagram shipped
+      (`player/ControllerDiagram.jsx`) but the screen is clunky: the pad sits **centred with wasted
+      space on both sides** instead of using the width; the text/labels are **too small to read from
+      the couch** (esp. the off-map "A → R3" chips); and **app hotkeys only show on the two sticks** —
+      a shortcut on any other button is invisible on the pad. Wants: (1) make the controller **much
+      larger** and fill the horizontal space (it's an SVG with a fixed `viewBox` — scale it up / drop
+      the narrow `max-h`, let it be the hero of the screen); (2) **bigger, more legible type** for
+      button labels and chips; (3) **annotate app hotkeys on every drawn button, not just the sticks**
+      — generalise `hotkeysAt(raw)` (currently only called for `XBOX.LS`/`RS`) to LB/RB/LT/RT/face/
+      Select so, e.g., **Fast Forward bound to RB shows "FF" on the RB bumper**; (4) make the off-map
+      chips readable (bigger, or fold them into the annotations from #3 once every button is
+      annotated — an off-map binding is just a hotkey/binding on a non-face button). Consider a
+      two-column layout on wide screens (diagram left, scheme + shortcuts + reset right) to kill the
+      dead space. Folds together with the deferred **controller-skin selector** (`skin` prop) and the
+      **chord/hold audit** noted on the shipped item above.
+
 - [x] **Deeper ROM-hack support surfacing** — shipped (badge + base link, borrow art): mark
       a game as "a ROM hack of <base>" via a toggle in the rematch picker — it borrows the
       base's IGDB art/summary but keeps its own name and wears a **HACK** badge everywhere the
