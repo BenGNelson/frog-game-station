@@ -137,6 +137,9 @@ Open items carry an inline tag; completed (`[x]`) items are left untagged — th
       always names what's focused without overlapping a rail. Think through the interaction with
       the existing `focus.rail` scroll-into-view (`frog/Shelf.jsx`) and the phone/portrait stacked
       layout (where the frog is inline, not a side column) before changing the flex structure.
+      _(The acute bug — the top rail clipping under the header on a tall wide screen — is fixed:
+      the scroll viewport was split from a min-h-full wrapper so it top-aligns (scroll-reachable)
+      when it overflows instead of centring. This item is the remaining sticky-column rethink.)_
 - [ ] [P3] **Touch ergonomics — search-field keyboard auto-raise on iOS.** _(Deferred, not
       dropped.)_ iOS blocks programmatic focus outside a user gesture, so there's no clean
       web fix — it needs an on-device solution and is low-value next to the rest. Parked with
