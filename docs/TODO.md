@@ -1,10 +1,13 @@
 # Frog Game Station — TODO
 
-The **open backlog**. A big polish + feature push has shipped since the last triage — all
-the Quick wins, and the top Features (IGDB "more like this", play-time / most-played,
+The **open backlog**. The remaining P2s have now shipped too — the sticky frog column,
+Pokédex fast-lane navigation + remember-last-viewed, base-game search in the re-match
+picker (so a zero-candidate hack can be linked), and per-hack wikis — alongside a product
+tweak that **removed the "Most played" home rail** (play-time tracking stays, on the game
+page). Earlier pushes covered the Quick wins and the top Features (IGDB "more like this",
 collections + finished flag, custom cover art, save-state rename/annotate/pin, analog-stick
 fast-scroll, letter-rail tap targets). Shipped work lives in the git history (`git log`);
-what's below is what's left, roughly priority-ordered within each group.
+what's left below is just **P3 nice-to-haves**, roughly priority-ordered within each group.
 
 > **Deployment status:** the standalone stack is deployed and runs as its own installable
 > PWA (its own origin, manifest, and service worker — independent of any parent app). See
