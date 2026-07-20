@@ -28,7 +28,7 @@ Open items carry an inline tag; completed (`[x]`) items are left untagged — th
 - [ ] [P2] **Controller-bindings audit + visualizer.** A screen that shows a controller
       graphic with every button labeled by what it's bound to, so unused buttons become
       visible and assignable (e.g. to **save-state** or **fast-forward** — fast-forward exists
-      via `emuBridge.js:413` but has no dedicated button; save/load are pause-menu tiles only).
+      via `emuBridge.js:413` but has no dedicated button; save/load are one pause-menu row → the shelf).
       **Key constraint to design around:** the EmulatorJS engine polls the pad itself in-game,
       so the app can only own buttons the RetroPad preset leaves free — effectively just the two
       stick clicks (L3/R3), and both are already taken (R3 = wiki hotkey, L3 = Pokédex; see
@@ -39,9 +39,9 @@ Open items carry an inline tag; completed (`[x]`) items are left untagged — th
       both layers (`lib/gamepad.js`, `lib/controlPresets.js`) and proposes slots for save-state +
       fast-forward; (2) a **controller-graphic bindings screen** — extend the glyphs in
       `player/ButtonLegend.jsx` (face-button colours already there; needs trigger/stick/d-pad
-      glyphs) and build on the existing rebind UI in `player/ControlsPanel.jsx`. Also fold in the
-      dead-space cleanup (rarely-used actions like "Set as Cover") flagged in the pause-menu UX
-      review below.
+      glyphs) and build on the existing rebind UI in `player/ControlsPanel.jsx`. _(The pause-menu
+      dead-space cleanup this used to fold in — merging Save/Load, demoting "Set as Cover" — shipped
+      with the pause-menu UX review below.)_
 
 - [x] **Deeper ROM-hack support surfacing** — shipped (badge + base link, borrow art): mark
       a game as "a ROM hack of <base>" via a toggle in the rematch picker — it borrows the
@@ -116,17 +116,18 @@ Open items carry an inline tag; completed (`[x]`) items are left untagged — th
       state?", buttons "Delete" / "Keep". Fully navigable: the pad moves left/right between the
       two (A commits the highlight — default Delete, so Y → A still deletes — B cancels), plus
       touch and keyboard. The confirm stacks above the shelf (`z-40`) and eats the pad while up.
-- [ ] [P2] **Pause-menu UX review — grid vs. vertical menu.** The pause menu keeps growing
-      (~9–11 tiles now: `frontend/src/player/PauseMenu.jsx:31-59`, a `pauseCols`-computed grid).
-      Spin up a UX agent to recommend a layout — specifically whether to move to a vertical
-      text/word menu (the RetroArch / EmulationStation idiom) vs. keep the tile grid — grounded
-      in what works in other emulator quick-menus and menu design generally (scan-ability, muscle
-      memory, controller reachability, room to grow). Deliverable: a recommendation with rationale
-      + a rough layout sketch, not code. Feeds the dead-space cleanup (low-use tiles like "Set as
-      Cover" may belong in a submenu or be removed) that the bindings audit also touches.
-      _(The acute bug — a full Pokémon-hack menu (11 tiles) overflowing a short landscape screen
-      and clipping the title + legend — is fixed: the tiles were shortened to a 4:3 aspect so the
-      whole menu fits without scrolling. This item is the deeper structural rethink, not a crash-fix.)_
+- [x] **Pause-menu UX review — grid vs. vertical menu.** Shipped as a **grouped vertical
+      list** (`player/PauseMenu.jsx`), replacing the `pauseCols`-computed reflowing grid. The
+      call: a fixed-order icon+word column under light SNAPSHOTS / PLAY / GAME / SETUP headers —
+      the RetroArch/console-guide idiom — because a reflowing grid moved where "Quit" sat per
+      game/device and broke muscle memory, and word-actions scan faster down one axis. Resume
+      always first, Quit always last; conditional items only omit. Nav reuses `moveInGrid` at
+      `cols: 1`. Dead-space cleanup landed with it: **Save + Load merged** into one "Save / Load
+      States" row (both open the same shelf), **"Set as Cover" demoted** into the save shelf as a
+      trailing tile (beside the frame-capture it reuses), and **Quit gated** behind the shared
+      `ConfirmDialog` (defaults to "Keep playing"). _(The earlier acute bug — a full Pokémon-hack
+      menu overflowing a short landscape screen — was already fixed; this was the structural
+      rethink.)_
 - [ ] [P2] **Shelf layout on a tall/overflowing home screen — persistent frog column.** On a
       wide screen the shelf is a two-part row: the **frog + caption** aside on the left, and the
       rails (Jump back in / Most Played / systems) on the right. When the rails are taller than the

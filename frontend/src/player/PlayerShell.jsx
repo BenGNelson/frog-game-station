@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { X, Menu, Minimize } from 'lucide-react'
 import { playerSrc, coverUrl, postCover, deleteCover, ENGINE_LOADER_URL, engineIsLocal } from '../lib/library.js'
@@ -55,7 +55,7 @@ import { usePlayTime } from '../lib/usePlayTime.js'
 import { useMediaQuery } from '../lib/useMediaQuery.js'
 import { moveInGrid } from '../lib/gridNav.js'
 import { saveState, loadState, listStates, deleteState, captureShot } from '../lib/saveStates.js'
-import PauseMenu, { pauseItems, pauseCols } from './PauseMenu.jsx'
+import PauseMenu, { pauseItems } from './PauseMenu.jsx'
 import SaveStatePanel from './SaveStatePanel.jsx'
 import ConfirmDialog from '../frog/ConfirmDialog.jsx'
 import ControlsPanel, { controlRows } from './ControlsPanel.jsx'
@@ -173,10 +173,19 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
   // Which confirm button the pad has highlighted: 0 = Delete, 1 = Keep. Starts on Delete
   // so the Y → A muscle-memory still deletes, but the d-pad can move to Keep first.
   const [confirmFocus, setConfirmFocus] = useState(0)
-  // Custom cover: whether this game already has one (seeds the pause menu's Reset item),
-  // and a transient confirmation shown in the pause menu after a set/reset.
+  // Custom cover: whether this game already has one (seeds the save shelf's Reset action),
+  // and a transient confirmation shown in the shelf after a set/reset.
   const [hasCustomCover, setHasCustomCover] = useState(!!coverV)
   const [coverNotice, setCoverNotice] = useState(null)
+  // Quit is guarded: it can drop progress since the last save-state, so the pause tile
+  // arms an "are you sure?" gate rather than exiting outright. quitFocus: 0 = Quit, 1 = Keep;
+  // starts on Keep (the safe option) — Quit has no Y→A muscle-memory to preserve, unlike the
+  // save-delete confirm, so the default should be the non-destructive one.
+  const [pendingQuit, setPendingQuit] = useState(false)
+  const [quitFocus, setQuitFocus] = useState(1)
+  // The shelf's trailing cover actions, appended after the state cards: always "set from
+  // this frame", plus "reset to default" once a custom cover exists.
+  const coverActions = useMemo(() => ['setCover', ...(hasCustomCover ? ['resetCover'] : [])], [hasCustomCover])
 
   // Is a physical controller driving? Becomes true on the FIRST BUTTON PRESS —
   // never on `gamepadconnected`, which iOS Safari doesn't fire until a button is
@@ -417,10 +426,11 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
   const cancelDelete = useCallback(() => setPendingDelete(null), [])
 
   // Deleting the last card can leave focus pointing past the end of the grid — pull
-  // it back to the last real cell (index range is 0 .. states.length).
+  // it back to the last real cell (index range is 0 = Save-new, 1..N states, then the
+  // trailing cover actions).
   useEffect(() => {
-    setShelfFocus((f) => Math.min(f, states.length))
-  }, [states.length])
+    setShelfFocus((f) => Math.min(f, states.length + coverActions.length))
+  }, [states.length, coverActions.length])
 
   // Native fullscreen where it exists (desktop, and iPad behind a prefix); a CSS
   // immersive mode everywhere else. iPhone Safari has no Fullscreen API at all —
@@ -586,10 +596,10 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
     try {
       await deleteCover(id)
       setHasCustomCover(false)
-      // 'Reset Cover' sat immediately after 'Set as Cover' and just vanished from the
-      // grid; without moving focus back, its index now points at 'Restart', so a reflexive
-      // second A-press would reload the game. Step back onto the still-present 'Set' tile.
-      setMenuFocus((f) => Math.max(0, f - 1))
+      // 'Reset' is the last trailing tile in the shelf and just vanished; without moving
+      // focus back, its index now points past the end, so step back onto the still-present
+      // 'Set from this frame' tile.
+      setShelfFocus((f) => Math.max(0, f - 1))
       setCoverNotice('Cover reset to the default art.')
     } catch {
       setCoverNotice('Couldn’t reset the cover — try again.')
@@ -610,15 +620,9 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
         case 'resume':
           dispatch('resume')
           break
-        case 'save':
-        case 'load':
+        case 'states':
+          // Save and Load are one tile — the shelf does both (it opens on "Save new").
           openShelf()
-          break
-        case 'setCover':
-          doSetCover()
-          break
-        case 'resetCover':
-          doResetCover()
           break
         case 'fastForward': {
           const on = !fastForward
@@ -645,14 +649,15 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
           dispatch('resume')
           break
         case 'quit':
-          dispatch('quit')
-          exit()
+          // Guarded — arm the confirm rather than exiting outright (see pendingQuit).
+          setQuitFocus(1)
+          setPendingQuit(true)
           break
         default:
           break
       }
     },
-    [fastForward, openShelf, exit, goFullscreen, openControls, openWiki, openPokedex, doSetCover, doResetCover]
+    [fastForward, openShelf, goFullscreen, openControls, openWiki, openPokedex]
   )
 
   const openMenu = useCallback(() => {
@@ -720,7 +725,7 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state === 'PLAYING'])
 
-  const menuItems = pauseItems(fastForward, { canFullscreen, hasCustomCover, isPokemon })
+  const menuItems = pauseItems(fastForward, { canFullscreen, isPokemon })
 
   const rows = controlRows(isPokemon)
 
@@ -758,9 +763,10 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
         // Back out one layer at a time. Resuming straight from a panel would
         // un-pause the game while that panel still covered it (and leave the
         // engine's gamepad gated, so the pad would drive nothing).
-        // The delete confirm is the topmost layer — Menu cancels it first (like B),
-        // so it can't be stranded over the pause menu by dismissing the shelf under it.
-        if (pendingDelete != null) cancelDelete()
+        // The confirms are the topmost layer — Menu cancels them first (like B),
+        // so one can't be stranded over the pause menu by dismissing the layer under it.
+        if (pendingQuit) setPendingQuit(false)
+        else if (pendingDelete != null) cancelDelete()
         else if (wikiOpen) closeWiki()
         else if (pokedexOpen) closePokedex()
         else if (controlsOpen) closeControls()
@@ -848,31 +854,47 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
       }
 
       if (shelfOpen) {
-        // The save shelf, walked with the pad: [Save-new, ...states]. A = the focused
-        // cell (save a new one, or load that state), Y = ask to delete the focused state,
-        // B = back to the pause menu.
+        // The save shelf, walked with the pad: [Save-new, ...states, ...cover actions].
+        // A = the focused cell (save a new one, load that state, or run the cover action),
+        // Y = ask to delete the focused state (states only), B = back to the pause menu.
+        const coverStart = states.length + 1 // first trailing cover-action index
         if (action === 'back') {
           setShelfOpen(false)
           setError(null)
         } else if (action === 'confirm') {
           if (shelfFocus === 0) doSave()
-          else doLoad(states[shelfFocus - 1]?.slot)
+          else if (shelfFocus < coverStart) doLoad(states[shelfFocus - 1]?.slot)
+          else if (coverActions[shelfFocus - coverStart] === 'setCover') doSetCover()
+          else if (coverActions[shelfFocus - coverStart] === 'resetCover') doResetCover()
         } else if (action === 'alt') {
-          if (shelfFocus > 0 && states[shelfFocus - 1]) requestDelete(states[shelfFocus - 1].slot)
+          if (shelfFocus > 0 && shelfFocus < coverStart && states[shelfFocus - 1]) requestDelete(states[shelfFocus - 1].slot)
         } else {
           setShelfFocus((i) =>
-            moveInGrid({ count: states.length + 1, cols: shelfCols, index: i }, action, { centerLastRow: true })
+            moveInGrid({ count: states.length + 1 + coverActions.length, cols: shelfCols, index: i }, action, { centerLastRow: true })
           )
         }
+        return
+      }
+      // The quit confirm sits over the pause menu — it eats the pad first (like the delete
+      // confirm over the shelf): left/up→Quit, right/down→Keep, A commits the highlight,
+      // B cancels. Focus starts on Keep (index 1), the safe default.
+      if (pendingQuit) {
+        if (action === 'confirm') {
+          if (quitFocus === 1) setPendingQuit(false)
+          else {
+            dispatch('quit')
+            exit()
+          }
+        } else if (action === 'back') setPendingQuit(false)
+        else if (action === 'left' || action === 'up') setQuitFocus(0)
+        else if (action === 'right' || action === 'down') setQuitFocus(1)
         return
       }
       if (action === 'confirm') onMenuAction(menuItems[menuFocus].id)
       else if (action === 'back') dispatch('resume')
       else
         setMenuFocus((i) =>
-          moveInGrid({ count: menuItems.length, cols: pauseCols(menuItems.length), index: i }, action, {
-            centerLastRow: true,
-          })
+          moveInGrid({ count: menuItems.length, cols: 1, index: i }, action)
         )
     },
 
@@ -1176,9 +1198,7 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
           name={name}
           fastForward={fastForward}
           canFullscreen={canFullscreen}
-          hasCustomCover={hasCustomCover}
           isPokemon={isPokemon}
-          notice={coverNotice}
           focus={menuFocus}
           onFocus={setMenuFocus}
           onAction={onMenuAction}
@@ -1228,6 +1248,10 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
             onSave={doSave}
             onLoad={doLoad}
             onDelete={requestDelete}
+            hasCustomCover={hasCustomCover}
+            onSetCover={doSetCover}
+            onResetCover={doResetCover}
+            coverNotice={coverNotice}
             onBack={() => {
               setShelfOpen(false)
               setError(null)
@@ -1255,6 +1279,24 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
             onNo={cancelDelete}
             focus={confirmFocus}
             onFocusChange={setConfirmFocus}
+            z="z-40"
+          />
+        )}
+
+        {/* Quit confirm — over the pause menu (z-40 clears its z-20). Quit can drop
+            progress since the last save-state, so it's gated like the delete. */}
+        {pendingQuit && (
+          <ConfirmDialog
+            message="Quit to library?"
+            yesLabel="Quit"
+            noLabel="Keep playing"
+            onYes={() => {
+              dispatch('quit')
+              exit()
+            }}
+            onNo={() => setPendingQuit(false)}
+            focus={quitFocus}
+            onFocusChange={setQuitFocus}
             z="z-40"
           />
         )}

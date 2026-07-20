@@ -34,7 +34,7 @@ export function keyAt(pos, rows = ROWS) {
 }
 
 // Move the cursor. No wrapping (a D-pad that teleports across the board feels broken —
-// the same rule the pause-menu grid keeps), and the column is preserved across rows,
+// the same rule the pause-menu list and save shelf keep), and the column is preserved across rows,
 // clamped to the target row's width. So dropping from a full character row into the
 // shorter function row lands on the nearest function key rather than refusing to move.
 export function moveKey(pos, dir, rows = ROWS) {

@@ -2,10 +2,22 @@ import { describe, it, expect } from 'vitest'
 import { moveInGrid, moveInRails } from './gridNav.js'
 
 describe('moveInGrid', () => {
-  // A 7-tile pause menu at 3 columns:  [0 1 2]
+  // A 7-cell save shelf at 3 columns:  [0 1 2]
   //                                    [3 4 5]
   //                                    [6]
   const grid = (index) => ({ count: 7, cols: 3, index })
+
+  // The pause menu is a single-column list: up/down step one item, left/right are no-ops,
+  // and there's no wrap at the ends.
+  it('walks a single-column list (the pause menu)', () => {
+    const list = (index) => ({ count: 5, cols: 1, index })
+    expect(moveInGrid(list(0), 'down')).toBe(1)
+    expect(moveInGrid(list(1), 'up')).toBe(0)
+    expect(moveInGrid(list(0), 'up')).toBe(0) // no wrap at the top
+    expect(moveInGrid(list(4), 'down')).toBe(4) // no wrap at the bottom
+    expect(moveInGrid(list(2), 'left')).toBe(2) // left/right do nothing in one column
+    expect(moveInGrid(list(2), 'right')).toBe(2)
+  })
 
   it('moves within a row', () => {
     expect(moveInGrid(grid(0), 'right')).toBe(1)

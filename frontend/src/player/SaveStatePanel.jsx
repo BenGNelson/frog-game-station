@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { ChevronLeft, Save } from 'lucide-react'
+import { ChevronLeft, Save, ImagePlus, ImageOff } from 'lucide-react'
 import SaveStateCard from '../SaveStateCard.jsx'
 import { Spinner } from '../components/ui.jsx'
 import { moveInGrid } from '../lib/gridNav.js'
@@ -15,10 +15,16 @@ import { FROG } from '../frog/theme.js'
 // CONTROLLER/KEYBOARD NAVIGABLE. The pause menu is D-pad driven, so the shelf it
 // opens has to be too — otherwise "load a save" means reaching for the glass in the
 // middle of a game, which is the exact reach the pad was meant to end. The grid it
-// walks is [Save-new tile, ...states]; the focus index is owned by the player (so the
-// gamepad and this component can't disagree), and the column count is MEASURED and
-// reported up — the layout is responsive (2/3/4 wide), so a guessed `cols` would send
-// up/down to the wrong row on some screen. `focus`/`onFocus`/`onCols` are the wiring.
+// walks is [Save-new tile, ...states, ...cover actions]; the focus index is owned by
+// the player (so the gamepad and this component can't disagree), and the column count
+// is MEASURED and reported up — the layout is responsive (2/3/4 wide), so a guessed
+// `cols` would send up/down to the wrong row on some screen. `focus`/`onFocus`/`onCols`
+// are the wiring.
+//
+// The trailing cover actions live HERE rather than in the pause menu because "set this
+// game's cover from the current frame" reuses the very same live-frame capture that the
+// Save-new tile uses for its thumbnail — capturing a moment belongs next to snapshotting
+// it. They sit at the END so the common Save/Load reach isn't pushed down by a rare action.
 export default function SaveStatePanel({
   gameId,
   states,
@@ -31,11 +37,23 @@ export default function SaveStatePanel({
   onSave,
   onLoad,
   onDelete,
+  hasCustomCover = false,
+  onSetCover,
+  onResetCover,
+  coverNotice,
   onBack,
   legend,
 }) {
   const game = { id: gameId } // SaveStateCard only needs the id, to build its shot URL
-  const count = states.length + 1 // the Save-new tile, then one cell per state
+  // Trailing action cells: always "set from this frame", plus "reset" once a custom cover
+  // exists. Must mirror PlayerShell's `coverActions` so the pad and this view agree on
+  // what each index does.
+  const cover = [
+    { id: 'setCover', label: 'Set as cover', Icon: ImagePlus, run: onSetCover },
+    ...(hasCustomCover ? [{ id: 'resetCover', label: 'Reset cover', Icon: ImageOff, run: onResetCover }] : []),
+  ]
+  const coverStart = states.length + 1 // first trailing cover-action index
+  const count = coverStart + cover.length // Save-new, then one cell per state, then cover actions
 
   const gridRef = useRef(null)
   const colsRef = useRef(2)
@@ -73,7 +91,11 @@ export default function SaveStatePanel({
   }, [focus])
 
   // The one action that both the pad and the keyboard resolve the same way.
-  const activate = () => (focus === 0 ? onSave() : onLoad(states[focus - 1]?.slot))
+  const activate = () => {
+    if (focus === 0) return onSave()
+    if (focus < coverStart) return onLoad(states[focus - 1]?.slot)
+    cover[focus - coverStart]?.run?.()
+  }
 
   const onKeyDown = (e) => {
     const dir = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' }[e.key]
@@ -85,7 +107,8 @@ export default function SaveStatePanel({
       activate()
     } else if (e.key === 'Delete' || e.key === 'Backspace') {
       e.preventDefault()
-      if (focus > 0) onDelete(states[focus - 1]?.slot)
+      // Delete targets state cards only — not the Save-new tile or the trailing cover actions.
+      if (focus > 0 && focus < coverStart) onDelete(states[focus - 1]?.slot)
     } else if (e.key === 'Escape') {
       e.preventDefault()
       onBack()
@@ -121,6 +144,11 @@ export default function SaveStatePanel({
       </div>
 
       {error && <p className="px-4 pb-2 text-sm" style={{ color: 'rgb(239, 90, 90)' }}>{error}</p>}
+      {coverNotice && (
+        <p data-testid="frog-cover-notice" className="px-4 pb-2 text-sm font-medium" style={{ color: `rgb(${FROG.jade})` }}>
+          {coverNotice}
+        </p>
+      )}
 
       {/* touch-auto: the player wrapper turns touch-action off so a thumb on the
           d-pad can't drag the page — but that inherits here too, and this list
@@ -161,6 +189,33 @@ export default function SaveStatePanel({
               />
             </div>
           ))}
+
+          {/* Trailing cover actions — quieter than the jade Save-new tile (this is a rare,
+              non-save action), but the same 4:3 cell so the grid walk stays uniform. */}
+          {cover.map((c, i) => {
+            const idx = coverStart + i
+            const f = focus === idx
+            return (
+              <button
+                key={c.id}
+                onClick={c.run}
+                onMouseEnter={() => onFocus(idx)}
+                data-focused={f || undefined}
+                className={`flex aspect-[4/3] flex-col items-center justify-center gap-2 rounded-xl border border-dashed transition-transform active:opacity-80 ${
+                  f ? 'scale-105' : ''
+                }`}
+                style={{
+                  background: FROG.panel,
+                  color: f ? FROG.ink : FROG.soft,
+                  borderColor: f ? `rgba(${FROG.jade}, 0.8)` : FROG.line,
+                  boxShadow: f ? `0 0 0 2px rgba(${FROG.jade}, 0.5)` : 'none',
+                }}
+              >
+                <c.Icon className="h-6 w-6" aria-hidden="true" />
+                <span className="text-center text-xs font-medium leading-tight">{c.label}</span>
+              </button>
+            )
+          })}
         </div>
 
         {loading && <p className="py-6 text-center text-sm" style={{ color: FROG.faint }}>loading…</p>}
