@@ -206,7 +206,7 @@ function Heading({ children }) {
   )
 }
 
-export default function Shelf({ rails, focus, finishedIds, hackIds, onFocus, onPick }) {
+export default function Shelf({ rails, focus, finishedIds, hackIds, onFocus, onPick, padded = false }) {
   const railRefs = useRef([])
   // The mascot dozes after hours (closed eyes), on the wall clock.
   const dozing = useDozing()
@@ -235,9 +235,16 @@ export default function Shelf({ rails, focus, finishedIds, hackIds, onFocus, onP
       // fits and TOP-ALIGNS (scroll-reachable) when it's taller than the screen. Without this
       // a wide screen with enough rails clipped the top rail under the header with no way to
       // scroll up to it — align-items:center swallows the overflow at the top.
-      className="min-h-0 flex-1 overflow-y-auto"
+      //
+      // scroll-p* gives the focus scrollIntoView breathing room so a focused top/bottom rail
+      // isn't tucked flush against the header/legend bars.
+      className="min-h-0 flex-1 overflow-y-auto scroll-pt-6 scroll-pb-6"
     >
-      <div className="flex min-h-full flex-col gap-6 px-6 py-4 lg:flex-row lg:items-center">
+      {/* In pad/desktop mode the legend bar eats height and the layout overflows — vertical
+          centring then strands rail 0 ("Jump back in") above the fold, under the header. So
+          when the bars are present we TOP-ALIGN and add real top/bottom breathing room; the
+          bare touch layout keeps its centred look. */}
+      <div className={`flex min-h-full flex-col gap-6 px-6 lg:flex-row ${padded ? 'py-8 lg:items-start' : 'py-4 lg:items-center'}`}>
       {/* The frog. It wears the focused machine's colours and hops when they change
           (the key is the system, so React remounts it and the hop plays once). */}
       <aside className="flex shrink-0 items-center justify-center gap-4 lg:w-60 lg:flex-col lg:justify-center">
@@ -281,7 +288,7 @@ export default function Shelf({ rails, focus, finishedIds, hackIds, onFocus, onP
         </div>
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col justify-start gap-7 lg:justify-center">
+      <div className={`flex min-w-0 flex-1 flex-col justify-start gap-7 ${padded ? 'lg:justify-start' : 'lg:justify-center'}`}>
         {rails.map((rail, r) => (
           <section key={rail.id}>
             <Heading>{rail.title}</Heading>

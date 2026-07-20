@@ -140,7 +140,12 @@ Open items carry an inline tag; completed (`[x]`) items are left untagged — th
       layout (where the frog is inline, not a side column) before changing the flex structure.
       _(The acute bug — the top rail clipping under the header on a tall wide screen — is fixed:
       the scroll viewport was split from a min-h-full wrapper so it top-aligns (scroll-reachable)
-      when it overflows instead of centring. This item is the remaining sticky-column rethink.)_
+      when it overflows instead of centring. **Pad-mode spacing also shipped:** with the controller
+      legend showing, the shelf now top-aligns + adds top/bottom breathing room (a `padded` prop on
+      `Shelf`), scroll-padding keeps focus clear of the bars, and the legend bar was equalised (its
+      own paddingBottom carries the safe-area inset instead of stacking on the root's) and trimmed to
+      one line — so "Jump back in" clears the header and the last system row clears the legend. This
+      item is now just the remaining sticky-frog-column rethink.)_
 - [ ] [P3] **Touch ergonomics — search-field keyboard auto-raise on iOS.** _(Deferred, not
       dropped.)_ iOS blocks programmatic focus outside a user gesture, so there's no clean
       web fix — it needs an on-device solution and is low-value next to the rest. Parked with

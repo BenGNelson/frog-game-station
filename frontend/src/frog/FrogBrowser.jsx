@@ -1419,11 +1419,11 @@ export default function FrogBrowser() {
         paddingTop: 'env(safe-area-inset-top)',
         paddingLeft: 'env(safe-area-inset-left)',
         paddingRight: 'env(safe-area-inset-right)',
-        // The root carries the bottom inset so the last row of games/results always
-        // clears the iOS home indicator — the legend used to be the only thing padding
-        // the bottom, and it's hidden in touch mode, which is exactly where the inset
-        // is nonzero.
-        paddingBottom: 'env(safe-area-inset-bottom)',
+        // The bottom inset clears the iOS home indicator. When the legend bar is shown
+        // (pad/desktop) IT owns that inset (folded into its own paddingBottom below), so the
+        // root drops it here to avoid stacking a second gap under the bar. In touch mode the
+        // legend is hidden, so the root carries the inset itself.
+        paddingBottom: native ? 'env(safe-area-inset-bottom)' : 0,
       }}
     >
       {/* Ambient caustics — the pond's own slow shimmer, only at rest on the shelf
@@ -1676,6 +1676,10 @@ export default function FrogBrowser() {
           focus={focus}
           finishedIds={finishedSet}
           hackIds={hackSet}
+          // When the controller legend is showing (pad/desktop) the shelf top-aligns and
+          // adds breathing room so "Jump back in" clears the header and the last system row
+          // clears the legend.
+          padded={!native}
           onFocus={(rail, index) => setFocus({ rail, index })}
           onPick={pickShelfItem}
         />
@@ -1689,9 +1693,11 @@ export default function FrogBrowser() {
         className="relative py-3"
         style={{
           borderTop: `1px solid ${FROG.line}`,
-          // The root now owns the safe-area inset, so the legend only needs its own
-          // breathing room above it (no double inset).
-          paddingBottom: '0.75rem',
+          // The legend owns the bottom safe-area inset (the root drops it while the legend is
+          // shown). Folding it into the bar's own paddingBottom keeps the gap ABOVE the bar
+          // (py-3 = 0.75rem) and the gap BELOW it equal on a device with no home indicator
+          // (desktop/TV, where the controller lives) — the inset only adds where iOS needs it.
+          paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))',
         }}
         hints={
           screen === 'search'
@@ -1783,9 +1789,10 @@ export default function FrogBrowser() {
                       { button: '☰', label: 'Hold: Settings' },
                     ]
                   : [
+                      // Trimmed to fit one line on a couch width — D-pad "Move" is self-evident,
+                      // so it's dropped to keep the bar from wrapping to a second (tall) row.
                       { button: 'A', label: 'Open' },
                       { button: 'X', label: 'Find' },
-                      { button: 'D-pad', label: 'Move' },
                       { button: 'R3', label: 'Random' },
                       { button: '☰', label: 'Hold: Settings' },
                     ]
