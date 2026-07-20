@@ -8,6 +8,12 @@ helper. Writes PNGs into docs/img/. Run against the live stack:
 The app is a five-screen console UI driven by A/B/X (Enter = A = open/confirm).
 Boot waits for a tap; from the shelf, Enter opens the focused system; from a
 list, Enter opens the focused game.
+
+Note: `controls-desktop.png` is NOT captured here — the Controls screen sits behind
+a running game/emulator, which is heavy and flaky to drive. It's produced instead by
+server-rendering the real `player/ControlsPanel` component against the built Tailwind
+CSS on the FROG ground and screenshotting that page (a clean, controlled shot of the
+actual component). Re-generate it the same way if the screen changes.
 """
 import os
 from playwright.sync_api import sync_playwright
