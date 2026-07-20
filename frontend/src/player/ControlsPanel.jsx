@@ -83,111 +83,114 @@ export default function ControlsPanel({
         <span className="w-16" aria-hidden="true" />
       </div>
 
-      <div ref={scrollRef} className="min-h-0 flex-1 touch-auto overflow-y-auto overscroll-contain px-4 pb-6">
-        <p className="mb-3 flex items-center justify-center gap-1.5 text-xs" style={{ color: FROG.faint }}>
-          <Gamepad2 className="h-3.5 w-3.5" aria-hidden="true" />
-          {padName || 'No controller connected'}
-        </p>
+      <div ref={scrollRef} className="min-h-0 flex-1 touch-auto overflow-y-auto overscroll-contain px-4 pb-8">
+        <div className="mx-auto max-w-3xl">
+          <p className="mb-3 mt-1 flex items-center justify-center gap-1.5 text-sm" style={{ color: FROG.faint }}>
+            <Gamepad2 className="h-4 w-4" aria-hidden="true" />
+            {padName || 'No controller connected'}
+          </p>
 
-        {/* The choice that actually matters. */}
-        <div className="mb-2 grid gap-2 sm:grid-cols-2">
-          {Object.values(SCHEMES).map((s) => (
-            <SchemeCard
-              key={s.id}
-              scheme={s}
-              active={scheme === s.id}
-              focused={focusedKey === s.id}
-              onSelect={() => onScheme(s.id)}
-              onHover={() => onFocus(rows.indexOf(s.id))}
-            />
-          ))}
-        </div>
+          {/* Button layout — the choice that actually matters. Sits above the pad so you
+              watch "A" move between the buttons as you switch. */}
+          <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide" style={{ color: FROG.faint }}>Button layout</h3>
+          <div className="mb-2 grid gap-2.5 sm:grid-cols-2">
+            {Object.values(SCHEMES).map((s) => (
+              <SchemeCard
+                key={s.id}
+                scheme={s}
+                active={scheme === s.id}
+                focused={focusedKey === s.id}
+                onSelect={() => onScheme(s.id)}
+                onHover={() => onFocus(rows.indexOf(s.id))}
+              />
+            ))}
+          </div>
+          <p className="mb-4 text-center text-xs leading-relaxed" style={{ color: FROG.faint }}>
+            Nintendo puts <b style={{ color: FROG.soft }}>A</b> on the right; Xbox puts it on the bottom — watch it move on the pad.
+          </p>
 
-        <p className="mb-3 text-center text-[11px] leading-relaxed" style={{ color: FROG.faint }}>
-          Nintendo puts <b style={{ color: FROG.soft }}>A</b> on the right; Xbox puts it on the bottom. Watch the
-          diagram — the labels move with your choice.
-        </p>
-
-        {/* The controller. Face buttons / shoulders / Select are focusable (click or the
-            d-pad row-walk selects them → rebind); the diagram lights the focused one. */}
-        <div data-focused={bindFocused || undefined} className="mb-1 rounded-2xl border p-2" style={{ borderColor: FROG.line, background: 'rgba(255,255,255,0.02)' }}>
-          <ControllerDiagram
-            resolved={resolved}
-            bindings={bindings}
-            listeningFor={listeningFor}
-            wikiHotkey={wikiHotkey}
-            pokedexHotkey={pokedexHotkey}
-            ffHotkey={ffHotkey}
-            isPokemon={isPokemon}
-            focusedKey={focusedKey}
-            onFocusKey={(key) => onFocus(rows.indexOf(key))}
-            onSelectKey={selectKey}
-          />
-        </div>
-        <p className="mb-4 text-center text-[11px] leading-relaxed" style={{ color: FROG.faint }}>
-          {listeningFor != null && typeof listeningFor === 'number'
-            ? 'Press a button to bind it…'
-            : 'Pick a face button, shoulder, or Select to rebind it. The jade sticks are the only buttons the app can hotkey without also acting in-game.'}
-        </p>
-
-        <h3 className="mb-2 mt-5 text-xs font-medium uppercase tracking-wide" style={{ color: FROG.faint }}>Shortcuts</h3>
-        <HotkeyRow
-          Icon={BookOpen}
-          label="Wiki"
-          hint="opens the wiki"
-          value={describeBinding(bindingForButton(wikiHotkey))}
-          listening={listeningFor === 'wiki'}
-          focused={focusedKey === 'wiki'}
-          onSelect={() => onListen('wiki')}
-          onHover={() => onFocus(rows.indexOf('wiki'))}
-        />
-        {isPokemon && (
-          <div className="mt-1.5">
-            <HotkeyRow
-              Icon={BookMarked}
-              label="Pokédex"
-              hint="opens the Pokédex"
-              value={describeBinding(bindingForButton(pokedexHotkey))}
-              listening={listeningFor === 'pokedex'}
-              focused={focusedKey === 'pokedex'}
-              onSelect={() => onListen('pokedex')}
-              onHover={() => onFocus(rows.indexOf('pokedex'))}
+          {/* The controller — the hero. Face buttons / shoulders / Select are focusable
+              (click or the d-pad row-walk selects them → rebind); the diagram lights the
+              focused one. */}
+          <div data-focused={bindFocused || undefined} className="rounded-3xl border p-3 sm:p-5" style={{ borderColor: FROG.line, background: 'rgba(255,255,255,0.025)' }}>
+            <ControllerDiagram
+              resolved={resolved}
+              bindings={bindings}
+              listeningFor={listeningFor}
+              wikiHotkey={wikiHotkey}
+              pokedexHotkey={pokedexHotkey}
+              ffHotkey={ffHotkey}
+              isPokemon={isPokemon}
+              focusedKey={focusedKey}
+              onFocusKey={(key) => onFocus(rows.indexOf(key))}
+              onSelectKey={selectKey}
             />
           </div>
-        )}
-        <div className="mt-1.5">
-          <HotkeyRow
-            Icon={FastForward}
-            label="Fast Forward"
-            hint="toggles turbo"
-            value={ffHotkey == null ? 'Unassigned' : describeBinding(bindingForButton(ffHotkey))}
-            listening={listeningFor === 'fastForward'}
-            focused={focusedKey === 'fastForward'}
-            onSelect={() => onListen('fastForward')}
-            onHover={() => onFocus(rows.indexOf('fastForward'))}
-          />
+          <p className="mb-6 mt-3 text-center text-xs leading-relaxed" style={{ color: FROG.faint }}>
+            {listeningFor != null && typeof listeningFor === 'number' ? (
+              <span className="animate-pulse font-medium" style={{ color: `rgb(${FROG.jade})` }}>Press a button to bind it…</span>
+            ) : (
+              <>Pick a face button, shoulder, or Select to rebind it. <b style={{ color: `rgb(${FROG.jade})` }}>Jade</b> marks an app shortcut — the two sticks are the only buttons the app can use without also acting in-game.</>
+            )}
+          </p>
+
+          <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide" style={{ color: FROG.faint }}>Shortcuts</h3>
+          <div className="space-y-2">
+            <HotkeyRow
+              Icon={BookOpen}
+              label="Wiki"
+              hint="opens the wiki"
+              value={describeBinding(bindingForButton(wikiHotkey))}
+              listening={listeningFor === 'wiki'}
+              focused={focusedKey === 'wiki'}
+              onSelect={() => onListen('wiki')}
+              onHover={() => onFocus(rows.indexOf('wiki'))}
+            />
+            {isPokemon && (
+              <HotkeyRow
+                Icon={BookMarked}
+                label="Pokédex"
+                hint="opens the Pokédex"
+                value={describeBinding(bindingForButton(pokedexHotkey))}
+                listening={listeningFor === 'pokedex'}
+                focused={focusedKey === 'pokedex'}
+                onSelect={() => onListen('pokedex')}
+                onHover={() => onFocus(rows.indexOf('pokedex'))}
+              />
+            )}
+            <HotkeyRow
+              Icon={FastForward}
+              label="Fast Forward"
+              hint="toggles turbo"
+              value={ffHotkey == null ? 'Unassigned' : describeBinding(bindingForButton(ffHotkey))}
+              listening={listeningFor === 'fastForward'}
+              focused={focusedKey === 'fastForward'}
+              onSelect={() => onListen('fastForward')}
+              onHover={() => onFocus(rows.indexOf('fastForward'))}
+            />
+          </div>
+
+          <button
+            onClick={onReset}
+            onMouseEnter={() => onFocus(rows.indexOf('reset'))}
+            data-focused={resetFocused || undefined}
+            aria-current={resetFocused || undefined}
+            className="mt-5 flex w-full items-center justify-center gap-1.5 rounded-xl border py-3 text-sm transition-colors"
+            style={{
+              background: resetFocused ? `rgba(${FROG.jade}, 0.14)` : 'transparent',
+              borderColor: resetFocused ? `rgba(${FROG.jade}, 0.6)` : FROG.line,
+              boxShadow: resetFocused ? `0 0 0 2px rgba(${FROG.jade}, 0.5)` : 'none',
+              color: resetFocused ? FROG.ink : FROG.soft,
+            }}
+          >
+            <RotateCcw className="h-4 w-4" aria-hidden="true" /> Reset controls to the defaults
+          </button>
+
+          <p className="mt-4 text-center text-xs leading-relaxed" style={{ color: FROG.faint }}>
+            The <b style={{ color: FROG.soft }}>Menu</b> button belongs to the app and can’t be reassigned — tap it for the
+            game’s Start, hold it for this menu. A shortcut on a game button also acts in-game.
+          </p>
         </div>
-
-        <button
-          onClick={onReset}
-          onMouseEnter={() => onFocus(rows.indexOf('reset'))}
-          data-focused={resetFocused || undefined}
-          aria-current={resetFocused || undefined}
-          className="mt-4 flex w-full items-center justify-center gap-1.5 rounded-xl border py-2.5 text-sm transition-colors"
-          style={{
-            background: resetFocused ? `rgba(${FROG.jade}, 0.14)` : 'transparent',
-            borderColor: resetFocused ? `rgba(${FROG.jade}, 0.6)` : FROG.line,
-            boxShadow: resetFocused ? `0 0 0 2px rgba(${FROG.jade}, 0.5)` : 'none',
-            color: resetFocused ? FROG.ink : FROG.soft,
-          }}
-        >
-          <RotateCcw className="h-4 w-4" aria-hidden="true" /> Reset controls to the defaults
-        </button>
-
-        <p className="mt-4 text-center text-[11px] leading-relaxed" style={{ color: FROG.faint }}>
-          The <b style={{ color: FROG.soft }}>Menu</b> button belongs to the app and can’t be reassigned — tap it for the
-          game’s Start, hold it for this menu. A shortcut on a game button also acts in-game.
-        </p>
       </div>
     </div>
   )

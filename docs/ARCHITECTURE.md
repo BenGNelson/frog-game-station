@@ -359,17 +359,21 @@ press A, the game gets A; best for Pokémon/menus) vs `positions` (the bottom bu
 the bottom button; best for platformers). Every button is remappable on top, **per
 controller** (`controlBindings` keyed by pad id, so a second pad doesn't rewire the first).
 
-- **The buttons are shown as a drawn controller, not a list** (`player/ControllerDiagram.jsx`).
+- **The buttons are shown as a big drawn controller, not a list** (`player/ControllerDiagram.jsx`).
   Following the drawn-not-scraped rule (a frog sits where a real pad prints its logo), each
   face button wears its **real controller colour** (bottom green / right red / left blue /
   top amber, the `ButtonLegend` convention) and is labelled with the **game** button it
   currently triggers — so flipping the scheme visibly **moves "A"** between the bottom and
-  right buttons, which is the whole choice made obvious. Face buttons, shoulders and Select
-  are interactive (focus/click → rebind); the diagram reflects the same linear focus the pad
-  walks (`controlRows`), so the picture and the d-pad never disagree. The physical slots are
-  **always drawn** (an empty one reads "—", never a hole); a slot two game buttons collide on
-  shows both ("A/B"), and a game button a custom rebind pushed onto a stick/d-pad the diagram
-  doesn't draw is surfaced as a focusable **off-map chip** below, so no binding is ever invisible.
+  right buttons, which is the whole choice made obvious. Every other button gets a **callout**
+  in the margins — a labelled card joined to the button by a thin leader line — that reads at a
+  glance and uses the screen's width (the pad is the hero, callouts flank it). Face buttons,
+  shoulders and Select are interactive (focus/click → rebind); the diagram reflects the same
+  linear focus the pad walks (`controlRows`), so the picture and the d-pad never disagree.
+- **Callouts are per-physical-button, so nothing is ever hidden.** Each card shows whatever
+  RetroPad button(s) sit on that physical slot: a collision reads "A/B", and a game button a
+  custom rebind pushed onto a stick/d-pad simply appears on **that** button's card (the vacated
+  face slot reads "—", never a hole). App shortcuts are annotated on **every** button, not just
+  the sticks — Fast-Forward bound to RB reads "RB · R" with a jade **FF** badge.
 - **Only the stick-clicks are truly free, and the diagram says so.** In-play the engine reads
   the pad itself (its own loop + our preset), so the app can't intercept a press — the *only*
   collision-free buttons for an app **shortcut** are the two stick-clicks L3/R3 (no core uses
