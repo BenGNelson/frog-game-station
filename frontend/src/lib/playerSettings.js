@@ -59,6 +59,20 @@ export function clearBindings(settings, padId) {
   return { ...settings, controlBindings: next }
 }
 
+// "Reset controls to the defaults" — the whole controller setup, not just per-button
+// rebinds: clear this pad's rebinds AND restore the scheme + Wiki/Pokédex/Fast-Forward
+// hotkeys to their shipped defaults. (Clearing only the rebind map looked like a no-op
+// when what the player had changed was the scheme or a hotkey.)
+export function resetControls(settings, padId) {
+  return {
+    ...clearBindings(settings, padId),
+    controlScheme: DEFAULTS.controlScheme,
+    wikiHotkey: DEFAULTS.wikiHotkey,
+    pokedexHotkey: DEFAULTS.pokedexHotkey,
+    ffHotkey: DEFAULTS.ffHotkey,
+  }
+}
+
 export function readSettings(storage) {
   if (!storage) return { ...DEFAULTS }
   try {
