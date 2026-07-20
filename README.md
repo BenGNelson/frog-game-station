@@ -30,22 +30,22 @@ It has a hand-drawn **frog mascot** and a **WATER / jade dark theme** — a pond
 
 ## Features
 
-- **Five console-style screens** — boot, shelf, per-system game list, and a full game page, with search reachable anywhere. The shelf leads with "Jump back in" and Favorites, so most sessions never touch the alphabet. Click the right stick (R3, or `R`) for **"surprise me"** — a random title, from anywhere.
-- **Rich IGDB metadata** — a background matcher pairs each ROM with its IGDB entry: a hero banner built from slowly crossfading screenshots, cover art, summary, genres, rating, and developer/publisher. Unmatched ROMs (a hack, or no key configured) degrade cleanly to a basic cover-and-title page — nothing ever looks broken.
-- **"More like this"** — each game page suggests similar titles **from your own library**, using IGDB's similar-games list intersected with the ROMs you actually own, so every suggestion is one you can play.
-- **Play-time + "Most played"** — Frog Game Station clocks how long you actually play each game (server-side, so it roams) and surfaces your most-played titles as their own shelf rail; each game page shows its total.
-- **Collections & a finished flag** — mark games finished (a trophy badge everywhere the cover shows) and sort your library into free-form collections, each its own shelf rail — and once a collection outgrows its rail, a "see all" tile opens it as a full, letter-railed list. Server-side, so your collections and completion roam from the couch to your phone.
-- **Set your own cover art** — grab the current frame mid-game ("Set as cover" in the save-state shelf) and it becomes that game's box art everywhere — perfect for ROM hacks and titles with no match. Revert any time.
-- **ROM-hack aware** — mark a game as "a ROM hack of &lt;base game&gt;" (a toggle in the match picker): it borrows the base's art and details but keeps its own name, wears a **HACK** badge everywhere, and its page links straight to the base game when you own it.
-- **Save states + battery saves (SRAM)** — your in-game "Save → Continue" battery save roams and is backed up server-side; explicit save states are captured as snapshots (with a screenshot thumbnail) and relaunched from the game page. Rename, annotate, and pin your save states so the one you want is named and on top.
-- **In-game wiki reader** — pull up a game's wiki *over the paused game* (a controller hotkey or the pause menu), read a type chart or a hack's changed movesets, then close and reopen right where you left off. It's a reader, not an iframe: the article is fetched from the wiki's own API, sanitized, and rendered in-app — so it's fully controller- and touch-navigable and matches the theme. Links come from IGDB automatically; a Pokémon game defaults to its Bulbapedia **walkthrough**, other big franchises (Mario, Zelda, Sonic, Final Fantasy, …) default to their **franchise wiki**, and anything still unmatched (a ROM hack) gets a one-tap **search-and-pin**, with a ⟳ **"Change wiki"** button so you're never stuck on the wrong one.
-- **In-game Pokédex** — for a Pokémon game or hack, a structured Pokédex over the paused game (its own pause tile + hotkey): browse the dex and see each Pokémon's sprite, **types, base stats, and evolution chain** (typed and tappable), with a "Read on Bulbapedia" deep-link into the wiki reader. Data comes from PokeAPI (cached); the dex scopes to the game's region (Gen-1 game → Kanto's 151) with a one-tap toggle to the full national dex.
-- **Offline play + installable PWA** — download games to your device, add Frog Game Station to your home screen, and play offline; the shelf, list, and search all fall back to your downloaded library automatically.
-- **Full touch controls** — a from-scratch touch overlay with a real multi-touch d-pad (true diagonals), thumb-rolls between face buttons, and hit areas larger than the buttons, because thumbs undershoot.
-- **Gamepad-native** — index-arithmetic navigation drives a controller, arrow keys, and a mouse through identical code. A boot "PRESS A" both wakes the controller (iOS won't report one until a button is pressed) and tells Frog Game Station to lay itself out for a pad or a thumb. The in-game **Controls** screen draws your pad as a frog-themed controller with every button labelled by what it does — pick whether *A* means the letter or the position (Nintendo vs Xbox), remap any button, and assign shortcuts (Wiki, Pokédex, Fast Forward) to the free stick-clicks.
-- **Drawn, not scraped** — console art is illustrated in-app (no official logos), so the collection has one coherent look and the repo stays publishable.
-- **A settings screen** — check the IGDB matcher's status and trigger a re-scan, set the player input mode (auto / touch / pad), and toggle optional navigation sound, all controller- and touch-drivable from a header gear.
-- **A living WATER theme** — ambient pond caustics behind the shelf, a machine-coloured back-lit header, cover reflections, a faint cartridge watermark per system, and a true-black ground on phones (kinder to OLED). All motion respects `prefers-reduced-motion`.
+- **Console-style, not a wall of boxes** — boot → shelf → per-system list → game page, search anywhere. The shelf opens on "Jump back in," so most sessions skip the alphabet; click the right stick for a random pick.
+- **Rich game pages** — a background matcher pulls IGDB art, screenshots, summary, genres, and rating. Unmatched ROMs still get a clean cover-and-title page — nothing looks broken.
+- **"More like this"** — each game suggests similar titles you *actually own*.
+- **Play-time tracking** — clocks how long you play each game and surfaces your most-played as its own shelf rail.
+- **Collections & a "finished" flag** — sort your library into free-form collections and badge the games you've beaten; both roam from couch to phone.
+- **Your own cover art** — grab a frame mid-game as box art — perfect for ROM hacks and unmatched titles.
+- **ROM-hack aware** — tag a hack of a base game: it borrows the base's art, keeps its own name, wears a **HACK** badge, and links back to the base.
+- **Save states + battery saves** — battery saves roam and back up server-side; snapshot save states carry a thumbnail and can be named, pinned, and relaunched.
+- **In-game wiki reader** — pull up a game's wiki over the paused game — controller-navigable, in-theme, and reopening right where you left off — with the right page picked per game (a Pokémon walkthrough, a franchise wiki, or a one-tap search for a hack).
+- **In-game Pokédex** — for a Pokémon game or hack, a full dex over the paused game: sprites, types, base stats, and tappable evolution chains, scoped to the game's region.
+- **Offline + installable PWA** — download games, add Frog Game Station to your home screen, and play offline.
+- **Real touch controls** — a from-scratch multi-touch overlay with true d-pad diagonals and hit areas bigger than the buttons.
+- **Gamepad-native** — pad, arrow keys, and mouse through one code path. The **Controls** screen draws your pad: pick whether *A* means the letter or the position (Nintendo vs Xbox), remap any button, and badge shortcuts onto the free buttons.
+- **Drawn, not scraped** — console art is illustrated in-app (no official logos), for one coherent look.
+- **Settings** — check the matcher and re-scan, set the input mode, and toggle nav sounds, all from a header gear.
+- **A living WATER theme** — pond caustics, cover reflections, per-system accents, and true-black OLED on phones; all motion respects `prefers-reduced-motion`.
 
 ## Screenshots
 
