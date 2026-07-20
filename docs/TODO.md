@@ -95,11 +95,14 @@ Open items carry an inline tag; completed (`[x]`) items are left untagged — th
       variant), else nothing (search-and-pin covers it). Disk-cached per family.
       _StrategyWiki (the original plan) turned out unusable — a Cloudflare JS challenge 403s every
       server-side fetch, search and article alike._
-- [ ] [P2] **Wikis for ROM hacks (e.g. Pokémon Unbound).** Popular hacks have their OWN dedicated
-      wikis (Unbound, Radical Red, Emerald Rogue, …) — often a Fandom or standalone MediaWiki.
-      Detect/curate these so a hack defaults to its own wiki instead of the base game's. Likely
-      a curated per-hack table (keyed off the hack name) + the general search fallback; the
-      `is_hack` flag + base-game link already exist to hang this off.
+- [x] **Wikis for ROM hacks (e.g. Pokémon Unbound).** Shipped: a curated per-hack table
+      (`_HACKS` in `app/wiki_sources.py`, `hack_wiki_url`) keyed on a distinctive keyword in the
+      hack's name → its OWN dedicated wiki page (Unbound, Reborn, Insurgence, Clover, Vega — each
+      host + landing page hand-verified to render). A new **`hack` tier** in the resolution ladder
+      (`resolve_wiki`: user → **hack** → curated → auto → family → base) makes a marked hack default
+      to its own wiki instead of the base game's walkthrough; the router gates it on `is_hack` and
+      folds the hosts into the known-wiki trust (`HACK_HOSTS`) so search/deep-link/image-proxy
+      work. Easy to extend — add a row as more hacks get wikis.
 - [x] **Pokédex: make it as easy to navigate as possible.** Shipped (`player/PokedexPanel.jsx`
       + `lib/pokedex.js` + `lib/pokedexLast.js`): the dex list gained the game list's fast lanes —
       **LT/RT jump a dex decade** (`stepDexBlock`, the number analog of the letter rail,

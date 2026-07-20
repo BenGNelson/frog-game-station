@@ -52,10 +52,15 @@ def _resolve(game_id: str, name: str = ""):
         if base_id:
             base_meta = db.get_igdb_meta(base_id)
     curated = wiki_sources.curated_wiki_url(name) if name else None
-    # First pass WITHOUT the franchise-wiki tier: user/curated/auto are DB-only and all
+    # A known hack's OWN wiki (table lookup, network-free), only for a ROM marked as a hack —
+    # it outranks the base game's walkthrough/links, so a hack goes to its own wiki.
+    hack = wiki_sources.hack_wiki_url(name) if (name and meta and meta.get("is_hack")) else None
+    # First pass WITHOUT the franchise-wiki tier: user/hack/curated/auto are DB-only and all
     # outrank it, so a hit among them skips its network search entirely.
-    resolved = wiki_links.resolve_wiki(meta=meta, override=override, base_meta=base_meta, curated=curated)
-    if resolved and resolved.get("source") in ("user", "curated", "auto"):
+    resolved = wiki_links.resolve_wiki(
+        meta=meta, override=override, base_meta=base_meta, curated=curated, hack=hack
+    )
+    if resolved and resolved.get("source") in ("user", "hack", "curated", "auto"):
         return resolved
     # Nothing better resolved: try the game's franchise wiki (network, cached). It outranks
     # the base-game fallback, so re-resolve with it slotted in.
@@ -63,7 +68,7 @@ def _resolve(game_id: str, name: str = ""):
     if not family:
         return resolved
     return wiki_links.resolve_wiki(
-        meta=meta, override=override, base_meta=base_meta, curated=curated, family=family
+        meta=meta, override=override, base_meta=base_meta, curated=curated, family=family, hack=hack
     )
 
 
@@ -74,7 +79,9 @@ def _known_wiki_host(host: str) -> bool:
     if not host:
         return False
     host = host.lower()
-    if host in wiki.allowed_image_hosts() or host in wiki_sources.CURATED_HOSTS:
+    if (host in wiki.allowed_image_hosts()
+            or host in wiki_sources.CURATED_HOSTS
+            or host in wiki_sources.HACK_HOSTS):
         return True
     return any(host.endswith(sfx) for sfx in wiki._BUILTIN_IMAGE_SUFFIXES)
 

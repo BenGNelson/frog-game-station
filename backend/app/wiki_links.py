@@ -53,22 +53,25 @@ def classify_url(url):
     return None
 
 
-def resolve_wiki(meta=None, override=None, base_meta=None, curated=None, family=None):
+def resolve_wiki(meta=None, override=None, base_meta=None, curated=None, family=None, hack=None):
     """Pick the effective wiki source for one game, in priority order:
 
       1. `override` — the user-pinned URL (game_wiki row). Always wins, and may be ANY
          link: a MediaWiki page renders in the reader, anything else becomes an
          open-in-tab card (the escape hatch for a hack whose only guide isn't a wiki).
-      2. `curated` — a curated default PAGE for a known game (wiki_sources.curated_wiki_url),
+      2. `hack` — a known ROM hack's OWN dedicated wiki page (wiki_sources.hack_wiki_url).
+         A hack with its own wiki should go THERE, not to the base game's walkthrough — so
+         this outranks the curated Pokémon walkthrough and the base game's IGDB/wiki links.
+      3. `curated` — a curated default PAGE for a known game (wiki_sources.curated_wiki_url),
          e.g. a Pokémon game's Bulbapedia walkthrough. Beats the IGDB auto link because a
          game-specific guide is a better default than whatever `websites` happened to list.
-      3. `meta.wiki_url` — auto-derived from IGDB `websites` for this ROM.
-      4. `family` — a page matched on the game's franchise wiki (wiki_sources.curated_host),
+      4. `meta.wiki_url` — auto-derived from IGDB `websites` for this ROM.
+      5. `family` — a page matched on the game's franchise wiki (wiki_sources.curated_host),
          the general fallback for anything IGDB didn't cover.
-      5. `base_meta.wiki_url` — the base game's auto link, for a ROM hack that has no
+      6. `base_meta.wiki_url` — the base game's auto link, for a ROM hack that has no
          wiki of its own but is 'based on' a game you own.
 
-    Tiers 2-5 must be renderable MediaWiki `/wiki/Title` pages (a homepage or a random
+    Tiers 2-6 must be renderable MediaWiki `/wiki/Title` pages (a homepage or a random
     link is skipped so a lower tier can still supply a readable page). Returns
     `{host, title, url, source, kind}` for the winner, or None when nothing resolves.
     `meta`/`base_meta` are the dicts from db.get_igdb_meta (or None)."""
@@ -76,6 +79,7 @@ def resolve_wiki(meta=None, override=None, base_meta=None, curated=None, family=
     if user:
         return {**user, "source": "user"}
     for source, url in (
+        ("hack", hack),
         ("curated", curated),
         ("auto", (meta or {}).get("wiki_url")),
         ("family", family),

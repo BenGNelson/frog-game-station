@@ -47,6 +47,7 @@ class TestParseWikiUrl:
 BULBA = "https://bulbapedia.bulbagarden.net/wiki/Charizard"
 WIKIPEDIA = "https://en.wikipedia.org/wiki/Pok%C3%A9mon_Red_and_Blue"
 BASE = "https://bulbapedia.bulbagarden.net/wiki/Base_Game"
+HACK = "https://pokemonunbound.fandom.com/wiki/Pokemon_Unbound_Wiki"
 
 
 class TestResolveWiki:
@@ -76,6 +77,24 @@ class TestResolveWiki:
         got = resolve_wiki(meta={"wiki_url": WIKIPEDIA}, curated=curated)
         assert got["source"] == "curated"
         assert got["title"] == "Walkthrough:Pokémon_Yellow"  # underscores kept (MediaWiki space encoding)
+
+    def test_hack_wiki_beats_curated_auto_and_base(self):
+        # A hack's OWN wiki outranks the base walkthrough, the IGDB auto link, and the base
+        # game's wiki — it should default to the hack's wiki, not the base game's.
+        got = resolve_wiki(
+            meta={"wiki_url": WIKIPEDIA}, base_meta={"wiki_url": BASE},
+            curated="https://bulbapedia.bulbagarden.net/wiki/Walkthrough:Pok%C3%A9mon_Emerald",
+            hack=HACK,
+        )
+        assert got["source"] == "hack" and got["url"] == HACK
+
+    def test_hack_wiki_loses_to_a_user_pin(self):
+        got = resolve_wiki(override=BULBA, hack=HACK)
+        assert got["source"] == "user"
+
+    def test_no_hack_page_falls_through_to_curated_auto(self):
+        got = resolve_wiki(meta={"wiki_url": WIKIPEDIA}, hack=None)
+        assert got["source"] == "auto"
 
     def test_family_wiki_beats_the_base_game_link(self):
         # A hack with no wiki of its own: a matched franchise-wiki page is a better default
@@ -218,3 +237,23 @@ class TestCuratedWikiUrl:
         # A spin-off's color word isn't a mainline game — no walkthrough curation.
         assert wiki_sources.curated_wiki_url("Pokemon Mystery Dungeon: Red Rescue Team") is None
         assert wiki_sources.is_spinoff("Pokemon Ranger")
+
+
+class TestHackWikiUrl:
+    def test_known_hack_maps_to_its_own_wiki_page(self):
+        u = wiki_sources.hack_wiki_url("Pokemon Unbound (v2.1.1.1)")
+        assert u == "https://pokemonunbound.fandom.com/wiki/Pokemon_Unbound_Wiki"
+
+    def test_matches_by_distinctive_keyword(self):
+        assert "pokemon-reborn.fandom.com" in wiki_sources.hack_wiki_url("Pokemon Reborn")
+        # An accented display name still resolves via the bare keyword.
+        assert "pokemonvega.fandom.com" in wiki_sources.hack_wiki_url("Pokémon Vega")
+
+    def test_unknown_hack_is_none(self):
+        assert wiki_sources.hack_wiki_url("Pokemon Kaizo Emerald") is None
+        assert wiki_sources.hack_wiki_url("") is None
+
+    def test_every_hack_host_is_trusted(self):
+        # HACK_HOSTS (folded into the router's known-wiki trust) must cover every mapped host.
+        for _, (host, _) in wiki_sources._HACKS:
+            assert host in wiki_sources.HACK_HOSTS

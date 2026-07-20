@@ -410,10 +410,13 @@ position intact**.
   an arbitrary URL, same anti-open-proxy discipline as the screenshot proxy), and refuses
   SVG. So the reader needs **no CSP loosening** — a security win, not a compromise.
 - **Where the link comes from.** Resolved server-side (`app/wiki_links.py`) in priority
-  order: a **user override** (`game_wiki` table) → a **curated default page**
-  (`app/wiki_sources.py` — a Pokémon game defaults to its **Bulbapedia walkthrough**, a
-  game-specific guide that beats a generic link) → the **IGDB `websites`** link auto-derived
-  by the matcher (`igdb_meta.wiki_url`) → a **franchise-wiki page** matched for the game
+  order: a **user override** (`game_wiki` table) → a **known hack's OWN wiki** (a
+  ROM marked as a hack whose name matches the curated `_HACKS` table in `app/wiki_sources.py`
+  — Unbound, Reborn, Insurgence, … → their dedicated Fandom wikis; it outranks the base
+  game's walkthrough/links so a hack goes to ITS wiki, not the base's) → a **curated default
+  page** (a Pokémon game defaults to its **Bulbapedia walkthrough**, a game-specific guide
+  that beats a generic link) → the **IGDB `websites`** link auto-derived by the matcher
+  (`igdb_meta.wiki_url`) → a **franchise-wiki page** matched for the game
   (`app/family_wiki.py`) → a **ROM hack's base-game** link. A game with none of
   those offers **search-and-pick** to pin one, and that search is steered by the **curated
   per-family** host table (a Pokémon hack IGDB can't match searches **Bulbapedia**, not
