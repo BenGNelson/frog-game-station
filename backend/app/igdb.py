@@ -306,6 +306,27 @@ def fetch_by_id(igdb_id: int, settings) -> dict | None:
     return data[0]
 
 
+def search_games(query: str, label: str | None, settings, limit: int = 8) -> list[dict] | None:
+    """Free-text IGDB game search for the re-match picker's "search for a base game" —
+    the manual counterpart to lookup(). Returns a shortlist [{id, name, release_year}]
+    (the exact shape the matcher stores as `candidates`, so a pick feeds straight into a
+    re-match), narrowed to the ROM's platform when `label` maps to one, else searched
+    across platforms. Returns None — unconfigured/unreachable — so the caller can 502; an
+    empty list means 'reached IGDB, nothing matched'; a blank query short-circuits to []."""
+    if not (query or "").strip():
+        return []
+    if not configured(settings):
+        return None
+    token = _get_token(settings)
+    if not token:
+        return None
+    platform_id = PLATFORM_IDS.get(label or "")
+    data = _post_games(token, settings, query_body(query, platform_id, limit))
+    if data is None:
+        return None
+    return [{"id": c["id"], "name": c.get("name", ""), "release_year": year_of(c)} for c in data]
+
+
 def lookup(name: str, label: str | None, settings) -> dict | None:
     """Look up one game by ROM display-name + system label. Returns:
         {matched, igdb, score, candidates}

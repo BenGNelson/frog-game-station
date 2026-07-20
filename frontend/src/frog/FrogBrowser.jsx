@@ -6,9 +6,10 @@ import { useOnline } from '../lib/online.jsx'
 import { useDownloadedEntries } from '../lib/useDownloaded.js'
 import { useDownload } from '../lib/useDownload.js'
 import {
-  systemGames, gameOfflineUrls, saveStatesUrl, gameMetaUrl, gameCandidatesUrl, postGameMatch,
-  GAME_META_STATUS_PATH, fetchPlayStats, postMetaRescan,
+  systemGames, gameOfflineUrls, saveStatesUrl, gameMetaUrl, gameCandidatesUrl, gameMetaSearchUrl,
+  postGameMatch, GAME_META_STATUS_PATH, fetchPlayStats, postMetaRescan,
 } from '../lib/library.js'
+import { rematchOptions } from './rematch.js'
 import { readSettings, writeSettings } from '../lib/playerSettings.js'
 import { isFavorite, toggleFavorite } from '../lib/favorites.js'
 import { setStateMeta } from '../lib/saveStates.js'
@@ -726,10 +727,13 @@ export default function FrogBrowser() {
   // field's current text and a per-target length cap (the same caps the commit paths
   // enforce). It sits OVER the picker/editor that opened it and hands its text back on
   // Done. A finger never gets here: touch keeps the native fields.
-  const KB_MAX = { tag: TAG_MAXLEN, saveLabel: TAG_MAXLEN, saveNote: NOTE_MAXLEN }
+  const KB_MAX = { tag: TAG_MAXLEN, saveLabel: TAG_MAXLEN, saveNote: NOTE_MAXLEN, baseSearch: 60 }
   const openKeyboard = (target) => {
     const seed =
-      target === 'saveLabel' ? saveEditor?.label || '' : target === 'saveNote' ? saveEditor?.note || '' : ''
+      target === 'saveLabel' ? saveEditor?.label || ''
+      : target === 'saveNote' ? saveEditor?.note || ''
+      : target === 'baseSearch' ? rematch?.query || ''
+      : ''
     setKeyboard({ target, text: seed, shift: false, pos: { r: 0, c: 0 }, max: KB_MAX[target] ?? 40 })
   }
   const commitKeyboard = () => {
@@ -739,6 +743,7 @@ export default function FrogBrowser() {
     if (kb.target === 'tag') addGameTag(kb.text)
     else if (kb.target === 'saveLabel') editSaveField({ label: kb.text })
     else if (kb.target === 'saveNote') editSaveField({ note: kb.text })
+    else if (kb.target === 'baseSearch') runBaseSearch(kb.text)
   }
   // Activate a key (from A on the cursor, or a mouse click on any key). A `done` key
   // commits and closes; everything else edits the text and moves the cursor to it.
@@ -766,16 +771,10 @@ export default function FrogBrowser() {
     setConfirm(null)
   }
 
-  // The "Wrong game?" picker. Its option list is the candidate games, then a "Clear"
-  // option when the game is currently matched (so a wrong match can return to the
-  // basic page). The index navigates over exactly this list.
-  const rematchOptions = (r) =>
-    r
-      ? [
-          ...(r.candidates || []).map((c) => ({ type: 'game', ...c })),
-          ...(r.matched ? [{ type: 'clear' }] : []),
-        ]
-      : []
+  // The "Wrong game?" picker's navigable option list — shared with the dialog via
+  // `rematchOptions` (frog/rematch.js) so the controller index and the rendered rows never
+  // drift: candidate games, then base-game search results, a "search" row, then "Clear"
+  // (only when matched). Index -1 is the "It's a ROM hack" toggle above the list.
   const openRematch = () => {
     if (!detailGame) return
     const gid = detailGame.id
@@ -792,7 +791,11 @@ export default function FrogBrowser() {
       // Land on the first candidate so the common "fix a wrong match" flow is unchanged;
       // the "It's a ROM hack" toggle sits one Up above it (index -1). With no candidates
       // to pick, start on the toggle since it's the only thing to touch.
-      setRematch({ candidates: cands, current: d.current ?? null, matched, hack: isHack, index: cands.length ? 0 : -1 })
+      setRematch({
+        candidates: cands, current: d.current ?? null, matched, hack: isHack,
+        searchResults: [], searching: false, query: '',
+        index: cands.length ? 0 : -1,
+      })
     }
     fetch(gameCandidatesUrl(gid))
       .then((r) => (r.ok ? r.json() : { candidates: [], current: null }))
@@ -826,6 +829,31 @@ export default function FrogBrowser() {
       setMetaRefresh((n) => n + 1)
     } catch {
       setRematch((r) => (r ? { ...r, busy: false, error: 'Couldn’t update — try again.' } : r))
+    }
+  }
+  // Search IGDB by a typed title (the picker's "search for a game" path) — for a ROM whose
+  // filename matched no candidates, so it can still be linked to a base game. Results land
+  // in the same option list as the candidates; the cursor jumps to the first one. Guards a
+  // game switch mid-fetch like openRematch does, and narrows to the ROM's platform.
+  const runBaseSearch = async (query) => {
+    const gid = detailGame?.id
+    if (!gid) return
+    setRematch((r) => (r ? { ...r, searching: true, error: null, query } : r))
+    try {
+      const res = await fetch(gameMetaSearchUrl(query, detailGame?.label))
+      const data = res.ok ? await res.json() : { results: [] }
+      if (metaGameRef.current !== gid) return
+      setRematch((r) => {
+        if (!r) return r
+        const have = new Set((r.candidates || []).map((c) => c.id))
+        const results = (data.results || []).filter((c) => !have.has(c.id))
+        // Land on the first fresh result (candidates come first in the option list).
+        return { ...r, searchResults: results, searching: false,
+          index: results.length ? (r.candidates || []).length : r.index }
+      })
+    } catch {
+      if (metaGameRef.current !== gid) return
+      setRematch((r) => (r ? { ...r, searching: false, error: 'Search failed — try again.' } : r))
     }
   }
 
@@ -895,8 +923,10 @@ export default function FrogBrowser() {
     }
 
     // The "Wrong game?" picker traps input too: up/down move the highlight, A picks
-    // (re-match / clear), B cancels.
-    if (screen === 'detail' && rematch) {
+    // (re-match / clear / open the base-game search), B cancels. Gated on !keyboard so
+    // that when the on-screen keyboard is open OVER the picker (base-game search), the
+    // keyboard trap below owns the pad instead.
+    if (screen === 'detail' && rematch && !keyboard) {
       const opts = rematchOptions(rematch)
       // index -1 is the "It's a ROM hack" toggle above the candidate list.
       if (action === 'up') setRematch((r) => ({ ...r, index: Math.max(-1, r.index - 1) }))
@@ -906,9 +936,10 @@ export default function FrogBrowser() {
           setRematch((r) => ({ ...r, hack: !r.hack })) // toggle hack mode
         } else {
           const o = opts[rematch.index]
+          if (o?.type === 'search') openKeyboard('baseSearch')
           // A hack borrows the chosen candidate's art but keeps its own name; 'clear'
           // (use the basic page) is never a hack.
-          if (o) applyMatch(o.type === 'clear' ? null : o.id, o.type === 'clear' ? false : rematch.hack, o.name)
+          else if (o) applyMatch(o.type === 'clear' ? null : o.id, o.type === 'clear' ? false : rematch.hack, o.name)
         }
       } else if (action === 'back') setRematch(null)
       return
@@ -1631,6 +1662,7 @@ export default function FrogBrowser() {
           onRematchHover={(index) => setRematch((r) => (r ? { ...r, index } : r))}
           onRematchPick={(igdbId, isHack, name) => applyMatch(igdbId, isHack, name)}
           onRematchToggleHack={() => setRematch((r) => (r ? { ...r, hack: !r.hack } : r))}
+          onRematchSearch={(q) => (q != null ? runBaseSearch(q) : openKeyboard('baseSearch'))}
           onRematchCancel={() => setRematch(null)}
           baseGameId={detailBaseId}
           onOpenBase={openBase}

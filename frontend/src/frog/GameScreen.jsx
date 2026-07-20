@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   Play, Star, Download, Check, Trash2, TriangleAlert, Loader, X, ChevronLeft, ChevronRight,
-  Maximize2, RefreshCw, Trophy, Tag, Plus, Pin, Pencil,
+  Maximize2, RefreshCw, Trophy, Tag, Plus, Pin, Pencil, Search,
 } from 'lucide-react'
+import { rematchOptions } from './rematch.js'
 import { coverUrl, saveStateShotUrl, igdbShotUrl } from '../lib/library.js'
 import { formatPlaytime } from '../lib/format.js'
 import { useFocusTrap } from '../lib/useFocusTrap.js'
@@ -81,6 +82,7 @@ export default function GameScreen({
   onRematchHover,
   onRematchPick,
   onRematchToggleHack,
+  onRematchSearch,
   onRematchCancel,
   baseGameId,
   onOpenBase,
@@ -270,11 +272,19 @@ export default function GameScreen({
           title={
             keyboard.target === 'tag'
               ? 'New collection'
-              : keyboard.target === 'saveNote'
-                ? 'Save note'
-                : 'Save name'
+              : keyboard.target === 'baseSearch'
+                ? 'Search for a game'
+                : keyboard.target === 'saveNote'
+                  ? 'Save note'
+                  : 'Save name'
           }
-          placeholder={keyboard.target === 'saveNote' ? 'Note (optional)' : 'Name'}
+          placeholder={
+            keyboard.target === 'baseSearch'
+              ? 'Game title'
+              : keyboard.target === 'saveNote'
+                ? 'Note (optional)'
+                : 'Name'
+          }
           text={keyboard.text}
           pos={keyboard.pos}
           shift={keyboard.shift}
@@ -288,10 +298,12 @@ export default function GameScreen({
       {rematch && (
         <RematchDialog
           rematch={rematch}
+          native={native}
           accent={s.accent}
           onHover={onRematchHover}
           onPick={onRematchPick}
           onToggleHack={onRematchToggleHack}
+          onSearch={onRematchSearch}
           onCancel={onRematchCancel}
         />
       )}
@@ -848,20 +860,16 @@ function RematchButton({ matched, focused, accent, onFocus, onClick }) {
 }
 
 // The re-match picker — the candidate games IGDB shortlisted (the current one ticked),
-// then "Use the basic page" when a match is showing. Controller-drivable (the parent
-// owns the highlight index + A/B) and tappable. Options are built in the SAME order as
-// FrogBrowser's rematchOptions so the index lines up.
-function RematchDialog({ rematch, accent, onHover, onPick, onToggleHack, onCancel }) {
-  // `matched` comes from the frozen snapshot (not the live meta) so this list is built
-  // the SAME way FrogBrowser's rematchOptions builds the controller's — otherwise the
-  // trailing "Clear" row could differ and the D-pad cursor would misalign with the rows.
-  const { candidates, current, index, matched, hack, error, busy } = rematch
+// then base-game SEARCH results, a "search for a game" row, then "Use the basic page" when
+// a match is showing. Controller-drivable (the parent owns the highlight index + A/B) and
+// tappable. Options come from the SHARED `rematchOptions` so the index lines up with the
+// parent's controller nav exactly.
+function RematchDialog({ rematch, native = false, accent, onHover, onPick, onToggleHack, onSearch, onCancel }) {
+  const { candidates, current, index, hack, searchResults = [], searching, error, busy } = rematch
   const panelRef = useRef(null)
   useFocusTrap(panelRef)
-  const options = [
-    ...candidates.map((c) => ({ type: 'game', ...c })),
-    ...(matched ? [{ type: 'clear' }] : []),
-  ]
+  const options = rematchOptions(rematch)
+  const nothingFound = !candidates.length && !searchResults.length
   return (
     <div
       data-testid="frog-rematch"
@@ -883,11 +891,11 @@ function RematchDialog({ rematch, accent, onHover, onPick, onToggleHack, onCance
           {hack ? 'Which game is it based on?' : 'Pick the right game'}
         </p>
         <p className="mb-3 mt-0.5 px-1 text-xs leading-relaxed" style={{ color: FROG.faint }}>
-          {candidates.length
-            ? hack
+          {nothingFound
+            ? 'No close matches — search for the game by name below.'
+            : hack
               ? 'Pick the base game — this ROM borrows its art but keeps its own name and a “hack” badge.'
-              : 'Choose the correct IGDB match, or fall back to the basic page.'
-            : 'No close matches were found for this ROM.'}
+              : 'Choose the correct IGDB match, or fall back to the basic page.'}
         </p>
 
         {/* The hack toggle (index -1) — flips whether a pick means "this IS the game" or
@@ -923,6 +931,20 @@ function RematchDialog({ rematch, accent, onHover, onPick, onToggleHack, onCance
         <ul className="max-h-72 space-y-1 overflow-y-auto" style={{ scrollbarWidth: 'none' }}>
           {options.map((o, i) => {
             const focused = i === index
+            if (o.type === 'search') {
+              return (
+                <li key="search">
+                  <SearchRow
+                    native={native}
+                    focused={focused}
+                    accent={accent}
+                    searching={searching}
+                    onFocus={() => onHover(i)}
+                    onSearch={onSearch}
+                  />
+                </li>
+              )
+            }
             const isClear = o.type === 'clear'
             const isCurrent = !isClear && o.id === current
             return (
@@ -976,6 +998,53 @@ function RematchDialog({ rematch, accent, onHover, onPick, onToggleHack, onCance
         </button>
       </div>
     </div>
+  )
+}
+
+// The "search for a game" row inside the picker. A controller opens the on-screen keyboard
+// (onSearch() with no arg); a finger types into a native field and submits (onSearch(text))
+// — the same touch/pad split the tag picker uses for naming a new collection.
+function SearchRow({ native, focused, accent, searching, onFocus, onSearch }) {
+  const [q, setQ] = useState('')
+  if (native) {
+    return (
+      <form
+        data-testid="frog-rematch-search"
+        onSubmit={(e) => { e.preventDefault(); if (q.trim()) onSearch(q.trim()) }}
+        className="flex items-center gap-2 rounded-xl px-3 py-1.5"
+        style={{ boxShadow: `inset 0 0 0 1px ${FROG.line}` }}
+      >
+        <Search className="h-4 w-4 shrink-0" style={{ color: FROG.faint }} aria-hidden="true" />
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Search for a game…"
+          aria-label="Search for a game"
+          className="min-w-0 flex-1 bg-transparent py-1 text-sm outline-none"
+          style={{ color: FROG.ink }}
+        />
+        {searching && <Loader className="h-4 w-4 shrink-0 animate-spin" style={{ color: FROG.faint }} aria-hidden="true" />}
+      </form>
+    )
+  }
+  return (
+    <button
+      type="button"
+      data-testid="frog-rematch-search"
+      data-focused={focused || undefined}
+      onMouseMove={onFocus}
+      onClick={() => onSearch()}
+      className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left"
+      style={{
+        background: focused ? `rgba(${accent}, 0.16)` : 'transparent',
+        boxShadow: focused ? `inset 0 0 0 1px rgba(${accent}, 0.5)` : `inset 0 0 0 1px ${FROG.line}`,
+      }}
+    >
+      {searching
+        ? <Loader className="h-4 w-4 shrink-0 animate-spin" style={{ color: FROG.faint }} aria-hidden="true" />
+        : <Search className="h-4 w-4 shrink-0" style={{ color: FROG.faint }} aria-hidden="true" />}
+      <span className="text-sm font-medium" style={{ color: FROG.soft }}>Search for a game…</span>
+    </button>
   )
 }
 

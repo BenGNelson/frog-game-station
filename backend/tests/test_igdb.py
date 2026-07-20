@@ -271,6 +271,48 @@ def test_lookup_none_on_query_error(monkeypatch):
     assert igdb.lookup("Tetris", "Game Boy", settings) is None
 
 
+def test_search_games_returns_candidate_shortlist_shape(monkeypatch):
+    def fake_post(url, **kw):
+        if "oauth2" in url:
+            return _Resp({"access_token": "TOK", "expires_in": 5000})
+        return _Resp([
+            {"id": 3, "name": "Pokemon Emerald", "first_release_date": 1104537600},  # 2005
+            {"id": 4, "name": "Pokemon Ruby"},  # no date
+        ])
+
+    monkeypatch.setattr(igdb.requests, "post", fake_post)
+    out = igdb.search_games("Emerald", "Game Boy Advance", settings)
+    assert out == [
+        {"id": 3, "name": "Pokemon Emerald", "release_year": 2005},
+        {"id": 4, "name": "Pokemon Ruby", "release_year": None},
+    ]
+
+
+def test_search_games_blank_query_is_empty_without_network(monkeypatch):
+    def boom(*a, **k):
+        raise AssertionError("a blank query must not hit the network")
+
+    monkeypatch.setattr(igdb.requests, "post", boom)
+    assert igdb.search_games("   ", None, settings) == []
+
+
+def test_search_games_none_when_unconfigured(monkeypatch):
+    monkeypatch.setattr(settings, "igdb_client_id", "")
+    assert igdb.search_games("Zelda", None, settings) is None
+
+
+def test_search_games_none_on_query_error(monkeypatch):
+    import requests
+
+    def fake_post(url, **kw):
+        if "oauth2" in url:
+            return _Resp({"access_token": "TOK", "expires_in": 5000})
+        raise requests.ConnectionError("down")
+
+    monkeypatch.setattr(igdb.requests, "post", fake_post)
+    assert igdb.search_games("Zelda", None, settings) is None
+
+
 # --- db round-trip (igdb_meta cache) --------------------------------------
 
 def test_db_upsert_and_get_roundtrips_json_columns():
@@ -531,6 +573,32 @@ def test_meta_reports_can_rematch_from_candidates(client):
     )
     body = client.get("/api/library/games/meta", params={"id": "gb/z.gb"}).json()
     assert body["can_rematch"] is True
+
+
+def test_meta_can_rematch_even_with_no_candidates(client):
+    # A looked-up ROM with an EMPTY shortlist (a hack whose filename matched nothing) can
+    # still open the picker — that's the only route to the hack toggle + base-game search.
+    db.upsert_igdb_meta("gb/hack.gb", {"matched": False, "source": "auto", "candidates": []})
+    body = client.get("/api/library/games/meta", params={"id": "gb/hack.gb"}).json()
+    assert body["can_rematch"] is True and body["matched"] is False
+
+
+def test_search_endpoint_returns_results(client, monkeypatch):
+    from app.routers import library as libr
+    monkeypatch.setattr(
+        libr.igdb, "search_games",
+        lambda q, label, s: [{"id": 7, "name": "Zelda", "release_year": 1986}],
+    )
+    body = client.get("/api/library/games/meta/search", params={"q": "zelda"}).json()
+    assert body == {"results": [{"id": 7, "name": "Zelda", "release_year": 1986}]}
+
+
+def test_search_endpoint_502_when_igdb_unavailable(client, monkeypatch):
+    from app.routers import library as libr
+    monkeypatch.setattr(libr.igdb, "search_games", lambda q, label, s: None)
+    assert client.get(
+        "/api/library/games/meta/search", params={"q": "zelda"}
+    ).status_code == 502
 
 
 # --- re-match ("Wrong game?") ---------------------------------------------

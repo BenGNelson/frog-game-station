@@ -92,6 +92,13 @@ export function igdbShotUrl(id, imageId) {
 export function gameCandidatesUrl(id) {
   return `${API_BASE}/library/games/meta/candidates?id=${encodeURIComponent(id)}`
 }
+// A free-text IGDB search from the "Wrong game?" picker — find a base game by name when
+// the matcher shortlisted nothing (a ROM hack). `label` narrows to the ROM's platform.
+export function gameMetaSearchUrl(q, label) {
+  const p = new URLSearchParams({ q })
+  if (label) p.set('label', label)
+  return `${API_BASE}/library/games/meta/search?${p.toString()}`
+}
 // The IGDB matcher's progress + whether creds are configured — the settings screen
 // polls this. A BARE path (no API_BASE) because it's read through useApi, which
 // prepends the base itself (unlike the plain-fetch helpers above/below).

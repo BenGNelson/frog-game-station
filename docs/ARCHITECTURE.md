@@ -683,7 +683,17 @@ SQLite-cache pattern, not an external script.
   choice is reversible — a cleared game still offers "Find on IGDB") and both are left
   alone by the auto matcher (the `source` guard). The POST validates that the id is a real
   listed ROM and coerces `igdb_id` to an int, so it can't be turned into an arbitrary
-  fetch.
+  fetch. The picker opens whenever IGDB is configured and the ROM has been looked up
+  (`can_rematch`), **even with an empty shortlist** — the only way a ROM hack whose filename
+  matched nothing can reach the hack toggle.
+- **Searching for a base game.** When the shortlist is empty (or the right base isn't in it),
+  a **search** endpoint (`GET /library/games/meta/search?q=&label=`, `igdb.search_games`)
+  runs a free-text IGDB query — narrowed to the ROM's platform when the label maps — and
+  returns a shortlist shaped exactly like the stored candidates (`{id, name, release_year}`),
+  so a pick feeds straight into the same meta POST (as a hack when the toggle is on). The
+  picker's option list is built once in `frog/rematch.js` (`rematchOptions`) and shared by the
+  controller nav and the dialog render so they never drift; a controller opens the on-screen
+  keyboard to type the query, a finger uses a native field.
 - **Keys are the one setup step.** Register a free Twitch app and set `IGDB_CLIENT_ID` /
   `IGDB_CLIENT_SECRET` (see the README). No key = the feature is simply dormant, and every
   game shows the basic page.
