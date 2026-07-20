@@ -234,15 +234,17 @@ function HotkeyRow({ Icon, label, hint, value, listening, focused, onSelect, onH
         boxShadow: focused ? `0 0 0 2px rgba(${FROG.jade}, 0.5)` : 'none',
       }}
     >
-      <span className="flex items-center gap-2 text-sm font-medium" style={{ color: FROG.ink }}>
-        <Icon className="h-4 w-4" style={{ color: FROG.soft }} aria-hidden="true" />
-        {label}
-        <span style={{ color: FROG.faint }}>{hint}</span>
+      <span className="flex min-w-0 flex-1 items-center gap-2 text-sm font-medium" style={{ color: FROG.ink }}>
+        <Icon className="h-4 w-4 shrink-0" style={{ color: FROG.soft }} aria-hidden="true" />
+        <span className="shrink-0">{label}</span>
+        {/* Hidden while listening so the "Press a button…" prompt has room; truncates
+            otherwise so a long hint can never collide with the value on the right. */}
+        {!listening && <span className="truncate" style={{ color: FROG.faint }}>{hint}</span>}
       </span>
       {listening ? (
-        <span className="animate-pulse text-sm font-medium" style={{ color: `rgb(${FROG.jade})` }}>Press a button…</span>
+        <span className="shrink-0 animate-pulse text-sm font-medium" style={{ color: `rgb(${FROG.jade})` }}>Press a button…</span>
       ) : (
-        <span className="text-sm" style={{ color: FROG.soft }}>{value}</span>
+        <span className="shrink-0 text-sm" style={{ color: FROG.soft }}>{value}</span>
       )}
     </button>
   )
