@@ -876,11 +876,11 @@ def delete_last_played(id: str = Query(description="Game id")):
     return Response(status_code=204 if removed else 404)
 
 
-# --- Play-time (the "Most played" rail + the per-game total) ----------------
+# --- Play-time (the per-game total) -----------------------------------------
 #
 # The player reports how long each session actually ran; the backend accumulates it
 # per game so play-time roams across devices (the client already has this offline via
-# recents, but the total is server-owned so "most played" agrees on every device).
+# recents, but the total is server-owned so it agrees on every device).
 
 # The "is this a real session" judgement lives on the CLIENT (usePlayTime), which knows
 # the whole session's length; it only reports once the session is worth counting and then
@@ -925,9 +925,9 @@ class PlayStatsModel(BaseModel):
 
 @router.get("/library/games/play-stats", response_model=PlayStatsModel)
 def get_play_stats():
-    """Per-game play-time, most-played first — the source for the "Most played" rail and
-    each game page's play-time line. Ids + totals only: the frontend re-hydrates names
-    against the live library and drops games that have left, exactly like the other rails,
+    """Per-game play-time, most-played first — the source for each game page's
+    play-time line. Ids + totals only: the frontend re-hydrates names
+    against the live library and drops games that have left, exactly like the rails,
     so this needs no per-request filesystem listing at all."""
     return {"items": [{"id": r["game_id"], "play_ms": r["play_ms"]} for r in db.list_play_stats()]}
 

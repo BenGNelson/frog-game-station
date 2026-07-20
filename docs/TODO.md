@@ -114,6 +114,11 @@ Open items carry an inline tag; completed (`[x]`) items are left untagged — th
 
 ## Quality & polish
 
+- [x] **Remove the "Most played" home rail.** It got in the way on the shelf. Dropped the
+      `mostPlayed` rail from `buildShelf` (`frontend/src/frog/shelf.js`) and the now-dead
+      helper + card play-time branch. **Play-time tracking stays** — it still clocks per game
+      and surfaces on the game page's play-time line (the `game_playtime` table, the
+      `/play-stats` endpoint, and `usePlayTime` are untouched); only the shelf rail is gone.
 - [x] **Save-state shelf: default the controller cursor to "Save new".** Shipped (on
       `feat/save-state-p1-fixes`): `openShelf` (`frontend/src/player/PlayerShell.jsx`) now lands
       `shelfFocus` on index `0` (the Save-new tile) rather than the newest save, so saving under

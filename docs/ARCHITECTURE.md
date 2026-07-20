@@ -40,13 +40,14 @@ reachable from anywhere. The shape of them is the design:
   is also what tells Frog Game Station whether to lay itself out for a pad or a thumb. A faint version
   stamp sits in the corner (the app version, injected from `package.json` at build via a
   Vite `define` → `import.meta.env.VITE_APP_VERSION`) — a quiet portfolio signature.
-- **The rails, in order: "Jump back in", Favorites, "Most played", "Finished", then one
+- **The rails, in order: "Jump back in", Favorites, "Finished", then one
   rail per collection, then Systems.** You are almost always coming back to the same game,
   so the rows that mean *most sessions never touch the alphabet* come first. Favorites are
-  starred on a game's page (a client-side list, like recents); **Most played**, **Finished**,
-  and the **per-tag collection rails** are server-owned (see Collections + play-time below),
-  fetched fresh on every return to the shelf. All are re-hydrated against the live library
-  so a game that has left simply drops out, and each row disappears when empty.
+  starred on a game's page (a client-side list, like recents); **Finished** and the **per-tag
+  collection rails** are server-owned (see Collections below), fetched fresh on every return
+  to the shelf. All are re-hydrated against the live library so a game that has left simply
+  drops out, and each row disappears when empty. _(Play-time is still tracked server-side —
+  it just surfaces on the game page rather than as its own rail.)_
   (`buildShelf` in `shelf.js` decides the whole set; `tagRails` builds the collection rows
   in tag-name order.)
 - **The systems row never scrolls.** A small, fixed set of machines fits on one screen —
@@ -537,8 +538,7 @@ persistence.
 ### Play-time tracking
 
 A dedicated **`game_playtime`** table accumulates **`play_ms`** (and a session count) per game
-— the server-owned total behind the shelf's "Most played" rail and the game page's play-time
-line. It is kept **separate from `game_progress`** on purpose: a `game_progress` row means
+— the server-owned total behind the game page's play-time line. It is kept **separate from `game_progress`** on purpose: a `game_progress` row means
 "has a resumable save" (it drives Jump Back In, which resumes via SRAM), so merely playing a
 game for a few seconds must never fake a save there. Play-time is measured in the **parent**,
 for the same reason saves are: `usePlayTime` (a sibling to `useGameSaves`) clocks wall-time

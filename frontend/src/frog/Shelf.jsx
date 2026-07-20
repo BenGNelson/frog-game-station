@@ -3,7 +3,6 @@ import { Trophy, List, ChevronRight } from 'lucide-react'
 import { coverUrl } from '../lib/library.js'
 import { FROG, systemStyle, reflection } from './theme.js'
 import { agoLabel } from './shelf.js'
-import { formatPlaytime } from '../lib/format.js'
 import { useDozing } from '../lib/dayNight.js'
 import { Reflected, SystemFrog } from './Frog.jsx'
 
@@ -158,8 +157,8 @@ function GameCard({ game, focused, finished, hack, onFocus, onPick }) {
           {game.name}
         </p>
         <p className="mt-0.5 truncate text-[11px]" style={{ color: FROG.faint }}>
-          {/* A most-played card wears its play-time; every other rail wears "when". */}
-          {game.playMs != null ? formatPlaytime(game.playMs) : agoLabel(game.ts)}
+          {/* Every rail card wears "when" — when you last touched the game. */}
+          {agoLabel(game.ts)}
         </p>
       </div>
     </button>

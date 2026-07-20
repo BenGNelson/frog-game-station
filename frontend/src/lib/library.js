@@ -111,8 +111,8 @@ export function postGameMatch(id, igdbId, isHack = false) {
   })
 }
 
-// Per-game play-time totals, most-played first — the source for the "Most played"
-// shelf rail and each game page's play-time line. Fetched directly (not via useApi)
+// Per-game play-time totals, most-played first — the source for each game page's
+// play-time line. Fetched directly (not via useApi)
 // so the shelf can reload it a beat after mount: the session that just ended is
 // reported by a sendBeacon during the player's teardown, which can land AFTER this
 // first read, so a single delayed re-read catches it without a loading flash.

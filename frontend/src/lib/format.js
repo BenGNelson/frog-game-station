@@ -12,8 +12,8 @@ export function formatAgo(epoch) {
   return `${Math.floor(h / 24)}d ago`
 }
 
-// A play-time total (milliseconds) as a compact "3h 20m" — used on the "Most played"
-// rail and the game page. Coarse on purpose: whole minutes, and anything under a
+// A play-time total (milliseconds) as a compact "3h 20m" — used on the game page.
+// Coarse on purpose: whole minutes, and anything under a
 // minute reads as "<1m" rather than a jitter of seconds.
 export function formatPlaytime(ms) {
   const totalMin = Math.floor((ms || 0) / 60000)

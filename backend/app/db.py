@@ -34,8 +34,8 @@ CREATE TABLE IF NOT EXISTS game_progress (
 );
 CREATE INDEX IF NOT EXISTS idx_game_progress_updated ON game_progress (updated_ms);
 
--- Cumulative play-time per game — the source for the "Most played" rail and the game
--- page's play-time line. DELIBERATELY separate from game_progress: that table's rows
+-- Cumulative play-time per game — the source for the game page's play-time line.
+-- DELIBERATELY separate from game_progress: that table's rows
 -- mean "has a resumable save" (it drives Jump Back In, which resumes via SRAM), and
 -- merely playing a game for a few seconds must NOT fake a save there. A game earns a
 -- play-time row the first time it's played at all; a save is a different thing.
@@ -225,8 +225,8 @@ def add_play_time(game_id, core, ms, now_ms=None):
 
 
 def list_play_stats(limit=200):
-    """Games with any counted play-time, most-played first. Powers the "Most
-    played" rail and the per-game play-time line (the caller maps by game_id)."""
+    """Games with any counted play-time, most-played first. Powers the per-game
+    play-time line (the caller maps by game_id)."""
     with get_conn() as conn:
         rows = conn.execute(
             "SELECT game_id, core, play_ms, plays, updated_ms FROM game_playtime"
