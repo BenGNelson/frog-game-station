@@ -207,12 +207,22 @@ function Heading({ children }) {
 
 export default function Shelf({ rails, focus, finishedIds, hackIds, onFocus, onPick, padded = false }) {
   const railRefs = useRef([])
+  const viewportRef = useRef(null)
   // The mascot dozes after hours (closed eyes), on the wall clock.
   const dozing = useDozing()
 
+  // Home always opens at the top. Shelf remounts on return from a game/list, so the
+  // viewport naturally resets — but the focus scrollIntoView below fires on the very
+  // first paint too, so pin scrollTop to 0 explicitly rather than trust ordering (and
+  // it future-proofs against focus ever being restored to a lower rail).
+  useEffect(() => {
+    viewportRef.current?.scrollTo({ top: 0 })
+  }, [])
+
   // Keep the focused tile on screen as the pad/keyboard moves focus. `block: 'nearest'`
   // handles both axes — the horizontal "Jump back in" rail and, on a phone, a systems
-  // tile that the vertical scroll has pushed below the fold.
+  // tile that the vertical scroll has pushed below the fold. The frog aside is
+  // position:sticky (below), so this scrolls only the rails past a pinned frog.
   useEffect(() => {
     const el = railRefs.current[focus.rail]?.children?.[focus.index]
     el?.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' })
@@ -229,6 +239,7 @@ export default function Shelf({ rails, focus, finishedIds, hackIds, onFocus, onP
 
   return (
     <div
+      ref={viewportRef}
       data-testid="frog-shelf"
       // The scroll viewport. Its inner wrapper is min-h-full, so the shelf CENTRES when it
       // fits and TOP-ALIGNS (scroll-reachable) when it's taller than the screen. Without this
@@ -245,8 +256,13 @@ export default function Shelf({ rails, focus, finishedIds, hackIds, onFocus, onP
           bare touch layout keeps its centred look. */}
       <div className={`flex min-h-full flex-col gap-6 px-6 lg:flex-row ${padded ? 'py-8 lg:items-start' : 'py-4 lg:items-center'}`}>
       {/* The frog. It wears the focused machine's colours and hops when they change
-          (the key is the system, so React remounts it and the hop plays once). */}
-      <aside className="flex shrink-0 items-center justify-center gap-4 lg:w-60 lg:flex-col lg:justify-center">
+          (the key is the system, so React remounts it and the hop plays once).
+          On a wide screen it's a STICKY left column: pinned to the top of the scroll
+          viewport (self-start so it top-aligns regardless of the row's items-center/start)
+          while only the rails scroll past it — so it never drags off-screen and its caption
+          never rides over a scrolled-to rail. On a phone it's inline above the rails (no lg:),
+          so sticky doesn't apply. */}
+      <aside className="flex shrink-0 items-center justify-center gap-4 lg:sticky lg:top-8 lg:w-60 lg:flex-col lg:justify-center lg:self-start">
         <div className="frog-hop shrink-0" key={system || 'none'}>
           <Reflected scale={0.5}>
             {/* One frog, two sizes — small on a phone, big on a wide screen. The

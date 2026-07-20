@@ -143,24 +143,19 @@ Open items carry an inline tag; completed (`[x]`) items are left untagged — th
       `ConfirmDialog` (defaults to "Keep playing"). _(The earlier acute bug — a full Pokémon-hack
       menu overflowing a short landscape screen — was already fixed; this was the structural
       rethink.)_
-- [ ] [P2] **Shelf layout on a tall/overflowing home screen — persistent frog column.** On a
-      wide screen the shelf is a two-part row: the **frog + caption** aside on the left, and the
-      rails (Jump back in / Most Played / systems) on the right. When the rails are taller than the
-      viewport the whole row scrolls, which drags the frog column off with it — and because the
-      left aside vertically centres, its caption can sit *over* the system you've scrolled to. Two
-      wants: (1) the home screen should **open scrolled to the top** (not mid-content), and (2) the
-      **frog/caption column should stay put** (sticky) while only the rails scroll, so the caption
-      always names what's focused without overlapping a rail. Think through the interaction with
-      the existing `focus.rail` scroll-into-view (`frog/Shelf.jsx`) and the phone/portrait stacked
-      layout (where the frog is inline, not a side column) before changing the flex structure.
-      _(The acute bug — the top rail clipping under the header on a tall wide screen — is fixed:
-      the scroll viewport was split from a min-h-full wrapper so it top-aligns (scroll-reachable)
-      when it overflows instead of centring. **Pad-mode spacing also shipped:** with the controller
-      legend showing, the shelf now top-aligns + adds top/bottom breathing room (a `padded` prop on
-      `Shelf`), scroll-padding keeps focus clear of the bars, and the legend bar was equalised (its
-      own paddingBottom carries the safe-area inset instead of stacking on the root's) and trimmed to
-      one line — so "Jump back in" clears the header and the last system row clears the legend. This
-      item is now just the remaining sticky-frog-column rethink.)_
+- [x] **Shelf layout on a tall/overflowing home screen — persistent frog column.** Shipped
+      (`frog/Shelf.jsx`): on a wide screen the **frog + caption** aside is now a `position:sticky`
+      left column (`lg:sticky lg:top-8 lg:self-start`) — pinned to the top of the scroll viewport
+      while only the rails scroll past it, so it never drags off-screen and its caption never rides
+      *over* a scrolled-to rail. `self-start` top-aligns it regardless of the row's
+      `items-center`/`items-start` (the `padded` toggle). The home screen also **opens scrolled to
+      the top**: a mount effect pins the viewport `scrollTop` to 0, independent of the
+      `focus.rail` scrollIntoView (which now scrolls the rails past the pinned frog). The
+      phone/portrait stacked layout is untouched — the frog is inline there (`lg:`-gated), so sticky
+      doesn't apply. _(The earlier acute bug — the top rail clipping under the header on a tall wide
+      screen — was already fixed: the scroll viewport was split from a min-h-full wrapper so it
+      top-aligns (scroll-reachable) when it overflows instead of centring, and pad-mode spacing
+      shipped with a `padded` prop + equalised legend bar.)_
 - [ ] [P3] **Touch ergonomics — search-field keyboard auto-raise on iOS.** _(Deferred, not
       dropped.)_ iOS blocks programmatic focus outside a user gesture, so there's no clean
       web fix — it needs an on-device solution and is low-value next to the rest. Parked with
