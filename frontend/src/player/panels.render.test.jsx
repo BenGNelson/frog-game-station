@@ -5,6 +5,7 @@ import WikiPanel from './WikiPanel.jsx'
 import PokedexPanel from './PokedexPanel.jsx'
 import PauseMenu from './PauseMenu.jsx'
 import SaveStatePanel from './SaveStatePanel.jsx'
+import SaveActionMenu from './SaveActionMenu.jsx'
 
 // Render smoke test for the mounted-persistent player panels. Server-rendering each one
 // executes its full render path (props, state, hooks, the useImperativeHandle deps array)
@@ -66,7 +67,22 @@ describe('player panel render smoke', () => {
           onSetCover={() => {}}
           onResetCover={() => {}}
           coverNotice="Cover set from this frame."
+          onChoose={() => {}}
           onBack={() => {}}
+        />
+      )
+    ).not.toThrow()
+  })
+
+  it('SaveActionMenu mounts without throwing', () => {
+    expect(() =>
+      renderToString(
+        <SaveActionMenu
+          focus={0}
+          onFocusChange={() => {}}
+          onLoad={() => {}}
+          onDelete={() => {}}
+          onCancel={() => {}}
         />
       )
     ).not.toThrow()

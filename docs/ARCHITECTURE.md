@@ -471,13 +471,17 @@ one folder, keyed by a hash of its id.
     removes its sidecar; clearing every field drops it, so an untouched save stays sidecar-free.
   - **The in-game shelf favours saving, and guards deletes.** Opened from the pause menu
     (`player/SaveStatePanel.jsx`), the cursor lands on the **Save-new** tile, not the newest
-    save — a snapshot under time pressure is one press away (open, A, A) — with loading a
-    specific state a short step down. And a **delete is gated behind an "are you sure?"
-    confirm**: every trigger (touch button, keyboard Del, pad Y) arms it rather than deleting.
-    The pad moves **left/right** between Delete and Keep (A commits the highlight, which starts
-    on Delete so Y → A still deletes; B always cancels), or a tap resolves it directly. It reuses
-    `frog/ConfirmDialog` — the same shared gate the game page uses — which grew an optional
-    controlled-focus mode for this (the game page stays on its uncontrolled Tab/Enter default).
+    save — a snapshot under time pressure is one press away (open, A, A) — with the states a
+    short step down. Activating a state on a **pad or keyboard** opens a small **Load/Delete
+    chooser** (`player/SaveActionMenu.jsx`) rather than loading outright, so the two actions a
+    single focus can't otherwise disambiguate are an explicit pick; **touch/mouse** keep the
+    card's own Load and Delete buttons and are untouched. Delete (from the chooser, or the pad
+    **Y** shortcut, touch button, keyboard Del) is **gated behind an "are you sure?" confirm**:
+    every trigger arms it rather than deleting. The pad moves **left/right** between Delete and
+    Keep (A commits the highlight, which starts on Delete so Y → A still deletes; B always
+    cancels), or a tap resolves it directly. Both the chooser and the confirm reuse the shared
+    controlled-focus dialog pattern (`frog/ConfirmDialog` / `SaveActionMenu`) — the game page
+    stays on its uncontrolled Tab/Enter default.
   - **The shelf also carries the cover actions.** "Set as cover" (and "Reset cover" once a
     custom cover exists) sit as **trailing tiles after the state cards** — they moved here
     from the pause menu because "capture this frame as the cover" reuses the very same

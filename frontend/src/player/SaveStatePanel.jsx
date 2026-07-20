@@ -36,6 +36,7 @@ export default function SaveStatePanel({
   onCols,
   onSave,
   onLoad,
+  onChoose,
   onDelete,
   hasCustomCover = false,
   onSetCover,
@@ -90,10 +91,12 @@ export default function SaveStatePanel({
     panelRef.current?.querySelector('[data-focused="true"]')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
   }, [focus])
 
-  // The one action that both the pad and the keyboard resolve the same way.
+  // The one action that both the pad and the keyboard resolve the same way. A state card
+  // opens the Load/Delete chooser (onChoose) rather than loading outright — matching the pad;
+  // touch still loads directly via the card's own Load button (onLoad).
   const activate = () => {
     if (focus === 0) return onSave()
-    if (focus < coverStart) return onLoad(states[focus - 1]?.slot)
+    if (focus < coverStart) return onChoose(states[focus - 1]?.slot)
     cover[focus - coverStart]?.run?.()
   }
 
