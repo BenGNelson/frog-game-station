@@ -6,6 +6,7 @@ import {
 import { coverUrl, saveStateShotUrl, igdbShotUrl } from '../lib/library.js'
 import { formatPlaytime } from '../lib/format.js'
 import { useFocusTrap } from '../lib/useFocusTrap.js'
+import ConfirmDialog from './ConfirmDialog.jsx'
 import { FROG, systemStyle, reflection } from './theme.js'
 import { SystemFrog, Reflected } from './Frog.jsx'
 import { FinishedBadge, HackBadge } from './Shelf.jsx'
@@ -309,6 +310,7 @@ export default function GameScreen({
       {confirm && (
         <ConfirmDialog
           message={confirm.kind === 'download' ? 'Remove this offline download?' : 'Delete this save state?'}
+          yesLabel={confirm.kind === 'download' ? 'Remove' : 'Delete'}
           onYes={onConfirmYes}
           onNo={onConfirmNo}
         />
@@ -1403,51 +1405,4 @@ function DownloadLabel({ download }) {
   if (download.state === 'done') return 'Offline'
   if (download.state === 'error') return 'Retry'
   return 'Download'
-}
-
-// The confirm — controller-drivable (Yes is focus, A confirms, B cancels) and
-// tappable. Guards a delete/remove behind one deliberate step.
-function ConfirmDialog({ message, onYes, onNo }) {
-  const panelRef = useRef(null)
-  useFocusTrap(panelRef)
-  return (
-    <div
-      data-testid="frog-confirm"
-      className="absolute inset-0 z-20 flex items-center justify-center p-6"
-      style={{ background: 'rgba(5, 17, 13, 0.72)', backdropFilter: 'blur(3px)' }}
-    >
-      <div
-        ref={panelRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="frog-confirm-title"
-        tabIndex={-1}
-        className="w-full max-w-sm rounded-2xl p-5 text-center outline-none"
-        style={{ background: FROG.panel, border: `1px solid ${FROG.line}`, boxShadow: '0 20px 60px rgba(0,0,0,0.6)' }}
-      >
-        <p id="frog-confirm-title" className="text-base font-medium" style={{ color: FROG.ink }}>
-          {message}
-        </p>
-        <div className="mt-5 flex justify-center gap-3">
-          <button
-            type="button"
-            data-testid="frog-confirm-yes"
-            onClick={onYes}
-            className="rounded-xl px-5 py-2.5 text-sm font-semibold"
-            style={{ background: 'rgb(239, 90, 90)', color: '#fff' }}
-          >
-            Delete
-          </button>
-          <button
-            type="button"
-            onClick={onNo}
-            className="rounded-xl px-5 py-2.5 text-sm font-medium"
-            style={{ background: 'transparent', color: FROG.soft, border: `1px solid ${FROG.line}` }}
-          >
-            Keep
-          </button>
-        </div>
-      </div>
-    </div>
-  )
 }

@@ -57,6 +57,7 @@ import { moveInGrid } from '../lib/gridNav.js'
 import { saveState, loadState, listStates, deleteState, captureShot } from '../lib/saveStates.js'
 import PauseMenu, { pauseItems, pauseCols } from './PauseMenu.jsx'
 import SaveStatePanel from './SaveStatePanel.jsx'
+import ConfirmDialog from '../frog/ConfirmDialog.jsx'
 import ControlsPanel, { controlRows } from './ControlsPanel.jsx'
 import WikiPanel from './WikiPanel.jsx'
 import PokedexPanel from './PokedexPanel.jsx'
@@ -165,6 +166,13 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
   const [error, setError] = useState(null)
   const [shelfFocus, setShelfFocus] = useState(0) // 0 = Save-new tile, 1..N = the states
   const [shelfCols, setShelfCols] = useState(2) // the shelf's real column count, measured
+  // A save state pending deletion: the slot awaiting an "are you sure?" confirm. Set by
+  // every delete trigger (touch button, keyboard Del, gamepad Y); cleared on Keep/confirm.
+  // A delete is irreversible, so it's gated once here rather than at each call site.
+  const [pendingDelete, setPendingDelete] = useState(null)
+  // Which confirm button the pad has highlighted: 0 = Delete, 1 = Keep. Starts on Delete
+  // so the Y → A muscle-memory still deletes, but the d-pad can move to Keep first.
+  const [confirmFocus, setConfirmFocus] = useState(0)
   // Custom cover: whether this game already has one (seeds the pause menu's Reset item),
   // and a transient confirmation shown in the pause menu after a set/reset.
   const [hasCustomCover, setHasCustomCover] = useState(!!coverV)
@@ -342,9 +350,10 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
     setStatesLoading(true)
     const list = await listStates(id)
     setStates(list)
-    // Land on the newest save, not the Save-new tile: loading is the reason you open
-    // this mid-game far more often than saving, so make it one button-press away.
-    setShelfFocus(list.length ? 1 : 0)
+    // Land on the Save-new tile (index 0), so saving a fresh state is one press away:
+    // open the shelf, press A, done. Loading a specific save is a short d-pad step down
+    // from here — a deliberate choice to favour the action you take under time pressure.
+    setShelfFocus(0)
     setStatesLoading(false)
   }, [id])
 
@@ -390,6 +399,22 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
     },
     [id]
   )
+
+  // Every delete trigger routes through here first: arm the confirm instead of deleting.
+  const requestDelete = useCallback((slot) => {
+    if (slot != null) {
+      setConfirmFocus(0) // land on Delete each time it opens
+      setPendingDelete(slot)
+    }
+  }, [])
+
+  const confirmDelete = useCallback(() => {
+    const slot = pendingDelete
+    setPendingDelete(null)
+    if (slot != null) doDelete(slot)
+  }, [pendingDelete, doDelete])
+
+  const cancelDelete = useCallback(() => setPendingDelete(null), [])
 
   // Deleting the last card can leave focus pointing past the end of the grid — pull
   // it back to the last real cell (index range is 0 .. states.length).
@@ -733,7 +758,10 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
         // Back out one layer at a time. Resuming straight from a panel would
         // un-pause the game while that panel still covered it (and leave the
         // engine's gamepad gated, so the pad would drive nothing).
-        if (wikiOpen) closeWiki()
+        // The delete confirm is the topmost layer — Menu cancels it first (like B),
+        // so it can't be stranded over the pause menu by dismissing the shelf under it.
+        if (pendingDelete != null) cancelDelete()
+        else if (wikiOpen) closeWiki()
         else if (pokedexOpen) closePokedex()
         else if (controlsOpen) closeControls()
         else if (shelfOpen) setShelfOpen(false)
@@ -808,9 +836,20 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
         return
       }
 
+      // The delete confirm sits ON TOP of the shelf, so it eats the pad first: left/right
+      // move between Delete and Keep, A commits the highlighted one, B always cancels.
+      // Nothing reaches the shelf underneath while it's up.
+      if (pendingDelete != null) {
+        if (action === 'confirm') (confirmFocus === 1 ? cancelDelete : confirmDelete)()
+        else if (action === 'back') cancelDelete()
+        else if (action === 'left' || action === 'up') setConfirmFocus(0)
+        else if (action === 'right' || action === 'down') setConfirmFocus(1)
+        return
+      }
+
       if (shelfOpen) {
         // The save shelf, walked with the pad: [Save-new, ...states]. A = the focused
-        // cell (save a new one, or load that state), Y = delete the focused state,
+        // cell (save a new one, or load that state), Y = ask to delete the focused state,
         // B = back to the pause menu.
         if (action === 'back') {
           setShelfOpen(false)
@@ -819,7 +858,7 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
           if (shelfFocus === 0) doSave()
           else doLoad(states[shelfFocus - 1]?.slot)
         } else if (action === 'alt') {
-          if (shelfFocus > 0 && states[shelfFocus - 1]) doDelete(states[shelfFocus - 1].slot)
+          if (shelfFocus > 0 && states[shelfFocus - 1]) requestDelete(states[shelfFocus - 1].slot)
         } else {
           setShelfFocus((i) =>
             moveInGrid({ count: states.length + 1, cols: shelfCols, index: i }, action, { centerLastRow: true })
@@ -1188,7 +1227,7 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
             onCols={setShelfCols}
             onSave={doSave}
             onLoad={doLoad}
-            onDelete={doDelete}
+            onDelete={requestDelete}
             onBack={() => {
               setShelfOpen(false)
               setError(null)
@@ -1204,6 +1243,19 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
                 />
               ) : null
             }
+          />
+        )}
+
+        {/* Delete confirm — over the shelf (z-40 clears its z-30), so touch taps and the
+            trapped focus land here, not on the cards behind it. */}
+        {pendingDelete != null && (
+          <ConfirmDialog
+            message="Delete this save state?"
+            onYes={confirmDelete}
+            onNo={cancelDelete}
+            focus={confirmFocus}
+            onFocusChange={setConfirmFocus}
+            z="z-40"
           />
         )}
 

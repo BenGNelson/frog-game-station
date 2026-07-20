@@ -456,6 +456,15 @@ one folder, keyed by a hash of its id.
     name/note rows use the native fields on touch and open the on-screen keyboard for a
     controller, and the pin/delete rows are pure toggles either way. Deleting a state also
     removes its sidecar; clearing every field drops it, so an untouched save stays sidecar-free.
+  - **The in-game shelf favours saving, and guards deletes.** Opened from the pause menu
+    (`player/SaveStatePanel.jsx`), the cursor lands on the **Save-new** tile, not the newest
+    save — a snapshot under time pressure is one press away (open, A, A) — with loading a
+    specific state a short step down. And a **delete is gated behind an "are you sure?"
+    confirm**: every trigger (touch button, keyboard Del, pad Y) arms it rather than deleting.
+    The pad moves **left/right** between Delete and Keep (A commits the highlight, which starts
+    on Delete so Y → A still deletes; B always cancels), or a tap resolves it directly. It reuses
+    `frog/ConfirmDialog` — the same shared gate the game page uses — which grew an optional
+    controlled-focus mode for this (the game page stays on its uncontrolled Tab/Enter default).
 
 ### Why the parent owns saves
 
