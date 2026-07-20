@@ -44,6 +44,12 @@ describe('readSettings', () => {
   it('falls back to defaults on corrupt JSON rather than throwing', () => {
     expect(readSettings(fakeStorage({ [SETTINGS_KEY]: 'not json{' }))).toEqual(DEFAULTS)
   })
+
+  it('defaults fast-forward to unassigned (opt-in), with wiki/pokedex on the stick clicks', () => {
+    expect(DEFAULTS.ffHotkey).toBeNull()
+    expect(DEFAULTS.wikiHotkey).toBe(11) // R3
+    expect(DEFAULTS.pokedexHotkey).toBe(10) // L3
+  })
 })
 
 describe('writeSettings', () => {

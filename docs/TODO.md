@@ -25,21 +25,18 @@ Open items carry an inline tag; completed (`[x]`) items are left untagged — th
 
 ## Features
 
-- [ ] [P2] **Controller-bindings audit + visualizer.** A screen that shows a controller
-      graphic with every button labeled by what it's bound to, so unused buttons become
-      visible and assignable (e.g. to **save-state** or **fast-forward** — fast-forward exists
-      via `emuBridge.js:413` but has no dedicated button; save/load are one pause-menu row → the shelf).
-      **Key constraint to design around:** the EmulatorJS engine polls the pad itself in-game,
-      so the app can only own buttons the RetroPad preset leaves free — effectively just the two
-      stick clicks (L3/R3), and both are already taken (R3 = wiki hotkey, L3 = Pokédex; see
-      `lib/playerSettings.js:32-35`, `PlayerShell.jsx:714-726`). So a naive "assign the spare
-      buttons" won't find many spares — the audit's real job is to surface that and find real
-      options (chord/hold combos, demoting a rarely-used game binding, or letting the user trade
-      a game binding for an app hotkey). Two parts: (1) an **audit** that maps bound/free across
-      both layers (`lib/gamepad.js`, `lib/controlPresets.js`) and proposes slots for save-state +
-      fast-forward; (2) a **controller-graphic bindings screen** — extend the glyphs in
-      `player/ButtonLegend.jsx` (face-button colours already there; needs trigger/stick/d-pad
-      glyphs) and build on the existing rebind UI in `player/ControlsPanel.jsx`. _(The pause-menu
+- [x] **Controller-bindings visualizer + Fast-Forward hotkey.** Shipped: the Controls screen's
+      "Buttons" list became a **drawn frog-themed controller** (`player/ControllerDiagram.jsx`) —
+      every button labelled with what it triggers, face buttons in their real colours, and the
+      scheme (`letters`/`positions`) live-swaps "A" between the bottom and right button so the A/B
+      choice is obvious. The **hotkey scarcity is made visible** rather than papered over: the two
+      collision-free stick clicks (L3/R3) are flagged, the Menu button shown locked, and **Fast
+      Forward** joins Wiki/Pokédex as an assignable shortcut (`ffHotkey`, default unassigned;
+      `onRawButton` toggles the core turbo in-play). The screen now scroll-follows the controller.
+      _(Remaining follow-ups, not blocking: **[P3]** the deeper "audit" idea — chord/hold combos or
+      trading a game binding for an app hotkey, for when a player wants more app shortcuts than the
+      two free clicks allow; and **[P3]** the optional **controller-skin selector** — let the drawn
+      pad take an Xbox/PS5/Nintendo look via a `skin` prop on `ControllerDiagram`. The pause-menu
       dead-space cleanup this used to fold in — merging Save/Load, demoting "Set as Cover" — shipped
       with the pause-menu UX review below.)_
 
