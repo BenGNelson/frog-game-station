@@ -45,3 +45,36 @@ export function filterDex(list, query) {
     (p) => (p.display || '').toLowerCase().includes(s) || String(p.number).includes(s)
   )
 }
+
+// Trigger-jump the dex cursor by number-BLOCKS (decades of the displayed dex number) —
+// the number analog of the game list's letter rail (`stepLetter`). LT/RT step a decade at
+// a time. From the middle of a decade a back-press lands on the decade TOP first (a second
+// press then moves a decade — what a scrub bar does, so LT is never a bigger jump than you
+// meant); never wraps (a hard stop at each end). Operates on the CURRENT (filtered) list,
+// so it stays coherent while a search is narrowing it.
+export function stepDexBlock(list, index, step, block = 10) {
+  if (!list || !list.length) return 0
+  const blockOf = (n) => Math.floor((((n ?? 1) || 1) - 1) / block)
+  const firstOf = new Map() // decade -> first index it appears at, in list order
+  list.forEach((p, i) => {
+    const b = blockOf(p.number)
+    if (!firstOf.has(b)) firstOf.set(b, i)
+  })
+  const blocks = [...firstOf.keys()]
+  const here = blockOf(list[index]?.number)
+  if (step < 0 && index > firstOf.get(here)) return firstOf.get(here)
+  const next = blocks.indexOf(here) + step
+  if (next < 0) return 0
+  if (next >= blocks.length) return list.length - 1
+  return firstOf.get(blocks[next])
+}
+
+// How many rows a single held up/down step should move, given how long the direction has
+// been held (a run of rapid repeats). A deliberate tap moves ONE row (precise); holding the
+// stick/d-pad ramps up so a long dex flies past — the "faster analog scroll". Coarse on
+// purpose: 1 → 2 → 4 as the hold sustains.
+export function dexScrollStep(run) {
+  if (run <= 4) return 1
+  if (run <= 10) return 2
+  return 4
+}

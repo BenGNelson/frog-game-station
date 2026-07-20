@@ -100,10 +100,18 @@ Open items carry an inline tag; completed (`[x]`) items are left untagged — th
       Detect/curate these so a hack defaults to its own wiki instead of the base game's. Likely
       a curated per-hack table (keyed off the hack name) + the general search fallback; the
       `is_hack` flag + base-game link already exist to hang this off.
-- [ ] [P2] **Pokédex: make it as easy to navigate as possible.** The list is a 1-D up/down list
-      today. Add letter/number jumping (a rail or trigger-jump like the game list), faster
-      analog-stick scroll, and search-while-browsing (the on-screen keyboard for a controller).
-      Consider a cover-grid option and remembering the last-viewed Pokémon per game.
+- [x] **Pokédex: make it as easy to navigate as possible.** Shipped (`player/PokedexPanel.jsx`
+      + `lib/pokedex.js` + `lib/pokedexLast.js`): the dex list gained the game list's fast lanes —
+      **LT/RT jump a dex decade** (`stepDexBlock`, the number analog of the letter rail,
+      land-on-block-top-first, no wrap), **LB/RB page** by a screenful, and **held up/down
+      accelerates** (`dexScrollStep`: 1→2→4 rows). The **last-viewed Pokémon is remembered per
+      game** (keyed by national dex number, so it survives the region↔national toggle) and the
+      cursor restores there on the next player mount.
+- [ ] [P3] **Pokédex: search-while-browsing + cover-grid (deferred sub-features).** The two
+      remaining wants from the nav pass: type-to-filter on a controller (needs the on-screen
+      keyboard — `lib/keyboard.js` / `frog/Keyboard.jsx` — ported from `FrogBrowser` into the
+      player shell), and an optional cover-grid layout (the panel's `moveInGrid` already supports
+      `cols>1`; today the list is `cols:1`). Touch already has a native search field.
 - [ ] [P3] **Cross-link walkthrough Pokémon → our Pokédex.** In a Bulbapedia walkthrough the Pokémon
       links currently navigate within Bulbapedia; instead route a `…(Pokémon)` link to OUR
       Pokédex detail (open the Pokédex panel to that species). The backend already knows each
