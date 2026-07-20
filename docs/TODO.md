@@ -179,13 +179,14 @@ Open items carry an inline tag; completed (`[x]`) items are left untagged — th
 
 ### Follow-ups from shipped features
 
-- [ ] [P2] **Mark a ROM hack that has no IGDB candidates** — marking uses the rematch picker,
-      which only opens when IGDB returned a candidate shortlist. A hack whose cleaned filename
-      yields zero candidates (or an unmatched base) can't be marked / linked. Needs a base-game
-      **search** in the picker (type a name → IGDB search → pick), reusing the on-screen
-      keyboard. The base deep-link also requires the base ROM to be IGDB-matched (an unmatched
-      base degrades to plain "Based on <name>" text — inherent, since an unmatched ROM has no
-      id to resolve by).
+- [x] **Mark a ROM hack that has no IGDB candidates** — shipped: the rematch picker now opens
+      whenever IGDB is configured and the ROM has been looked up (relaxed `can_rematch`), even
+      with an **empty** candidate shortlist, and it carries a base-game **search** — type a name
+      → `GET /library/games/meta/search` (`igdb.search_games`, platform-narrowed) → pick, which
+      feeds the existing meta POST as a hack. A controller opens the on-screen keyboard; a finger
+      uses a native field. The picker's option list is shared (`frog/rematch.js`) so the
+      controller index and rendered rows can't drift. _(The base deep-link still requires the
+      base ROM to be IGDB-matched — inherent: an unmatched ROM has no id to resolve by.)_
 
 - [x] **Controller on-screen keyboard for creating NEW tags / naming saves** — shipped: a
       reusable on-screen text keyboard (`lib/keyboard.js` + `frog/Keyboard.jsx`, auto-title-case

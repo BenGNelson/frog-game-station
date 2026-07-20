@@ -436,7 +436,11 @@ def get_game_meta(id: str = Query(description="Game id from the section listing"
     there's a shortlist to fix a wrong (or missing) match against."""
     configured = igdb.configured(settings)
     row = db.get_igdb_meta(id)
-    can_rematch = bool(configured and row and row.get("candidates"))
+    # The picker opens whenever IGDB is configured and the matcher has looked this ROM up
+    # (a row exists) — even with an EMPTY candidate shortlist. That's the only way a ROM
+    # hack whose cleaned filename yielded zero candidates can reach the hack toggle + the
+    # "search for a base game" flow. The candidate list may be empty; the search fills it.
+    can_rematch = bool(configured and row)
     if not row or not row["matched"]:
         return GameMetaModel(matched=False, configured=configured, can_rematch=can_rematch)
     # A hack borrows the base's row, so the base's name/id come straight off it; the owned
@@ -573,6 +577,21 @@ def get_game_meta_candidates(id: str = Query(description="Game id from the secti
     if not row:
         return {"candidates": [], "current": None}
     return {"candidates": row.get("candidates") or [], "current": row.get("igdb_id")}
+
+
+@router.get("/library/games/meta/search")
+def search_game_meta(
+    q: str = Query(description="Free-text title to search IGDB for"),
+    label: str | None = Query(default=None, description="System label to narrow to that platform"),
+):
+    """Free-text IGDB search for the re-match picker — find a base game by name when the
+    auto-matcher produced no candidate shortlist (a ROM hack). Returns a shortlist shaped
+    exactly like the stored candidates (`{id, name, release_year}`), so a pick feeds
+    straight into POST /library/games/meta. 502 when IGDB is unconfigured/unreachable."""
+    results = igdb.search_games(q, label, settings)
+    if results is None:
+        return Response(status_code=502)
+    return {"results": results}
 
 
 class RematchBody(BaseModel):
