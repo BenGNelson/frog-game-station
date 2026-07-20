@@ -94,7 +94,7 @@ export default function PauseMenu({ open, name, fastForward, canFullscreen, hasC
       aria-label="Game menu"
       tabIndex={-1}
       onKeyDown={onKeyDown}
-      className="absolute inset-0 z-20 flex flex-col items-center justify-center outline-none backdrop-blur-md"
+      className="absolute inset-0 z-20 touch-auto overflow-y-auto overscroll-contain outline-none backdrop-blur-md"
       style={{
         background: 'rgba(5, 17, 13, 0.72)',
         paddingLeft: 'env(safe-area-inset-left)',
@@ -107,34 +107,41 @@ export default function PauseMenu({ open, name, fastForward, canFullscreen, hasC
         style={{ background: radiantBackdrop(FROG.jade, 0.14) }}
       />
 
-      <div className="relative w-full max-w-lg px-4">
-        <p className="mb-1 text-center text-xs font-medium uppercase tracking-widest" style={{ color: FROG.faint }}>Paused</p>
-        <h2 className="mb-5 truncate text-center text-lg font-semibold" style={{ color: FROG.ink }}>{name}</h2>
+      {/* Sized to FIT without scrolling: even a full Pokémon-hack menu (12 tiles → 4 rows of
+          the shorter 4:3 tiles) clears a landscape iPad, so the title and legend stay on
+          screen and the controller never has to scroll a grid. min-h-full still centres the
+          common shorter menu, and the overflow-y-auto on the parent is a last-resort catch for
+          an unusually short viewport. */}
+      <div className="relative flex min-h-full flex-col items-center justify-center py-4">
+        <div className="w-full max-w-lg px-4">
+          <p className="mb-1 text-center text-xs font-medium uppercase tracking-widest" style={{ color: FROG.faint }}>Paused</p>
+          <h2 className="mb-3 truncate text-center text-lg font-semibold" style={{ color: FROG.ink }}>{name}</h2>
 
-        <div className={`grid gap-3 ${cols === 4 ? 'grid-cols-4' : 'grid-cols-3'}`}>
-          {items.map((item, i) => (
-            <MenuTile
-              key={item.id}
-              item={item}
-              focused={i === focus}
-              centered={orphan && i === items.length - 1}
-              onSelect={() => onAction(item.id)}
-              onHover={() => onFocus(i)}
-            />
-          ))}
+          <div className={`grid gap-3 ${cols === 4 ? 'grid-cols-4' : 'grid-cols-3'}`}>
+            {items.map((item, i) => (
+              <MenuTile
+                key={item.id}
+                item={item}
+                focused={i === focus}
+                centered={orphan && i === items.length - 1}
+                onSelect={() => onAction(item.id)}
+                onHover={() => onFocus(i)}
+              />
+            ))}
+          </div>
+
+          {notice && (
+            <p
+              data-testid="frog-pause-notice"
+              className="mt-4 text-center text-sm font-medium"
+              style={{ color: `rgb(${FROG.jade})` }}
+            >
+              {notice}
+            </p>
+          )}
+
+          {legend && <div className="mt-4">{legend}</div>}
         </div>
-
-        {notice && (
-          <p
-            data-testid="frog-pause-notice"
-            className="mt-4 text-center text-sm font-medium"
-            style={{ color: `rgb(${FROG.jade})` }}
-          >
-            {notice}
-          </p>
-        )}
-
-        {legend && <div className="mt-5">{legend}</div>}
       </div>
     </div>
   )
@@ -159,7 +166,7 @@ function MenuTile({ item, focused, centered, onSelect, onHover }) {
       onClick={onSelect}
       onMouseEnter={onHover}
       aria-current={focused || undefined}
-      className={`flex aspect-square flex-col items-center justify-center gap-2 rounded-2xl border px-2 transition-all active:scale-[0.97] ${
+      className={`flex aspect-[4/3] flex-col items-center justify-center gap-2 rounded-2xl border px-2 transition-all active:scale-[0.97] ${
         centered ? 'col-start-2' : ''
       } ${focused ? 'scale-105' : ''}`}
       style={{

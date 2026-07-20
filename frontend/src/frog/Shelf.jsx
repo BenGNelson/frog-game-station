@@ -231,13 +231,13 @@ export default function Shelf({ rails, focus, finishedIds, hackIds, onFocus, onP
   return (
     <div
       data-testid="frog-shelf"
-      // Scrolls vertically when the content is taller than the screen. On a phone in
-      // touch mode the frog, "Jump back in" and the systems grid stack into a column
-      // that can run past the fold — without this the systems below it are simply
-      // unreachable (nothing to scroll to them). On a wide screen it's a centred row
-      // that never overflows, so the scroll is inert there.
-      className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-6 py-4 lg:flex-row lg:items-center"
+      // The scroll viewport. Its inner wrapper is min-h-full, so the shelf CENTRES when it
+      // fits and TOP-ALIGNS (scroll-reachable) when it's taller than the screen. Without this
+      // a wide screen with enough rails clipped the top rail under the header with no way to
+      // scroll up to it — align-items:center swallows the overflow at the top.
+      className="min-h-0 flex-1 overflow-y-auto"
     >
+      <div className="flex min-h-full flex-col gap-6 px-6 py-4 lg:flex-row lg:items-center">
       {/* The frog. It wears the focused machine's colours and hops when they change
           (the key is the system, so React remounts it and the hop plays once). */}
       <aside className="flex shrink-0 items-center justify-center gap-4 lg:w-60 lg:flex-col lg:justify-center">
@@ -336,6 +336,7 @@ export default function Shelf({ rails, focus, finishedIds, hackIds, onFocus, onP
             )}
           </section>
         ))}
+      </div>
       </div>
     </div>
   )
