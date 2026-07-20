@@ -57,6 +57,7 @@ import { moveInGrid } from '../lib/gridNav.js'
 import { saveState, loadState, listStates, deleteState, captureShot } from '../lib/saveStates.js'
 import PauseMenu, { pauseItems } from './PauseMenu.jsx'
 import SaveStatePanel from './SaveStatePanel.jsx'
+import SaveActionMenu from './SaveActionMenu.jsx'
 import ConfirmDialog from '../frog/ConfirmDialog.jsx'
 import ControlsPanel, { controlRows } from './ControlsPanel.jsx'
 import WikiPanel from './WikiPanel.jsx'
@@ -183,6 +184,11 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
   // save-delete confirm, so the default should be the non-destructive one.
   const [pendingQuit, setPendingQuit] = useState(false)
   const [quitFocus, setQuitFocus] = useState(1)
+  // Activating a state card (pad/keyboard) opens a Load/Delete chooser rather than loading
+  // outright. chooseSlot = the slot being chosen (null = closed); chooseFocus: 0 = Load, 1 =
+  // Delete. Delete hands off to the existing pendingDelete confirm — this only picks.
+  const [chooseSlot, setChooseSlot] = useState(null)
+  const [chooseFocus, setChooseFocus] = useState(0)
   // The shelf's trailing cover actions, appended after the state cards: always "set from
   // this frame", plus "reset to default" once a custom cover exists.
   const coverActions = useMemo(() => ['setCover', ...(hasCustomCover ? ['resetCover'] : [])], [hasCustomCover])
@@ -424,6 +430,25 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
   }, [pendingDelete, doDelete])
 
   const cancelDelete = useCallback(() => setPendingDelete(null), [])
+
+  // Open the Load/Delete chooser for a state card (pad/keyboard path; touch uses the card's
+  // own buttons). Lands on Load each time.
+  const openChooser = useCallback((slot) => {
+    if (slot != null) {
+      setChooseFocus(0)
+      setChooseSlot(slot)
+    }
+  }, [])
+  const chooseLoad = useCallback(() => {
+    const slot = chooseSlot
+    setChooseSlot(null)
+    if (slot != null) doLoad(slot)
+  }, [chooseSlot, doLoad])
+  const chooseDelete = useCallback(() => {
+    const slot = chooseSlot
+    setChooseSlot(null)
+    requestDelete(slot) // hand off to the shared "Delete this save state?" confirm
+  }, [chooseSlot, requestDelete])
 
   // Deleting the last card can leave focus pointing past the end of the grid — pull
   // it back to the last real cell (index range is 0 = Save-new, 1..N states, then the
@@ -767,6 +792,7 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
         // so one can't be stranded over the pause menu by dismissing the layer under it.
         if (pendingQuit) setPendingQuit(false)
         else if (pendingDelete != null) cancelDelete()
+        else if (chooseSlot != null) setChooseSlot(null)
         else if (wikiOpen) closeWiki()
         else if (pokedexOpen) closePokedex()
         else if (controlsOpen) closeControls()
@@ -853,6 +879,16 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
         return
       }
 
+      // The Load/Delete chooser sits over the shelf (below the delete confirm): up/down move
+      // between Load and Delete, A commits, B backs out to the shelf.
+      if (chooseSlot != null) {
+        if (action === 'confirm') (chooseFocus === 1 ? chooseDelete : chooseLoad)()
+        else if (action === 'back') setChooseSlot(null)
+        else if (action === 'up' || action === 'left') setChooseFocus(0)
+        else if (action === 'down' || action === 'right') setChooseFocus(1)
+        return
+      }
+
       if (shelfOpen) {
         // The save shelf, walked with the pad: [Save-new, ...states, ...cover actions].
         // A = the focused cell (save a new one, load that state, or run the cover action),
@@ -863,7 +899,7 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
           setError(null)
         } else if (action === 'confirm') {
           if (shelfFocus === 0) doSave()
-          else if (shelfFocus < coverStart) doLoad(states[shelfFocus - 1]?.slot)
+          else if (shelfFocus < coverStart) openChooser(states[shelfFocus - 1]?.slot)
           else if (coverActions[shelfFocus - coverStart] === 'setCover') doSetCover()
           else if (coverActions[shelfFocus - coverStart] === 'resetCover') doResetCover()
         } else if (action === 'alt') {
@@ -1247,6 +1283,7 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
             onCols={setShelfCols}
             onSave={doSave}
             onLoad={doLoad}
+            onChoose={openChooser}
             onDelete={requestDelete}
             hasCustomCover={hasCustomCover}
             onSetCover={doSetCover}
@@ -1260,13 +1297,26 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
               mode === 'pad' ? (
                 <ButtonLegend
                   hints={[
-                    { button: 'A', label: shelfFocus === 0 ? 'Save' : 'Load' },
+                    { button: 'A', label: shelfFocus === 0 ? 'Save' : shelfFocus <= states.length ? 'Open' : 'Set' },
                     { button: 'Y', label: 'Delete' },
                     { button: 'B', label: 'Back' },
                   ]}
                 />
               ) : null
             }
+          />
+        )}
+
+        {/* Load/Delete chooser — over the shelf (z-40 clears its z-30). Delete arms the
+            confirm below, which unmounts this and takes over the same z-40 layer. */}
+        {chooseSlot != null && (
+          <SaveActionMenu
+            focus={chooseFocus}
+            onFocusChange={setChooseFocus}
+            onLoad={chooseLoad}
+            onDelete={chooseDelete}
+            onCancel={() => setChooseSlot(null)}
+            z="z-40"
           />
         )}
 
