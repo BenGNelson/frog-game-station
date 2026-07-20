@@ -366,7 +366,10 @@ controller** (`controlBindings` keyed by pad id, so a second pad doesn't rewire 
   currently triggers — so flipping the scheme visibly **moves "A"** between the bottom and
   right buttons, which is the whole choice made obvious. Face buttons, shoulders and Select
   are interactive (focus/click → rebind); the diagram reflects the same linear focus the pad
-  walks (`controlRows`), so the picture and the d-pad never disagree.
+  walks (`controlRows`), so the picture and the d-pad never disagree. The physical slots are
+  **always drawn** (an empty one reads "—", never a hole); a slot two game buttons collide on
+  shows both ("A/B"), and a game button a custom rebind pushed onto a stick/d-pad the diagram
+  doesn't draw is surfaced as a focusable **off-map chip** below, so no binding is ever invisible.
 - **Only the stick-clicks are truly free, and the diagram says so.** In-play the engine reads
   the pad itself (its own loop + our preset), so the app can't intercept a press — the *only*
   collision-free buttons for an app **shortcut** are the two stick-clicks L3/R3 (no core uses

@@ -574,7 +574,14 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
           setError('That button belongs to the app — pick another.')
         } else {
           const key = listeningFor === 'wiki' ? 'wikiHotkey' : listeningFor === 'pokedex' ? 'pokedexHotkey' : 'ffHotkey'
-          saveSettings({ ...settings, [key]: buttonIndex })
+          // One button, one shortcut: free any OTHER shortcut that was on this button.
+          // Otherwise onRawButton checks them in order and the earlier one silently wins,
+          // so the new binding would never fire — here the freed one visibly reads Unassigned.
+          const patch = { ...settings, [key]: buttonIndex }
+          for (const other of ['wikiHotkey', 'pokedexHotkey', 'ffHotkey']) {
+            if (other !== key && patch[other] === buttonIndex) patch[other] = null
+          }
+          saveSettings(patch)
         }
         setListeningFor(null)
         return true
