@@ -984,7 +984,7 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
   // it can read the save out of the engine on the way out and actually write it down.
   useGameSaves(emuRef, id, state === 'PLAYING' || state === 'PAUSED')
 
-  // Tally how long this game is actually PLAYED (for the "Most played" rail) — only
+  // Tally how long this game is actually PLAYED (for the game-page play-time line) — only
   // while it's running, NOT while paused. Otherwise a game left paused in a foreground
   // tab (a couch/TV that never backgrounds) would clock hours it was never played. The
   // session-total accounting banks the time so far when you pause and resumes on unpause.

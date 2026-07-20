@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import { postPlayTime } from './library.js'
 
 // Measures how long a game is actually played and reports it to the backend, which
-// keeps the running total behind the "Most played" rail.
+// keeps the running total behind the game-page play-time line.
 //
 // A sibling to useGameSaves, and for the same reason it lives in the PARENT: the
 // session ends by the player iframe being torn down, and this needs to outlive that

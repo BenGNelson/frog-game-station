@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildShelf, buildSystems, jumpBackIn, favoriteGames, mostPlayed, tagRails, collectionGames, COLLECTION_LIST_MIN, agoLabel, stepLetter, SYSTEM_ORDER } from './shelf.js'
+import { buildShelf, buildSystems, jumpBackIn, favoriteGames, tagRails, collectionGames, COLLECTION_LIST_MIN, agoLabel, stepLetter, SYSTEM_ORDER } from './shelf.js'
 
 const g = (id, name, label) => ({ id, name, label, core: 'gb' })
 
@@ -80,27 +80,12 @@ describe('buildShelf', () => {
     expect(rails.map((r) => r.id)).toEqual(['favorites', 'systems'])
   })
 
-  it('puts Most played after Favorites, before Systems', () => {
-    const rails = buildShelf(
-      LIBRARY,
-      [{ id: '1', ts: 1 }],
-      [{ id: '3' }],
-      [{ id: '4', play_ms: 9000 }]
-    )
-    expect(rails.map((r) => r.id)).toEqual(['jump', 'favorites', 'mostPlayed', 'systems'])
-  })
-
-  it('drops the Most played row when nothing has been played', () => {
-    const rails = buildShelf(LIBRARY, [], [], [])
-    expect(rails.map((r) => r.id)).toEqual(['systems'])
-  })
-
-  it('adds a Finished rail (after Most played) and one rail per tag, then Systems', () => {
-    const rails = buildShelf(LIBRARY, [], [], [], {
+  it('adds a Finished rail (after Favorites) and one rail per tag, then Systems', () => {
+    const rails = buildShelf(LIBRARY, [], [], {
       finished: ['3'],
       tags: { Zelda: ['2'], Sonic: ['4'] },
     })
-    // finished after mostPlayed; tag rails in tag-name order; systems always last.
+    // finished after favorites; tag rails in tag-name order; systems always last.
     expect(rails.map((r) => r.id)).toEqual(['finished', 'tag:Sonic', 'tag:Zelda', 'systems'])
     expect(rails.find((r) => r.id === 'finished').items.map((g) => g.id)).toEqual(['3'])
   })
@@ -145,29 +130,6 @@ describe('collectionGames', () => {
   it('drops members that have left the library, and is empty for an unknown tag', () => {
     expect(collectionGames(LIBRARY, { Mix: ['1', 'gone'] }, 'Mix').map((x) => x.id)).toEqual(['1'])
     expect(collectionGames(LIBRARY, {}, 'Nope')).toEqual([])
-  })
-})
-
-describe('mostPlayed', () => {
-  it('re-hydrates backend stats against the live library, carrying playMs', () => {
-    const top = mostPlayed(LIBRARY, [
-      { id: '4', play_ms: 90_000 },
-      { id: '1', play_ms: 30_000 },
-    ])
-    // Order is the backend's (already most-played first); names come from the library.
-    expect(top.map((g) => [g.name, g.playMs])).toEqual([
-      ['Sonic 2', 90_000],
-      ['Pokemon Red', 30_000],
-    ])
-  })
-
-  it('drops a stat whose game has left the library', () => {
-    expect(mostPlayed(LIBRARY, [{ id: 'gone', play_ms: 5 }])).toEqual([])
-  })
-
-  it('caps the rail length', () => {
-    const stats = LIBRARY.map((g, i) => ({ id: g.id, play_ms: (i + 1) * 1000 }))
-    expect(mostPlayed(LIBRARY, stats, 2)).toHaveLength(2)
   })
 })
 

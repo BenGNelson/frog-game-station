@@ -68,13 +68,6 @@ export function favoriteGames(items = [], favorites = []) {
   return hydrate(items, favorites)
 }
 
-// "Most played" — the games with the most clocked play-time. `stats` comes from the
-// backend already ordered most-played first (and already excluding anything with no
-// counted time), so this just re-hydrates and carries each one's `playMs` for the card.
-export function mostPlayed(items = [], stats = [], limit = 6) {
-  return hydrate(items, stats, (s) => ({ playMs: s.play_ms })).slice(0, limit)
-}
-
 // The shelf as rails, for lib/gridNav.js — which is what gives the D-pad column
 // memory for free (leave the systems row on Genesis, go up to a game, come back:
 // still Genesis).
@@ -82,16 +75,14 @@ export function mostPlayed(items = [], stats = [], limit = 6) {
 // "Jump back in" is rail 0 so it's where focus lands, then Favorites — both the rows
 // that mean most sessions never touch the alphabet. Each disappears entirely when
 // it's empty: a heading over an empty row is a worse first impression than no heading.
-export function buildShelf(items = [], recent = [], favorites = [], played = [], collections = {}) {
+export function buildShelf(items = [], recent = [], favorites = [], collections = {}) {
   const jump = jumpBackIn(items, recent)
   const favs = favoriteGames(items, favorites)
-  const top = mostPlayed(items, played)
   const finished = hydrate(items, (collections.finished || []).map((id) => ({ id })))
   const systems = buildSystems(items)
   return [
     ...(jump.length ? [{ id: 'jump', title: 'Jump back in', kind: 'game', items: jump }] : []),
     ...(favs.length ? [{ id: 'favorites', title: 'Favorites', kind: 'game', items: favs }] : []),
-    ...(top.length ? [{ id: 'mostPlayed', title: 'Most played', kind: 'game', items: top }] : []),
     ...(finished.length ? [{ id: 'finished', title: 'Finished', kind: 'game', items: finished }] : []),
     ...tagRails(items, collections.tags),
     { id: 'systems', title: 'Systems', kind: 'system', items: systems },
