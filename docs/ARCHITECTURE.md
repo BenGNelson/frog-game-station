@@ -247,7 +247,20 @@ colours), and the **button-legend glyphs** keep the real controller's face-butto
   corner **exit** that shows **only on the pre-game screens** (boot / awaiting start),
   where touch has no other way out (plus B/Esc → back). Once playing, the exit is hidden —
   the **pause menu** owns Quit (reached via the overlay ☰, the desktop ☰, or hold-Menu on
-  a pad).
+  a pad) — and Quit is **gated behind an "are you sure?" confirm**, since it can drop
+  progress made since the last save-state (the confirm defaults to "Keep playing", the
+  safe option).
+- **The pause menu is a grouped vertical list, not a tile grid** (`player/PauseMenu.jsx`).
+  It replaced a reflowing grid whose column count changed per game/device — which moved
+  where "Quit" sat and broke the muscle memory a menu you open constantly depends on. A
+  single fixed-order column (icon + word rows under light SNAPSHOTS / PLAY / GAME / SETUP
+  headers) is the RetroArch/console-guide idiom: word-actions scan faster down one column,
+  a D-pad walk has one axis and no ambiguity, and the list grows without reshuffling —
+  Resume is always first, Quit always last, and conditional items (Fullscreen, Pokédex)
+  only omit. Nav reuses `moveInGrid` at `cols: 1` (the section headers are cosmetic; the
+  controller walks the flat item array so index ↔ action stays 1:1 across touch, keyboard,
+  and pad). Save and Load collapsed into one **"Save / Load States"** row — both open the
+  same shelf, which lands on Save-new.
 
 ### Touch controls
 
@@ -465,6 +478,12 @@ one folder, keyed by a hash of its id.
     on Delete so Y → A still deletes; B always cancels), or a tap resolves it directly. It reuses
     `frog/ConfirmDialog` — the same shared gate the game page uses — which grew an optional
     controlled-focus mode for this (the game page stays on its uncontrolled Tab/Enter default).
+  - **The shelf also carries the cover actions.** "Set as cover" (and "Reset cover" once a
+    custom cover exists) sit as **trailing tiles after the state cards** — they moved here
+    from the pause menu because "capture this frame as the cover" reuses the very same
+    live-frame the Save-new tile snapshots for its thumbnail, so it belongs beside saving.
+    At the end of the grid, they keep the common Save/Load reach unshifted; the pad's
+    Y-delete is guarded to fire on real state cards only, never the action tiles.
 
 ### Why the parent owns saves
 
@@ -555,9 +574,10 @@ exact-name key so later loads skip the fallback; and a **custom cover dropped be
 ROM** (same basename) takes precedence over libretro — the durable override for hacks or a
 title with no listing match.
 
-**Set your own cover from a live frame.** The player's pause menu has a **"Set as Cover"**
-action: it takes the frame the live-shot timer already keeps ready (the same non-black
-capture that thumbnails a save state) and POSTs it, and the cover endpoint stores it as the
+**Set your own cover from a live frame.** The player's save-state shelf has a **"Set as
+cover"** action (it moved there from the pause menu — capturing a frame belongs beside
+snapshotting one): it takes the frame the live-shot timer already keeps ready (the same
+non-black capture that thumbnails a save state) and POSTs it, and the cover endpoint stores it as the
 **highest-precedence** tier — above the sidecar and libretro. It can't be written beside the
 ROM (that dir is read-only), so it lives in a **writable** slot under the covers cache
 (`custom/{sha1(id)}.webp`), and "Reset Cover" drops it. The hard part is cache invalidation:
@@ -671,6 +691,14 @@ The player and readers are **real routes**, not overlays, so the phone's back ge
 - **The parent owns the saves, not the frame.** The durable "where am I in this game"
   record has to survive the disposable emulator, roam between devices, and be backed up —
   so the frame only *emits* save data and the parent *stores* it, under `/data/saves`.
+- **The pause menu is a list, and actions live where they belong, not all at one altitude.**
+  The in-game menu is a fixed-order grouped list, not a reflowing tile grid: a menu opened
+  constantly must put the same action under the same button-walk, which a per-game column
+  count can't promise, and word-actions scan faster down a column (the RetroArch/console
+  idiom). Growth is handled by grouping, not by cramming more equal-weight tiles — so rare
+  actions were demoted out of the top level (Save/Load merged to one shelf entry; "Set as
+  cover" moved into that shelf, beside the frame-capture it reuses), and Quit — which can
+  drop unsaved progress — was gated behind the same `ConfirmDialog` the save-delete uses.
 - **Browse one system at a time, as a text list.** Retro box art shrinks to identical
   rectangles and retro titles are long and get truncated in a grid, so a per-system text
   list (with one big art slot beside the cursor) is faster to read and confirm; letter-step
