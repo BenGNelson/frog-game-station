@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { typeColor, statPercent, statTotal, filterDex, STAT_LABELS, STAT_ORDER } from './pokedex.js'
+import { typeColor, statPercent, statTotal, filterDex, stepDexBlock, dexScrollStep, STAT_LABELS, STAT_ORDER } from './pokedex.js'
 
 describe('typeColor', () => {
   it('returns a colour per known type and a fallback', () => {
@@ -55,5 +55,42 @@ describe('stat metadata', () => {
   it('labels + orders the six base stats', () => {
     expect(STAT_ORDER).toHaveLength(6)
     expect(STAT_ORDER.every((k) => STAT_LABELS[k])).toBe(true)
+  })
+})
+
+describe('stepDexBlock', () => {
+  // decades: idx0-2 -> #1..#5 (decade 0), idx3-4 -> #11,#15 (decade 1), idx5-6 -> #21,#25 (decade 2)
+  const list = [
+    { number: 1 }, { number: 2 }, { number: 5 },
+    { number: 11 }, { number: 15 },
+    { number: 21 }, { number: 25 },
+  ]
+  it('steps forward to the next decade’s first row', () => {
+    expect(stepDexBlock(list, 0, 1)).toBe(3) // decade 0 -> decade 1
+    expect(stepDexBlock(list, 3, 1)).toBe(5) // decade 1 -> decade 2
+  })
+  it('from mid-decade, a back-press lands on the decade top first', () => {
+    expect(stepDexBlock(list, 2, -1)).toBe(0) // mid decade 0 -> its top
+    expect(stepDexBlock(list, 4, -1)).toBe(3) // mid decade 1 -> its top
+  })
+  it('from a decade top, a back-press moves a decade', () => {
+    expect(stepDexBlock(list, 3, -1)).toBe(0) // decade 1 top -> decade 0
+  })
+  it('never wraps — pins at each end', () => {
+    expect(stepDexBlock(list, 0, -1)).toBe(0) // already at the start
+    expect(stepDexBlock(list, 5, 1)).toBe(list.length - 1) // past the last decade
+  })
+  it('is safe on an empty list', () => {
+    expect(stepDexBlock([], 0, 1)).toBe(0)
+  })
+})
+
+describe('dexScrollStep', () => {
+  it('is one row for a tap, then ramps with a sustained hold', () => {
+    expect(dexScrollStep(1)).toBe(1)
+    expect(dexScrollStep(4)).toBe(1)
+    expect(dexScrollStep(5)).toBe(2)
+    expect(dexScrollStep(10)).toBe(2)
+    expect(dexScrollStep(11)).toBe(4)
   })
 })

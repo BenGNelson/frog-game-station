@@ -477,6 +477,14 @@ prose.
   mounted-persistent, focus-on-open + Escape `stopPropagation` — so it keeps the browsed list
   and selected Pokémon across close/reopen and is fully controller/touch-navigable. The pad
   drives it through one `handleAction` the panel routes by view (list vs detail).
+- **List navigation mirrors the game list.** Beyond up/down, the dex list has the same fast
+  lanes: **LT/RT jump a dex decade** (`stepDexBlock` — the number analog of the game list's
+  letter rail, land-on-block-top-first, no wrap), **LB/RB page** by a screenful, and held
+  up/down **accelerates** (`dexScrollStep`: 1→2→4 rows as the stick is held). The **last-viewed
+  Pokémon is remembered per game** (`lib/pokedexLast.js`, keyed by national dex number), so a
+  fresh player mount reopens the dex on the cursor you left — surviving the region↔national
+  toggle. _(Search-while-browsing on a controller and a cover-grid layout remain deferred — they
+  need the on-screen keyboard ported into the player and a `cols>1` grid rework.)_
 
 ---
 

@@ -3,10 +3,16 @@ import { ArrowLeft, X, BookOpen, Loader2, Globe, ChevronRight } from 'lucide-rea
 import { FROG } from '../frog/theme.js'
 import { moveInGrid } from '../lib/gridNav.js'
 import { fetchPokedexInfo, fetchPokedexList, fetchPokemon } from '../lib/pokedexApi.js'
-import { typeColor, statPercent, statTotal, filterDex, STAT_LABELS, STAT_ORDER } from '../lib/pokedex.js'
+import { typeColor, statPercent, statTotal, filterDex, stepDexBlock, dexScrollStep, STAT_LABELS, STAT_ORDER } from '../lib/pokedex.js'
+import { getPokedexLast, setPokedexLast } from '../lib/pokedexLast.js'
 import '../frog/frog.css'
 
 const SCROLL_STEP = 96
+// A held up/down counts as the SAME run while repeats keep arriving inside this window
+// (the fast stick repeat is ~30ms, a steady d-pad ~110ms; a deliberate re-tap is slower),
+// so the accelerator ramps only while a direction is genuinely held.
+const ACCEL_WINDOW = 260
+const ROW_PX = 48 // a dex row's approximate height, for the LB/RB page jump
 
 // The in-game Pokédex reference (Pokémon games only). Structured data from PokeAPI —
 // types, base stats, evolution chains — rendered in OUR page, so it's controller/touch-
@@ -30,19 +36,26 @@ const PokedexPanel = forwardRef(function PokedexPanel({
   const loadedRef = useRef(false)
   const scrollerRef = useRef(null)
   const detailScrollerRef = useRef(null)
+  // Tracks a held up/down run so the cursor accelerates the longer it's held (see heldStep).
+  const runRef = useRef({ action: null, ts: 0, run: 0 })
 
   const filtered = filterDex(list, query)
   const accentText = `rgb(${accent})`
   const canToggle = regionScope && regionScope !== 'national'
 
-  const loadList = useCallback(async (slug) => {
+  // `preferredId` restores the cursor to a national dex number (last-viewed) when present
+  // in the freshly loaded list; otherwise the list opens at the top. Only the INITIAL load
+  // passes one — the region↔national toggle keeps you at the top of the new scope.
+  const loadList = useCallback(async (slug, preferredId = null) => {
     setPhase('loading')
     try {
       const { pokemon } = await fetchPokedexList(slug)
-      setList(pokemon || [])
+      const arr = pokemon || []
+      setList(arr)
       setScope(slug)
       setQuery('')
-      setCursor(0)
+      const at = preferredId != null ? arr.findIndex((p) => p.id === preferredId) : -1
+      setCursor(at >= 0 ? at : 0)
       setView('list')
       setPhase('list')
     } catch {
@@ -56,7 +69,7 @@ const PokedexPanel = forwardRef(function PokedexPanel({
       const info = await fetchPokedexInfo(gameId, gameName)
       const slug = info?.scope || 'national'
       setRegionScope(slug)
-      await loadList(slug)
+      await loadList(slug, getPokedexLast(gameId))
     } catch {
       setPhase('error')
     }
@@ -85,6 +98,7 @@ const PokedexPanel = forwardRef(function PokedexPanel({
   }, [cursor, view, query])
 
   const openDetail = useCallback(async (num) => {
+    setPokedexLast(gameId, num) // remember it for the next time this game's dex opens
     setView('detail')
     setDetail(null)
     setDetailBusy(true)
@@ -96,7 +110,7 @@ const PokedexPanel = forwardRef(function PokedexPanel({
       setDetailBusy(false)
       if (detailScrollerRef.current) detailScrollerRef.current.scrollTop = 0
     }
-  }, [])
+  }, [gameId])
 
   const toList = useCallback(() => {
     setView('list') // the [open, view] focus effect refocuses the list scroller
@@ -112,6 +126,22 @@ const PokedexPanel = forwardRef(function PokedexPanel({
     setCursor((i) => moveInGrid({ count: filtered.length, cols: 1, index: i }, action))
   }, [filtered.length])
 
+  // Move the list cursor by a signed row delta, clamped to the (filtered) list.
+  const moveBy = useCallback((delta) => {
+    setCursor((i) => Math.max(0, Math.min(filtered.length - 1, i + delta)))
+  }, [filtered.length])
+
+  // Grow the per-tick step the longer up/down is held (velocity-scaled repeats arrive
+  // rapidly, a re-tap doesn't) so a long dex flies past — the "faster analog scroll".
+  const heldStep = useCallback((action) => {
+    const now = typeof performance !== 'undefined' ? performance.now() : Date.now()
+    const r = runRef.current
+    r.run = r.action === action && now - r.ts < ACCEL_WINDOW ? r.run + 1 : 1
+    r.action = action
+    r.ts = now
+    return dexScrollStep(r.run)
+  }, [])
+
   // The controller surface PlayerShell drives while the panel owns the pad. Returns false
   // ONLY to ask PlayerShell to close (Back at the list root); true otherwise.
   useImperativeHandle(ref, () => ({
@@ -126,9 +156,20 @@ const PokedexPanel = forwardRef(function PokedexPanel({
         else if (action === 'back') toList()
         return true
       }
-      // list view
-      if (action === 'up' || action === 'down' || action === 'left' || action === 'right') {
-        moveCursor(action)
+      // list view. up/down accelerate while held; LT/RT jump a dex decade; LB/RB page.
+      if (action === 'up' || action === 'down') {
+        const step = heldStep(action)
+        moveBy(action === 'up' ? -step : step)
+        return true
+      }
+      if (action === 'left' || action === 'right') { moveCursor(action); return true }
+      if (action === 'jumpPrev' || action === 'jumpNext') {
+        setCursor((i) => stepDexBlock(filtered, i, action === 'jumpNext' ? 1 : -1))
+        return true
+      }
+      if (action === 'railPrev' || action === 'railNext') {
+        const page = Math.max(3, Math.floor((scrollerRef.current?.clientHeight || 400) / ROW_PX))
+        moveBy(action === 'railNext' ? page : -page)
         return true
       }
       if (action === 'confirm') {
@@ -140,7 +181,7 @@ const PokedexPanel = forwardRef(function PokedexPanel({
       if (action === 'back') return false // close
       return true
     },
-  }), [view, filtered, cursor, detail, onReadWiki, moveCursor, openDetail, toList, toggleScope])
+  }), [view, filtered, cursor, detail, onReadWiki, moveCursor, moveBy, heldStep, openDetail, toList, toggleScope])
 
   const onKeyDown = useCallback((e) => {
     if (e.key === 'Escape') {
