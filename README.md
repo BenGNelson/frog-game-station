@@ -62,6 +62,13 @@ driven by a controller, the arrow keys, or a tap.
 | <img src="docs/img/game-desktop.png" alt="Game page"> | <img src="docs/img/list-desktop.png" alt="Browse a system"> |
 | **Game page** — rich IGDB data (summary, genres, rating, developer) with Play / Favorite / Download, plus a save-state shelf. | **Browse** — an alphabetical list with a letter rail and the resting mascot. |
 
+<p align="center"><img src="docs/img/controls-desktop.png" alt="The in-game Controls screen — a drawn controller with every button labelled" width="100%"></p>
+
+The in-game **Controls** screen draws your pad as a frog-themed controller — every button
+labelled with what it does, the face buttons in their real colours (flip the layout and
+watch **A** move between them), app shortcuts (Wiki, Pokédex, Fast Forward) badged on the
+buttons that hold them, and any button remappable.
+
 ### On a phone
 
 <p align="center">
