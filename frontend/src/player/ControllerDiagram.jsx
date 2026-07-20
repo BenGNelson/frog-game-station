@@ -1,5 +1,5 @@
 import { FROG } from '../frog/theme.js'
-import { BINDABLE } from '../lib/controlPresets.js'
+import { BINDABLE, describeBinding } from '../lib/controlPresets.js'
 import { XBOX } from '../lib/gamepad.js'
 
 // A drawn, frog-themed controller — the Controls screen's "Buttons" section made visual.
@@ -58,11 +58,24 @@ export default function ControllerDiagram({
   onFocusKey,
   onSelectKey,
 }) {
-  // Which GAME button currently sits on each physical button (inverse of `resolved`,
-  // restricted to the rebindable set). Lets a face slot show "A"/"B"/… by scheme.
-  const gameByPhysical = {}
-  for (const b of BINDABLE) gameByPhysical[resolved[b.index]] = b
-  const nameByIndex = Object.fromEntries(BINDABLE.map((b) => [b.index, b.name]))
+  // The GAME buttons currently on each physical slot. Usually 0 or 1, but a custom rebind
+  // can pile two onto one slot (a collision) or leave a slot empty — the physical button is
+  // ALWAYS drawn either way (an empty slot reads "—", never a hole), and the label follows
+  // the scheme, so flipping letters⇄positions visibly moves "A".
+  const gamesAt = (physical) => BINDABLE.filter((b) => resolved[b.index] === physical)
+  // Game buttons a custom rebind pushed onto a physical the diagram doesn't draw (a stick,
+  // the d-pad, the lower triggers) — surfaced as chips below so they're never invisible.
+  const offMap = BINDABLE.filter((b) => !POS[resolved[b.index]])
+
+  // Shared focus/listen/custom state for the game(s) sitting on one slot.
+  const slotState = (games) => ({
+    focused: games.some((g) => focusedKey === `bind:${g.index}`),
+    listening: games.some((g) => listeningFor === g.index),
+    custom: games.some((g) => bindings?.[g.index] != null),
+    // Click/hover acts on the focused game if it's here, else the first one.
+    target: games.find((g) => focusedKey === `bind:${g.index}`) || games[0],
+    label: games.length ? games.map((g) => (g.name === 'Select' ? 'Sel' : g.name)).join('/') : '—',
+  })
 
   // App shortcuts landing on a given raw pad index (the sticks are the collision-free ones).
   const hotkeysAt = (raw) => {
@@ -73,60 +86,54 @@ export default function ControllerDiagram({
     return out.join(' / ')
   }
 
-  // One interactive game button, drawn at the physical slot its binding maps to.
+  // One interactive face button, ALWAYS drawn at its fixed physical slot.
   const FaceButton = ({ physical }) => {
     const p = POS[physical]
-    const game = gameByPhysical[physical]
-    if (!p || !game) return null
-    const key = `bind:${game.index}`
-    const focused = focusedKey === key
-    const listening = listeningFor === game.index
-    const custom = bindings?.[game.index] != null
+    const games = gamesAt(physical)
+    const { focused, listening, custom, target, label } = slotState(games)
+    const key = target && `bind:${target.index}`
     const color = FACE_COLOR[p.face] || `rgb(${FROG.jade})`
     return (
       <g
-        role="button"
+        role={key ? 'button' : undefined}
         tabIndex={-1}
-        aria-label={`${game.name} button`}
-        onClick={() => onSelectKey(key)}
-        onMouseEnter={() => onFocusKey(key)}
-        style={{ cursor: 'pointer' }}
+        aria-label={games.length ? `${label} button` : 'unassigned button'}
+        onClick={key ? () => onSelectKey(key) : undefined}
+        onMouseEnter={key ? () => onFocusKey(key) : undefined}
+        style={{ cursor: key ? 'pointer' : 'default' }}
       >
         {focused && <circle cx={p.x} cy={p.y} r={R + 3} fill="none" stroke={`rgb(${FROG.jade})`} strokeWidth="2" />}
-        <circle cx={p.x} cy={p.y} r={R} fill={FROG.panel} stroke={color} strokeWidth="2.5" />
+        <circle cx={p.x} cy={p.y} r={R} fill={FROG.panel} stroke={games.length ? color : FROG.line} strokeWidth="2.5" />
         <text
           x={p.x}
           y={p.y}
           textAnchor="middle"
           dominantBaseline="central"
-          fontSize="12"
+          fontSize={label.length > 1 ? 9 : 12}
           fontWeight="700"
-          fill={listening ? `rgb(${FROG.jade})` : FROG.ink}
+          fill={listening ? `rgb(${FROG.jade})` : games.length ? FROG.ink : FROG.faint}
         >
-          {listening ? '…' : game.name}
+          {listening ? '…' : label}
         </text>
         {custom && <circle cx={p.x + R - 2} cy={p.y - R + 2} r="2.5" fill={`rgb(${FROG.jade})`} />}
       </g>
     )
   }
 
-  // A shoulder / Select pill — interactive like a face button, but oblong and neutral.
-  const Bindable = ({ physical, w = 26, h = 12, label }) => {
+  // A shoulder / Select pill — always drawn, interactive when a game button sits on it.
+  const Bindable = ({ physical, w = 26, h = 12 }) => {
     const p = POS[physical]
-    const game = gameByPhysical[physical]
-    if (!p || !game) return null
-    const key = `bind:${game.index}`
-    const focused = focusedKey === key
-    const listening = listeningFor === game.index
-    const custom = bindings?.[game.index] != null
+    const games = gamesAt(physical)
+    const { focused, listening, custom, target, label } = slotState(games)
+    const key = target && `bind:${target.index}`
     return (
       <g
-        role="button"
+        role={key ? 'button' : undefined}
         tabIndex={-1}
-        aria-label={`${game.name} button`}
-        onClick={() => onSelectKey(key)}
-        onMouseEnter={() => onFocusKey(key)}
-        style={{ cursor: 'pointer' }}
+        aria-label={games.length ? `${label} button` : 'unassigned button'}
+        onClick={key ? () => onSelectKey(key) : undefined}
+        onMouseEnter={key ? () => onFocusKey(key) : undefined}
+        style={{ cursor: key ? 'pointer' : 'default' }}
       >
         <rect
           x={p.x - w / 2}
@@ -135,13 +142,35 @@ export default function ControllerDiagram({
           height={h}
           rx={h / 2}
           fill={focused ? `rgba(${FROG.jade}, 0.18)` : FROG.panel}
-          stroke={focused ? `rgb(${FROG.jade})` : FROG.soft}
+          stroke={focused ? `rgb(${FROG.jade})` : games.length ? FROG.soft : FROG.line}
           strokeWidth={focused ? '2' : '1.5'}
         />
-        <text x={p.x} y={p.y} textAnchor="middle" dominantBaseline="central" fontSize="8" fontWeight="700" fill={listening ? `rgb(${FROG.jade})` : FROG.soft}>
-          {listening ? '…' : label || game.name}
+        <text x={p.x} y={p.y} textAnchor="middle" dominantBaseline="central" fontSize="8" fontWeight="700" fill={listening ? `rgb(${FROG.jade})` : games.length ? FROG.soft : FROG.faint}>
+          {listening ? '…' : label}
         </text>
         {custom && <circle cx={p.x + w / 2 - 2} cy={p.y - h / 2 + 2} r="2" fill={`rgb(${FROG.jade})`} />}
+      </g>
+    )
+  }
+
+  // Off-map bindings — a game button a custom rebind pushed onto a stick / d-pad / trigger
+  // the diagram doesn't draw. Rendered as focusable chips so the row is never lost.
+  const OffMapChip = ({ b, i, n }) => {
+    const key = `bind:${b.index}`
+    const focused = focusedKey === key
+    const listening = listeningFor === b.index
+    const w = 62
+    const gap = 6
+    const total = n * w + (n - 1) * gap
+    const x = (300 - total) / 2 + i * (w + gap)
+    return (
+      <g role="button" tabIndex={-1} onClick={() => onSelectKey(key)} onMouseEnter={() => onFocusKey(key)} style={{ cursor: 'pointer' }}>
+        <rect x={x} y={174} width={w} height={16} rx={8}
+          fill={focused ? `rgba(${FROG.jade}, 0.16)` : FROG.panel}
+          stroke={focused ? `rgb(${FROG.jade})` : FROG.line} strokeWidth={focused ? '1.5' : '1'} />
+        <text x={x + w / 2} y={182} textAnchor="middle" dominantBaseline="central" fontSize="7.5" fontWeight="600" fill={listening ? `rgb(${FROG.jade})` : FROG.soft}>
+          {listening ? `${b.name} …` : `${b.name} → ${describeBinding(resolved[b.index])}`}
+        </text>
       </g>
     )
   }
@@ -195,7 +224,7 @@ export default function ControllerDiagram({
       <Stick x={150} y={128} raw={XBOX.RS} />
 
       {/* Center: Select (bindable) + Menu (locked) + the frog logo. */}
-      <Bindable physical="SELECT" w={22} h={11} label="Sel" />
+      <Bindable physical="SELECT" w={22} h={11} />
       <g>
         <rect x="162" y="68" width="22" height="12" rx="6" fill={FROG.panel} stroke={FROG.line} strokeWidth="1.5" />
         <text x="173" y="74" textAnchor="middle" dominantBaseline="central" fontSize="7" fontWeight="700" fill={FROG.faint}>☰</text>
@@ -212,6 +241,11 @@ export default function ControllerDiagram({
       <FaceButton physical="BUTTON_3" />
       <FaceButton physical="BUTTON_2" />
       <FaceButton physical="BUTTON_1" />
+
+      {/* Off-map bindings, if any — game buttons a custom rebind moved onto a stick / d-pad. */}
+      {offMap.map((b, i) => (
+        <OffMapChip key={b.index} b={b} i={i} n={offMap.length} />
+      ))}
     </svg>
   )
 }

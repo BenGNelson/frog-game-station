@@ -91,13 +91,22 @@ describe('player panel render smoke', () => {
     ).not.toThrow()
   })
 
-  it('ControllerDiagram mounts across schemes + hotkeys without throwing', () => {
-    for (const scheme of ['letters', 'positions']) {
+  it('ControllerDiagram mounts across schemes + custom rebinds without throwing', () => {
+    // Includes the edge cases that used to blank a face slot / hide a button:
+    // a normal remap, a collision (two game buttons on one physical), and an
+    // off-map rebind (a game button pushed onto a stick the diagram doesn't draw).
+    const cases = [
+      { scheme: 'letters', custom: {} },
+      { scheme: 'positions', custom: {} },
+      { scheme: 'letters', custom: { 0: 'BUTTON_1' } }, // collision: A and B share the bottom
+      { scheme: 'letters', custom: { 8: 'RIGHT_STICK' } }, // off-map: A on R3
+    ]
+    for (const { scheme, custom } of cases) {
       expect(() =>
         renderToString(
           <ControllerDiagram
-            resolved={resolveBindings({ scheme })}
-            bindings={{ 8: 'BUTTON_2' }}
+            resolved={resolveBindings({ scheme, custom })}
+            bindings={custom}
             listeningFor={8}
             wikiHotkey={11}
             pokedexHotkey={10}
