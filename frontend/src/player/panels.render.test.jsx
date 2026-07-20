@@ -6,6 +6,9 @@ import PokedexPanel from './PokedexPanel.jsx'
 import PauseMenu from './PauseMenu.jsx'
 import SaveStatePanel from './SaveStatePanel.jsx'
 import SaveActionMenu from './SaveActionMenu.jsx'
+import ControllerDiagram from './ControllerDiagram.jsx'
+import ControlsPanel from './ControlsPanel.jsx'
+import { resolveBindings } from '../lib/controlPresets.js'
 
 // Render smoke test for the mounted-persistent player panels. Server-rendering each one
 // executes its full render path (props, state, hooks, the useImperativeHandle deps array)
@@ -83,6 +86,50 @@ describe('player panel render smoke', () => {
           onLoad={() => {}}
           onDelete={() => {}}
           onCancel={() => {}}
+        />
+      )
+    ).not.toThrow()
+  })
+
+  it('ControllerDiagram mounts across schemes + hotkeys without throwing', () => {
+    for (const scheme of ['letters', 'positions']) {
+      expect(() =>
+        renderToString(
+          <ControllerDiagram
+            resolved={resolveBindings({ scheme })}
+            bindings={{ 8: 'BUTTON_2' }}
+            listeningFor={8}
+            wikiHotkey={11}
+            pokedexHotkey={10}
+            ffHotkey={4}
+            isPokemon
+            focusedKey="bind:8"
+            onFocusKey={() => {}}
+            onSelectKey={() => {}}
+          />
+        )
+      ).not.toThrow()
+    }
+  })
+
+  it('ControlsPanel mounts (with the diagram) without throwing', () => {
+    expect(() =>
+      renderToString(
+        <ControlsPanel
+          padName="Xbox Wireless Controller"
+          scheme="letters"
+          bindings={{}}
+          listeningFor={null}
+          wikiHotkey={11}
+          pokedexHotkey={10}
+          ffHotkey={null}
+          isPokemon
+          focus={2}
+          onFocus={() => {}}
+          onScheme={() => {}}
+          onListen={() => {}}
+          onReset={() => {}}
+          onBack={() => {}}
         />
       )
     ).not.toThrow()

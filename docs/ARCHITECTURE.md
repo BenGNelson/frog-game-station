@@ -349,6 +349,36 @@ airplane mode fills in the full library by itself when the network returns. Laun
 downloaded game offline hands off to the player exactly as online — it boots from the
 cached ROM and engine.
 
+### Controls — the pad, drawn
+
+The Controls screen (`player/ControlsPanel.jsx`) exists because the face buttons have **no
+right answer**: Nintendo's confirm (A) is the *right* button, Xbox's confirm (A) is the
+*bottom* one — same letter, different place — so whichever you match, you break the other.
+That's a preference, so it's a **scheme** (`lib/controlPresets.js`): `letters` (default —
+press A, the game gets A; best for Pokémon/menus) vs `positions` (the bottom button stays
+the bottom button; best for platformers). Every button is remappable on top, **per
+controller** (`controlBindings` keyed by pad id, so a second pad doesn't rewire the first).
+
+- **The buttons are shown as a drawn controller, not a list** (`player/ControllerDiagram.jsx`).
+  Following the drawn-not-scraped rule (a frog sits where a real pad prints its logo), each
+  face button wears its **real controller colour** (bottom green / right red / left blue /
+  top amber, the `ButtonLegend` convention) and is labelled with the **game** button it
+  currently triggers — so flipping the scheme visibly **moves "A"** between the bottom and
+  right buttons, which is the whole choice made obvious. Face buttons, shoulders and Select
+  are interactive (focus/click → rebind); the diagram reflects the same linear focus the pad
+  walks (`controlRows`), so the picture and the d-pad never disagree.
+- **Only the stick-clicks are truly free, and the diagram says so.** In-play the engine reads
+  the pad itself (its own loop + our preset), so the app can't intercept a press — the *only*
+  collision-free buttons for an app **shortcut** are the two stick-clicks L3/R3 (no core uses
+  them). The diagram flags them jade and annotates what's on each. The **Menu** button is
+  app-reserved (short = Start, long = the pause menu) and shown locked.
+- **Shortcuts: Wiki, Pokédex, Fast Forward.** Each is an app action bindable to any button
+  (a game button will also fire in-game — surfaced as the tradeoff). Wiki defaults to **R3**,
+  Pokédex to **L3**; **Fast Forward** ships **unassigned** (both free clicks are taken) — you
+  opt in and pick the button (`ffHotkey`; toggles the core turbo via `emuBridge.setFastForward`
+  when pressed in-play). The screen scroll-follows the controller (the house
+  `scrollIntoView({block:'nearest'})` pattern) so the shortcuts and Reset at the bottom are reachable.
+
 ### The in-game wiki reader
 
 A **peekable wiki reader** opens over the paused game (`player/WikiPanel.jsx`, reached from
@@ -695,6 +725,14 @@ The player and readers are **real routes**, not overlays, so the phone's back ge
 - **The parent owns the saves, not the frame.** The durable "where am I in this game"
   record has to survive the disposable emulator, roam between devices, and be backed up —
   so the frame only *emits* save data and the parent *stores* it, under `/data/saves`.
+- **Controls are shown as a drawn controller, and the hotkey scarcity is made visible, not
+  hidden.** The face-button scheme (`letters`/`positions`) is a real preference with no correct
+  answer, so it's a setting — and a drawn pad that live-swaps "A" between the bottom and right
+  buttons teaches it faster than any prose. Because the engine owns the pad in-play, only the two
+  stick-clicks can carry an app shortcut without also firing in-game; rather than pretend
+  otherwise, the diagram flags the free buttons and lets the player make the tradeoff (Fast
+  Forward ships unassigned for exactly this reason). The controller graphic is drawn, never
+  scraped — same rule as the console art.
 - **The pause menu is a list, and actions live where they belong, not all at one altitude.**
   The in-game menu is a fixed-order grouped list, not a reflowing tile grid: a menu opened
   constantly must put the same action under the same button-walk, which a per-game column

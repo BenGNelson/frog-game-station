@@ -33,6 +33,11 @@ export const DEFAULTS = {
   // The Pokédex hotkey (Pokémon games only). Default 10 (left stick click / L3) — the
   // other collision-free stick click, the sibling of the wiki's R3.
   pokedexHotkey: 10,
+  // The fast-forward hotkey. Default null (unassigned) — the two collision-free stick
+  // clicks are already spoken for (wiki=R3, pokedex=L3), so fast-forward is opt-in: the
+  // player picks a button in Controls and owns the tradeoff (any game button also fires
+  // in-game). Rebindable like the others.
+  ffHotkey: null,
 }
 
 // This device's overrides for one specific controller.

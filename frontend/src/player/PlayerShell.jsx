@@ -569,11 +569,11 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
       // The wiki hotkey is an app action, not a RetroPad button — it can take ANY
       // button except the app's own Menu/Guide. It MAY collide with a game button
       // (then that button also acts in-game); that's on the player, said in the panel.
-      if (listeningFor === 'wiki' || listeningFor === 'pokedex') {
+      if (listeningFor === 'wiki' || listeningFor === 'pokedex' || listeningFor === 'fastForward') {
         if (buttonIndex === 9 || buttonIndex === 16) {
           setError('That button belongs to the app — pick another.')
         } else {
-          const key = listeningFor === 'wiki' ? 'wikiHotkey' : 'pokedexHotkey'
+          const key = listeningFor === 'wiki' ? 'wikiHotkey' : listeningFor === 'pokedex' ? 'pokedexHotkey' : 'ffHotkey'
           saveSettings({ ...settings, [key]: buttonIndex })
         }
         setListeningFor(null)
@@ -777,6 +777,13 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
         openPokedex(true)
         return true
       }
+      // The fast-forward hotkey (opt-in, any button) — toggle the core's turbo mid-play.
+      if (settings.ffHotkey != null && index === settings.ffHotkey && isRunning(state)) {
+        const on = !fastForward
+        setFastForward(emuRef.current, on)
+        setFF(on)
+        return true
+      }
       return false
     },
 
@@ -859,7 +866,7 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
         else if (action === 'confirm') {
           const row = rows[controlsFocus]
           if (row === 'reset') resetBindings()
-          else if (row === 'wiki' || row === 'pokedex') setListeningFor(row)
+          else if (row === 'wiki' || row === 'pokedex' || row === 'fastForward') setListeningFor(row)
           else if (row.startsWith('bind:')) setListeningFor(Number(row.slice(5)))
           else chooseScheme(row)
         } else if (action === 'up' || action === 'down') {
@@ -1259,6 +1266,7 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
             listeningFor={listeningFor}
             wikiHotkey={settings.wikiHotkey}
             pokedexHotkey={settings.pokedexHotkey}
+            ffHotkey={settings.ffHotkey}
             isPokemon={isPokemon}
             focus={controlsFocus}
             onFocus={setControlsFocus}
