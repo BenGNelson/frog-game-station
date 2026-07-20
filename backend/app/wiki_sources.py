@@ -124,3 +124,47 @@ def curated_wiki_url(name):
             title = quote(("Walkthrough:" + page).replace(" ", "_"), safe=":_")
             return f"https://{_BULBAPEDIA}/wiki/{title}"
     return None
+
+
+# --- Curated per-HACK wikis --------------------------------------------------
+#
+# Popular ROM hacks have their OWN dedicated wikis — a hack should default THERE, not to
+# its base game's wiki or Bulbapedia walkthrough. Keyed on a distinctive squashed-name
+# keyword (matched as a substring of the squashed ROM display name, longest keyword first
+# so a more specific hack wins), valued by a specific PAGE on that wiki — the wiki's real
+# landing page (each host answers its MediaWiki API and each page was hand-verified to
+# render, not guessed). Consulted only for a game the user has marked as a hack, so a bare
+# keyword like "vega" can't hijack an unrelated mainline title. The "Change wiki" pin
+# overrides if a hack's naming ever collides. Tiny + high-value, like the family table.
+_HACKS = sorted(
+    [
+        ("pokemonunbound", ("pokemonunbound.fandom.com", "Pokemon Unbound Wiki")),
+        ("unbound", ("pokemonunbound.fandom.com", "Pokemon Unbound Wiki")),
+        ("pokemonreborn", ("pokemon-reborn.fandom.com", "Home")),
+        ("reborn", ("pokemon-reborn.fandom.com", "Home")),
+        ("pokemoninsurgence", ("pokemoninsurgence.fandom.com", "Pokemon Insurgence Wiki")),
+        ("insurgence", ("pokemoninsurgence.fandom.com", "Pokemon Insurgence Wiki")),
+        ("pokemonclover", ("pokemon-clover.fandom.com", "Pokemon Clover Wikia")),
+        ("clover", ("pokemon-clover.fandom.com", "Pokemon Clover Wikia")),
+        ("pokemonvega", ("pokemonvega.fandom.com", "Pokémon Vega Wiki")),
+        ("vega", ("pokemonvega.fandom.com", "Pokémon Vega Wiki")),
+    ],
+    key=lambda kv: -len(kv[0]),
+)
+
+# Every hack wiki host, folded into the router's known-wiki trust so a hack-wiki page the
+# resolver picks is also reachable for search / deep-link / the image proxy.
+HACK_HOSTS = frozenset(host for _, (host, _) in _HACKS)
+
+
+def hack_wiki_url(name):
+    """A known ROM hack's OWN dedicated wiki PAGE, or None. Matched by a distinctive keyword
+    in the squashed name (so 'Pokemon Unbound (v2.1.1.1)' → the Unbound wiki), longest
+    keyword first. Only meaningful for a game already marked as a hack — the caller gates on
+    `is_hack`; everything else falls through to the base game's wiki / a search."""
+    squashed = _squash(name)
+    for keyword, (host, page) in _HACKS:
+        if keyword in squashed:
+            title = quote(page.replace(" ", "_"), safe=":_")
+            return f"https://{host}/wiki/{title}"
+    return None
