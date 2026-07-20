@@ -13,7 +13,35 @@ what's below is what's left, roughly priority-ordered within each group.
 
 ---
 
+## Priority
+
+Open items carry an inline tag; completed (`[x]`) items are left untagged — they're history.
+
+- **[P1]** — do next. Small + clearly wanted, or unblocks other work.
+- **[P2]** — worth doing; not urgent.
+- **[P3]** — nice-to-have / someday / parked.
+
+---
+
 ## Features
+
+- [ ] [P2] **Controller-bindings audit + visualizer.** A screen that shows a controller
+      graphic with every button labeled by what it's bound to, so unused buttons become
+      visible and assignable (e.g. to **save-state** or **fast-forward** — fast-forward exists
+      via `emuBridge.js:413` but has no dedicated button; save/load are pause-menu tiles only).
+      **Key constraint to design around:** the EmulatorJS engine polls the pad itself in-game,
+      so the app can only own buttons the RetroPad preset leaves free — effectively just the two
+      stick clicks (L3/R3), and both are already taken (R3 = wiki hotkey, L3 = Pokédex; see
+      `lib/playerSettings.js:32-35`, `PlayerShell.jsx:714-726`). So a naive "assign the spare
+      buttons" won't find many spares — the audit's real job is to surface that and find real
+      options (chord/hold combos, demoting a rarely-used game binding, or letting the user trade
+      a game binding for an app hotkey). Two parts: (1) an **audit** that maps bound/free across
+      both layers (`lib/gamepad.js`, `lib/controlPresets.js`) and proposes slots for save-state +
+      fast-forward; (2) a **controller-graphic bindings screen** — extend the glyphs in
+      `player/ButtonLegend.jsx` (face-button colours already there; needs trigger/stick/d-pad
+      glyphs) and build on the existing rebind UI in `player/ControlsPanel.jsx`. Also fold in the
+      dead-space cleanup (rarely-used actions like "Set as Cover") flagged in the pause-menu UX
+      review below.
 
 - [x] **Deeper ROM-hack support surfacing** — shipped (badge + base link, borrow art): mark
       a game as "a ROM hack of <base>" via a toggle in the rematch picker — it borrows the
@@ -57,16 +85,16 @@ what's below is what's left, roughly priority-ordered within each group.
       variant), else nothing (search-and-pin covers it). Disk-cached per family.
       _StrategyWiki (the original plan) turned out unusable — a Cloudflare JS challenge 403s every
       server-side fetch, search and article alike._
-- [ ] **Wikis for ROM hacks (e.g. Pokémon Unbound).** Popular hacks have their OWN dedicated
+- [ ] [P2] **Wikis for ROM hacks (e.g. Pokémon Unbound).** Popular hacks have their OWN dedicated
       wikis (Unbound, Radical Red, Emerald Rogue, …) — often a Fandom or standalone MediaWiki.
       Detect/curate these so a hack defaults to its own wiki instead of the base game's. Likely
       a curated per-hack table (keyed off the hack name) + the general search fallback; the
       `is_hack` flag + base-game link already exist to hang this off.
-- [ ] **Pokédex: make it as easy to navigate as possible.** The list is a 1-D up/down list
+- [ ] [P2] **Pokédex: make it as easy to navigate as possible.** The list is a 1-D up/down list
       today. Add letter/number jumping (a rail or trigger-jump like the game list), faster
       analog-stick scroll, and search-while-browsing (the on-screen keyboard for a controller).
       Consider a cover-grid option and remembering the last-viewed Pokémon per game.
-- [ ] **Cross-link walkthrough Pokémon → our Pokédex.** In a Bulbapedia walkthrough the Pokémon
+- [ ] [P3] **Cross-link walkthrough Pokémon → our Pokédex.** In a Bulbapedia walkthrough the Pokémon
       links currently navigate within Bulbapedia; instead route a `…(Pokémon)` link to OUR
       Pokédex detail (open the Pokédex panel to that species). The backend already knows each
       species' Bulbapedia title, so the mapping is there — the reader would recognize a species
@@ -76,14 +104,40 @@ what's below is what's left, roughly priority-ordered within each group.
 
 ## Quality & polish
 
-- [ ] **Save-state shelf: default the controller cursor to "Save new", not the newest
-      save.** Opening the save-state menu from the pause screen currently lands the cursor on
-      the most recent save state (`openShelf` in `frontend/src/player/PlayerShell.jsx` sets
-      `shelfFocus` to `1` — index `0` is the "Save new" tile, `1` is the newest save). Change
-      it to default to the **Save-new tile** (index `0`). (Note: the current behaviour is
-      deliberate — the comment argues you open the shelf to *load* more often than to save —
-      so flipping it is a conscious preference change; update that comment too.)
-- [ ] **Touch ergonomics — search-field keyboard auto-raise on iOS.** _(Deferred, not
+- [x] **Save-state shelf: default the controller cursor to "Save new".** Shipped (on
+      `feat/save-state-p1-fixes`): `openShelf` (`frontend/src/player/PlayerShell.jsx`) now lands
+      `shelfFocus` on index `0` (the Save-new tile) rather than the newest save, so saving under
+      time pressure is open → A → A. Loading a specific state is a short d-pad step down; the
+      code comment now records that as the deliberate choice.
+- [x] **Confirm before deleting a save state.** Shipped (on `feat/save-state-p1-fixes`): every
+      in-player delete trigger (touch button, keyboard Del/Backspace, pad Y) now arms an "are you
+      sure?" gate instead of deleting immediately. Reuses a shared `frog/ConfirmDialog` (extracted
+      from the game-detail page, which already confirmed deletes there) — title "Delete this save
+      state?", buttons "Delete" / "Keep". Fully navigable: the pad moves left/right between the
+      two (A commits the highlight — default Delete, so Y → A still deletes — B cancels), plus
+      touch and keyboard. The confirm stacks above the shelf (`z-40`) and eats the pad while up.
+- [ ] [P2] **Pause-menu UX review — grid vs. vertical menu.** The pause menu keeps growing
+      (~9–11 tiles now: `frontend/src/player/PauseMenu.jsx:31-59`, a `pauseCols`-computed grid).
+      Spin up a UX agent to recommend a layout — specifically whether to move to a vertical
+      text/word menu (the RetroArch / EmulationStation idiom) vs. keep the tile grid — grounded
+      in what works in other emulator quick-menus and menu design generally (scan-ability, muscle
+      memory, controller reachability, room to grow). Deliverable: a recommendation with rationale
+      + a rough layout sketch, not code. Feeds the dead-space cleanup (low-use tiles like "Set as
+      Cover" may belong in a submenu or be removed) that the bindings audit also touches.
+      _(The acute bug — a full Pokémon-hack menu (11 tiles) overflowing a short landscape screen
+      and clipping the title + legend — is fixed: the tiles were shortened to a 4:3 aspect so the
+      whole menu fits without scrolling. This item is the deeper structural rethink, not a crash-fix.)_
+- [ ] [P2] **Shelf layout on a tall/overflowing home screen — persistent frog column.** On a
+      wide screen the shelf is a two-part row: the **frog + caption** aside on the left, and the
+      rails (Jump back in / Most Played / systems) on the right. When the rails are taller than the
+      viewport the whole row scrolls, which drags the frog column off with it — and because the
+      left aside vertically centres, its caption can sit *over* the system you've scrolled to. Two
+      wants: (1) the home screen should **open scrolled to the top** (not mid-content), and (2) the
+      **frog/caption column should stay put** (sticky) while only the rails scroll, so the caption
+      always names what's focused without overlapping a rail. Think through the interaction with
+      the existing `focus.rail` scroll-into-view (`frog/Shelf.jsx`) and the phone/portrait stacked
+      layout (where the frog is inline, not a side column) before changing the flex structure.
+- [ ] [P3] **Touch ergonomics — search-field keyboard auto-raise on iOS.** _(Deferred, not
       dropped.)_ iOS blocks programmatic focus outside a user gesture, so there's no clean
       web fix — it needs an on-device solution and is low-value next to the rest. Parked with
       eyes open rather than left dangling. _Swipe momentum: **closed** — it's been the default
@@ -98,7 +152,7 @@ what's below is what's left, roughly priority-ordered within each group.
 
 ### Follow-ups from shipped features
 
-- [ ] **Mark a ROM hack that has no IGDB candidates** — marking uses the rematch picker,
+- [ ] [P2] **Mark a ROM hack that has no IGDB candidates** — marking uses the rematch picker,
       which only opens when IGDB returned a candidate shortlist. A hack whose cleaned filename
       yields zero candidates (or an unmatched base) can't be marked / linked. Needs a base-game
       **search** in the picker (type a name → IGDB search → pick), reusing the on-screen
