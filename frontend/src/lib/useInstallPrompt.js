@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { isIOS } from './playerMode.js'
 import {
+  clearDeferred,
   currentDeferred,
   getDismissed,
   installNudgeState,
@@ -32,14 +33,17 @@ export function useInstallPrompt() {
 
   const promptInstall = useCallback(async () => {
     if (!deferred) return
-    deferred.prompt()
-    try {
-      await deferred.userChoice
-    } catch {
-      /* user gesture lost / already used — non-fatal */
-    }
-    // The event is single-use; drop it either way so the button can't re-fire a spent one.
+    // Single-use: drop it from both local state AND the module singleton FIRST, so a shelf
+    // remount can't re-seed the nudge from a spent event (which would make prompt() throw).
+    const evt = deferred
     setDeferred(null)
+    clearDeferred()
+    try {
+      evt.prompt()
+      await evt.userChoice
+    } catch {
+      /* user gesture lost / already used / cancelled — non-fatal */
+    }
   }, [deferred])
 
   const dismiss = useCallback(() => {

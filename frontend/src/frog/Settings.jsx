@@ -1,6 +1,6 @@
 import { RefreshCw, KeyRound, Gamepad2, Volume2, Hand } from 'lucide-react'
 import { FROG } from './theme.js'
-import { TOUCH_OPACITY_LEVELS } from '../lib/playerSettings.js'
+import { TOUCH_OPACITY_LEVELS, nearestOpacityLevel } from '../lib/playerSettings.js'
 
 // The settings screen.
 //
@@ -30,13 +30,18 @@ export default function Settings({ status, loading, focus, onFocus, onRescan, re
             <p className="mt-2 text-sm" style={{ color: FROG.faint }}>Checking…</p>
           ) : configured ? (
             <div className="mt-2 space-y-3">
-              {/* Announced: a screen-reader user re-scanning otherwise gets no signal that
-                  anything is happening, or that it finished. Polite so it doesn't interrupt. */}
-              <p className="text-sm" style={{ color: FROG.soft }} aria-live="polite" aria-atomic="true">
+              {/* The visible line carries the live counter — but NOT in a live region, or a
+                  screen reader would re-read "Scanning 12 of 300…" on every 4s poll. */}
+              <p className="text-sm" style={{ color: FROG.soft }}>
                 {running
                   ? `Scanning… ${status.processed ?? 0} / ${status.total ?? 0}`
                   : `${status.matched ?? 0} of ${status.looked_up ?? 0} games matched.`}
               </p>
+              {/* A coarse, polite announcement instead: the START of a scan (stable text, so
+                  it's announced once), the way the download region announces coarsely too. */}
+              <span className="sr-only" aria-live="polite">
+                {running ? 'Scanning the library…' : ''}
+              </span>
               <button
                 type="button"
                 data-testid="frog-rescan"
@@ -134,7 +139,9 @@ export default function Settings({ status, loading, focus, onFocus, onRescan, re
           </p>
           <div className="inline-flex overflow-hidden rounded-lg" style={{ border: `1px solid ${FROG.line}` }}>
             {TOUCH_OPACITY_LEVELS.map((lvl) => {
-              const on = touchOpacity === lvl.value
+              // Match the nearest step, so a legacy/off-grid stored value (an old 0.75) still
+              // shows one segment active instead of none.
+              const on = nearestOpacityLevel(touchOpacity) === lvl.value
               return (
                 <button
                   key={lvl.label}

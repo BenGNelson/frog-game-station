@@ -10,7 +10,7 @@ import {
   postGameMatch, GAME_META_STATUS_PATH, fetchPlayStats, postMetaRescan,
 } from '../lib/library.js'
 import { rematchOptions } from './rematch.js'
-import { readSettings, writeSettings, TOUCH_OPACITY_LEVELS } from '../lib/playerSettings.js'
+import { readSettings, writeSettings, TOUCH_OPACITY_LEVELS, nearestOpacityLevel } from '../lib/playerSettings.js'
 import { isFavorite, toggleFavorite } from '../lib/favorites.js'
 import { setStateMeta } from '../lib/saveStates.js'
 import { ensureEmulatorEngine, cacheGameSram } from '../lib/offlineStore.js'
@@ -232,6 +232,13 @@ export default function FrogBrowser() {
   const [collections, setCollections] = useState({ finished: [], tags: {}, hacks: {} })
   // Bumped when a game is newly marked FINISHED, to fire the one-shot celebration toast.
   const [finishTick, setFinishTick] = useState(0)
+  // Finished-membership mirrored in a ref so the celebrate trigger decides from live truth,
+  // not a stale render closure — synced from collections after each commit, and updated
+  // synchronously on toggle so two taps in one frame can't double-fire or miss.
+  const finishedRef = useRef(collections.finished)
+  useEffect(() => {
+    finishedRef.current = collections.finished
+  }, [collections.finished])
   // Whether the mount GET has SUCCEEDED. FrogBrowser REMOUNTS on every game launch, so a
   // collection list re-entered right after quitting a game would, for one render, see the
   // empty starting `collections` and wrongly read as "this collection is empty". This
@@ -434,10 +441,14 @@ export default function FrogBrowser() {
 
   // Typing narrows the list under the cursor: keep the result focus in range, and if
   // the list empties out from under the results zone, hand the cursor back to the keys.
+  // Inert while the query is EMPTY: the results zone then holds recents / suggestions (not
+  // `results`, which is always [] then), whose cursor the nav handlers manage — so a
+  // background library poll (a fresh `results` identity) can't yank a controller off them.
   useEffect(() => {
+    if (!query) return
     setResultRow((i) => Math.min(i, Math.max(0, results.length - 1)))
     if (!results.length) setZone((z) => (z === 'results' ? 'grid' : z))
-  }, [results])
+  }, [results, query])
 
   // Reconcile focus with whatever the rails just became.
   //
@@ -648,9 +659,13 @@ export default function FrogBrowser() {
   const toggleFinished = () => {
     if (!detailGame) return
     const id = detailGame.id
-    // Celebrate only the false→true mark (never the un-mark). Read from the current
-    // collections for the trigger; the authoritative write stays in the functional updater.
-    if (!collections.finished.includes(id)) setFinishTick((t) => t + 1)
+    // Celebrate only the false→true mark (never the un-mark). Decide from the ref — kept in
+    // sync and updated here — so a double-tap can't celebrate an un-mark or miss a mark.
+    const wasFinished = finishedRef.current.includes(id)
+    finishedRef.current = wasFinished
+      ? finishedRef.current.filter((x) => x !== id)
+      : [id, ...finishedRef.current]
+    if (!wasFinished) setFinishTick((t) => t + 1)
     collectionsDirty.current.finished.add(id)
     setCollections((c) => {
       const next = !c.finished.includes(id)
@@ -1133,7 +1148,7 @@ export default function FrogBrowser() {
       // ends; A cycles forward with wrap so it always changes something. A legacy value
       // that isn't one of the levels falls back to the default step.
       const levels = TOUCH_OPACITY_LEVELS.map((l) => l.value)
-      const here = levels.indexOf(touchOpacity) === -1 ? 1 : levels.indexOf(touchOpacity)
+      const here = levels.indexOf(nearestOpacityLevel(touchOpacity))
       const stepOpacity = (dir, wrap = false) => {
         const next = wrap
           ? (here + dir + levels.length) % levels.length

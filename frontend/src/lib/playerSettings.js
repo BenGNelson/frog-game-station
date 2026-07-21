@@ -64,6 +64,14 @@ export const CONTROL_SKINS = [
   { id: 'nintendo', name: 'Nintendo' },
 ]
 
+// The level a stored opacity maps to — snaps a legacy/off-grid value (e.g. an old 0.75
+// default) to the nearest step, so the Settings segments always show one active and the
+// D-pad always has a "current" to step from.
+export function nearestOpacityLevel(v) {
+  const vals = TOUCH_OPACITY_LEVELS.map((l) => l.value)
+  return vals.reduce((best, cur) => (Math.abs(cur - v) < Math.abs(best - v) ? cur : best), vals[0])
+}
+
 // This device's overrides for one specific controller.
 export function bindingsFor(settings, padId) {
   return (padId && settings?.controlBindings?.[padId]) || {}

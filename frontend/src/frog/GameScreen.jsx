@@ -997,7 +997,7 @@ function RematchDialog({ rematch, native = false, accent, onHover, onPick, onTog
           })}
         </ul>
         {error && (
-          <p data-testid="frog-rematch-error" className="mt-3 px-1 text-xs font-medium" style={{ color: 'rgb(239, 90, 90)' }}>
+          <p data-testid="frog-rematch-error" className="mt-3 px-1 text-xs font-medium" style={{ color: `rgb(${FROG.danger})` }}>
             {error}
           </p>
         )}
