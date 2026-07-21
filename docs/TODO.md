@@ -6,8 +6,14 @@ picker (so a zero-candidate hack can be linked), and per-hack wikis — alongsid
 tweak that **removed the "Most played" home rail** (play-time tracking stays, on the game
 page). Earlier pushes covered the Quick wins and the top Features (IGDB "more like this",
 collections + finished flag, custom cover art, save-state rename/annotate/pin, analog-stick
-fast-scroll, letter-rail tap targets). Shipped work lives in the git history (`git log`);
-what's left below is just **P3 nice-to-haves**, roughly priority-ordered within each group.
+fast-scroll, letter-rail tap targets). A later **full UI/UX-review sweep** then landed a
+batch of usability + friendliness wins — a PWA install nudge, a first-run "Surprise me",
+accessibility (focus-visible / aria-live / AA-contrast text), a finish celebration, touch
+ergonomics (opacity control + bigger/brighter controls + haptics + a screen-reader menu
+path), a rebalanced search with first-run suggestions, and a de-overlapped drawn controller
+with an Xbox/PlayStation/Nintendo skin — all code-reviewed. Shipped work lives in the git
+history (`git log`); what's left below is just **P3 nice-to-haves**, roughly priority-ordered
+within each group.
 
 > **Deployment status:** the standalone stack is deployed and runs as its own installable
 > PWA (its own origin, manifest, and service worker — independent of any parent app). See
