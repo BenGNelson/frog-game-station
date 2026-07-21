@@ -36,6 +36,7 @@ import Frog, { FrogMark, Reflected } from './Frog.jsx'
 import Boot from './Boot.jsx'
 import Shelf from './Shelf.jsx'
 import InstallNudge from './InstallNudge.jsx'
+import FinishToast from './FinishToast.jsx'
 import Search from './Search.jsx'
 import SettingsPanel from './Settings.jsx'
 import GameScreen from './GameScreen.jsx'
@@ -228,6 +229,8 @@ export default function FrogBrowser() {
   // once on mount; edits (on the game page) update this optimistically so the shelf's
   // Finished / per-tag rails reflect a change the instant you make it, without a round-trip.
   const [collections, setCollections] = useState({ finished: [], tags: {}, hacks: {} })
+  // Bumped when a game is newly marked FINISHED, to fire the one-shot celebration toast.
+  const [finishTick, setFinishTick] = useState(0)
   // Whether the mount GET has SUCCEEDED. FrogBrowser REMOUNTS on every game launch, so a
   // collection list re-entered right after quitting a game would, for one render, see the
   // empty starting `collections` and wrongly read as "this collection is empty". This
@@ -636,6 +639,9 @@ export default function FrogBrowser() {
   const toggleFinished = () => {
     if (!detailGame) return
     const id = detailGame.id
+    // Celebrate only the false→true mark (never the un-mark). Read from the current
+    // collections for the trigger; the authoritative write stays in the functional updater.
+    if (!collections.finished.includes(id)) setFinishTick((t) => t + 1)
     collectionsDirty.current.finished.add(id)
     setCollections((c) => {
       const next = !c.finished.includes(id)
@@ -1479,6 +1485,10 @@ export default function FrogBrowser() {
           full-screen/offline home-screen app). Renders null unless the browser actually
           offers install and it hasn't been dismissed. */}
       {screen === 'shelf' && native && <InstallNudge />}
+
+      {/* One-shot "you finished a game" celebration — fires from the game page, but lives
+          at the root so it rides above whatever's on screen and survives the page's zones. */}
+      <FinishToast tick={finishTick} />
 
       {/* The pond light. It takes the colour of whatever is in focus, which is the
           single cheapest way to make a machine feel *selected* rather than outlined. */}

@@ -10,7 +10,12 @@ import { Reflected, SystemFrog } from './Frog.jsx'
 import { FinishedBadge, HackBadge } from './Shelf.jsx'
 import SystemChip from './SystemChip.jsx'
 
+// Row height. Bigger on a TV/desktop (`lg`) — 15px rows on a 1080p panel viewed from a
+// sofa are below 10-foot legibility, and it's exactly where there's the most empty room.
+// The windowing math and the rendered row read the SAME value (via `rowH` below), so they
+// can never disagree about how tall a row is.
 const ROW = 44
+const ROW_LG = 56
 
 // A cartridge, drawn — the "thing you slot in" behind a system's list, the way the frog
 // and pond-light already say which machine you're in. A faint accent-tinted watermark
@@ -118,6 +123,8 @@ export default function GameList({ system, collection, loading = false, games, f
   // that breakpoint there's nothing to warm — don't spend a phone's bandwidth on art
   // it won't render.
   const showsArt = useMediaQuery('(min-width: 1024px)')
+  // The one row height, shared by the windowing and the render so they can't drift.
+  const rowH = showsArt ? ROW_LG : ROW
   useEffect(() => {
     if (showsArt) prefetchCovers(neighborCoverUrls(games, focus))
   }, [focus, games, showsArt])
@@ -129,10 +136,10 @@ export default function GameList({ system, collection, loading = false, games, f
     count: games.length,
     scrollLeft: scrollTop,
     viewportWidth: height,
-    step: ROW,
+    step: rowH,
     focusIndex: focus,
   })
-  const pad = spacers({ count: games.length, start, end, step: ROW })
+  const pad = spacers({ count: games.length, start, end, step: rowH })
   const visible = games.slice(start, end + 1)
 
   // Which letters actually have games behind them. A rail that offers you "Q" when
@@ -223,23 +230,26 @@ export default function GameList({ system, collection, loading = false, games, f
                   data-testid="frog-row"
                   onMouseMove={() => onFocus(index)}
                   onClick={() => onPick(g)}
-                  className="flex w-full items-center gap-3 rounded-lg px-3 text-left transition-colors"
+                  className="flex w-full items-center gap-3 rounded-lg px-3 text-left transition-colors lg:gap-4 lg:px-4"
                   style={{
-                    height: ROW,
-                    background: on ? `rgba(${listAccent}, 0.16)` : 'transparent',
-                    boxShadow: on ? `inset 0 0 0 1px rgba(${listAccent}, 0.5)` : 'none',
+                    height: rowH,
+                    // A stronger selection on the big screen: the focused row is the entire
+                    // state of the screen, so it has to pop from a couch, not whisper.
+                    background: on ? `rgba(${listAccent}, ${showsArt ? 0.24 : 0.16})` : 'transparent',
+                    boxShadow: on ? `inset 0 0 0 ${showsArt ? 1.5 : 1}px rgba(${listAccent}, ${showsArt ? 0.72 : 0.5})` : 'none',
                   }}
                 >
-                  {/* The cursor: a lit edge on the focused row, in the list's colour. */}
+                  {/* The cursor: a lit edge on the focused row, in the list's colour —
+                      taller and brighter at TV size where the fill alone can read soft. */}
                   <span
-                    className="h-5 w-[3px] shrink-0 rounded-full"
+                    className="h-5 w-[3px] shrink-0 rounded-full lg:h-8 lg:w-1"
                     style={{
                       background: on ? `rgb(${listAccent})` : 'transparent',
-                      boxShadow: on ? `0 0 12px rgba(${listAccent}, 0.9)` : 'none',
+                      boxShadow: on ? `0 0 ${showsArt ? 16 : 12}px rgba(${listAccent}, ${showsArt ? 1 : 0.9})` : 'none',
                     }}
                   />
                   <span
-                    className="min-w-0 flex-1 truncate text-[15px]"
+                    className="min-w-0 flex-1 truncate text-[15px] lg:text-[19px]"
                     style={{ color: on ? FROG.ink : FROG.soft, fontWeight: on ? 600 : 400 }}
                   >
                     {g.name}

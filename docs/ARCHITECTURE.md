@@ -62,7 +62,10 @@ reachable from anywhere. The shape of them is the design:
   re-fetches on every cursor move, so it warms the neighbours: `lib/prefetchCovers.js`
   kicks off image loads for the rows just off the cursor (nearest-first), landing them in
   the browser cache before you arrive — gated to the `lg` breakpoint, since below it the
-  art aside doesn't render and there's nothing to warm.
+  art aside doesn't render and there's nothing to warm. At that same `lg`/TV width the
+  rows grow (taller, larger type) and the focus cue strengthens (a brighter fill, a taller
+  lit cursor edge) for a 10-foot read — the row height is a single `rowH` the windowing and
+  the render share, so a taller row can't desync the virtual list from its scroll math.
 - **A collection is the SAME list.** A big collection (a tag with more than a screenful of
   games) is browsed with the exact same screen — `GameList` takes an optional `collection`
   prop and, when set, wears the neutral collection jade instead of one machine's colour,
@@ -92,7 +95,10 @@ reachable from anywhere. The shape of them is the design:
   fast resume; a secondary button still opens the page).
   - **Collections: a "finished" flag + free-form tags, both server-owned so they roam.** The
     finished toggle is a one-tap status (its own action, a trophy badge on every cover, and
-    a "Finished" shelf rail). Tags are a *set* — a "Collections" focus zone opens a picker
+    a "Finished" shelf rail). Marking one — the emotional peak of owning a library — fires a
+    one-shot celebration (`FinishToast`): the mascot hops and a jade toast rises for a beat,
+    on the false→true mark only, `role="status"` for AT and frozen politely under
+    reduced-motion. Tags are a *set* — a "Collections" focus zone opens a picker
     (input-trapped like the re-match dialog): the D-pad walks the existing tags and A toggles
     this game's membership; the "new collection" row above the list creates a brand-new tag —
     a native field for touch, and for a controller the **on-screen keyboard** (see below), so
