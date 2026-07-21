@@ -25,6 +25,9 @@ export const DEFAULTS = {
 
   // How the controller maps onto the game — see lib/controlPresets.js.
   controlScheme: 'letters',
+  // Cosmetic: which brand the drawn pad on the Controls screen looks like (face-button
+  // colours). Doesn't change any mapping — just matches the controller in your hands.
+  controlSkin: 'xbox',
   // Per-button overrides, keyed BY CONTROLLER: `{ '<pad id>': { 8: 'BUTTON_2' } }`.
   // Keyed by pad rather than globally because a second controller is a different
   // shape, and remapping one must not silently rewire the other.
@@ -51,6 +54,14 @@ export const TOUCH_OPACITY_LEVELS = [
   { value: 0.7, label: 'Soft' },
   { value: 0.85, label: 'Bold' },
   { value: 1, label: 'Solid' },
+]
+
+// The controller looks the Controls screen's drawn pad can wear — purely cosmetic
+// (face-button colours), so the drawing matches the pad in your hands.
+export const CONTROL_SKINS = [
+  { id: 'xbox', name: 'Xbox' },
+  { id: 'playstation', name: 'PlayStation' },
+  { id: 'nintendo', name: 'Nintendo' },
 ]
 
 // This device's overrides for one specific controller.

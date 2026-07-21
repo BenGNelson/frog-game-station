@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { ChevronLeft, Check, RotateCcw, Gamepad2, BookOpen, BookMarked, FastForward } from 'lucide-react'
 import { SCHEMES, BINDABLE, resolveBindings, describeBinding } from '../lib/controlPresets.js'
+import { CONTROL_SKINS } from '../lib/playerSettings.js'
 import { bindingForButton } from '../lib/gamepad.js'
 import { FROG } from '../frog/theme.js'
 import { glowFilter } from '../lib/glow.js'
@@ -23,6 +24,8 @@ import ControllerDiagram from './ControllerDiagram.jsx'
 export default function ControlsPanel({
   padName,
   scheme,
+  skin,
+  onSkin,
   bindings,
   listeningFor, // the RetroPad index (or 'wiki'/'pokedex'/'fastForward') waiting for a press, or null
   wikiHotkey, // the raw pad-button index bound to the wiki reader
@@ -109,12 +112,44 @@ export default function ControlsPanel({
             Nintendo puts <b style={{ color: FROG.soft }}>A</b> on the right; Xbox puts it on the bottom — watch it move on the pad.
           </p>
 
+          {/* Controller style — a cosmetic skin so the drawn pad matches the one in your
+              hands. Changes the face-button colours only, never the mapping. */}
+          <div className="mb-4 flex items-center justify-center gap-2">
+            <span className="text-xs" style={{ color: FROG.faint }}>Pad style</span>
+            <div
+              data-focused={focusedKey === 'skin' || undefined}
+              onMouseMove={() => onFocus(rows.indexOf('skin'))}
+              className="inline-flex overflow-hidden rounded-lg"
+              style={{
+                border: `1px solid ${focusedKey === 'skin' ? `rgba(${FROG.jade}, 0.6)` : FROG.line}`,
+                boxShadow: focusedKey === 'skin' ? `0 0 0 2px rgba(${FROG.jade}, 0.5)` : 'none',
+              }}
+            >
+              {CONTROL_SKINS.map((sk) => {
+                const on = skin === sk.id
+                return (
+                  <button
+                    key={sk.id}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => onSkin(sk.id)}
+                    className="px-3 py-1.5 text-xs font-semibold transition-colors"
+                    style={{ background: on ? `rgb(${FROG.jade})` : 'transparent', color: on ? FROG.ground : FROG.soft }}
+                  >
+                    {sk.name}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
           {/* The controller — the hero. Face buttons / shoulders / Select are focusable
               (click or the d-pad row-walk selects them → rebind); the diagram lights the
               focused one. */}
           <div data-focused={bindFocused || undefined} className="rounded-3xl border p-3 sm:p-5" style={{ borderColor: FROG.line, background: 'rgba(255,255,255,0.025)' }}>
             <ControllerDiagram
               resolved={resolved}
+              skin={skin}
               bindings={bindings}
               listeningFor={listeningFor}
               wikiHotkey={wikiHotkey}
@@ -259,6 +294,7 @@ function HotkeyRow({ Icon, label, hint, value, listening, focused, onSelect, onH
 export function controlRows(isPokemon = false) {
   return [
     ...Object.keys(SCHEMES),
+    'skin',
     ...BINDABLE.map((b) => `bind:${b.index}`),
     'wiki',
     ...(isPokemon ? ['pokedex'] : []),

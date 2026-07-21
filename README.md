@@ -42,7 +42,7 @@ It has a hand-drawn **frog mascot** and a **WATER / jade dark theme** — a pond
 - **In-game Pokédex** — for a Pokémon game or hack, a full dex over the paused game: sprites, types, base stats, and tappable evolution chains, scoped to the game's region.
 - **Offline + installable PWA** — download games and play offline; a gentle, one-time nudge on the phone shelf offers to add Frog Game Station to your home screen (a one-tap install on Android, the Share → "Add to Home Screen" route on iOS).
 - **Real touch controls** — a from-scratch multi-touch overlay with true d-pad diagonals and hit areas bigger than the buttons, adjustable opacity, and a haptic tick on every press (Android).
-- **Gamepad-native** — pad, arrow keys, and mouse through one code path. The **Controls** screen draws your pad: pick whether *A* means the letter or the position (Nintendo vs Xbox), remap any button, and badge shortcuts onto the free buttons.
+- **Gamepad-native** — pad, arrow keys, and mouse through one code path. The **Controls** screen draws your pad: pick whether *A* means the letter or the position (Nintendo vs Xbox), match the drawing to your controller (Xbox / PlayStation / Nintendo), remap any button, and badge shortcuts onto the free buttons.
 - **Drawn, not scraped** — console art is illustrated in-app (no official logos), for one coherent look.
 - **Settings** — check the matcher and re-scan, set the input mode, and toggle nav sounds, all from a header gear.
 - **A living WATER theme** — pond caustics, cover reflections, per-system accents, and true-black OLED on phones; all motion respects `prefers-reduced-motion`.
