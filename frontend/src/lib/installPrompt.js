@@ -82,6 +82,13 @@ export function currentDeferred() {
   return deferredEvent
 }
 
+// Drop the stored event once it's been fired — a beforeinstallprompt is single-use, and if
+// the user opens the OS install sheet and CANCELS, no `appinstalled` fires to clear it. Left
+// alone, a shelf remount would re-seed the nudge from the spent event and re-firing it throws.
+export function clearDeferred() {
+  deferredEvent = null
+}
+
 export function subscribeDeferred(fn) {
   subscribers.add(fn)
   return () => subscribers.delete(fn)

@@ -10,6 +10,7 @@ import {
   clearBindings,
   resetControls,
   TOUCH_OPACITY_LEVELS,
+  nearestOpacityLevel,
   CONTROL_SKINS,
 } from './playerSettings.js'
 
@@ -73,6 +74,17 @@ describe('TOUCH_OPACITY_LEVELS', () => {
 
   it('include the default, so the settings control always has a highlighted step', () => {
     expect(TOUCH_OPACITY_LEVELS.map((l) => l.value)).toContain(DEFAULTS.touchOpacity)
+  })
+
+  it('nearestOpacityLevel snaps a legacy/off-grid value to the closest step', () => {
+    // The old 0.75 default (still in some stored settings) must map to a real level so the
+    // segmented control shows one active instead of none.
+    expect(nearestOpacityLevel(0.75)).toBe(0.7)
+    expect(nearestOpacityLevel(0.9)).toBe(0.85)
+    expect(nearestOpacityLevel(0.1)).toBe(0.5)
+    expect(nearestOpacityLevel(1)).toBe(1)
+    // An exact level stays itself.
+    for (const { value } of TOUCH_OPACITY_LEVELS) expect(nearestOpacityLevel(value)).toBe(value)
   })
 })
 

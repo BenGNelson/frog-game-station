@@ -89,12 +89,12 @@ export function buildShelf(items = [], recent = [], favorites = [], collections 
   return [...history, { id: 'systems', title: 'Systems', kind: 'system', items: systems }, ...discoverRail(items, history)]
 }
 
-// A first-run shelf has no history rails — just the six machines over a lot of empty
-// pond. Give it a "Surprise me" card below the systems: it fills that space AND is the
-// only way to reach the random pick by thumb (on a pad it's R3; a finger otherwise had
-// no route in at all). It retires the moment the shelf has any history of its own — once
-// there's a Jump-back-in / Favorites / Finished / tag rail, the space is no longer empty
-// and the header's shuffle button is enough. Nothing to be random about with no games.
+// A first-run shelf has no history rails — just the six machines over a lot of empty pond.
+// Give it a "Surprise me" card below the systems: it fills that space and invites a random
+// pick. (The header shuffle button reaches random from anywhere too — this card is the
+// first-run affordance where the empty space is.) It retires the moment the shelf has any
+// history of its own — a Jump-back-in / Favorites / Finished / tag rail — since the space is
+// no longer empty. Nothing to be random about with no games.
 export function discoverRail(items = [], history = []) {
   if (history.length || !items.length) return []
   return [
