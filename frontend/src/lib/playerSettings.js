@@ -14,8 +14,11 @@ const SWEEP_FLAG = 'frog.player.ejsSwept'
 export const DEFAULTS = {
   // 'auto' picks touch or pad by what's actually connected; the other two pin it.
   inputMode: 'auto',
-  touchOpacity: 0.75,
-  touchScale: 1,
+  // How present the on-screen touch controls are. User-adjustable (Settings → Touch
+  // controls) because taste and lighting vary — someone on a sunlit phone wants them
+  // bolder, someone who finds them intrusive over the game wants them fainter. The
+  // default is one of the levels below so the control always shows a highlighted step.
+  touchOpacity: 0.7,
   volume: 0.5,
   // Soft navigation blips in the browser. Off by default — sound is opt-in.
   navSfx: false,
@@ -39,6 +42,16 @@ export const DEFAULTS = {
   // in-game). Rebindable like the others.
   ffHotkey: null,
 }
+
+// The touch-control opacity steps the Settings card offers — a segmented control (like
+// input mode / nav sound) rather than a raw slider, so the same D-pad left/right that
+// drives every other setting drives this one. `DEFAULTS.touchOpacity` is one of these.
+export const TOUCH_OPACITY_LEVELS = [
+  { value: 0.5, label: 'Faint' },
+  { value: 0.7, label: 'Soft' },
+  { value: 0.85, label: 'Bold' },
+  { value: 1, label: 'Solid' },
+]
 
 // This device's overrides for one specific controller.
 export function bindingsFor(settings, padId) {
