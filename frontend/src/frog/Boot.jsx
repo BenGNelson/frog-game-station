@@ -90,7 +90,7 @@ export default function Boot({ onDone }) {
           FROG
         </h1>
         <p className="mt-2 text-xs tracking-[0.3em]" style={{ color: FROG.faint }}>
-          GAME LIBRARY
+          GAME STATION
         </p>
       </div>
 

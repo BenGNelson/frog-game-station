@@ -34,7 +34,7 @@ It has a hand-drawn **frog mascot** and a **WATER / jade dark theme** — a pond
 - **Rich game pages** — a background matcher pulls IGDB art, screenshots, summary, genres, and rating. Unmatched ROMs still get a clean cover-and-title page — nothing looks broken.
 - **"More like this"** — each game suggests similar titles you *actually own*.
 - **Play-time tracking** — clocks how long you play each game and shows the total on its page.
-- **Collections & a "finished" flag** — sort your library into free-form collections and badge the games you've beaten; both roam from couch to phone.
+- **Collections & a "finished" flag** — sort your library into free-form collections and badge the games you've beaten (with a little mascot cheer when you mark one done); both roam from couch to phone.
 - **Your own cover art** — grab a frame mid-game as box art — perfect for ROM hacks and unmatched titles.
 - **ROM-hack aware** — tag a hack of a base game: it borrows the base's art, keeps its own name, wears a **HACK** badge, and links back to the base.
 - **Save states + battery saves** — battery saves roam and back up server-side; snapshot save states carry a thumbnail and can be named, pinned, and relaunched.
