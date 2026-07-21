@@ -212,7 +212,8 @@ Open items carry an inline tag; completed (`[x]`) items are left untagged — th
       jade blobs, transform/opacity only, frozen under reduced-motion).
 - [x] Extend the **per-system accent** to the chrome: a back-lit header underline that
       recolours with the focused machine. (Scrollbars stay hidden by design; the app drives
-      focus via `data-focused`, not real DOM focus, so a global focus-ring was moot.)
+      focus via `data-focused`, not real DOM focus — but a global `:focus-visible` ring was
+      since added for genuine keyboard/AT focus, which never collides with the virtual cursor.)
 - [x] **Console-cartridge motif:** a faint accent-tinted cartridge watermark behind each
       system's list (system lists only — a collection spans machines).
 - [x] Extend the **reflection** (water) motif: a soft accent waterline at the hero's base
