@@ -307,7 +307,7 @@ function DexRow({ p, focused, onFocus, onOpen }) {
     <li>
       <button
         data-focused={focused || undefined}
-        onMouseEnter={onFocus}
+        onMouseMove={onFocus}
         onClick={onOpen}
         className="flex w-full items-center gap-3 rounded-lg px-3 py-1.5 text-left transition-colors"
         style={{

@@ -1263,9 +1263,9 @@ function SaveEditor({ editor, native, accent, onEdit, onFocus, onOpenLabel, onOp
     color: FROG.ink,
   }
   const rowStyle = (on, danger) => ({
-    background: on ? (danger ? 'rgba(239,90,90,0.14)' : `rgba(${accent}, 0.16)`) : 'transparent',
+    background: on ? (danger ? `rgba(${FROG.danger}, 0.14)` : `rgba(${accent}, 0.16)`) : 'transparent',
     boxShadow: on
-      ? `inset 0 0 0 1px ${danger ? 'rgba(239,90,90,0.5)' : `rgba(${accent}, 0.5)`}`
+      ? `inset 0 0 0 1px ${danger ? `rgba(${FROG.danger}, 0.5)` : `rgba(${accent}, 0.5)`}`
       : `inset 0 0 0 1px ${FROG.line}`,
   })
   return (
@@ -1374,7 +1374,7 @@ function SaveEditor({ editor, native, accent, onEdit, onFocus, onOpenLabel, onOp
           onMouseMove={() => onFocus(3)}
           onClick={onDelete}
           className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-medium"
-          style={{ color: 'rgb(239, 90, 90)', ...rowStyle(index === 3, true) }}
+          style={{ color: `rgb(${FROG.danger})`, ...rowStyle(index === 3, true) }}
         >
           <Trash2 className="h-4 w-4" aria-hidden="true" /> Delete save
         </button>

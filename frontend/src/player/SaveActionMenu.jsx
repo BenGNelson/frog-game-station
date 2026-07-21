@@ -60,15 +60,15 @@ export default function SaveActionMenu({ title, focus, onFocusChange, onLoad, on
         <div className="flex flex-col gap-2">
           {rows.map((r, i) => {
             const on = focus === i
-            const accent = r.danger ? 'rgb(239, 90, 90)' : `rgb(${FROG.jade})`
-            const tint = r.danger ? '239, 90, 90' : FROG.jade
+            const accent = r.danger ? `rgb(${FROG.danger})` : `rgb(${FROG.jade})`
+            const tint = r.danger ? FROG.danger : FROG.jade
             return (
               <button
                 key={r.id}
                 type="button"
                 data-focused={on || undefined}
                 onClick={() => commit(i)}
-                onMouseEnter={() => onFocusChange(i)}
+                onMouseMove={() => onFocusChange(i)}
                 className={`flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left text-sm font-medium transition-transform ${on ? 'scale-[1.02]' : ''}`}
                 style={{
                   background: on ? `rgba(${tint}, 0.14)` : 'transparent',

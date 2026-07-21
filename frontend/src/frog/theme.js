@@ -27,8 +27,10 @@ export const FROG = {
   jade: '52, 211, 153',
   // A cartridge label. Stops the whole thing being one note of green.
   amber: '242, 180, 65',
-  // A violet used sparingly as a secondary accent.
-  home: '139, 92, 246',
+  // Destructive actions — delete a save, remove a download, a confirm's "yes". One RGB
+  // token so the single red can't drift across the seven places that used to hardcode it,
+  // the same single-source rule `reflection()` already enforces for shadows.
+  danger: '239, 90, 90',
 }
 
 // One frog, six costumes. This is the part no scraper can hand anyone else — every

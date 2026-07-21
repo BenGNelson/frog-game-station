@@ -146,7 +146,7 @@ export default function SaveStatePanel({
         <span className="w-16" aria-hidden="true" />
       </div>
 
-      {error && <p className="px-4 pb-2 text-sm" style={{ color: 'rgb(239, 90, 90)' }}>{error}</p>}
+      {error && <p className="px-4 pb-2 text-sm" style={{ color: `rgb(${FROG.danger})` }}>{error}</p>}
       {coverNotice && (
         <p data-testid="frog-cover-notice" className="px-4 pb-2 text-sm font-medium" style={{ color: `rgb(${FROG.jade})` }}>
           {coverNotice}
@@ -163,7 +163,7 @@ export default function SaveStatePanel({
         <div ref={gridRef} className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           <button
             onClick={onSave}
-            onMouseEnter={() => onFocus(0)}
+            onMouseMove={() => onFocus(0)}
             disabled={busy}
             data-focused={focus === 0 || undefined}
             className={`flex aspect-[4/3] flex-col items-center justify-center gap-2 rounded-xl border border-dashed transition-transform active:opacity-80 disabled:opacity-50 ${
@@ -181,7 +181,7 @@ export default function SaveStatePanel({
           </button>
 
           {states.map((s, i) => (
-            <div key={s.slot} data-focused={focus === i + 1 || undefined} onMouseEnter={() => onFocus(i + 1)}>
+            <div key={s.slot} data-focused={focus === i + 1 || undefined} onMouseMove={() => onFocus(i + 1)}>
               <SaveStateCard
                 game={game}
                 state={s}
@@ -202,7 +202,7 @@ export default function SaveStatePanel({
               <button
                 key={c.id}
                 onClick={c.run}
-                onMouseEnter={() => onFocus(idx)}
+                onMouseMove={() => onFocus(idx)}
                 data-focused={f || undefined}
                 className={`flex aspect-[4/3] flex-col items-center justify-center gap-2 rounded-xl border border-dashed transition-transform active:opacity-80 ${
                   f ? 'scale-105' : ''

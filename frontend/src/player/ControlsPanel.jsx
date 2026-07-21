@@ -172,7 +172,7 @@ export default function ControlsPanel({
 
           <button
             onClick={onReset}
-            onMouseEnter={() => onFocus(rows.indexOf('reset'))}
+            onMouseMove={() => onFocus(rows.indexOf('reset'))}
             data-focused={resetFocused || undefined}
             aria-current={resetFocused || undefined}
             className="mt-5 flex w-full items-center justify-center gap-1.5 rounded-xl border py-3 text-sm transition-colors"
@@ -200,7 +200,7 @@ function SchemeCard({ scheme, active, focused, onSelect, onHover }) {
   return (
     <button
       onClick={onSelect}
-      onMouseEnter={onHover}
+      onMouseMove={onHover}
       data-focused={focused || undefined}
       aria-current={focused || undefined}
       className={`rounded-2xl border p-3 text-left transition-all ${focused ? 'scale-[1.02]' : ''}`}
@@ -227,7 +227,7 @@ function HotkeyRow({ Icon, label, hint, value, listening, focused, onSelect, onH
   return (
     <button
       onClick={onSelect}
-      onMouseEnter={onHover}
+      onMouseMove={onHover}
       data-focused={focused || undefined}
       aria-current={focused || undefined}
       className="flex w-full items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors"
