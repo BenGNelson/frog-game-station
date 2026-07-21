@@ -10,3 +10,24 @@
 html {
   background-color: #05110d;
 }
+
+/*
+  A visible ring for REAL keyboard / assistive-tech focus. The browsing UI drives its
+  own cursor via `data-focused` (not DOM focus), and mouse/gamepad focus never triggers
+  :focus-visible — so this ring only ever appears for a genuine Tab or AT focus. It
+  therefore can't fight the console cursor; it only rescues the keyboard/screen-reader
+  user who currently gets no on-screen indication of where they are.
+
+  The native text fields set `outline-none` to suppress the UA ring; the higher-specificity
+  input/textarea rule below opts them back in — but only when focus is real — so the search
+  box and the tag/save/wiki/pokédex editors are usable without a mouse.
+*/
+:focus-visible {
+  outline: 2px solid rgb(52 211 153);
+  outline-offset: 2px;
+}
+input:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid rgb(52 211 153);
+  outline-offset: 2px;
+}

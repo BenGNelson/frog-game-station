@@ -14,7 +14,13 @@ export const FROG = {
 
   ink: '#E6F5EE',
   soft: '#93B5A8',
-  faint: '#5B7A6E',
+  // The third text tier — captions, counts, sub-labels, dimmed/inactive states. Kept
+  // brighter than it looks like it "should" be on purpose: at #5B7A6E it read at only
+  // ~3.7:1 on the panel and failed WCAG AA for body text, so it's lifted to clear 4.5:1
+  // on every ground (panel/ground/OLED-black) while staying plainly dimmer than `soft`
+  // so the ink→soft→faint hierarchy still reads. `line` (below) owns hairlines — `faint`
+  // is text only. (Guarded by theme.test.js.)
+  faint: '#7C9C8F',
 
   // The frog's own green. Constant RGB (not a Tailwind token) so the accent is
   // fixed regardless of any global CSS.

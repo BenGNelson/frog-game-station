@@ -331,16 +331,28 @@ keydown router yields to a focused `<input>` so the native field's keystrokes ne
 double-fire.
 
 Because navigation is a **virtual cursor** (the global key router + a `data-focused`
-attribute for styling) rather than real DOM focus, "focus-visible rings" have nothing to
-ring — so accessibility is handled where it actually helps. The input-trapping overlays
-(the re-match picker, the delete/remove confirm, the fullscreen screenshot) are **real
-modals**: `role="dialog"` + `aria-modal` + `aria-labelledby`, with focus moved onto the
-panel on open and handed back to the opener on close, and `Tab` contained. That lives in one
-tiny hook, `lib/useFocusTrap.js`, shared by all three. Focus lands on the panel itself, not a
-control inside it — a focused button would let a physical Enter fire *both* the global
-`confirm` action and the button's native click (which, for a Yes/No confirm, can disagree),
-so the key router stays the single driver while assistive tech still enters and announces the
-dialog.
+attribute for styling) rather than real DOM focus, most of the UI's focus-visible rings
+have nothing to ring — so accessibility is handled where it actually helps. The
+input-trapping overlays (the re-match picker, the delete/remove confirm, the fullscreen
+screenshot) are **real modals**: `role="dialog"` + `aria-modal` + `aria-labelledby`, with
+focus moved onto the panel on open and handed back to the opener on close, and `Tab`
+contained. That lives in one tiny hook, `lib/useFocusTrap.js`, shared by all three. Focus
+lands on the panel itself, not a control inside it — a focused button would let a physical
+Enter fire *both* the global `confirm` action and the button's native click (which, for a
+Yes/No confirm, can disagree), so the key router stays the single driver while assistive
+tech still enters and announces the dialog.
+
+Where real DOM focus *does* land — a keyboard/AT user who `Tab`s into the search box or a
+tag/save/wiki editor — a single global **`:focus-visible`** rule (`index.css`) paints a jade
+ring, and a higher-specificity `input/textarea` rule opts the native fields back in past
+their `outline-none`. Because mouse and gamepad focus never trigger `:focus-visible`, this
+never fights the console cursor; it only rescues the keyboard user who otherwise saw nothing.
+Async state that's conveyed only by a changing label — the **download** progress/result and
+the **library-scan** status — is mirrored into polite `aria-live` regions (coarse: start +
+terminal, not every percent), so a non-sighted user hears that a download or re-scan started
+and finished. And the two body-text tiers (`FROG.soft`, `FROG.faint`) are held to **WCAG AA
+contrast** on every ground by `theme.test.js`, so a palette tweak can't silently regress the
+faint captions below legibility.
 
 **Frog Game Station works offline.** The shelf, game list, and search are all built from one array of
 `{ id, name, core, label }` items — online that's the library API; offline it's the games
