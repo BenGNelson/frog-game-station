@@ -1,5 +1,6 @@
-import { RefreshCw, KeyRound, Gamepad2, Volume2 } from 'lucide-react'
+import { RefreshCw, KeyRound, Gamepad2, Volume2, Hand } from 'lucide-react'
 import { FROG } from './theme.js'
+import { TOUCH_OPACITY_LEVELS } from '../lib/playerSettings.js'
 
 // The settings screen.
 //
@@ -14,7 +15,7 @@ const MODES = [
   { id: 'pad', label: 'Pad' },
 ]
 
-export default function Settings({ status, loading, focus, onFocus, onRescan, rescanBusy, inputMode, onInputMode, navSfx, onNavSfx }) {
+export default function Settings({ status, loading, focus, onFocus, onRescan, rescanBusy, inputMode, onInputMode, navSfx, onNavSfx, touchOpacity, onTouchOpacity }) {
   const configured = !!status?.configured
   const running = !!status?.running
   const canRescan = configured && !running && !rescanBusy
@@ -118,6 +119,36 @@ export default function Settings({ status, loading, focus, onFocus, onRescan, re
                   }}
                 >
                   {opt.label}
+                </button>
+              )
+            })}
+          </div>
+        </Card>
+
+        {/* --- Touch controls: on-screen control opacity (takes effect in the player). --- */}
+        <Card focused={focus === 'touch'} onFocus={() => onFocus('touch')}>
+          <Row icon={<Hand className="h-4 w-4" style={{ color: `rgb(${FROG.jade})` }} aria-hidden="true" />} title="Touch controls" />
+          <p className="mb-3 mt-2 text-sm leading-relaxed" style={{ color: FROG.faint }}>
+            How bold the on-screen buttons are in the player. Fainter keeps more of the game
+            in view; bolder is easier to find in bright light.
+          </p>
+          <div className="inline-flex overflow-hidden rounded-lg" style={{ border: `1px solid ${FROG.line}` }}>
+            {TOUCH_OPACITY_LEVELS.map((lvl) => {
+              const on = touchOpacity === lvl.value
+              return (
+                <button
+                  key={lvl.label}
+                  type="button"
+                  data-testid={`frog-touchopacity-${lvl.label.toLowerCase()}`}
+                  aria-pressed={on}
+                  onClick={() => onTouchOpacity(lvl.value)}
+                  className="px-4 py-2 text-sm font-semibold transition-colors"
+                  style={{
+                    background: on ? `rgb(${FROG.jade})` : 'transparent',
+                    color: on ? FROG.ground : FROG.soft,
+                  }}
+                >
+                  {lvl.label}
                 </button>
               )
             })}

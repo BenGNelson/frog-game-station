@@ -143,7 +143,13 @@ export default function TouchOverlay({ core, orientation, onInput, onAction, opa
 
       const next = reduceTouches({ owners }, touches, layout, transformRef.current)
 
-      for (const { index, down } of diffPressed(pressed, next.pressed)) handlers.current.onInput(index, down)
+      for (const { index, down } of diffPressed(pressed, next.pressed)) {
+        // A crisp tick on the press edge. On glass with no travel, this is most of what
+        // makes a button feel "pressed". No-op on iOS (WebKit has no vibration API), so
+        // the `?.` costs nothing there; on Android it's the tactile confirm the glow can't be.
+        if (down) navigator.vibrate?.(8)
+        handlers.current.onInput(index, down)
+      }
 
       // A UI button (menu, fast-forward) fires ONCE, on the way down — not every
       // frame a finger rests on it, and not on release, which would feel laggy.
@@ -189,9 +195,16 @@ export default function TouchOverlay({ core, orientation, onInput, onAction, opa
   })
 
   return (
+    <>
     <div
       ref={surfaceRef}
       data-testid="touch-overlay"
+      // The controls are unlabelled coordinate-math glyphs (pointer-events:none) driven by
+      // the surface's own raw-touch listeners, so they're meaningless to a screen reader —
+      // hide the whole surface from AT and expose the two real actions as labelled buttons
+      // below. (Game buttons genuinely can't be AT-driven; the menu path can, which is what
+      // lets a VoiceOver/TalkBack user still pause, save, and quit.)
+      aria-hidden="true"
       // No safe-area padding here: the player wrapper already insets the whole
       // player, so this box is safe by the time we get it. Padding again would
       // inset twice and shrink every control.
@@ -250,14 +263,29 @@ export default function TouchOverlay({ core, orientation, onInput, onAction, opa
         }
       `}</style>
     </div>
+
+    {/* The AT-reachable twins of the ☰ / » glyphs above. Visually hidden (sighted players
+        use the real controls); a screen reader focuses and activates these to open the game
+        menu or toggle fast-forward without touching the coordinate pipeline. */}
+    <div className="sr-only">
+      <button type="button" aria-label="Game menu" onClick={() => onAction?.('pauseMenu')}>
+        Game menu
+      </button>
+      <button type="button" aria-label="Fast forward" onClick={() => onAction?.('fastForward')}>
+        Fast forward
+      </button>
+    </div>
+    </>
   )
 }
 
+// Resting contrast lifted (borders were white/20–30, ~1.8:1 over a bright game — the
+// button SHAPES, not just their labels, need to clear ~3:1 so a thumb can find them).
 const SHAPE = {
-  button: 'rounded-full border-2 border-white/30 bg-black/40 backdrop-blur-[2px]',
-  pill: 'rounded-full border border-white/25 bg-black/40 text-[11px] tracking-wide backdrop-blur-[2px]',
-  shoulder: 'rounded-xl border border-white/25 bg-black/40 backdrop-blur-[2px]',
-  ui: 'rounded-lg border border-white/20 bg-black/50 text-sm backdrop-blur-[2px]',
+  button: 'rounded-full border-2 border-white/50 bg-black/45 backdrop-blur-[2px]',
+  pill: 'rounded-full border border-white/45 bg-black/45 text-[11px] tracking-wide backdrop-blur-[2px]',
+  shoulder: 'rounded-xl border border-white/40 bg-black/45 backdrop-blur-[2px]',
+  ui: 'rounded-lg border border-white/40 bg-black/55 text-sm backdrop-blur-[2px]',
   dpad: '',
 }
 
@@ -276,10 +304,10 @@ function DpadArt() {
       <path
         d="M37 4 h26 v33 h33 v26 h-33 v33 h-26 v-33 h-33 v-26 h33 z"
         fill="rgba(0,0,0,0.45)"
-        stroke="rgba(255,255,255,0.3)"
+        stroke="rgba(255,255,255,0.5)"
         strokeWidth="2.5"
       />
-      <g fill="rgba(255,255,255,0.55)">
+      <g fill="rgba(255,255,255,0.62)">
         <path className="d-up" d="M50 14 l7 10 h-14 z" />
         <path className="d-down" d="M50 86 l-7 -10 h14 z" />
         <path className="d-left" d="M14 50 l10 -7 v14 z" />

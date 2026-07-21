@@ -300,6 +300,18 @@ and touch events arrive in **page** coordinates while the layout transform is re
 the surface's own box, so mixing the two shifts every touch and turns a centre press into
 a Down.
 
+A few ergonomics live here too. **SELECT/START** are sized so they letterbox to ~44px on a
+phone (they were ~33px), and the resting **outline contrast** is lifted so the button
+*shapes* — not just their labels — are findable over a bright game. On the press edge each
+game button fires a short **`navigator.vibrate(8)`** — a no-op on iOS (no WebKit vibration
+API), a real tactile confirm on Android. How present the controls are is a preference:
+**Settings → Touch controls** offers stepped opacity (Faint/Soft/Bold/Solid) written to the
+same `frog.player` blob the player reads. (A `touchScale` default that was wired to nothing
+was removed rather than left as a knob that lies.) And because the coordinate surface is
+meaningless to a screen reader, it's `aria-hidden`, with the **menu / fast-forward actions
+mirrored as real labelled buttons** so VoiceOver/TalkBack can still pause, save, and quit —
+the game buttons genuinely can't be AT-driven, but the menu path now can.
+
 ### What the browser / iOS will not let us do
 
 Worth stating so nobody plans around a fantasy:

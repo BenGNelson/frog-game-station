@@ -70,12 +70,15 @@ const face = (id, label, input, x, y, size) => ({
   slide: true, // roll from B to A without lifting
 })
 
-const pill = (id, label, input, x, y, w = 120) => ({
+// SELECT/START. At h:44 these letterboxed to ~33px on a phone — under the 44px touch
+// target and easy to lose under gameplay. h:56 lands them near ~44px visible; they grow
+// DOWN into the empty margin below, so no cluster above them gets any tighter.
+const pill = (id, label, input, x, y, w = 120, h = 56) => ({
   type: 'pill',
   id,
   label,
   input,
-  frame: { x, y, w, h: 44 },
+  frame: { x, y, w, h },
   extendedEdges: EDGES,
 })
 
@@ -103,8 +106,9 @@ const uiBtn = (id, label, action, x, y, size = 58) => ({
 
 const L_UI = () => [uiBtn('menu', '☰', 'pauseMenu', 400, 15, 60), uiBtn('ff', '»', 'fastForward', 540, 15, 60)]
 const L_PILLS = () => [
-  pill('select', 'SELECT', RETROPAD.SELECT, 380, 415),
-  pill('start', 'START', RETROPAD.START, 520, 415),
+  // y:405 (not 415) so the taller h:56 pill still clears the bottom of the 470-tall space.
+  pill('select', 'SELECT', RETROPAD.SELECT, 380, 405),
+  pill('start', 'START', RETROPAD.START, 520, 405),
 ]
 const L_SHOULDERS = () => [shoulder('l', 'L', RETROPAD.L, 30, 20), shoulder('r', 'R', RETROPAD.R, 820, 20)]
 const L_DPAD = () => dpad(30, 200, 240)
@@ -195,7 +199,7 @@ const FOUR_BUTTON = {
 // RetroPad B, MD C = RetroPad A) — the one binding in this file I could not
 // confirm from source, so it's worth a look in an actual Genesis game.
 const SEGA_MD = {
-  landscape: L([L_DPAD(), ...L_THREE, pill('start', 'START', RETROPAD.START, 450, 415), ...L_UI()]),
+  landscape: L([L_DPAD(), ...L_THREE, pill('start', 'START', RETROPAD.START, 450, 405), ...L_UI()]),
   portrait: P([dpad(8, 620, 180), ...P_THREE, pill('start', 'START', RETROPAD.START, 200, 900, 130), ...P_UI()]),
 }
 

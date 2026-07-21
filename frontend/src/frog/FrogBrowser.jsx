@@ -10,7 +10,7 @@ import {
   postGameMatch, GAME_META_STATUS_PATH, fetchPlayStats, postMetaRescan,
 } from '../lib/library.js'
 import { rematchOptions } from './rematch.js'
-import { readSettings, writeSettings } from '../lib/playerSettings.js'
+import { readSettings, writeSettings, TOUCH_OPACITY_LEVELS } from '../lib/playerSettings.js'
 import { isFavorite, toggleFavorite } from '../lib/favorites.js'
 import { setStateMeta } from '../lib/saveStates.js'
 import { ensureEmulatorEngine, cacheGameSram } from '../lib/offlineStore.js'
@@ -150,6 +150,7 @@ export default function FrogBrowser() {
   const [settingsFocus, setSettingsFocus] = useState('igdb')
   const [inputMode, setInputModeState] = useState(() => readSettings(localStorage).inputMode)
   const [navSfx, setNavSfxState] = useState(() => readSettings(localStorage).navSfx)
+  const [touchOpacity, setTouchOpacityState] = useState(() => readSettings(localStorage).touchOpacity)
   const [rescanBusy, setRescanBusy] = useState(false)
   // The IGDB matcher status — polled only while the settings screen is up (one cheap
   // fetch otherwise); useApi pauses when the tab is hidden.
@@ -543,6 +544,12 @@ export default function FrogBrowser() {
     writeSettings(localStorage, { navSfx: v })
     setNavSfxState(v)
     if (v) playForAction('confirm', true) // a blip on enable, so it's audible immediately
+  }
+  // Persist to the SAME `frog.player` blob the player reads, so a change here takes effect
+  // the next time a game is launched (the player mounts fresh and re-reads it).
+  const setTouchOpacity = (v) => {
+    writeSettings(localStorage, { touchOpacity: v })
+    setTouchOpacityState(v)
   }
   // Kick a one-off matching pass. Guarded so a double-press or a press while a pass is
   // already running is a no-op; the status poll then shows the progress.
@@ -1113,11 +1120,22 @@ export default function FrogBrowser() {
     // Settings: two focus rows, up/down between them. On the IGDB card A re-scans; on
     // the input-mode row A and left/right cycle Auto → Touch → Pad. B closes.
     if (screen === 'settings') {
-      const rows = ['igdb', 'inputMode', 'sound']
+      const rows = ['igdb', 'inputMode', 'sound', 'touch']
       const idx = rows.indexOf(settingsFocus)
       const modes = ['auto', 'touch', 'pad']
       const cycleMode = (dir) =>
         setInputMode(modes[(modes.indexOf(inputMode) + dir + modes.length) % modes.length])
+      // Touch-opacity as a stepped level (Faint→Soft→Bold→Solid). left/right clamp at the
+      // ends; A cycles forward with wrap so it always changes something. A legacy value
+      // that isn't one of the levels falls back to the default step.
+      const levels = TOUCH_OPACITY_LEVELS.map((l) => l.value)
+      const here = levels.indexOf(touchOpacity) === -1 ? 1 : levels.indexOf(touchOpacity)
+      const stepOpacity = (dir, wrap = false) => {
+        const next = wrap
+          ? (here + dir + levels.length) % levels.length
+          : Math.min(levels.length - 1, Math.max(0, here + dir))
+        setTouchOpacity(levels[next])
+      }
       switch (action) {
         case 'back':
           closeSettings()
@@ -1131,15 +1149,18 @@ export default function FrogBrowser() {
         case 'confirm':
           if (settingsFocus === 'igdb') doRescan()
           else if (settingsFocus === 'inputMode') cycleMode(1)
-          else setNavSfx(!navSfx)
+          else if (settingsFocus === 'sound') setNavSfx(!navSfx)
+          else stepOpacity(1, true)
           return
         case 'left':
           if (settingsFocus === 'inputMode') cycleMode(-1)
           else if (settingsFocus === 'sound') setNavSfx(false)
+          else if (settingsFocus === 'touch') stepOpacity(-1)
           return
         case 'right':
           if (settingsFocus === 'inputMode') cycleMode(1)
           else if (settingsFocus === 'sound') setNavSfx(true)
+          else if (settingsFocus === 'touch') stepOpacity(1)
           return
         default:
       }
@@ -1654,6 +1675,8 @@ export default function FrogBrowser() {
           onInputMode={setInputMode}
           navSfx={navSfx}
           onNavSfx={setNavSfx}
+          touchOpacity={touchOpacity}
+          onTouchOpacity={setTouchOpacity}
         />
       ) : screen === 'detail' && detailGame ? (
         <GameScreen

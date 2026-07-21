@@ -9,6 +9,7 @@ import {
   withBinding,
   clearBindings,
   resetControls,
+  TOUCH_OPACITY_LEVELS,
 } from './playerSettings.js'
 
 // A stand-in for localStorage, including the index-based key() walk that
@@ -50,6 +51,23 @@ describe('readSettings', () => {
     expect(DEFAULTS.ffHotkey).toBeNull()
     expect(DEFAULTS.wikiHotkey).toBe(11) // R3
     expect(DEFAULTS.pokedexHotkey).toBe(10) // L3
+  })
+
+  it('no longer ships the dead touchScale key (it was wired to nothing)', () => {
+    expect(DEFAULTS).not.toHaveProperty('touchScale')
+  })
+})
+
+describe('TOUCH_OPACITY_LEVELS', () => {
+  it('ascend, top out at fully solid, and stay in (0, 1]', () => {
+    const vals = TOUCH_OPACITY_LEVELS.map((l) => l.value)
+    expect(vals).toEqual([...vals].sort((a, b) => a - b)) // ascending
+    expect(Math.min(...vals)).toBeGreaterThan(0)
+    expect(Math.max(...vals)).toBe(1)
+  })
+
+  it('include the default, so the settings control always has a highlighted step', () => {
+    expect(TOUCH_OPACITY_LEVELS.map((l) => l.value)).toContain(DEFAULTS.touchOpacity)
   })
 })
 
