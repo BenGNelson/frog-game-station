@@ -139,6 +139,19 @@ export default function GameScreen({
         <DownloadIcon state={download.state} />
       </ActionButton>
 
+      {/* The download button's visual label (a %/Offline/Retry) is silent to a screen
+          reader, so mirror the async state into a polite live region. Coarse on purpose —
+          start + terminal, not every percent — so it informs without chattering. */}
+      <span className="sr-only" aria-live="polite">
+        {download.state === 'downloading'
+          ? 'Downloading…'
+          : download.state === 'done'
+            ? 'Download complete — available offline.'
+            : download.state === 'error'
+              ? 'Download failed — select Retry.'
+              : ''}
+      </span>
+
       <ActionButton
         focused={on('actions', 3)}
         onFocus={() => onFocus('actions', 3)}

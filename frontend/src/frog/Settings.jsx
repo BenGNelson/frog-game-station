@@ -29,7 +29,9 @@ export default function Settings({ status, loading, focus, onFocus, onRescan, re
             <p className="mt-2 text-sm" style={{ color: FROG.faint }}>Checking…</p>
           ) : configured ? (
             <div className="mt-2 space-y-3">
-              <p className="text-sm" style={{ color: FROG.soft }}>
+              {/* Announced: a screen-reader user re-scanning otherwise gets no signal that
+                  anything is happening, or that it finished. Polite so it doesn't interrupt. */}
+              <p className="text-sm" style={{ color: FROG.soft }} aria-live="polite" aria-atomic="true">
                 {running
                   ? `Scanning… ${status.processed ?? 0} / ${status.total ?? 0}`
                   : `${status.matched ?? 0} of ${status.looked_up ?? 0} games matched.`}
