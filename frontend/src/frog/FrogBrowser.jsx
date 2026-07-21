@@ -30,7 +30,7 @@ import ButtonLegend from '../player/ButtonLegend.jsx'
 import { defaultFrogMode, nextFrogMode, usesNativeKeyboard } from './input.js'
 import { FROG, systemStyle } from './theme.js'
 import { buildShelf, hydrate, stepLetter, collectionGames } from './shelf.js'
-import { searchGames, matches, KEYS, gridMove } from './search.js'
+import { searchGames, suggestedSearches, matches, KEYS, gridMove } from './search.js'
 import { ROWS as KB_ROWS, keyAt, moveKey, applyKey, appendChar, deleteChar } from '../lib/keyboard.js'
 import Frog, { FrogMark, Reflected } from './Frog.jsx'
 import Boot from './Boot.jsx'
@@ -283,6 +283,8 @@ export default function FrogBrowser() {
   // Searched across EVERY system, not just the open one — from the shelf you haven't
   // picked a console yet, and "which box is Zelda in" is exactly what search is for.
   const results = useMemo(() => searchGames(items, query), [items, query])
+  // First-run starter searches, shown when there's no query AND no recent history.
+  const suggestions = useMemo(() => suggestedSearches(items), [items])
 
   // The game page's offline download — same state machine (and single-writer rule) as
   // the rest of the Library, via the shared hook. Keyed on the open game; harmless when
@@ -1037,15 +1039,17 @@ export default function FrogBrowser() {
     }
 
     if (screen === 'search') {
-      // The results zone shows game matches while you're typing, and your recent
-      // searches when the query is empty — the same cursor/zone machinery drives both.
-      const searchRows = query ? results.length : recentSearches.length
+      // The results zone shows game matches while you're typing, your recent searches when
+      // the query is empty, and — on a first run with no history yet — a few suggested
+      // searches. The same cursor/zone machinery drives all three.
+      const emptyRows = recentSearches.length ? recentSearches.map((r) => r.q) : suggestions
+      const searchRows = query ? results.length : emptyRows.length
       const pickSearchRow = () => {
         if (query) {
           if (results[resultRow]) openFromSearch(results[resultRow])
         } else {
-          const r = recentSearches[resultRow]
-          if (r) applyRecentQuery(r.q)
+          const q = emptyRows[resultRow]
+          if (q) applyRecentQuery(q)
         }
       }
       if (zone === 'grid') {
@@ -1660,6 +1664,7 @@ export default function FrogBrowser() {
           onType={setQuery}
           onPick={(game, ch) => (ch != null ? typeKey(ch) : openFromSearch(game))}
           recent={recentSearches}
+          suggestions={suggestions}
           onRecent={applyRecentQuery}
           onRemoveRecent={removeRecent}
         />

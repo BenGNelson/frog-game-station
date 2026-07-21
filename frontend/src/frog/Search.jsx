@@ -17,10 +17,13 @@ import SystemChip from './SystemChip.jsx'
 // grid or the results) has the cursor; this draws what it's told. That's the same
 // contract the shelf and the game list keep, and it's what will let the whole folder
 // lift into its own repo as a copy rather than a rewrite.
-export default function Search({ query, results, zone, keyIndex, resultRow, allGames, native, onKey, onResult, onPick, onType, recent = [], onRecent, onRemoveRecent }) {
+export default function Search({ query, results, zone, keyIndex, resultRow, allGames, native, onKey, onResult, onPick, onType, recent = [], suggestions = [], onRecent, onRemoveRecent }) {
   // With an empty query the results zone stands in for your recent searches, so the
   // cursor has somewhere to go and the screen isn't a blank invitation.
   const showRecent = query === '' && recent.length > 0
+  // A true first run — empty query AND no history — gets starter suggestions instead of a
+  // bare placeholder, so there's always somewhere to start.
+  const showSuggestions = query === '' && recent.length === 0 && suggestions.length > 0
   // Which keys still lead somewhere. Derived from the WHOLE library (not the capped
   // result list), so dimming is honest even when there are more matches than we show.
   const live = useMemo(() => liveKeys(allGames, query), [allGames, query])
@@ -47,10 +50,14 @@ export default function Search({ query, results, zone, keyIndex, resultRow, allG
   }, [zone, resultRow])
 
   return (
-    <div data-testid="frog-search" className="flex min-h-0 flex-1 flex-col gap-4 px-6 pb-2">
-      {/* Top: the keyboard, and the art of wherever the query is pointing. */}
-      <div className="flex items-start gap-6">
-        <div className="min-w-0 flex-1">
+    <div data-testid="frog-search" className="flex min-h-0 flex-1 flex-col px-6 pb-2">
+      {/* Centered and width-capped on a big screen, so search doesn't hug the left edge
+          with a dead right half. Keyboard + results stack in a reading-width left column;
+          the preview art sits beside them (its own column), not stranded in a far corner. */}
+      <div className="mx-auto flex min-h-0 w-full max-w-4xl flex-1 flex-col gap-4 lg:flex-row lg:gap-8">
+        {/* Left column: the keyboard/input, then results/recent/suggestions under it. */}
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 lg:max-w-[560px]">
+          <div className="min-w-0">
           {native ? (
             // Touch: the device's own keyboard. A finger doesn't want to walk a 6×6
             // grid one dead key at a time — it wants the keyboard it uses everywhere
@@ -130,25 +137,9 @@ export default function Search({ query, results, zone, keyIndex, resultRow, allG
           )}
         </div>
 
-        {/* The preview art — and the frog, still on the pond, tying this screen to
-            the other two. Hidden on narrow screens where the grid needs the room. */}
-        <aside className="hidden w-56 shrink-0 flex-col items-center gap-3 lg:flex">
-          <Reflected scale={0.4}>
-            <Frog size={64} />
-          </Reflected>
-          {preview ? (
-            <PreviewCard game={preview} />
-          ) : (
-            <p className="px-2 text-center text-xs leading-relaxed" style={{ color: FROG.faint }}>
-              {query ? 'No games match yet' : 'Every game, every system — start typing'}
-            </p>
-          )}
-        </aside>
-      </div>
-
-      {/* The results. Empty until you type; then it narrows with every key. With an
-          empty query it holds your recent searches instead of a bare placeholder. */}
-      <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto" style={{ scrollbarWidth: 'none' }}>
+          {/* Results / recent / suggestions — directly under the keyboard, in the same
+              reading-width column. */}
+          <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto" style={{ scrollbarWidth: 'none' }}>
         {showRecent ? (
           <RecentSearches
             recent={recent}
@@ -157,6 +148,14 @@ export default function Search({ query, results, zone, keyIndex, resultRow, allG
             onResult={onResult}
             onRecent={onRecent}
             onRemoveRecent={onRemoveRecent}
+          />
+        ) : showSuggestions ? (
+          <Suggestions
+            suggestions={suggestions}
+            zone={zone}
+            resultRow={resultRow}
+            onResult={onResult}
+            onRun={onRecent}
           />
         ) : results.length === 0 ? (
           <p className="pt-6 text-center text-sm" style={{ color: FROG.faint }}>
@@ -203,6 +202,24 @@ export default function Search({ query, results, zone, keyIndex, resultRow, allG
             })}
           </ul>
         )}
+          </div>
+        </div>
+
+        {/* Preview art + the frog — its own column on a big screen, with real presence
+            instead of a thumbnail stranded in the corner. Hidden where the grid needs
+            the room. */}
+        <aside className="hidden shrink-0 flex-col items-center gap-4 lg:flex lg:w-60 lg:pt-1">
+          <Reflected scale={0.5}>
+            <Frog size={92} />
+          </Reflected>
+          {preview ? (
+            <PreviewCard game={preview} />
+          ) : (
+            <p className="px-2 text-center text-sm leading-relaxed" style={{ color: FROG.faint }}>
+              {query ? 'No games match yet' : 'Every game, every system — start typing'}
+            </p>
+          )}
+        </aside>
       </div>
     </div>
   )
@@ -267,12 +284,54 @@ function RecentSearches({ recent, zone, resultRow, onResult, onRecent, onRemoveR
   )
 }
 
+// Starter searches for a first run — tappable chips that RUN a search (they set the query,
+// same as re-running a recent one). Driven by the same zone/resultRow cursor the game
+// results use, so a controller walks them (Down from the grid enters at the first chip,
+// left/right steps) and a thumb taps.
+function Suggestions({ suggestions, zone, resultRow, onResult, onRun }) {
+  return (
+    <div>
+      <p
+        className="px-3 pb-2 pt-1 text-[11px] font-semibold uppercase tracking-[0.18em]"
+        style={{ color: FROG.faint }}
+      >
+        Try one
+      </p>
+      <div className="flex flex-wrap gap-2 px-1">
+        {suggestions.map((q, i) => {
+          const on = zone === 'results' && i === resultRow
+          return (
+            <button
+              key={q}
+              type="button"
+              data-focused={on || undefined}
+              data-testid="frog-suggestion"
+              onMouseMove={() => onResult(i)}
+              onClick={() => onRun(q)}
+              className="flex items-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-medium transition-colors"
+              style={{
+                background: on ? `rgb(${FROG.jade})` : FROG.panel,
+                color: on ? FROG.ground : FROG.soft,
+                border: `1px solid ${on ? `rgb(${FROG.jade})` : FROG.line}`,
+                boxShadow: on ? `0 0 16px rgba(${FROG.jade}, 0.5)` : 'none',
+              }}
+            >
+              <SearchIcon className="h-3.5 w-3.5" aria-hidden="true" />
+              {q}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 // The floating box art beside the grid — the one place in search where a cover is
 // worth its pixels, because it confirms the single game you're aiming at.
 function PreviewCard({ game }) {
   const s = systemStyle(game.label)
   return (
-    <div className="w-40">
+    <div className="w-44">
       <div
         className="frog-float relative overflow-hidden rounded-2xl"
         style={{ border: `1px solid rgba(${s.accent}, 0.35)`, boxShadow: reflection(s.accent), background: '#000' }}

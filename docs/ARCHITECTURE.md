@@ -154,7 +154,13 @@ into a game (recorded on open-from-results, so an abandoned half-word is never k
 reuse the very same results-zone cursor, so a controller walks them and A re-runs one, a
 thumb taps, exactly like the game rows — no third focus zone. The store is the same
 localStorage shape as recents/favorites (`lib/recentSearches.js`: newest-first, deduped
-case-insensitively, capped, DOM-free-testable), and a ✕ forgets one.
+case-insensitively, capped, DOM-free-testable), and a ✕ forgets one. On a *true* first run —
+no query and no history yet — the zone instead offers a few **suggested searches** (`Try
+one` chips: `suggestedSearches` picks well-known franchises FILTERED to the ones actually in
+your library, so every chip leads somewhere). They run through the same `applyRecentQuery`
+path, so tapping one is just running that search. And on a wide screen the whole thing is
+**centred and width-capped** with the preview art as its own column — it used to hug the
+left edge with a dead right half.
 
 ### The text keyboard — free text a controller can reach
 
