@@ -63,6 +63,24 @@ export function liveKeys(items = [], query) {
   return live
 }
 
+// A few starter searches for a first run. Before you've typed anything OR built any
+// recent-search history, the results zone is otherwise a blank invitation — these give a
+// first-timer somewhere to start. Drawn from franchises everyone knows but FILTERED to the
+// ones actually in this library, so every chip leads somewhere (a suggestion that finds
+// nothing is worse than no suggestion). Candidate order, capped.
+const SUGGESTION_CANDIDATES = [
+  'Mario', 'Zelda', 'Sonic', 'Pokemon', 'Metroid', 'Kirby',
+  'Mega Man', 'Castlevania', 'Donkey Kong', 'Final Fantasy', 'Tetris',
+]
+export function suggestedSearches(items = [], limit = 5) {
+  const out = []
+  for (const term of SUGGESTION_CANDIDATES) {
+    if (out.length >= limit) break
+    if (items.some((g) => matches(g.name, term))) out.push(term)
+  }
+  return out
+}
+
 // Moving the cursor around the 6×6 grid.
 //
 // Left/right/up wrap — the grid is a torus, so you never hit a wall and the shortest

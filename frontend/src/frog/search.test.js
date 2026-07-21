@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { KEYS, COLS, matches, searchGames, liveKeys, gridMove } from './search.js'
+import { KEYS, COLS, matches, searchGames, liveKeys, gridMove, suggestedSearches } from './search.js'
 
 const g = (id, name, label = 'Game Boy') => ({ id, name, label, core: 'gb' })
 
@@ -95,5 +95,30 @@ describe('gridMove', () => {
     // The bottom row is the last COLS keys; down from any of them exits.
     expect(gridMove(KEYS.length - 1, 'down')).toEqual({ exit: 'results' })
     expect(gridMove(KEYS.length - COLS, 'down')).toEqual({ exit: 'results' })
+  })
+})
+
+describe('suggestedSearches', () => {
+  const lib = [
+    g('1', 'Super Mario Land'),
+    g('2', "The Legend of Zelda: Link's Awakening"),
+    g('3', 'Sonic the Hedgehog'),
+    g('4', 'Some Obscure Homebrew'),
+  ]
+
+  it('only suggests terms that actually match games in this library', () => {
+    const s = suggestedSearches(lib)
+    expect(s).toContain('Mario')
+    expect(s).toContain('Zelda')
+    expect(s).toContain('Sonic')
+    // Metroid/Kirby/etc. aren't in this library, so they must not be offered.
+    expect(s).not.toContain('Metroid')
+    // Every suggestion returned really does find something.
+    for (const term of s) expect(searchGames(lib, term).length).toBeGreaterThan(0)
+  })
+
+  it('caps the count and returns nothing for an empty library', () => {
+    expect(suggestedSearches(lib, 2)).toHaveLength(2)
+    expect(suggestedSearches([])).toEqual([])
   })
 })
