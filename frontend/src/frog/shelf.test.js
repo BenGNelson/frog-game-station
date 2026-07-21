@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildShelf, buildSystems, jumpBackIn, favoriteGames, tagRails, collectionGames, COLLECTION_LIST_MIN, agoLabel, stepLetter, SYSTEM_ORDER } from './shelf.js'
+import { buildShelf, buildSystems, jumpBackIn, favoriteGames, tagRails, collectionGames, discoverRail, COLLECTION_LIST_MIN, agoLabel, stepLetter, SYSTEM_ORDER } from './shelf.js'
 
 const g = (id, name, label) => ({ id, name, label, core: 'gb' })
 
@@ -64,10 +64,31 @@ describe('buildShelf', () => {
     expect(rails[1].id).toBe('systems')
   })
 
-  it('drops the row entirely when there is nothing to jump back into', () => {
+  it('drops the Jump row when there is nothing to jump back into', () => {
     // A heading over an empty row is a worse first impression than no heading.
     const rails = buildShelf(LIBRARY, [])
-    expect(rails.map((r) => r.id)).toEqual(['systems'])
+    expect(rails.map((r) => r.id)).not.toContain('jump')
+    expect(rails.find((r) => r.id === 'systems')).toBeTruthy()
+  })
+
+  it('adds a "Surprise me" discover rail after Systems on a first-run (history-less) shelf', () => {
+    // A fresh shelf is just the six machines over a lot of empty pond — the discover
+    // card fills it and is the only touch route to the random pick.
+    const rails = buildShelf(LIBRARY, [])
+    expect(rails.map((r) => r.id)).toEqual(['systems', 'discover'])
+    const discover = rails.find((r) => r.id === 'discover')
+    expect(discover.kind).toBe('action')
+    expect(discover.items).toEqual([{ id: 'surprise', action: 'random', label: 'Surprise me' }])
+  })
+
+  it('retires the discover rail the moment the shelf has any history', () => {
+    expect(buildShelf(LIBRARY, [{ id: '1', ts: 1 }]).map((r) => r.id)).not.toContain('discover') // recents
+    expect(buildShelf(LIBRARY, [], [{ id: '3' }]).map((r) => r.id)).not.toContain('discover') // favorites
+    expect(buildShelf(LIBRARY, [], [], { finished: ['3'] }).map((r) => r.id)).not.toContain('discover') // finished
+  })
+
+  it('shows no discover rail when there are no games to be random about', () => {
+    expect(buildShelf([], []).map((r) => r.id)).not.toContain('discover')
   })
 
   it('puts Favorites right after Jump back in', () => {
@@ -88,6 +109,14 @@ describe('buildShelf', () => {
     // finished after favorites; tag rails in tag-name order; systems always last.
     expect(rails.map((r) => r.id)).toEqual(['finished', 'tag:Sonic', 'tag:Zelda', 'systems'])
     expect(rails.find((r) => r.id === 'finished').items.map((g) => g.id)).toEqual(['3'])
+  })
+})
+
+describe('discoverRail', () => {
+  it('offers a random pick only when the shelf is history-less and has games', () => {
+    expect(discoverRail(LIBRARY, [])).toHaveLength(1)
+    expect(discoverRail(LIBRARY, [{ id: 'jump' }])).toEqual([]) // any history present
+    expect(discoverRail([], [])).toEqual([]) // no games to be random about
   })
 })
 

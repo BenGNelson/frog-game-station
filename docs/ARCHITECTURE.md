@@ -74,6 +74,11 @@ reachable from anywhere. The shape of them is the design:
   page from anywhere — a re-roll even while a game page is already open. It's a global
   `random` action in the `act` dispatcher, ahead of the per-screen handlers, and lands on
   the page (not straight into play) so a roll you didn't want costs one B, not a launch.
+  A finger reaches the same pick two ways it otherwise couldn't: a **shuffle button in the
+  header** (browsing screens), and — on a *first-run* shelf with no history of its own — a
+  **"Surprise me" card** below the systems. `discoverRail` (`shelf.js`) adds that card only
+  while the shelf is history-less; the moment a Jump-back-in / Favorites / Finished / tag
+  rail exists, the empty space is gone and the card retires.
 - **The empty shelf is a first-run nudge, not a wall of dimmed tiles.** With no games the
   pond is simply quiet — a dozing frog over its reflection and a plain-language nudge to
   set `ROMS_DIR`. If IGDB isn't configured either (checked via the matcher's status),
@@ -731,6 +736,16 @@ the not-yet-fetched state explains itself instead of looking like a bug.
 Frog Game Station is an **installable PWA**: a manifest + service worker make it addable to a home
 screen and let downloaded games play **offline** (the shelf, list, and search fall back to
 the on-device downloaded manifest, and the player boots from the cached ROM + engine).
+
+The install itself is **offered, not left to be discovered.** `primeInstallCapture`
+(`main.jsx`) grabs the one, early-firing `beforeinstallprompt` event before any component
+mounts (and suppresses the browser's default mini-infobar), so the shelf's `InstallNudge`
+can re-open it from our own "Install" button. iOS has no such event — installing there is
+a buried Share → "Add to Home Screen" — so the nudge detects the un-installed Safari case
+and shows that hint instead. The pure decision (`installNudgeState`, `isStandalone`) lives
+in `lib/installPrompt.js` (unit-tested); the event wiring is `lib/useInstallPrompt.js`. It
+shows only on the touch shelf, never once installed (`display-mode: standalone`) or once
+dismissed — it invites, it never nags.
 
 The **favicon and app icons are the frog itself**, not a placeholder: `favicon.svg` is the
 flat two-tone `FrogMark` (the same `frogMarkMarkup` the header and loading screen draw), and

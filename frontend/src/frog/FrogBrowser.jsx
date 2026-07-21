@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { X, Search as SearchIcon, Plane, Settings as SettingsIcon } from 'lucide-react'
+import { X, Search as SearchIcon, Plane, Settings as SettingsIcon, Shuffle } from 'lucide-react'
 import { useApi } from '../lib/useApi.js'
 import { useOnline } from '../lib/online.jsx'
 import { useDownloadedEntries } from '../lib/useDownloaded.js'
@@ -35,6 +35,7 @@ import { ROWS as KB_ROWS, keyAt, moveKey, applyKey, appendChar, deleteChar } fro
 import Frog, { FrogMark, Reflected } from './Frog.jsx'
 import Boot from './Boot.jsx'
 import Shelf from './Shelf.jsx'
+import InstallNudge from './InstallNudge.jsx'
 import Search from './Search.jsx'
 import SettingsPanel from './Settings.jsx'
 import GameScreen from './GameScreen.jsx'
@@ -604,6 +605,7 @@ export default function FrogBrowser() {
   // opens the page, even for a Jump card — so it stays a separate branch.)
   const pickShelfItem = (rail, item) => {
     if (!item) return
+    if (item.action === 'random') return openRandom()
     if (rail.kind === 'system') {
       if (item.count > 0) openSystem(item.label)
     } else if (item.seeAll) {
@@ -1472,6 +1474,12 @@ export default function FrogBrowser() {
         </div>
       )}
 
+      {/* "Install me" — only on the shelf, and only on the touch path (where the legend
+          is hidden, so there's no bar to overlap, and where installing unlocks the
+          full-screen/offline home-screen app). Renders null unless the browser actually
+          offers install and it hasn't been dismissed. */}
+      {screen === 'shelf' && native && <InstallNudge />}
+
       {/* The pond light. It takes the colour of whatever is in focus, which is the
           single cheapest way to make a machine feel *selected* rather than outlined. */}
       <div
@@ -1532,6 +1540,20 @@ export default function FrogBrowser() {
               aria-label="Search games"
             >
               <SearchIcon className="h-5 w-5" aria-hidden="true" />
+            </button>
+          )}
+
+          {/* Surprise me — a random pick, reachable by thumb. On a pad it's R3 (and the
+              legend says so); by touch there was no route to it at all. Only on the
+              browsing screens, where openRandom has somewhere to land. */}
+          {(screen === 'shelf' || screen === 'games') && (
+            <button
+              onClick={openRandom}
+              className="rounded-full p-2"
+              style={{ background: FROG.panel, color: FROG.soft }}
+              aria-label="Surprise me — open a random game"
+            >
+              <Shuffle className="h-5 w-5" aria-hidden="true" />
             </button>
           )}
 

@@ -80,12 +80,30 @@ export function buildShelf(items = [], recent = [], favorites = [], collections 
   const favs = favoriteGames(items, favorites)
   const finished = hydrate(items, (collections.finished || []).map((id) => ({ id })))
   const systems = buildSystems(items)
-  return [
+  const history = [
     ...(jump.length ? [{ id: 'jump', title: 'Jump back in', kind: 'game', items: jump }] : []),
     ...(favs.length ? [{ id: 'favorites', title: 'Favorites', kind: 'game', items: favs }] : []),
     ...(finished.length ? [{ id: 'finished', title: 'Finished', kind: 'game', items: finished }] : []),
     ...tagRails(items, collections.tags),
-    { id: 'systems', title: 'Systems', kind: 'system', items: systems },
+  ]
+  return [...history, { id: 'systems', title: 'Systems', kind: 'system', items: systems }, ...discoverRail(items, history)]
+}
+
+// A first-run shelf has no history rails — just the six machines over a lot of empty
+// pond. Give it a "Surprise me" card below the systems: it fills that space AND is the
+// only way to reach the random pick by thumb (on a pad it's R3; a finger otherwise had
+// no route in at all). It retires the moment the shelf has any history of its own — once
+// there's a Jump-back-in / Favorites / Finished / tag rail, the space is no longer empty
+// and the header's shuffle button is enough. Nothing to be random about with no games.
+export function discoverRail(items = [], history = []) {
+  if (history.length || !items.length) return []
+  return [
+    {
+      id: 'discover',
+      title: 'Not sure where to start?',
+      kind: 'action',
+      items: [{ id: 'surprise', action: 'random', label: 'Surprise me' }],
+    },
   ]
 }
 

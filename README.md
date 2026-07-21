@@ -30,7 +30,7 @@ It has a hand-drawn **frog mascot** and a **WATER / jade dark theme** — a pond
 
 ## Features
 
-- **Console-style, not a wall of boxes** — boot → shelf → per-system list → game page, search anywhere. The shelf opens on "Jump back in," so most sessions skip the alphabet; click the right stick for a random pick.
+- **Console-style, not a wall of boxes** — boot → shelf → per-system list → game page, search anywhere. The shelf opens on "Jump back in," so most sessions skip the alphabet; hit "Surprise me" (the right stick on a pad, or the header shuffle by thumb) for a random pick.
 - **Rich game pages** — a background matcher pulls IGDB art, screenshots, summary, genres, and rating. Unmatched ROMs still get a clean cover-and-title page — nothing looks broken.
 - **"More like this"** — each game suggests similar titles you *actually own*.
 - **Play-time tracking** — clocks how long you play each game and shows the total on its page.
@@ -40,7 +40,7 @@ It has a hand-drawn **frog mascot** and a **WATER / jade dark theme** — a pond
 - **Save states + battery saves** — battery saves roam and back up server-side; snapshot save states carry a thumbnail and can be named, pinned, and relaunched.
 - **In-game wiki reader** — pull up a game's wiki over the paused game — controller-navigable, in-theme, and reopening right where you left off — with the right page picked per game (a Pokémon walkthrough, a franchise wiki, or a one-tap search for a hack).
 - **In-game Pokédex** — for a Pokémon game or hack, a full dex over the paused game: sprites, types, base stats, and tappable evolution chains, scoped to the game's region.
-- **Offline + installable PWA** — download games, add Frog Game Station to your home screen, and play offline.
+- **Offline + installable PWA** — download games and play offline; a gentle, one-time nudge on the phone shelf offers to add Frog Game Station to your home screen (a one-tap install on Android, the Share → "Add to Home Screen" route on iOS).
 - **Real touch controls** — a from-scratch multi-touch overlay with true d-pad diagonals and hit areas bigger than the buttons.
 - **Gamepad-native** — pad, arrow keys, and mouse through one code path. The **Controls** screen draws your pad: pick whether *A* means the letter or the position (Nintendo vs Xbox), remap any button, and badge shortcuts onto the free buttons.
 - **Drawn, not scraped** — console art is illustrated in-app (no official logos), for one coherent look.

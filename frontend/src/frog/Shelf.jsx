@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { Trophy, List, ChevronRight } from 'lucide-react'
+import { Trophy, List, ChevronRight, Shuffle } from 'lucide-react'
 import { coverUrl } from '../lib/library.js'
 import { FROG, systemStyle, reflection } from './theme.js'
 import { agoLabel } from './shelf.js'
@@ -195,6 +195,37 @@ function SeeAllCard({ collection, focused, onFocus, onPick }) {
   )
 }
 
+// The "Surprise me" card — a first-run invite that opens a random game's page, and the
+// only touch route to the random pick. Same jade, dashed, cover-shaped frame as SeeAll
+// (both are neutral, cross-system actions rather than one machine's game), swapping the
+// list glyph for a shuffle.
+function SurpriseCard({ focused, onFocus, onPick }) {
+  return (
+    <button
+      type="button"
+      data-testid="frog-surprise"
+      data-focused={focused || undefined}
+      onMouseMove={onFocus}
+      onClick={onPick}
+      className="relative flex aspect-[3/4] w-36 shrink-0 flex-col items-center justify-center gap-2 rounded-xl px-3 text-center transition-transform duration-200 sm:w-40"
+      style={{
+        background: focused ? `rgba(${FROG.jade}, 0.14)` : FROG.panel,
+        border: `1px dashed ${focused ? `rgba(${FROG.jade}, 0.7)` : FROG.line}`,
+        boxShadow: focused ? reflection(FROG.jade) : 'none',
+        transform: focused ? 'scale(1.05)' : 'scale(1)',
+      }}
+    >
+      <Shuffle className="h-7 w-7" style={{ color: `rgb(${FROG.jade})` }} aria-hidden="true" />
+      <span className="text-[13px] font-semibold" style={{ color: focused ? FROG.ink : FROG.soft }}>
+        Surprise me
+      </span>
+      <span className="text-[11px]" style={{ color: FROG.faint }}>
+        A random pick
+      </span>
+    </button>
+  )
+}
+
 // A rail heading. Small, wide-tracked, quiet — it labels the row without competing
 // with it.
 function Heading({ children }) {
@@ -294,11 +325,13 @@ export default function Shelf({ rails, focus, finishedIds, hackIds, onFocus, onP
           <p className="mt-0.5 truncate text-xs font-medium" style={{ color: `rgb(${s.accent})` }}>
             {current?.seeAll
               ? `See all ${current.count} games`
-              : isGame
-                ? current?.label
-                : current
-                  ? `${current.count} game${current.count === 1 ? '' : 's'}`
-                  : ''}
+              : current?.action
+                ? 'A random pick'
+                : isGame
+                  ? current?.label
+                  : current
+                    ? `${current.count} game${current.count === 1 ? '' : 's'}`
+                    : ''}
           </p>
         </div>
       </aside>
@@ -335,7 +368,13 @@ export default function Shelf({ rails, focus, finishedIds, hackIds, onFocus, onP
               >
                 {rail.items.map((game, i) => (
                   <Floats key={game.id} delay={i * 260}>
-                    {game.seeAll ? (
+                    {game.action === 'random' ? (
+                      <SurpriseCard
+                        focused={focus.rail === r && focus.index === i}
+                        onFocus={() => onFocus(r, i)}
+                        onPick={() => onPick(rail, game)}
+                      />
+                    ) : game.seeAll ? (
                       <SeeAllCard
                         collection={game}
                         focused={focus.rail === r && focus.index === i}
