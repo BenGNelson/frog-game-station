@@ -36,12 +36,14 @@ Open items carry an inline tag; completed (`[x]`) items are left untagged — th
       collision-free stick clicks (L3/R3) are flagged, the Menu button shown locked, and **Fast
       Forward** joins Wiki/Pokédex as an assignable shortcut (`ffHotkey`, default unassigned;
       `onRawButton` toggles the core turbo in-play). The screen now scroll-follows the controller.
-      _(Remaining follow-ups, not blocking: **[P3]** the deeper "audit" idea — chord/hold combos or
+      _(Remaining follow-up, not blocking: **[P3]** the deeper "audit" idea — chord/hold combos or
       trading a game binding for an app hotkey, for when a player wants more app shortcuts than the
-      two free clicks allow; and **[P3]** the optional **controller-skin selector** — let the drawn
-      pad take an Xbox/PS5/Nintendo look via a `skin` prop on `ControllerDiagram`. The pause-menu
-      dead-space cleanup this used to fold in — merging Save/Load, demoting "Set as Cover" — shipped
-      with the pause-menu UX review below.)_
+      two free clicks allow. The **controller-skin selector** has since **shipped** — a cosmetic
+      `skin` prop on `ControllerDiagram`, chosen on the Controls screen (Xbox / PlayStation /
+      Nintendo face-button colours) — alongside a **layout rework** of the drawn pad so the face
+      diamond and centre chrome no longer overlap. The pause-menu dead-space cleanup this used to
+      fold in — merging Save/Load, demoting "Set as Cover" — shipped with the pause-menu UX review
+      below.)_
 
 - [x] **Controls screen — readability + layout rework.** Shipped: the controller is now the
       **hero** — a big drawn pad (`player/ControllerDiagram.jsx`) with **margin callouts** joined
@@ -52,8 +54,9 @@ Open items carry an inline tag; completed (`[x]`) items are left untagged — th
       "chip" is gone — a rebind onto a stick/d-pad just surfaces on **that** button's callout
       (per-physical, robust to collisions too). The panel centres in a `max-w-3xl` column with the
       pad framed as the hero, scheme cards above it (watch "A" move), shortcuts + reset below.
-      _(Remaining, deferred: **[P3]** the **controller-skin selector** — an Xbox/PS5/Nintendo look
-      via a `skin` prop; and **[P3]** the **chord/hold audit** for more app shortcuts than the two
+      _(The **controller-skin selector** (Xbox/PlayStation/Nintendo face-button colours via a
+      `skin` prop) has since **shipped**, along with a layout rework that de-overlaps the drawn pad.
+      Remaining, deferred: **[P3]** the **chord/hold audit** for more app shortcuts than the two
       free stick-clicks allow.)_
 
 - [x] **Deeper ROM-hack support surfacing** — shipped (badge + base link, borrow art): mark

@@ -409,11 +409,16 @@ controller** (`controlBindings` keyed by pad id, so a second pad doesn't rewire 
   face button wears its **real controller colour** (bottom green / right red / left blue /
   top amber, the `ButtonLegend` convention) and is labelled with the **game** button it
   currently triggers — so flipping the scheme visibly **moves "A"** between the bottom and
-  right buttons, which is the whole choice made obvious. Every other button gets a **callout**
-  in the margins — a labelled card joined to the button by a thin leader line — that reads at a
-  glance and uses the screen's width (the pad is the hero, callouts flank it). Face buttons,
-  shoulders and Select are interactive (focus/click → rebind); the diagram reflects the same
-  linear focus the pad walks (`controlRows`), so the picture and the d-pad never disagree.
+  right buttons, which is the whole choice made obvious. The face diamond is spaced so no two
+  buttons — or the centre chrome (Select/Menu, the frog) — ever overlap; every other button
+  gets a **callout** in the margins — a labelled card joined to the button by a thin leader
+  line — that reads at a glance and uses the screen's width (the pad is the hero, callouts
+  flank it). A **skin** (`controlSkin`, a cosmetic setting on the Controls screen) tints the
+  face buttons to match the pad in your hands — Xbox position colours, the DualSense symbol
+  colours, or Switch's monochrome — without touching the mapping. Face buttons, shoulders and
+  Select are interactive (focus/click → rebind); the diagram reflects the same linear focus the
+  pad walks (`controlRows`, which now carries the skin row between the schemes and the buttons),
+  so the picture and the d-pad never disagree.
 - **Callouts are per-physical-button, so nothing is ever hidden.** Each card shows whatever
   RetroPad button(s) sit on that physical slot: a collision reads "A/B", and a game button a
   custom rebind pushed onto a stick/d-pad simply appears on **that** button's card (the vacated

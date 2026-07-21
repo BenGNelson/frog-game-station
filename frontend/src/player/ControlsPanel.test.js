@@ -22,4 +22,11 @@ describe('controlRows', () => {
     expect(rows.filter((r) => r.startsWith('bind:')).length).toBe(7)
     expect(rows.indexOf('bind:8')).toBeLessThan(rows.indexOf('wiki'))
   })
+
+  it('puts the pad-skin row after the schemes and before the game buttons', () => {
+    const rows = controlRows(false)
+    expect(rows).toContain('skin')
+    expect(rows.indexOf('skin')).toBe(2) // right after 'letters', 'positions'
+    expect(rows.indexOf('skin')).toBeLessThan(rows.indexOf('bind:8'))
+  })
 })

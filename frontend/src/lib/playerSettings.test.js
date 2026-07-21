@@ -10,6 +10,7 @@ import {
   clearBindings,
   resetControls,
   TOUCH_OPACITY_LEVELS,
+  CONTROL_SKINS,
 } from './playerSettings.js'
 
 // A stand-in for localStorage, including the index-based key() walk that
@@ -55,6 +56,10 @@ describe('readSettings', () => {
 
   it('no longer ships the dead touchScale key (it was wired to nothing)', () => {
     expect(DEFAULTS).not.toHaveProperty('touchScale')
+  })
+
+  it('defaults the pad skin to a real CONTROL_SKINS id', () => {
+    expect(CONTROL_SKINS.map((s) => s.id)).toContain(DEFAULTS.controlSkin)
   })
 })
 

@@ -46,6 +46,7 @@ import {
   bindingsFor,
   withBinding,
   resetControls,
+  CONTROL_SKINS,
 } from '../lib/playerSettings.js'
 import { bindingForButton } from '../lib/gamepad.js'
 import { useGamepad } from '../lib/useGamepad.js'
@@ -554,6 +555,21 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
     [settings, saveSettings]
   )
 
+  const chooseSkin = useCallback(
+    (skinId) => saveSettings({ ...settings, controlSkin: skinId }),
+    [settings, saveSettings]
+  )
+  // Cycle the pad skin forward — the controller-nav twin of tapping a segment (A on the row,
+  // or left/right to step). Wraps, so a press always changes something.
+  const cycleSkin = useCallback(
+    (dir = 1) => {
+      const ids = CONTROL_SKINS.map((s) => s.id)
+      const i = ids.indexOf(settings.controlSkin)
+      chooseSkin(ids[(Math.max(0, i) + dir + ids.length) % ids.length])
+    },
+    [settings.controlSkin, chooseSkin]
+  )
+
   // "Reset this controller to the defaults" — restore the whole controller setup, not just
   // per-button rebinds: the scheme (letters/positions) and the Wiki/Pokédex/Fast-Forward
   // hotkeys go back to shipped defaults too. (Clearing only the rebind map looked like it did
@@ -872,14 +888,18 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
       }
 
       if (controlsOpen) {
-        // A one-column list, so up/down walk it and left/right do nothing.
+        // A one-column list: up/down walk it. left/right only do something on the pad-skin
+        // row (step the style); everywhere else they're inert.
+        const row = rows[controlsFocus]
         if (action === 'back') closeControls()
         else if (action === 'confirm') {
-          const row = rows[controlsFocus]
           if (row === 'reset') resetBindings()
+          else if (row === 'skin') cycleSkin(1)
           else if (row === 'wiki' || row === 'pokedex' || row === 'fastForward') setListeningFor(row)
           else if (row.startsWith('bind:')) setListeningFor(Number(row.slice(5)))
           else chooseScheme(row)
+        } else if ((action === 'left' || action === 'right') && row === 'skin') {
+          cycleSkin(action === 'left' ? -1 : 1)
         } else if (action === 'up' || action === 'down') {
           setControlsFocus((i) => moveInGrid({ count: rows.length, cols: 1, index: i }, action))
         }
@@ -1273,6 +1293,8 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
           <ControlsPanel
             padName={padName}
             scheme={settings.controlScheme}
+            skin={settings.controlSkin}
+            onSkin={chooseSkin}
             bindings={bindingsFor(settings, padId)}
             listeningFor={listeningFor}
             wikiHotkey={settings.wikiHotkey}

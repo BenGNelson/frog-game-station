@@ -22,24 +22,42 @@ import { RETROPAD } from '../lib/retropad.js'
 // reflects the same linear focus the pad walks (focusedKey), so picture and d-pad agree.
 
 const VW = 520
-const VH = 228
+const VH = 250
 
-const FACE_COLOR = { bottom: '#34d399', right: '#fb7185', left: '#38bdf8', top: '#fbbf24' }
+// The pad's outline — a wider, taller body than before so the face-button diamond and the
+// centre chrome (Select/Menu, the frog) each get their own room instead of overlapping.
+const PAD_PATH =
+  'M156 122 Q148 92 196 94 Q238 98 262 98 Q286 98 328 94 Q376 92 368 122 ' +
+  'Q388 178 366 226 Q352 250 318 240 Q288 230 262 230 Q236 230 208 240 ' +
+  'Q174 250 160 226 Q138 178 156 122 Z'
 
-// Button centres on the drawn pad (body spans x≈160–336, centred ~248).
+// Face-button colour by physical position — and now by SKIN, so the drawn pad can match the
+// controller in your hands. Xbox uses its position colours; PlayStation borrows the DualSense
+// symbol colours (△ green, ○ red, ✕ blue, □ pink); Nintendo's Switch/Pro face buttons are
+// monochrome, so they read in one neutral. The game-button LETTER stays the label either way —
+// the skin is the look, not the mapping.
+const FACE_COLOR = {
+  xbox: { bottom: '#34d399', right: '#fb7185', left: '#38bdf8', top: '#fbbf24' },
+  playstation: { bottom: '#7aa0e6', right: '#f0607e', left: '#e07ad0', top: '#4fd0a0' },
+  nintendo: { bottom: '#dfe4e8', right: '#dfe4e8', left: '#dfe4e8', top: '#dfe4e8' },
+}
+
+// Button centres on the drawn pad (body spans x≈150–370, centred ~260). The face diamond sits
+// clear in the upper-right lobe, well-spaced so no two buttons — or the chrome — collide.
 const PAD = {
-  LEFT_BOTTOM_SHOULDER: { x: 198, y: 60 }, // LT
-  RIGHT_BOTTOM_SHOULDER: { x: 298, y: 60 }, // RT
-  LEFT_TOP_SHOULDER: { x: 198, y: 80 }, // LB
-  RIGHT_TOP_SHOULDER: { x: 298, y: 80 }, // RB
-  LEFT_STICK: { x: 200, y: 122 }, // L3
-  RIGHT_STICK: { x: 266, y: 174 }, // R3
-  DPAD: { x: 208, y: 168 },
-  SELECT: { x: 232, y: 100 },
-  BUTTON_4: { x: 302, y: 94, face: 'top' }, // Y
-  BUTTON_3: { x: 274, y: 122, face: 'left' }, // X
-  BUTTON_2: { x: 330, y: 122, face: 'right' }, // B
-  BUTTON_1: { x: 302, y: 150, face: 'bottom' }, // A
+  LEFT_BOTTOM_SHOULDER: { x: 198, y: 66 }, // LT
+  RIGHT_BOTTOM_SHOULDER: { x: 322, y: 66 }, // RT
+  LEFT_TOP_SHOULDER: { x: 198, y: 86 }, // LB
+  RIGHT_TOP_SHOULDER: { x: 322, y: 86 }, // RB
+  LEFT_STICK: { x: 198, y: 126 }, // L3
+  RIGHT_STICK: { x: 274, y: 206 }, // R3
+  DPAD: { x: 206, y: 170 },
+  SELECT: { x: 238, y: 118 },
+  MENU: { x: 272, y: 118 },
+  BUTTON_4: { x: 312, y: 118, face: 'top' }, // Y
+  BUTTON_3: { x: 278, y: 152, face: 'left' }, // X
+  BUTTON_2: { x: 346, y: 152, face: 'right' }, // B
+  BUTTON_1: { x: 312, y: 186, face: 'bottom' }, // A
 }
 
 // Raw browser pad index behind each physical button (for hotkey lookup).
@@ -54,13 +72,13 @@ const PHYS_RAW = {
 // buttons and Select are labelled on the pad itself, so they're absent. R3 sits low on the
 // right so its leader passes BELOW the A button instead of crossing it.
 const CALLOUTS = [
-  { physical: 'LEFT_BOTTOM_SHOULDER', side: 'left', y: 46, name: 'LT' },
-  { physical: 'LEFT_TOP_SHOULDER', side: 'left', y: 90, name: 'LB' },
-  { physical: 'LEFT_STICK', side: 'left', y: 134, name: 'L3' },
-  { physical: 'DPAD', side: 'left', y: 180, name: 'D-pad', fixed: 'Move' },
-  { physical: 'RIGHT_BOTTOM_SHOULDER', side: 'right', y: 46, name: 'RT' },
-  { physical: 'RIGHT_TOP_SHOULDER', side: 'right', y: 90, name: 'RB' },
-  { physical: 'RIGHT_STICK', side: 'right', y: 200, name: 'R3' },
+  { physical: 'LEFT_BOTTOM_SHOULDER', side: 'left', y: 52, name: 'LT' },
+  { physical: 'LEFT_TOP_SHOULDER', side: 'left', y: 96, name: 'LB' },
+  { physical: 'LEFT_STICK', side: 'left', y: 140, name: 'L3' },
+  { physical: 'DPAD', side: 'left', y: 192, name: 'D-pad', fixed: 'Move' },
+  { physical: 'RIGHT_BOTTOM_SHOULDER', side: 'right', y: 52, name: 'RT' },
+  { physical: 'RIGHT_TOP_SHOULDER', side: 'right', y: 96, name: 'RB' },
+  { physical: 'RIGHT_STICK', side: 'right', y: 214, name: 'R3' },
 ]
 
 const BINDABLE_SET = new Set(BINDABLE.map((b) => b.index))
@@ -72,8 +90,9 @@ const RETRO_NAME = {
 
 export default function ControllerDiagram({
   resolved, bindings, listeningFor, wikiHotkey, pokedexHotkey, ffHotkey, isPokemon,
-  focusedKey, onFocusKey, onSelectKey,
+  skin = 'xbox', focusedKey, onFocusKey, onSelectKey,
 }) {
+  const faceColors = FACE_COLOR[skin] || FACE_COLOR.xbox
   const retroByPhysical = {}
   for (const [idx, phys] of Object.entries(resolved)) {
     const n = Number(idx)
@@ -146,7 +165,7 @@ export default function ControllerDiagram({
   const FaceButton = ({ physical }) => {
     const p = PAD[physical]
     const s = slot(physical)
-    const color = FACE_COLOR[p.face] || jade
+    const color = faceColors[p.face] || jade
     const r = 17
     const hk = s.hotkeys.join('/')
     return (
@@ -182,20 +201,14 @@ export default function ControllerDiagram({
       </defs>
 
       {/* Triggers, then body, then bumpers (bumpers sit in front of the body top edge) */}
-      <rect x="176" y="48" width="44" height="12" rx="6" fill={FROG.ground} stroke={FROG.line} strokeWidth="1" />
-      <rect x="276" y="48" width="44" height="12" rx="6" fill={FROG.ground} stroke={FROG.line} strokeWidth="1" />
+      <rect x="176" y="52" width="44" height="12" rx="6" fill={FROG.ground} stroke={FROG.line} strokeWidth="1" />
+      <rect x="300" y="52" width="44" height="12" rx="6" fill={FROG.ground} stroke={FROG.line} strokeWidth="1" />
 
-      <path
-        d="M166 100 Q160 76 200 78 Q236 82 248 82 Q260 82 296 78 Q336 76 330 100 Q348 152 328 196 Q316 218 286 209 Q264 200 248 200 Q232 200 210 209 Q180 218 168 196 Q148 152 166 100 Z"
-        fill={FROG.panel} stroke={FROG.line} strokeWidth="1.5"
-      />
-      <path
-        d="M166 100 Q160 76 200 78 Q236 82 248 82 Q260 82 296 78 Q336 76 330 100 Q348 152 328 196 Q316 218 286 209 Q264 200 248 200 Q232 200 210 209 Q180 218 168 196 Q148 152 166 100 Z"
-        fill="url(#frog-pad-sheen)"
-      />
+      <path d={PAD_PATH} fill={FROG.panel} stroke={FROG.line} strokeWidth="1.5" />
+      <path d={PAD_PATH} fill="url(#frog-pad-sheen)" />
 
-      <rect x="178" y="72" width="40" height="12" rx="6" fill={FROG.ground} stroke={FROG.line} strokeWidth="1" />
-      <rect x="278" y="72" width="40" height="12" rx="6" fill={FROG.ground} stroke={FROG.line} strokeWidth="1" />
+      <rect x="178" y="78" width="40" height="12" rx="6" fill={FROG.ground} stroke={FROG.line} strokeWidth="1" />
+      <rect x="302" y="78" width="40" height="12" rx="6" fill={FROG.ground} stroke={FROG.line} strokeWidth="1" />
 
       {/* D-pad */}
       <g fill={FROG.soft}>
@@ -213,8 +226,8 @@ export default function ControllerDiagram({
 
       {/* Menu (locked) + Select (focusable) + the frog */}
       <g>
-        <rect x="252" y={selP.y - 7} width="22" height="14" rx="7" fill={FROG.ground} stroke={FROG.line} strokeWidth="1" />
-        <text x="263" y={selP.y} textAnchor="middle" dominantBaseline="central" fontSize="9" fill={FROG.faint}>☰</text>
+        <rect x={PAD.MENU.x - 11} y={PAD.MENU.y - 7} width="22" height="14" rx="7" fill={FROG.ground} stroke={FROG.line} strokeWidth="1" />
+        <text x={PAD.MENU.x} y={PAD.MENU.y} textAnchor="middle" dominantBaseline="central" fontSize="9" fill={FROG.faint}>☰</text>
       </g>
       <g
         role={sel.key ? 'button' : undefined}
@@ -228,7 +241,7 @@ export default function ControllerDiagram({
           {sel.listening ? '…' : 'Sel'}
         </text>
       </g>
-      <FrogBadge x="242" y="150" />
+      <FrogBadge x="236" y="182" />
 
       {CALLOUTS.map((c) => (
         <Callout key={c.physical} {...c} />
