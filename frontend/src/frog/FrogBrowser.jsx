@@ -1768,7 +1768,9 @@ export default function FrogBrowser() {
             ? zone === 'grid'
               ? [
                   { button: 'A', label: 'Type' },
-                  { button: 'B', label: query ? 'Delete' : 'Close' },
+                  // With an empty query B exits one layer — label it 'Back', not a second
+                  // 'Close', so it doesn't read as a duplicate of X's 'Close'.
+                  { button: 'B', label: query ? 'Delete' : 'Back' },
                   { button: 'RB', label: 'Results' },
                   { button: 'X', label: 'Close' },
                 ]
@@ -1848,6 +1850,9 @@ export default function FrogBrowser() {
                       { button: 'A', label: 'Open' },
                       { button: 'B', label: 'Shelf' },
                       { button: 'X', label: 'Find' },
+                      // The two-tier fast-scroll, both tiers now visible: bumpers skip a
+                      // screenful, triggers jump a letter. LB/RB used to be undiscoverable.
+                      { button: 'LB/RB', label: 'Skip' },
                       { button: 'LT/RT', label: 'Letter' },
                       { button: 'R3', label: 'Random' },
                       { button: '☰', label: 'Hold: Settings' },

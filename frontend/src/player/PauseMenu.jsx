@@ -150,13 +150,17 @@ function MenuRow({ item, focused, onSelect, onHover }) {
 
   // Quit reads danger-red; Resume and the active toggle wear the app's jade accent;
   // everything else is a quiet FROG soft.
-  const iconColor = danger ? 'rgb(239, 90, 90)' : primary || active ? `rgb(${FROG.jade})` : FROG.soft
+  const iconColor = danger ? `rgb(${FROG.danger})` : primary || active ? `rgb(${FROG.jade})` : FROG.soft
 
   return (
     <button
       ref={ref}
       onClick={onSelect}
-      onMouseEnter={onHover}
+      // Hover-focus is onMouseMove app-wide (not onMouseEnter): with a pad and a mouse
+      // both live, a mouse *nudge* over an item re-claims the cursor even when the pointer
+      // was already sitting there after the D-pad moved focus elsewhere. onMouseEnter would
+      // miss that (no fresh "enter"), so the two inputs could disagree on what's focused.
+      onMouseMove={onHover}
       aria-current={focused || undefined}
       className="flex w-full items-center gap-3 rounded-xl border px-4 py-2.5 text-left transition-all active:scale-[0.99]"
       style={{
@@ -170,7 +174,7 @@ function MenuRow({ item, focused, onSelect, onHover }) {
       <Icon className="h-6 w-6 shrink-0" style={{ color: iconColor }} aria-hidden="true" />
       <span
         className="min-w-0 flex-1 truncate text-sm font-medium"
-        style={{ color: focused ? FROG.ink : danger ? 'rgb(239, 90, 90)' : FROG.soft }}
+        style={{ color: focused ? FROG.ink : danger ? `rgb(${FROG.danger})` : FROG.soft }}
       >
         {label}
       </span>

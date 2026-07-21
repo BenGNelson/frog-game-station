@@ -334,7 +334,10 @@ in before), and **(2)** search forks its keyboard — on touch it swaps the 6×6
 for the **device's own keyboard** (familiar, and it doesn't fight the muscle memory of
 every other text field). The controller legend is hidden in touch mode, and the global
 keydown router yields to a focused `<input>` so the native field's keystrokes never
-double-fire.
+double-fire. Hover-to-focus is **`onMouseMove` everywhere** (not `onMouseEnter`): with a
+pad and a mouse both live, a mouse *nudge* has to re-claim the cursor even when the pointer
+was already resting on an item after the D-pad moved focus off it — `onMouseEnter` fires
+only on a fresh crossing and would let the two inputs disagree.
 
 Because navigation is a **virtual cursor** (the global key router + a `data-focused`
 attribute for styling) rather than real DOM focus, most of the UI's focus-visible rings

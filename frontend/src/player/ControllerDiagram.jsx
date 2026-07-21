@@ -118,7 +118,7 @@ export default function ControllerDiagram({
       <g
         role={interactive ? 'button' : undefined}
         onClick={interactive ? () => onSelectKey(s.key) : undefined}
-        onMouseEnter={interactive ? () => onFocusKey(s.key) : undefined}
+        onMouseMove={interactive ? () => onFocusKey(s.key) : undefined}
         style={{ cursor: interactive ? 'pointer' : 'default' }}
       >
         <line x1={anchorX} y1={y} x2={p.x} y2={p.y} stroke={on ? jade : FROG.line} strokeWidth={on ? 1.6 : 1} />
@@ -153,7 +153,7 @@ export default function ControllerDiagram({
       <g
         role={s.key ? 'button' : undefined}
         onClick={s.key ? () => onSelectKey(s.key) : undefined}
-        onMouseEnter={s.key ? () => onFocusKey(s.key) : undefined}
+        onMouseMove={s.key ? () => onFocusKey(s.key) : undefined}
         style={{ cursor: s.key ? 'pointer' : 'default' }}
       >
         {s.focused && <circle cx={p.x} cy={p.y} r={r + 4} fill="none" stroke={jade} strokeWidth="2.5" />}
@@ -219,7 +219,7 @@ export default function ControllerDiagram({
       <g
         role={sel.key ? 'button' : undefined}
         onClick={sel.key ? () => onSelectKey(sel.key) : undefined}
-        onMouseEnter={sel.key ? () => onFocusKey(sel.key) : undefined}
+        onMouseMove={sel.key ? () => onFocusKey(sel.key) : undefined}
         style={{ cursor: sel.key ? 'pointer' : 'default' }}
       >
         {sel.focused && <rect x={selP.x - 15} y={selP.y - 9} width="30" height="18" rx="9" fill="none" stroke={jade} strokeWidth="2" />}

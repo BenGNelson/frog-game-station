@@ -65,7 +65,7 @@ export default function SaveStateCard({ game, state, onSelect, onDelete, actionL
           <button
             onClick={onDelete}
             className="border-l px-3 py-1.5 active:opacity-70"
-            style={{ borderColor: FROG.line, color: 'rgb(239, 90, 90)' }}
+            style={{ borderColor: FROG.line, color: `rgb(${FROG.danger})` }}
           >
             Delete
           </button>

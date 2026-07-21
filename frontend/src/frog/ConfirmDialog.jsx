@@ -72,12 +72,12 @@ export default function ConfirmDialog({
             data-testid="frog-confirm-yes"
             data-focused={yesFocused || undefined}
             onClick={onYes}
-            onMouseEnter={() => onFocusChange?.(0)}
+            onMouseMove={() => onFocusChange?.(0)}
             className={`rounded-xl px-5 py-2.5 text-sm font-semibold transition-transform ${yesFocused ? 'scale-105' : ''}`}
             style={{
-              background: 'rgb(239, 90, 90)',
+              background: `rgb(${FROG.danger})`,
               color: '#fff',
-              boxShadow: yesFocused ? '0 0 0 3px rgba(239, 90, 90, 0.55)' : 'none',
+              boxShadow: yesFocused ? `0 0 0 3px rgba(${FROG.danger}, 0.55)` : 'none',
             }}
           >
             {yesLabel}
@@ -86,7 +86,7 @@ export default function ConfirmDialog({
             type="button"
             data-focused={noFocused || undefined}
             onClick={onNo}
-            onMouseEnter={() => onFocusChange?.(1)}
+            onMouseMove={() => onFocusChange?.(1)}
             className={`rounded-xl px-5 py-2.5 text-sm font-medium transition-transform ${noFocused ? 'scale-105' : ''}`}
             style={{
               background: noFocused ? `rgba(${FROG.jade}, 0.16)` : 'transparent',
