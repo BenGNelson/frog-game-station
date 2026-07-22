@@ -1,11 +1,24 @@
 import { describe, it, expect } from 'vitest'
 import {
-  wikiLinkTarget, pushPage, goBack, currentPage, canGoBack, startHistory, emptyHistory, nextLinkIndex,
+  wikiLinkTarget, isSpeciesTitle, pushPage, goBack, currentPage, canGoBack, startHistory, emptyHistory, nextLinkIndex,
 } from './wikiNav.js'
 
 // Fake DOM nodes — the helper only reads `dataset` and `parentNode`, so plain
 // objects stand in without jsdom.
 const node = (dataset, parent = null) => ({ dataset, parentNode: parent })
+
+describe('isSpeciesTitle', () => {
+  it('matches a Bulbapedia species title', () => {
+    expect(isSpeciesTitle('Bulbasaur_(Pokémon)')).toBe(true)
+    expect(isSpeciesTitle('Mr._Mime_(Pokémon)')).toBe(true)
+  })
+  it('rejects ordinary page titles and non-strings', () => {
+    expect(isSpeciesTitle('List_of_Pokémon_by_National_Pokédex_number')).toBe(false)
+    expect(isSpeciesTitle('Bulbasaur')).toBe(false)
+    expect(isSpeciesTitle(null)).toBe(false)
+    expect(isSpeciesTitle(undefined)).toBe(false)
+  })
+})
 
 describe('wikiLinkTarget', () => {
   it('finds an internal wiki link on the clicked node', () => {

@@ -537,6 +537,16 @@ prose.
   fresh player mount reopens the dex on the cursor you left — surviving the region↔national
   toggle. _(Search-while-browsing on a controller and a cover-grid layout remain deferred — they
   need the on-screen keyboard ported into the player and a `cols>1` grid rework.)_
+- **Walkthrough species links cross-link INTO the Pokédex.** The deep-link runs both ways: the
+  detail view's "Read on Bulbapedia" opens the wiki reader (Pokédex → wiki), and — the reverse —
+  a `…_(Pokémon)` species link inside a Bulbapedia walkthrough hands off to *our* Pokédex rather
+  than loading another wiki page. `WikiPanel.follow` spots the species title
+  (`isSpeciesTitle`, `lib/wikiNav.js`) and calls `onOpenSpecies`; PlayerShell's `readFromWiki`
+  mirrors `readFromPokedex` (hide the reader, transfer the resume duty, open the Pokédex), then
+  resolves the title → a national-dex number via **`GET …/pokedex/resolve?title=`**
+  (`species_num_from_title` inverts `bulbapedia_title` back to a PokeAPI slug, then looks it up
+  by name) and jumps `PokedexPanel.openTo(num)` straight to that species. An unresolvable title
+  (rare) simply leaves the Pokédex on its list — no dead-end. Only wired for Pokémon games.
 
 ---
 

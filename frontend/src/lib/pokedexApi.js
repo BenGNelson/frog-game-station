@@ -18,6 +18,10 @@ export function pokemonUrl(num) {
   return `${API_BASE}/library/games/pokedex/pokemon?num=${enc(num)}`
 }
 
+export function resolveSpeciesUrl(title) {
+  return `${API_BASE}/library/games/pokedex/resolve?title=${enc(title)}`
+}
+
 // Is this a Pokémon game, and which dex to default to: { enabled, is_pokemon, scope }.
 export async function fetchPokedexInfo(id, name) {
   const r = await fetch(pokedexInfoUrl(id, name))
@@ -41,4 +45,15 @@ export async function fetchPokemon(num) {
     throw err
   }
   return r.json()
+}
+
+// A Bulbapedia species title -> its national-dex number, or null when it isn't a
+// resolvable species (404). Lets the wiki reader route a '…(Pokémon)' link into the
+// Pokédex instead of loading another wiki page.
+export async function resolveSpecies(title) {
+  const r = await fetch(resolveSpeciesUrl(title))
+  if (r.status === 404) return null
+  if (!r.ok) throw new Error(`pokedex resolve ${r.status}`)
+  const data = await r.json()
+  return data.num ?? null
 }

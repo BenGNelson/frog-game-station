@@ -3,7 +3,7 @@ import { ArrowLeft, X, ExternalLink, Search, BookOpen, Loader2, RefreshCw } from
 import { FROG } from '../frog/theme.js'
 import { fetchWikiSource, fetchWikiPage, searchWiki, setWikiOverride } from '../lib/wikiApi.js'
 import {
-  wikiLinkTarget, pushPage, goBack, currentPage, canGoBack, startHistory, emptyHistory, nextLinkIndex,
+  wikiLinkTarget, isSpeciesTitle, pushPage, goBack, currentPage, canGoBack, startHistory, emptyHistory, nextLinkIndex,
 } from '../lib/wikiNav.js'
 import '../frog/frog.css'
 
@@ -24,6 +24,7 @@ const WikiPanel = forwardRef(function WikiPanel({
   gameName,
   accent = FROG.jade,
   onClose,
+  onOpenSpecies = null,
   legend = null,
 }, ref) {
   const [phase, setPhase] = useState('idle') // idle|loading|reading|nolink|error
@@ -91,10 +92,15 @@ const WikiPanel = forwardRef(function WikiPanel({
   const follow = useCallback(
     (target) => {
       if (!target) return
-      if (target.type === 'internal') loadPage(target.title, { push: true })
-      else if (target.type === 'external') window.open(target.href, '_blank', 'noopener,noreferrer')
+      if (target.type === 'internal') {
+        // In a Pokémon game a species link is worth more in our Pokédex (structured
+        // types/stats/evolutions) than as another wiki page. onOpenSpecies is only wired
+        // for Pokémon games, so a non-Pokémon reader always falls through to loadPage.
+        if (onOpenSpecies && isSpeciesTitle(target.title)) onOpenSpecies(target.title)
+        else loadPage(target.title, { push: true })
+      } else if (target.type === 'external') window.open(target.href, '_blank', 'noopener,noreferrer')
     },
-    [loadPage]
+    [loadPage, onOpenSpecies]
   )
 
   const activateLink = useCallback(() => {
