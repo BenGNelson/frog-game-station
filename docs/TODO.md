@@ -122,11 +122,13 @@ Open items carry an inline tag; completed (`[x]`) items are left untagged — th
       accelerates** (`dexScrollStep`: 1→2→4 rows). The **last-viewed Pokémon is remembered per
       game** (keyed by national dex number, so it survives the region↔national toggle) and the
       cursor restores there on the next player mount.
-- [ ] [P3] **Pokédex: search-while-browsing + cover-grid (deferred sub-features).** The two
-      remaining wants from the nav pass: type-to-filter on a controller (needs the on-screen
-      keyboard — `lib/keyboard.js` / `frog/Keyboard.jsx` — ported from `FrogBrowser` into the
-      player shell), and an optional cover-grid layout (the panel's `moveInGrid` already supports
-      `cols>1`; today the list is `cols:1`). Touch already has a native search field.
+- [x] **Pokédex: search-while-browsing + cover-grid (deferred sub-features).** Shipped both. A pad
+      presses **X** to raise the shared on-screen keyboard (`lib/keyboard.js` / `frog/Keyboard.jsx`,
+      reused straight from `FrogBrowser`); every keystroke filters the dex list live. A header
+      button — **RS** on the pad — flips the list to a **cover grid** of sprite tiles, with the
+      pad index math scaled to the grid columns (`moveInGrid` at `cols>1`, up/down + LB/RB stepping
+      by whole rows) so the cursor + last-viewed restore work in either layout. Touch keeps its
+      native field and taps the header toggle.
 - [x] **Cross-link walkthrough Pokémon → our Pokédex.** Shipped: in a Bulbapedia walkthrough a
       `…(Pokémon)` species link now routes to OUR Pokédex detail instead of loading another wiki
       page. `WikiPanel.follow` spots the species title (`isSpeciesTitle`) and calls a new
