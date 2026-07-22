@@ -127,26 +127,49 @@ describe('player panel render smoke', () => {
     }
   })
 
-  it('ControlsPanel mounts (with the diagram) without throwing', () => {
+  it('ControllerDiagram mounts with a Menu-chord hotkey (badge on a game button)', () => {
+    // A chord {button, mod:'menu'} places its badge on the game button (here Wiki on Y),
+    // marked "M+" — a different render path from a bare stick-click hotkey.
     expect(() =>
       renderToString(
-        <ControlsPanel
-          padName="Xbox Wireless Controller"
-          scheme="letters"
+        <ControllerDiagram
+          resolved={resolveBindings({ scheme: 'letters', custom: {} })}
           bindings={{}}
           listeningFor={null}
-          wikiHotkey={11}
+          wikiHotkey={{ button: 3, mod: 'menu' }}
           pokedexHotkey={10}
           ffHotkey={null}
           isPokemon
-          focus={2}
-          onFocus={() => {}}
-          onScheme={() => {}}
-          onListen={() => {}}
-          onReset={() => {}}
-          onBack={() => {}}
+          focusedKey={null}
+          onFocusKey={() => {}}
+          onSelectKey={() => {}}
         />
       )
     ).not.toThrow()
+  })
+
+  it('ControlsPanel mounts (with the diagram + a chord hotkey) without throwing', () => {
+    for (const wikiHotkey of [11, { button: 3, mod: 'menu' }]) {
+      expect(() =>
+        renderToString(
+          <ControlsPanel
+            padName="Xbox Wireless Controller"
+            scheme="letters"
+            bindings={{}}
+            listeningFor={null}
+            wikiHotkey={wikiHotkey}
+            pokedexHotkey={10}
+            ffHotkey={null}
+            isPokemon
+            focus={2}
+            onFocus={() => {}}
+            onScheme={() => {}}
+            onListen={() => {}}
+            onReset={() => {}}
+            onBack={() => {}}
+          />
+        )
+      ).not.toThrow()
+    }
   })
 })

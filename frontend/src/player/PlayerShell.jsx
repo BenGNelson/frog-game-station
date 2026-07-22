@@ -46,6 +46,9 @@ import {
   bindingsFor,
   withBinding,
   resetControls,
+  isChord,
+  hotkeyMatches,
+  sameHotkey,
   CONTROL_SKINS,
 } from '../lib/playerSettings.js'
 import { bindingForButton } from '../lib/gamepad.js'
@@ -611,23 +614,29 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
   // Returns true from onRawButton to swallow that press, so it doesn't also
   // navigate the menu it was made in.
   const captureBinding = useCallback(
-    (buttonIndex, id) => {
+    (buttonIndex, id, menuHeld = false) => {
       if (listeningFor == null) return false
 
       // The wiki hotkey is an app action, not a RetroPad button — it can take ANY
       // button except the app's own Menu/Guide. It MAY collide with a game button
       // (then that button also acts in-game); that's on the player, said in the panel.
+      // Holding Menu during the press records a CHORD (hold-Menu + button) instead of a
+      // bare button — the way to spend a game button on a shortcut without it firing the
+      // shortcut every time you use that button in-game.
       if (listeningFor === 'wiki' || listeningFor === 'pokedex' || listeningFor === 'fastForward') {
         if (buttonIndex === 9 || buttonIndex === 16) {
           setError('That button belongs to the app — pick another.')
         } else {
           const key = listeningFor === 'wiki' ? 'wikiHotkey' : listeningFor === 'pokedex' ? 'pokedexHotkey' : 'ffHotkey'
-          // One button, one shortcut: free any OTHER shortcut that was on this button.
-          // Otherwise onRawButton checks them in order and the earlier one silently wins,
-          // so the new binding would never fire — here the freed one visibly reads Unassigned.
-          const patch = { ...settings, [key]: buttonIndex }
+          const value = menuHeld ? { button: buttonIndex, mod: 'menu' } : buttonIndex
+          // One slot, one shortcut: free any OTHER shortcut that was on this exact slot
+          // (same bare button, or same Menu-chord). Otherwise onRawButton checks them in
+          // order and the earlier one silently wins, so the new binding would never fire —
+          // here the freed one visibly reads Unassigned. A bare button and a Menu-chord on
+          // the same button DON'T collide (sameHotkey knows), so both can coexist.
+          const patch = { ...settings, [key]: value }
           for (const other of ['wikiHotkey', 'pokedexHotkey', 'ffHotkey']) {
-            if (other !== key && patch[other] === buttonIndex) patch[other] = null
+            if (other !== key && sameHotkey(patch[other], value)) patch[other] = null
           }
           saveSettings(patch)
         }
@@ -818,22 +827,34 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
     },
     onDisconnect: () => setPadActive(false),
 
+    // Whether holding Menu is currently a chord modifier — true when any hotkey IS a chord,
+    // or while the Controls screen is capturing one (so the very first assignment can hold
+    // Menu without the long-press opening the pause menu / closing Controls mid-hold). It
+    // makes the Menu long-press defer to release (see menuGesture); off, nothing changes.
+    menuChordMode:
+      isChord(settings.wikiHotkey) || isChord(settings.pokedexHotkey) || isChord(settings.ffHotkey) ||
+      listeningFor === 'wiki' || listeningFor === 'pokedex' || listeningFor === 'fastForward',
+
     // While the Controls screen is waiting for a press, that press IS the binding —
     // it must not also move the cursor. Returning true swallows it. Otherwise, in-game,
     // the wiki hotkey opens the reader straight from play (default R3; rebindable).
-    onRawButton: (index, id) => {
-      if (captureBinding(index, id)) return true
-      if (index === settings.wikiHotkey && isRunning(state)) {
+    onRawButton: (index, id, { menuHeld = false } = {}) => {
+      if (captureBinding(index, id, menuHeld)) return true
+      if (!isRunning(state)) return false // the hotkeys only act mid-play
+      // A hotkey is a bare button (fires on its own) or a Menu-chord (fires only while Menu
+      // is held) — hotkeyMatches applies the right rule, so a bare and a chord can share a
+      // button. Earlier hotkeys still win a genuine collision; capture frees the old holder.
+      if (hotkeyMatches(settings.wikiHotkey, index, menuHeld)) {
         openWiki(true)
         return true
       }
-      // The Pokédex hotkey (default L3) — only meaningful for a Pokémon game.
-      if (index === settings.pokedexHotkey && isRunning(state) && isPokemon) {
+      // The Pokédex hotkey — only meaningful for a Pokémon game.
+      if (hotkeyMatches(settings.pokedexHotkey, index, menuHeld) && isPokemon) {
         openPokedex(true)
         return true
       }
-      // The fast-forward hotkey (opt-in, any button) — toggle the core's turbo mid-play.
-      if (settings.ffHotkey != null && index === settings.ffHotkey && isRunning(state)) {
+      // The fast-forward hotkey — toggle the core's turbo mid-play.
+      if (hotkeyMatches(settings.ffHotkey, index, menuHeld)) {
         const on = !fastForward
         setFastForward(emuRef.current, on)
         setFF(on)

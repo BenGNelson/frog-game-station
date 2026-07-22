@@ -183,6 +183,35 @@ describe('menuGesture', () => {
     state = menuGesture(state, 'down', 200).state
     expect(menuGesture(state, 'tick', 700).action).toBe('pauseMenu')
   })
+
+  // chordHold: while a Menu-chord is live/being assigned, holding Menu arms the chord, so
+  // the long-press must NOT open the pause menu mid-hold — it defers to release, leaving
+  // the whole hold for the second button to land.
+  describe('chordHold mode', () => {
+    const opts = { chordHold: true }
+
+    it('does NOT open the pause menu on the down-tick', () => {
+      const { state } = menuGesture(MENU_GESTURE_IDLE, 'down', 0)
+      expect(menuGesture(state, 'tick', 500, opts).action).toBeNull() // past 450ms, still nothing
+    })
+
+    it('opens the pause menu on RELEASE after a long hold', () => {
+      let { state } = menuGesture(MENU_GESTURE_IDLE, 'down', 0)
+      state = menuGesture(state, 'tick', 500, opts).state // no action, gesture not fired
+      expect(menuGesture(state, 'up', 520, opts).action).toBe('pauseMenu')
+    })
+
+    it('still sends START on a short tap', () => {
+      const { state } = menuGesture(MENU_GESTURE_IDLE, 'down', 0)
+      expect(menuGesture(state, 'up', 200, opts).action).toBe('start')
+    })
+
+    it('a chord that consumed the gesture (fired) suppresses both pause and START on release', () => {
+      let { state } = menuGesture(MENU_GESTURE_IDLE, 'down', 0)
+      state = { ...state, fired: true } // the loop marks this when a chord fires
+      expect(menuGesture(state, 'up', 600, opts).action).toBeNull()
+    })
+  })
 })
 
 

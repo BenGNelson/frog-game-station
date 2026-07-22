@@ -2,6 +2,7 @@ import { FROG } from '../frog/theme.js'
 import { BINDABLE } from '../lib/controlPresets.js'
 import { XBOX } from '../lib/gamepad.js'
 import { RETROPAD } from '../lib/retropad.js'
+import { isChord, hotkeyButton } from '../lib/playerSettings.js'
 
 // A drawn, frog-themed controller — the Controls screen's hero.
 //
@@ -100,11 +101,16 @@ export default function ControllerDiagram({
     ;(retroByPhysical[phys] ||= []).push(n)
   }
 
+  // Which app shortcuts sit on a physical button — a chord (hold-Menu + button) lands on
+  // its button too, prefixed "M+" so the badge shows it needs the modifier.
   const hotkeysAt = (raw) => {
     const out = []
-    if (wikiHotkey === raw) out.push('Wiki')
-    if (isPokemon && pokedexHotkey === raw) out.push('Dex')
-    if (ffHotkey === raw) out.push('FF')
+    const tag = (hk, label) => {
+      if (hotkeyButton(hk) === raw) out.push(isChord(hk) ? `M+${label}` : label)
+    }
+    tag(wikiHotkey, 'Wiki')
+    if (isPokemon) tag(pokedexHotkey, 'Dex')
+    tag(ffHotkey, 'FF')
     return out
   }
 

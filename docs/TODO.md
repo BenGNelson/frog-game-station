@@ -42,9 +42,10 @@ Open items carry an inline tag; completed (`[x]`) items are left untagged — th
       collision-free stick clicks (L3/R3) are flagged, the Menu button shown locked, and **Fast
       Forward** joins Wiki/Pokédex as an assignable shortcut (`ffHotkey`, default unassigned;
       `onRawButton` toggles the core turbo in-play). The screen now scroll-follows the controller.
-      _(Remaining follow-up, not blocking: **[P3]** the deeper "audit" idea — chord/hold combos or
-      trading a game binding for an app hotkey, for when a player wants more app shortcuts than the
-      two free clicks allow. The **controller-skin selector** has since **shipped** — a cosmetic
+      _(Follow-up now **shipped**: the deeper "audit" idea landed as a **hold-Menu modifier** — a
+      hotkey can be stored as a chord `{button, mod:'menu'}` (hold Menu + a game button), unlocking
+      more app-shortcut slots than the two free stick-clicks. The **controller-skin selector** also
+      **shipped** — a cosmetic
       `skin` prop on `ControllerDiagram`, chosen on the Controls screen (Xbox / PlayStation /
       Nintendo face-button colours) — alongside a **layout rework** of the drawn pad so the face
       diamond and centre chrome no longer overlap. The pause-menu dead-space cleanup this used to
@@ -62,8 +63,8 @@ Open items carry an inline tag; completed (`[x]`) items are left untagged — th
       pad framed as the hero, scheme cards above it (watch "A" move), shortcuts + reset below.
       _(The **controller-skin selector** (Xbox/PlayStation/Nintendo face-button colours via a
       `skin` prop) has since **shipped**, along with a layout rework that de-overlaps the drawn pad.
-      Remaining, deferred: **[P3]** the **chord/hold audit** for more app shortcuts than the two
-      free stick-clicks allow.)_
+      The **chord/hold audit** has also **shipped** — a hold-Menu modifier layer (hold Menu + a
+      game button = an app shortcut) that unlocks more slots than the two free stick-clicks.)_
 
 - [x] **Deeper ROM-hack support surfacing** — shipped (badge + base link, borrow art): mark
       a game as "a ROM hack of <base>" via a toggle in the rematch picker — it borrows the

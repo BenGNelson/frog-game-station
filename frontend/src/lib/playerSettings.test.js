@@ -9,6 +9,10 @@ import {
   withBinding,
   clearBindings,
   resetControls,
+  isChord,
+  hotkeyButton,
+  hotkeyMatches,
+  sameHotkey,
   TOUCH_OPACITY_LEVELS,
   nearestOpacityLevel,
   CONTROL_SKINS,
@@ -208,5 +212,51 @@ describe('control bindings, per controller', () => {
     const store = fakeStorage()
     writeSettings(store, withBinding(DEFAULTS, XBOX, 8, 'BUTTON_2'))
     expect(bindingsFor(readSettings(store), XBOX)).toEqual({ 8: 'BUTTON_2' })
+  })
+
+  it('round-trips a Menu-chord hotkey through storage', () => {
+    const store = fakeStorage()
+    writeSettings(store, { ...DEFAULTS, wikiHotkey: { button: 3, mod: 'menu' } })
+    expect(readSettings(store).wikiHotkey).toEqual({ button: 3, mod: 'menu' })
+  })
+})
+
+describe('app-shortcut hotkeys (bare button vs Menu-chord)', () => {
+  const chord = { button: 3, mod: 'menu' }
+
+  it('isChord recognises only a well-formed chord descriptor', () => {
+    expect(isChord(chord)).toBe(true)
+    expect(isChord(3)).toBe(false)
+    expect(isChord(null)).toBe(false)
+    expect(isChord({ button: 3 })).toBe(false) // missing mod
+    expect(isChord({ mod: 'menu' })).toBe(false) // missing button
+  })
+
+  it('hotkeyButton reports the physical button for bare, chord, and unassigned', () => {
+    expect(hotkeyButton(11)).toBe(11)
+    expect(hotkeyButton(chord)).toBe(3)
+    expect(hotkeyButton(null)).toBeNull()
+  })
+
+  it('a bare hotkey fires on its index ONLY when Menu is not held', () => {
+    expect(hotkeyMatches(11, 11, false)).toBe(true)
+    expect(hotkeyMatches(11, 11, true)).toBe(false) // Menu held → chord context, bare stands down
+    expect(hotkeyMatches(11, 10, false)).toBe(false)
+    expect(hotkeyMatches(null, 11, false)).toBe(false)
+  })
+
+  it('a chord fires on its button ONLY when Menu is held', () => {
+    expect(hotkeyMatches(chord, 3, true)).toBe(true)
+    expect(hotkeyMatches(chord, 3, false)).toBe(false) // no modifier → no fire
+    expect(hotkeyMatches(chord, 4, true)).toBe(false)
+  })
+
+  it('sameHotkey collides like-with-like but lets a bare + a chord share a button', () => {
+    expect(sameHotkey(3, 3)).toBe(true)
+    expect(sameHotkey(3, 4)).toBe(false)
+    expect(sameHotkey(chord, { button: 3, mod: 'menu' })).toBe(true)
+    expect(sameHotkey(chord, { button: 4, mod: 'menu' })).toBe(false)
+    expect(sameHotkey(3, chord)).toBe(false) // bare A and Menu+A coexist
+    expect(sameHotkey(null, null)).toBe(false)
   })
 })
