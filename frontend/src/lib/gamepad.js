@@ -168,22 +168,35 @@ export function padAction(button) {
 // It fires the menu on the way DOWN (as soon as the hold is long enough), not on
 // release, so it feels immediate rather than laggy. START only fires on release,
 // because that's the only moment we know the press was short.
+//
+// `chordHold` flips one thing: holding Menu is ALSO how you arm a Menu-chord (hold Menu +
+// a game button = an app shortcut), so while a chord is configured — or being assigned —
+// we can't commit to the pause menu mid-hold or a slow "Menu + button" would open the menu
+// instead of firing the shortcut. In that mode the long-press waits for RELEASE, giving the
+// second button the whole hold to land; a chord press consuming the gesture (`fired`) then
+// suppresses the pause entirely. Tap-for-START is unchanged either way.
 export const MENU_GESTURE_IDLE = { downAt: null, fired: false }
 
-export function menuGesture(state, event, now, { longMs = 450 } = {}) {
+export function menuGesture(state, event, now, { longMs = 450, chordHold = false } = {}) {
   switch (event) {
     case 'down':
       return { state: { downAt: now, fired: false }, action: null }
 
     case 'tick':
-      if (state.downAt != null && !state.fired && now - state.downAt >= longMs) {
+      // Immediate pause on the down-tick — but NOT in chord mode, where it defers to release.
+      if (!chordHold && state.downAt != null && !state.fired && now - state.downAt >= longMs) {
         return { state: { ...state, fired: true }, action: 'pauseMenu' }
       }
       return { state, action: null }
 
     case 'up': {
-      const wasShortPress = state.downAt != null && !state.fired
-      return { state: MENU_GESTURE_IDLE, action: wasShortPress ? 'start' : null }
+      // A chord already consumed it (fired), or it never went down → nothing.
+      if (state.fired || state.downAt == null) return { state: MENU_GESTURE_IDLE, action: null }
+      const heldLong = now - state.downAt >= longMs
+      // Long hold → the pause menu, but only fired here in chord mode (normal mode already
+      // fired it on the tick). Short tap → the game's START.
+      const action = heldLong ? (chordHold ? 'pauseMenu' : null) : 'start'
+      return { state: MENU_GESTURE_IDLE, action }
     }
 
     default:

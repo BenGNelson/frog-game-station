@@ -62,14 +62,27 @@ export function useGamepad(handlers, enabled = true) {
         // The pad's id rides along so a remap can be saved against THIS controller.
         if (type === 'down') h.onPadButton?.(next.id)
 
-        // The raw index, for the Controls screen's "press a button to bind it".
-        // Handled before everything else and short-circuits: while we're listening
-        // for a binding, a press must NOT also navigate the menu it's sitting in.
-        if (type === 'down' && h.onRawButton?.(button, next.id)) continue
+        // The raw index, for the Controls screen's "press a button to bind it" and for the
+        // app hotkeys mid-play. Handled before everything else and short-circuits: while
+        // we're listening for a binding, a press must NOT also navigate the menu it's
+        // sitting in. Menu (9) is excluded so it always reaches the gesture below — that's
+        // both how a long-press opens the pause menu AND how `menu.downAt` tracks "Menu is
+        // held", which turns the NEXT button into a Menu-chord (see hotkeyMatches).
+        if (type === 'down' && button !== 9) {
+          const menuHeld = menu.downAt != null
+          if (h.onRawButton?.(button, next.id, { menuHeld })) {
+            // A press consumed while Menu was held is a chord — mark the Menu gesture as
+            // already fired so releasing Menu won't ALSO send START and its long-press
+            // won't open the pause menu on top of the shortcut.
+            if (menuHeld) menu = { ...menu, fired: true }
+            continue
+          }
+        }
 
         if (button === 9) {
           // The Menu button belongs to the app, never to the game (see gamepad.js).
-          const r = menuGesture(menu, type === 'down' ? 'down' : 'up', now)
+          // chordHold defers its long-press to release while a Menu-chord is live/being set.
+          const r = menuGesture(menu, type === 'down' ? 'down' : 'up', now, { chordHold: h.menuChordMode })
           menu = r.state
           if (r.action) h.onMenuAction?.(r.action)
           continue
@@ -86,8 +99,9 @@ export function useGamepad(handlers, enabled = true) {
         }
       }
 
-      // A long press has to fire while the button is still down, so poll it.
-      const m = menuGesture(menu, 'tick', now)
+      // A long press has to fire while the button is still down, so poll it (unless chord
+      // mode has deferred it to release — see menuGesture).
+      const m = menuGesture(menu, 'tick', now, { chordHold: h.menuChordMode })
       menu = m.state
       if (m.action) h.onMenuAction?.(m.action)
 

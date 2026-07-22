@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { ChevronLeft, Check, RotateCcw, Gamepad2, BookOpen, BookMarked, FastForward } from 'lucide-react'
 import { SCHEMES, BINDABLE, resolveBindings, describeBinding } from '../lib/controlPresets.js'
-import { CONTROL_SKINS } from '../lib/playerSettings.js'
+import { CONTROL_SKINS, isChord } from '../lib/playerSettings.js'
 import { bindingForButton } from '../lib/gamepad.js'
 import { FROG } from '../frog/theme.js'
 import { glowFilter } from '../lib/glow.js'
@@ -55,6 +55,13 @@ export default function ControlsPanel({
   useEffect(() => {
     scrollRef.current?.querySelector('[data-focused="true"]')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
   }, [focus])
+
+  // A hotkey's human label: 'Unassigned', a bare button ('R3'), or a Menu-chord ('Menu + Y').
+  const describeHotkey = (hk) => {
+    if (hk == null) return 'Unassigned'
+    if (isChord(hk)) return `Menu + ${describeBinding(bindingForButton(hk.button))}`
+    return describeBinding(bindingForButton(hk))
+  }
 
   const resetFocused = focusedKey === 'reset'
   const bindFocused = typeof focusedKey === 'string' && focusedKey.startsWith('bind:')
@@ -170,12 +177,16 @@ export default function ControlsPanel({
           </p>
 
           <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide" style={{ color: FROG.faint }}>Shortcuts</h3>
+          <p className="mb-2 text-xs leading-relaxed" style={{ color: FROG.faint }}>
+            Pick a row, then press a button — or <b style={{ color: FROG.soft }}>hold Menu + a button</b> to
+            put a shortcut on a game button (a combo, so it won’t fire on its own in-game).
+          </p>
           <div className="space-y-2">
             <HotkeyRow
               Icon={BookOpen}
               label="Wiki"
               hint="opens the wiki"
-              value={describeBinding(bindingForButton(wikiHotkey))}
+              value={describeHotkey(wikiHotkey)}
               listening={listeningFor === 'wiki'}
               focused={focusedKey === 'wiki'}
               onSelect={() => onListen('wiki')}
@@ -186,7 +197,7 @@ export default function ControlsPanel({
                 Icon={BookMarked}
                 label="Pokédex"
                 hint="opens the Pokédex"
-                value={describeBinding(bindingForButton(pokedexHotkey))}
+                value={describeHotkey(pokedexHotkey)}
                 listening={listeningFor === 'pokedex'}
                 focused={focusedKey === 'pokedex'}
                 onSelect={() => onListen('pokedex')}
@@ -197,7 +208,7 @@ export default function ControlsPanel({
               Icon={FastForward}
               label="Fast Forward"
               hint="toggles turbo"
-              value={ffHotkey == null ? 'Unassigned' : describeBinding(bindingForButton(ffHotkey))}
+              value={describeHotkey(ffHotkey)}
               listening={listeningFor === 'fastForward'}
               focused={focusedKey === 'fastForward'}
               onSelect={() => onListen('fastForward')}
@@ -223,7 +234,8 @@ export default function ControlsPanel({
 
           <p className="mt-4 text-center text-xs leading-relaxed" style={{ color: FROG.faint }}>
             The <b style={{ color: FROG.soft }}>Menu</b> button belongs to the app and can’t be reassigned — tap it for the
-            game’s Start, hold it for this menu. A shortcut on a game button also acts in-game.
+            game’s Start, hold it for this menu. A shortcut on a bare game button also acts in-game; a
+            <b style={{ color: FROG.soft }}> Menu + button</b> combo won’t — though the game still sees that second button.
           </p>
         </div>
       </div>

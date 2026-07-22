@@ -46,6 +46,46 @@ export const DEFAULTS = {
   ffHotkey: null,
 }
 
+// --- App-shortcut hotkeys (Wiki / Pokédex / Fast-Forward) ------------------
+//
+// A hotkey is one of: a raw pad-button index (a number), null (unassigned), or a CHORD
+// descriptor `{ button, mod: 'menu' }` meaning "hold Menu + that button". The chord is
+// what lets a shortcut live on a game button without firing by accident during play: Menu
+// is the app's own button (the engine never sees it), so the pairing is a deliberate combo.
+// The two bare stick-clicks (L3/R3) stay collision-free on their own; the modifier is how
+// you get MORE slots than those two. (Caveat: the game still sees the second button — the
+// engine reads the pad directly and the app can't intercept a game button mid-play.)
+
+export function isChord(hk) {
+  return !!hk && typeof hk === 'object' && hk.mod === 'menu' && typeof hk.button === 'number'
+}
+
+// The physical button a hotkey lives on (chord or bare), or null when unassigned — used by
+// the diagram to place the badge and by the Controls row to name it.
+export function hotkeyButton(hk) {
+  if (isChord(hk)) return hk.button
+  return typeof hk === 'number' ? hk : null
+}
+
+// Does this physical press fire the hotkey? A bare hotkey fires on its index only when Menu
+// is NOT held (a held Menu means we're in chord context); a chord fires on its button only
+// when Menu IS held. So a bare and a chord can even share one button — one needs the
+// modifier, the other refuses it.
+export function hotkeyMatches(hk, index, menuHeld) {
+  if (isChord(hk)) return !!menuHeld && hk.button === index
+  if (typeof hk === 'number') return !menuHeld && hk === index
+  return false
+}
+
+// Whether two hotkeys occupy the same slot, so assigning one frees the other (one button,
+// one shortcut). Bare-vs-bare by index, chord-vs-chord by button; a bare and a chord on the
+// same button do NOT collide (they're told apart by the modifier).
+export function sameHotkey(a, b) {
+  if (isChord(a) && isChord(b)) return a.button === b.button
+  if (typeof a === 'number' && typeof b === 'number') return a === b
+  return false
+}
+
 // The touch-control opacity steps the Settings card offers — a segmented control (like
 // input mode / nav sound) rather than a raw slider, so the same D-pad left/right that
 // drives every other setting drives this one. `DEFAULTS.touchOpacity` is one of these.

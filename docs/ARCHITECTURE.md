@@ -435,6 +435,26 @@ controller** (`controlBindings` keyed by pad id, so a second pad doesn't rewire 
   opt in and pick the button (`ffHotkey`; toggles the core turbo via `emuBridge.setFastForward`
   when pressed in-play). The screen scroll-follows the controller (the house
   `scrollIntoView({block:'nearest'})` pattern) so the shortcuts and Reset at the bottom are reachable.
+- **Hold-Menu modifier — more than the two free clicks.** Only the stick-clicks (L3/R3) are
+  collision-free on their own, so a shortcut is otherwise stuck choosing between them or a game
+  button that also fires in-game. The **Menu modifier** unlocks the rest: a hotkey can be stored
+  as a **chord** `{ button, mod: 'menu' }` — *hold Menu + that button* — rather than a bare index
+  (`lib/playerSettings.js`: `isChord` / `hotkeyButton` / `hotkeyMatches` / `sameHotkey`, back-compat
+  with the plain-int form). Menu is the app's own button (the engine never sees it), so the pairing
+  is a deliberate combo that won't fire the shortcut on its own in-game — and a bare hotkey and a
+  Menu-chord can even share one button (told apart by the modifier). The mechanic lives in the
+  gamepad poll loop (`lib/useGamepad.js`): `menu.downAt` already tracks "Menu is held", so a
+  second button's press carries a `menuHeld` flag to `onRawButton`; when a chord fires, the Menu
+  gesture is marked consumed so releasing Menu won't also send START or open the pause menu. And
+  because holding Menu is now *also* how you arm a chord, the Menu long-press can't commit to the
+  pause menu mid-hold — `menuGesture`'s `chordHold` mode (on while a chord is configured or being
+  assigned) **defers the long-press to release**, giving the second button the whole hold to land
+  (normal, no-chord users keep the immediate on-tick pause). Assignment mirrors this — hold Menu
+  during the "press a button" capture and it records a chord (`PlayerShell.captureBinding`); the
+  Controls row reads "Menu + Y" and the diagram badges it "M+".
+  **Caveat, stated on the screen:** the engine reads the pad directly, so the game still sees that
+  second button mid-play — the modifier stops *accidental* app-shortcut firing and frees up slots,
+  it doesn't fully isolate the game.
 
 ### The in-game wiki reader
 
