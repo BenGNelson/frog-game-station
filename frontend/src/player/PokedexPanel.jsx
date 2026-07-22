@@ -1,10 +1,13 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
-import { ArrowLeft, X, BookOpen, Loader2, Globe, ChevronRight } from 'lucide-react'
+import { ArrowLeft, X, BookOpen, Loader2, Globe, ChevronRight, Search as SearchIcon, LayoutGrid, List } from 'lucide-react'
 import { FROG } from '../frog/theme.js'
 import { moveInGrid } from '../lib/gridNav.js'
 import { fetchPokedexInfo, fetchPokedexList, fetchPokemon } from '../lib/pokedexApi.js'
 import { typeColor, statPercent, statTotal, filterDex, stepDexBlock, dexScrollStep, STAT_LABELS, STAT_ORDER } from '../lib/pokedex.js'
 import { getPokedexLast, setPokedexLast } from '../lib/pokedexLast.js'
+import { usesNativeKeyboard } from '../frog/input.js'
+import { applyKey, keyAt, moveKey, deleteChar } from '../lib/keyboard.js'
+import Keyboard from '../frog/Keyboard.jsx'
 import '../frog/frog.css'
 
 const SCROLL_STEP = 96
@@ -13,6 +16,11 @@ const SCROLL_STEP = 96
 // so the accelerator ramps only while a direction is genuinely held.
 const ACCEL_WINDOW = 260
 const ROW_PX = 48 // a dex row's approximate height, for the LB/RB page jump
+// The cover-grid layout: a fixed column count so the pad's index math (moveInGrid, row
+// jumps) is exact, and a taller row for the sprite tile's LB/RB page step.
+const GRID_COLS = 4
+const GRID_ROW_PX = 92
+const DEX_SEARCH_MAX = 30 // plenty for a species name; caps the on-screen keyboard draft
 
 // The in-game Pokédex reference (Pokémon games only). Structured data from PokeAPI —
 // types, base stats, evolution chains — rendered in OUR page, so it's controller/touch-
@@ -21,10 +29,11 @@ const ROW_PX = 48 // a dex row's approximate height, for the LB/RB page jump
 // across close/reopen), load-once, focus-on-open + Escape stopPropagation. Two views: a
 // numbered dex LIST and a per-Pokémon DETAIL. `onReadWiki(title)` deep-links to Bulbapedia.
 const PokedexPanel = forwardRef(function PokedexPanel({
-  open, gameId, gameName, accent = FROG.jade, onClose, onReadWiki, legend = null,
+  open, gameId, gameName, mode = 'pad', accent = FROG.jade, onClose, onReadWiki, legend = null,
 }, ref) {
   const [phase, setPhase] = useState('idle') // idle|loading|list|error
   const [view, setView] = useState('list') // list|detail
+  const [layout, setLayout] = useState('list') // list|grid (the cover-grid toggle)
   const [scope, setScope] = useState(null) // current dex slug
   const [regionScope, setRegionScope] = useState(null) // the game's region (for the toggle)
   const [list, setList] = useState([])
@@ -32,6 +41,9 @@ const PokedexPanel = forwardRef(function PokedexPanel({
   const [cursor, setCursor] = useState(0) // index into the FILTERED list
   const [detail, setDetail] = useState(null) // the selected Pokémon DTO
   const [detailBusy, setDetailBusy] = useState(false)
+  // The on-screen keyboard for search-while-browsing on a pad ({text,shift,pos} while up;
+  // null when closed). Touch never opens it — a finger types into the native field.
+  const [keyboard, setKeyboard] = useState(null)
 
   const loadedRef = useRef(false)
   const scrollerRef = useRef(null)
@@ -42,6 +54,8 @@ const PokedexPanel = forwardRef(function PokedexPanel({
   const filtered = filterDex(list, query)
   const accentText = `rgb(${accent})`
   const canToggle = regionScope && regionScope !== 'national'
+  const native = usesNativeKeyboard(mode) // touch types into the native field, not the board
+  const cols = layout === 'grid' ? GRID_COLS : 1
 
   // `preferredId` restores the cursor to a national dex number (last-viewed) when present
   // in the freshly loaded list; otherwise the list opens at the top. Only the INITIAL load
@@ -95,7 +109,7 @@ const PokedexPanel = forwardRef(function PokedexPanel({
     if (view === 'list') {
       scrollerRef.current?.querySelector('[data-focused="true"]')?.scrollIntoView({ block: 'nearest' })
     }
-  }, [cursor, view, query])
+  }, [cursor, view, query, layout])
 
   const openDetail = useCallback(async (num) => {
     setPokedexLast(gameId, num) // remember it for the next time this game's dex opens
@@ -123,8 +137,24 @@ const PokedexPanel = forwardRef(function PokedexPanel({
   }, [canToggle, scope, regionScope, loadList])
 
   const moveCursor = useCallback((action) => {
-    setCursor((i) => moveInGrid({ count: filtered.length, cols: 1, index: i }, action))
-  }, [filtered.length])
+    setCursor((i) => moveInGrid({ count: filtered.length, cols, index: i }, action))
+  }, [filtered.length, cols])
+
+  // The on-screen keyboard, seeded from the live query so it opens on what you've typed —
+  // and every keystroke updates the query, so the list filters WHILE you browse the board.
+  const openKeyboard = useCallback(() => {
+    setKeyboard((k) => k || { text: query, shift: false, pos: { r: 0, c: 0 } })
+  }, [query])
+
+  const applyQuery = useCallback((text) => { setQuery(text); setCursor(0) }, [])
+
+  const pressKey = useCallback((r, c) => {
+    if (!keyboard) return
+    const next = applyKey(keyboard, keyAt({ r, c }), { maxLen: DEX_SEARCH_MAX })
+    if (next.done) { setKeyboard(null); return } // Done closes the board; the query stays applied
+    applyQuery(next.text) // filter the list live as the board types
+    setKeyboard({ text: next.text, shift: next.shift, pos: { r, c } })
+  }, [keyboard, applyQuery])
 
   // Move the list cursor by a signed row delta, clamped to the (filtered) list.
   const moveBy = useCallback((delta) => {
@@ -146,6 +176,19 @@ const PokedexPanel = forwardRef(function PokedexPanel({
   // ONLY to ask PlayerShell to close (Back at the list root); true otherwise.
   useImperativeHandle(ref, () => ({
     handleAction(action) {
+      // The on-screen keyboard traps the pad while it's up: the d-pad walks the board, A
+      // presses the lit key, B peels a character (empty → close back to the list).
+      if (keyboard) {
+        if (action === 'up' || action === 'down' || action === 'left' || action === 'right') {
+          setKeyboard((k) => (k ? { ...k, pos: moveKey(k.pos, action) } : k))
+        } else if (action === 'confirm') {
+          pressKey(keyboard.pos.r, keyboard.pos.c)
+        } else if (action === 'back') {
+          if (keyboard.text) { const d = deleteChar(keyboard); applyQuery(d.text); setKeyboard(d) }
+          else setKeyboard(null)
+        }
+        return true
+      }
       if (view === 'detail') {
         const s = detailScrollerRef.current
         if (action === 'up') s?.scrollBy({ top: -SCROLL_STEP })
@@ -156,10 +199,12 @@ const PokedexPanel = forwardRef(function PokedexPanel({
         else if (action === 'back') toList()
         return true
       }
-      // list view. up/down accelerate while held; LT/RT jump a dex decade; LB/RB page.
+      // list view. up/down accelerate while held (by a whole row = ±cols in the grid);
+      // left/right step within a row (inert in the 1-col list); LT/RT jump a dex decade;
+      // LB/RB page; X opens the search keyboard; RS toggles the cover-grid.
       if (action === 'up' || action === 'down') {
         const step = heldStep(action)
-        moveBy(action === 'up' ? -step : step)
+        moveBy((action === 'up' ? -step : step) * cols)
         return true
       }
       if (action === 'left' || action === 'right') { moveCursor(action); return true }
@@ -168,8 +213,9 @@ const PokedexPanel = forwardRef(function PokedexPanel({
         return true
       }
       if (action === 'railPrev' || action === 'railNext') {
-        const page = Math.max(3, Math.floor((scrollerRef.current?.clientHeight || 400) / ROW_PX))
-        moveBy(action === 'railNext' ? page : -page)
+        const rowPx = layout === 'grid' ? GRID_ROW_PX : ROW_PX
+        const rows = Math.max(3, Math.floor((scrollerRef.current?.clientHeight || 400) / rowPx))
+        moveBy((action === 'railNext' ? rows : -rows) * cols)
         return true
       }
       if (action === 'confirm') {
@@ -177,6 +223,10 @@ const PokedexPanel = forwardRef(function PokedexPanel({
         if (p) openDetail(p.id)
         return true
       }
+      if (action === 'search') { openKeyboard(); return true } // X — type to filter on a pad
+      // RS is the one spare forwarded action here (no "surprise me" in the dex) — reuse it
+      // to flip list ⇄ grid, matching the header toggle a finger taps.
+      if (action === 'random') { setLayout((l) => (l === 'grid' ? 'list' : 'grid')); return true }
       if (action === 'alt') { toggleScope(); return true } // Y toggles region/national
       if (action === 'back') return false // close
       return true
@@ -185,16 +235,18 @@ const PokedexPanel = forwardRef(function PokedexPanel({
     // when a walkthrough '…(Pokémon)' link is followed (the reverse of the detail view's
     // Read-on-Bulbapedia deep-link).
     openTo(num) { openDetail(num) },
-  }), [view, filtered, cursor, detail, onReadWiki, moveCursor, moveBy, heldStep, openDetail, toList, toggleScope])
+  }), [view, layout, cols, keyboard, filtered, cursor, detail, onReadWiki, moveCursor, moveBy, heldStep,
+       openDetail, toList, toggleScope, openKeyboard, pressKey, applyQuery])
 
   const onKeyDown = useCallback((e) => {
     if (e.key === 'Escape') {
       e.preventDefault()
       e.stopPropagation()
-      if (view === 'detail') toList()
+      if (keyboard) setKeyboard(null) // close the on-screen board first
+      else if (view === 'detail') toList()
       else onClose()
     }
-  }, [view, toList, onClose])
+  }, [keyboard, view, toList, onClose])
 
   const readWiki = () => { if (detail && onReadWiki) onReadWiki(detail.bulbapedia_title) }
 
@@ -242,6 +294,16 @@ const PokedexPanel = forwardRef(function PokedexPanel({
           )}
         </div>
 
+        {view === 'list' && (
+          <button onClick={() => setLayout((l) => (l === 'grid' ? 'list' : 'grid'))}
+                  aria-label={layout === 'grid' ? 'Show the list view' : 'Show the cover grid'}
+                  className="flex items-center rounded-lg px-2.5 py-1.5 text-sm active:opacity-70"
+                  style={{ background: FROG.panel, color: FROG.soft }}>
+            {layout === 'grid'
+              ? <List className="h-4 w-4" aria-hidden="true" />
+              : <LayoutGrid className="h-4 w-4" aria-hidden="true" />}
+          </button>
+        )}
         {view === 'list' && canToggle && (
           <button onClick={toggleScope}
                   aria-label={scope === 'national' ? `Show ${scopeLabel(regionScope)} dex` : 'Show all Pokémon'}
@@ -258,13 +320,14 @@ const PokedexPanel = forwardRef(function PokedexPanel({
         </button>
       </div>
 
-      {/* Search (list only) */}
+      {/* Search (list only). A finger taps the native field; a pad presses X to raise the
+          on-screen keyboard (rendered below), so the placeholder hints that on a pad. */}
       {view === 'list' && phase === 'list' && (
         <div className="shrink-0 px-3 py-2">
           <input
             value={query}
-            onChange={(e) => { setQuery(e.target.value); setCursor(0) }}
-            placeholder="Search…"
+            onChange={(e) => { applyQuery(e.target.value) }}
+            placeholder={native ? 'Search…' : 'Search…  (press X)'}
             className="w-full rounded-lg px-3 py-1.5 text-sm outline-none"
             style={{ background: FROG.panel, color: FROG.ink }}
           />
@@ -277,7 +340,7 @@ const PokedexPanel = forwardRef(function PokedexPanel({
            style={{ display: view === 'list' ? 'block' : 'none' }}>
         {phase === 'loading' && <Centered><Spinner /> Loading…</Centered>}
         {phase === 'error' && <Centered><BookOpen className="mb-2 h-8 w-8 opacity-40" aria-hidden="true" />Couldn’t load the Pokédex.</Centered>}
-        {phase === 'list' && (
+        {phase === 'list' && layout === 'list' && (
           <ul className="mx-auto max-w-2xl px-2 py-1">
             {filtered.map((p, i) => (
               <DexRow key={p.id} p={p} focused={i === cursor}
@@ -285,6 +348,19 @@ const PokedexPanel = forwardRef(function PokedexPanel({
             ))}
             {!filtered.length && <li className="px-3 py-6 text-center text-sm" style={{ color: FROG.faint }}>No matches.</li>}
           </ul>
+        )}
+        {phase === 'list' && layout === 'grid' && (
+          filtered.length ? (
+            <ul className="mx-auto grid max-w-2xl gap-2 px-3 py-2"
+                style={{ gridTemplateColumns: `repeat(${GRID_COLS}, minmax(0, 1fr))` }}>
+              {filtered.map((p, i) => (
+                <DexTile key={p.id} p={p} focused={i === cursor}
+                         onFocus={() => setCursor(i)} onOpen={() => openDetail(p.id)} />
+              ))}
+            </ul>
+          ) : (
+            <p className="px-3 py-6 text-center text-sm" style={{ color: FROG.faint }}>No matches.</p>
+          )
         )}
       </div>
 
@@ -300,6 +376,22 @@ const PokedexPanel = forwardRef(function PokedexPanel({
       </div>
 
       {legend && <div className="shrink-0 px-3 py-2">{legend}</div>}
+
+      {/* The on-screen keyboard for search-while-browsing on a pad — a full-screen z-40
+          overlay, so it covers the list (and the native field) while it's up. */}
+      {keyboard && (
+        <Keyboard
+          title="Search the Pokédex"
+          text={keyboard.text}
+          placeholder="Type a name"
+          pos={keyboard.pos}
+          shift={keyboard.shift}
+          accent={accent}
+          onHover={(r, c) => setKeyboard((k) => (k ? { ...k, pos: { r, c } } : k))}
+          onPress={pressKey}
+          onClose={() => setKeyboard(null)}
+        />
+      )}
     </div>
   )
 })
@@ -324,6 +416,31 @@ function DexRow({ p, focused, onFocus, onOpen }) {
         </span>
         <img src={p.sprite} alt="" loading="lazy" className="h-10 w-10 shrink-0" style={{ imageRendering: 'pixelated' }} />
         <span className="truncate text-sm font-medium" style={{ color: FROG.ink }}>{p.display}</span>
+      </button>
+    </li>
+  )
+}
+
+// A cover-grid tile — the same row data, laid out as a sprite over its number + name. The
+// shared data-focused + scrollIntoView keeps the pad cursor on screen exactly as the list.
+function DexTile({ p, focused, onFocus, onOpen }) {
+  return (
+    <li>
+      <button
+        data-focused={focused || undefined}
+        onMouseMove={onFocus}
+        onClick={onOpen}
+        className="flex w-full flex-col items-center gap-0.5 rounded-lg px-1 py-2 transition-colors"
+        style={{
+          background: focused ? `rgba(${FROG.jade}, 0.14)` : 'transparent',
+          boxShadow: focused ? `0 0 0 2px rgba(${FROG.jade}, 0.5)` : 'none',
+        }}
+      >
+        <img src={p.sprite} alt="" loading="lazy" className="h-14 w-14" style={{ imageRendering: 'pixelated' }} />
+        <span className="text-[10px] tabular-nums" style={{ color: FROG.faint }}>
+          #{String(p.number ?? p.id).padStart(3, '0')}
+        </span>
+        <span className="w-full truncate text-center text-xs font-medium" style={{ color: FROG.ink }}>{p.display}</span>
       </button>
     </li>
   )
