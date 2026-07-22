@@ -19,6 +19,14 @@ export function wikiLinkTarget(node, stopAt = null) {
   return null
 }
 
+// A Bulbapedia species article title ends in '_(Pokémon)' ('Bulbasaur_(Pokémon)'). In a
+// Pokémon walkthrough those links are worth intercepting — routing them into OUR Pokédex
+// (types/stats/evolutions) instead of loading another wiki page. Pure so the reader can
+// test the routing decision without a DOM. The backend resolves the title -> a dex number.
+export function isSpeciesTitle(title) {
+  return typeof title === 'string' && title.endsWith('_(Pokémon)')
+}
+
 // The reader keeps a stack of visited page titles so Back returns to where you were.
 // `at` is the index of the current page. These are the small pure operations the
 // component drives; they never mutate the input.

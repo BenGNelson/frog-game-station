@@ -72,6 +72,19 @@ class TestNames:
         assert pokedex.bulbapedia_title("pikachu") == "Pikachu_(Pokémon)"
         assert pokedex.bulbapedia_title("mr-mime") == "Mr._Mime_(Pokémon)"
 
+    def test_species_slug_from_title_inverts_bulbapedia_title(self):
+        # The round-trip: every slug's Bulbapedia title inverts back to that slug.
+        for slug in ("pikachu", "mr-mime", "nidoran-f", "farfetchd", "ho-oh", "porygon-z"):
+            assert pokedex.species_slug_from_title(pokedex.bulbapedia_title(slug)) == slug
+
+    def test_species_slug_from_title_multiword_and_rejects_non_species(self):
+        assert pokedex.species_slug_from_title("Tapu_Koko_(Pokémon)") == "tapu-koko"
+        # Not a species link → None (a page title, an odd suffix, empty/None).
+        assert pokedex.species_slug_from_title("List_of_Pokémon_by_National_Pokédex_number") is None
+        assert pokedex.species_slug_from_title("Bulbasaur") is None
+        assert pokedex.species_slug_from_title("_(Pokémon)") is None
+        assert pokedex.species_slug_from_title(None) is None
+
 
 class TestSprites:
     def test_raw_url(self):
@@ -196,6 +209,27 @@ def test_get_pokemon_uses_species_name_for_forms(monkeypatch):
 def test_get_pokemon_none_on_missing(monkeypatch):
     monkeypatch.setattr(pokedex, "_api", lambda path, params=None: None)
     assert pokedex.get_pokemon(9999) is None
+
+
+def test_species_num_from_title_resolves_via_slug(monkeypatch):
+    # The title inverts to a slug, then /pokemon-species/{slug} yields the national number.
+    seen = {}
+    def fake_api(path, params=None):
+        seen["path"] = path
+        return {"id": 25} if path == "pokemon-species/pikachu" else None
+    monkeypatch.setattr(pokedex, "_api", fake_api)
+    assert pokedex.species_num_from_title("Pikachu_(Pokémon)") == 25
+    assert seen["path"] == "pokemon-species/pikachu"  # looked up by name slug, not id
+
+
+def test_species_num_from_title_none_when_unresolvable(monkeypatch):
+    # A non-species title never hits the API; a species PokeAPI has nothing for → None.
+    calls = []
+    monkeypatch.setattr(pokedex, "_api", lambda path, params=None: calls.append(path) or None)
+    assert pokedex.species_num_from_title("Some_Page") is None
+    assert calls == []  # short-circuited before any fetch
+    assert pokedex.species_num_from_title("Missingno_(Pokémon)") is None
+    assert calls == ["pokemon-species/missingno"]
 
 
 # --- endpoints -------------------------------------------------------------

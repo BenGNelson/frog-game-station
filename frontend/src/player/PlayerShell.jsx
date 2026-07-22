@@ -63,6 +63,7 @@ import ConfirmDialog from '../frog/ConfirmDialog.jsx'
 import ControlsPanel, { controlRows } from './ControlsPanel.jsx'
 import WikiPanel from './WikiPanel.jsx'
 import PokedexPanel from './PokedexPanel.jsx'
+import { resolveSpecies } from '../lib/pokedexApi.js'
 import ButtonLegend from './ButtonLegend.jsx'
 import RotatePrompt from './RotatePrompt.jsx'
 import TouchOverlay from './TouchOverlay.jsx'
@@ -549,6 +550,33 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
       setPendingRead(null)
     }
   }, [pendingRead, wikiOpen])
+
+  // The reverse hop: a species link in a walkthrough → OUR Pokédex. Hide the reader, hand
+  // the Pokédex the resume duty (so closing it behaves like a direct open), open it, and —
+  // once the Bulbapedia title resolves to a national-dex number — jump straight to that
+  // species. If it doesn't resolve (rare: a '(Pokémon)' link PokeAPI has nothing for) the
+  // Pokédex just stays on its list rather than dead-ending. Only wired for Pokémon games.
+  const [pendingSpecies, setPendingSpecies] = useState(null)
+  const readFromWiki = useCallback(async (bulbapediaTitle) => {
+    setWikiOpen(false)
+    pokedexFromGameRef.current = wikiFromGameRef.current
+    setPokedexMounted(true)
+    setPokedexOpen(true)
+    try {
+      const num = await resolveSpecies(bulbapediaTitle)
+      if (num) setPendingSpecies(num)
+    } catch {
+      /* leave the Pokédex on its list — the species just isn't resolvable */
+    }
+  }, [])
+  // Same commit-time reasoning as pendingRead: run before the panel's passive effects so
+  // openTo lands as soon as the ref is attached.
+  useLayoutEffect(() => {
+    if (pendingSpecies != null && pokedexOpen && pokedexRef.current) {
+      pokedexRef.current.openTo(pendingSpecies)
+      setPendingSpecies(null)
+    }
+  }, [pendingSpecies, pokedexOpen])
 
   const chooseScheme = useCallback(
     (scheme) => saveSettings({ ...settings, controlScheme: scheme }),
@@ -1402,6 +1430,7 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
             gameName={name}
             accent={systemStyle(label || systemForCore(core)).accent}
             onClose={closeWiki}
+            onOpenSpecies={isPokemon ? readFromWiki : null}
             legend={
               mode === 'pad' ? (
                 <ButtonLegend

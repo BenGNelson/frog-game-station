@@ -4,6 +4,7 @@
   GET /library/games/pokedex?id=&name=      — is this a Pokémon game? which dex to default to
   GET /library/games/pokedex/list?scope=    — the ordered dex list for a scope (region / national)
   GET /library/games/pokedex/pokemon?num=   — one Pokémon's composed detail (types/stats/evolutions)
+  GET /library/games/pokedex/resolve?title= — a Bulbapedia species title -> its national-dex number
   GET /library/games/pokedex/sprite?src=    — proxy one PokeAPI sprite (anti-open-proxy)
 
 Thin layer over app/pokedex.py (PokeAPI fetch + cache + pure helpers). The sprite proxy
@@ -67,6 +68,21 @@ def get_pokedex_pokemon(num: int = Query(ge=1, le=100000, description="National 
     if not data:
         return Response(status_code=404)
     return data
+
+
+@router.get("/library/games/pokedex/resolve")
+def resolve_pokedex_species(
+    title: str = Query(max_length=120, description="Bulbapedia species title, e.g. 'Bulbasaur_(Pokémon)'"),
+):
+    """A Bulbapedia species article title -> its national-dex number, so the wiki reader can
+    hand a '…(Pokémon)' walkthrough link to our Pokédex instead of loading another wiki page.
+    404 when the title isn't a resolvable species (not a species link, or PokeAPI has nothing)."""
+    if not settings.pokedex_enabled:
+        return Response(status_code=404)
+    num = pokedex.species_num_from_title(title)
+    if not num:
+        return Response(status_code=404)
+    return {"num": num}
 
 
 @router.get("/library/games/pokedex/sprite")

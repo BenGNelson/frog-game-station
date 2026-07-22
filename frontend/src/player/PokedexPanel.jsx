@@ -181,6 +181,10 @@ const PokedexPanel = forwardRef(function PokedexPanel({
       if (action === 'back') return false // close
       return true
     },
+    // Jump straight to a species' detail — the wiki reader hands us a national-dex number
+    // when a walkthrough '…(Pokémon)' link is followed (the reverse of the detail view's
+    // Read-on-Bulbapedia deep-link).
+    openTo(num) { openDetail(num) },
   }), [view, filtered, cursor, detail, onReadWiki, moveCursor, moveBy, heldStep, openDetail, toList, toggleScope])
 
   const onKeyDown = useCallback((e) => {

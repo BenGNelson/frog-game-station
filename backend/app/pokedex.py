@@ -124,6 +124,44 @@ def bulbapedia_title(slug) -> str:
     return display_name(slug).replace(" ", "_") + "_(Pokémon)"
 
 
+# The inverse of display_name for the handful of names plain casing gets wrong. Built
+# from _SPECIAL_NAMES so the two can't drift.
+_DISPLAY_TO_SLUG = {v: k for k, v in _SPECIAL_NAMES.items()}
+_SPECIES_SUFFIX = "_(Pokémon)"
+# A resolved PokeAPI slug is lowercase letters/digits/hyphens only. Anything else means
+# the inversion produced junk (odd punctuation in the title) — refuse rather than feed a
+# weird path to the API fetch.
+_SLUG_RE = re.compile(r"^[a-z0-9-]+\Z")
+
+
+def species_slug_from_title(title) -> str | None:
+    """Inverse of bulbapedia_title: a Bulbapedia species article title
+    ('Bulbasaur_(Pokémon)', 'Mr._Mime_(Pokémon)') -> the PokeAPI slug ('bulbasaur',
+    'mr-mime'), or None if `title` isn't a '{Name}_(Pokémon)' species link. Pure — no IO;
+    the id lookup is species_num_from_title below."""
+    if not title or not title.endswith(_SPECIES_SUFFIX):
+        return None
+    display = title[: -len(_SPECIES_SUFFIX)].replace("_", " ").strip()
+    if not display:
+        return None
+    slug = _DISPLAY_TO_SLUG.get(display) or display.lower().replace(" ", "-")
+    return slug if _SLUG_RE.match(slug) else None
+
+
+def species_num_from_title(title) -> int | None:
+    """A Bulbapedia species title -> its national-dex number, or None. Inverts the title
+    to a slug (species_slug_from_title) then resolves it via /pokemon-species/{slug}
+    (PokeAPI accepts the name slug on that endpoint). Cached like every other lookup."""
+    slug = species_slug_from_title(title)
+    if not slug:
+        return None
+    species = _api(f"pokemon-species/{slug}")
+    if not species:
+        return None
+    num = species.get("id")
+    return num if isinstance(num, int) else None
+
+
 def _id_from_url(url) -> int | None:
     """The trailing numeric id of a PokeAPI resource url ('.../pokemon-species/25/' -> 25)."""
     if not url:
