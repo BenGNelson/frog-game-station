@@ -11,9 +11,12 @@ batch of usability + friendliness wins — a PWA install nudge, a first-run "Sur
 accessibility (focus-visible / aria-live / AA-contrast text), a finish celebration, touch
 ergonomics (opacity control + bigger/brighter controls + haptics + a screen-reader menu
 path), a rebalanced search with first-run suggestions, and a de-overlapped drawn controller
-with an Xbox/PlayStation/Nintendo skin — all code-reviewed. Shipped work lives in the git
-history (`git log`); what's left below is just **P3 nice-to-haves**, roughly priority-ordered
-within each group.
+with an Xbox/PlayStation/Nintendo skin — all code-reviewed. **The final P3 nice-to-haves have
+now shipped too**, clearing the backlog: the walkthrough-species → Pokédex cross-link, Pokédex
+search-while-browsing + a cover-grid toggle, and a hold-Menu modifier that unlocks more
+app-shortcut slots than the two free stick-clicks — plus the iOS keyboard auto-raise item
+**closed as won't-fix** (no clean web fix; the field is one tap away). Shipped work lives in the
+git history (`git log`); everything below is now **`[x]` — history**, not an open list.
 
 > **Deployment status:** the standalone stack is deployed and runs as its own installable
 > PWA (its own origin, manifest, and service worker — independent of any parent app). See
@@ -185,12 +188,15 @@ Open items carry an inline tag; completed (`[x]`) items are left untagged — th
       screen — was already fixed: the scroll viewport was split from a min-h-full wrapper so it
       top-aligns (scroll-reachable) when it overflows instead of centring, and pad-mode spacing
       shipped with a `padded` prop + equalised legend bar.)_
-- [ ] [P3] **Touch ergonomics — search-field keyboard auto-raise on iOS.** _(Deferred, not
-      dropped.)_ iOS blocks programmatic focus outside a user gesture, so there's no clean
-      web fix — it needs an on-device solution and is low-value next to the rest. Parked with
-      eyes open rather than left dangling. _Swipe momentum: **closed** — it's been the default
-      in iOS Safari since iOS 13 (`-webkit-overflow-scrolling` is a no-op now); nothing to
-      build. Letter-rail tap targets already shipped._
+- [x] **Touch ergonomics — search-field keyboard auto-raise on iOS.** **Closed — won't-fix.**
+      iOS only raises the software keyboard when `.focus()` runs *synchronously inside a user
+      gesture*; the search field mounts on the render *after* the navigating tap, outside that
+      gesture, so any programmatic focus is silently ignored (the field focuses, no keyboard).
+      The known workaround (an always-mounted input focused inside the tap handler + a "tap to
+      type" fallback) is fragile across iOS versions and low-value — the field is one tap away
+      already. Decision: accept no clean web fix rather than ship a hack. _Swipe momentum was
+      already **closed** (an iOS 13+ default; `-webkit-overflow-scrolling` is a no-op), and
+      letter-rail tap targets shipped — so this group is now fully resolved._
 - [x] **Perf: art-cache warm-up** — shipped: the game list's one big art slot re-fetches on
       every cursor move, so it now warms the neighbours. `lib/prefetchCovers.js` kicks off
       image loads for the rows just off the cursor (nearest-first, cache-version aware) so the
