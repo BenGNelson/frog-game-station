@@ -26,12 +26,18 @@ describe('player panel render smoke', () => {
     ).not.toThrow()
   })
 
-  it('PokedexPanel mounts (open) without throwing', () => {
-    expect(() =>
-      renderToString(
-        <PokedexPanel ref={createRef()} open gameId="g" gameName="Pokemon Yellow" onClose={() => {}} onReadWiki={() => {}} />
-      )
-    ).not.toThrow()
+  it('PokedexPanel mounts (open) in both input modes without throwing', () => {
+    // Both modes exercise the new search + cover-grid surface (the header layout toggle,
+    // the Keyboard/grid-tile imports); touch swaps the search placeholder, pad keeps the
+    // "press X" hint.
+    for (const mode of ['pad', 'touch']) {
+      expect(() =>
+        renderToString(
+          <PokedexPanel ref={createRef()} open mode={mode} gameId="g" gameName="Pokemon Yellow"
+                        onClose={() => {}} onReadWiki={() => {}} />
+        )
+      ).not.toThrow()
+    }
   })
 
   it('PauseMenu mounts (open, full Pokémon menu) without throwing', () => {

@@ -1452,6 +1452,7 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
             open={pokedexOpen}
             gameId={id}
             gameName={name}
+            mode={mode}
             accent={systemStyle(label || systemForCore(core)).accent}
             onClose={closePokedex}
             onReadWiki={readFromPokedex}
@@ -1460,6 +1461,7 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
                 <ButtonLegend
                   hints={[
                     { button: 'A', label: 'Select' },
+                    { button: 'X', label: 'Search' },
                     { button: 'Y', label: 'Dex' },
                     { button: 'B', label: 'Back' },
                   ]}

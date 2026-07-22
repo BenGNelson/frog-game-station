@@ -535,8 +535,13 @@ prose.
   up/down **accelerates** (`dexScrollStep`: 1→2→4 rows as the stick is held). The **last-viewed
   Pokémon is remembered per game** (`lib/pokedexLast.js`, keyed by national dex number), so a
   fresh player mount reopens the dex on the cursor you left — surviving the region↔national
-  toggle. _(Search-while-browsing on a controller and a cover-grid layout remain deferred — they
-  need the on-screen keyboard ported into the player and a `cols>1` grid rework.)_
+  toggle.
+- **Search-while-browsing + a cover-grid toggle.** A finger types into the native search field;
+  a **pad presses X** to raise the shared on-screen keyboard (`frog/Keyboard.jsx` + `lib/keyboard.js`,
+  the same board FrogBrowser uses to name a collection or a save), and every keystroke filters the
+  list live. A header button — **RS on the pad** — flips the list to a **cover grid** of sprite
+  tiles; the pad's index math scales to the grid's columns (`moveInGrid` at `cols>1`, up/down and
+  LB/RB stepping by whole rows) so the same cursor + last-viewed restore work in either layout.
 - **Walkthrough species links cross-link INTO the Pokédex.** The deep-link runs both ways: the
   detail view's "Read on Bulbapedia" opens the wiki reader (Pokédex → wiki), and — the reverse —
   a `…_(Pokémon)` species link inside a Bulbapedia walkthrough hands off to *our* Pokédex rather
