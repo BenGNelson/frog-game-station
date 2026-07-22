@@ -127,11 +127,14 @@ Open items carry an inline tag; completed (`[x]`) items are left untagged — th
       keyboard — `lib/keyboard.js` / `frog/Keyboard.jsx` — ported from `FrogBrowser` into the
       player shell), and an optional cover-grid layout (the panel's `moveInGrid` already supports
       `cols>1`; today the list is `cols:1`). Touch already has a native search field.
-- [ ] [P3] **Cross-link walkthrough Pokémon → our Pokédex.** In a Bulbapedia walkthrough the Pokémon
-      links currently navigate within Bulbapedia; instead route a `…(Pokémon)` link to OUR
-      Pokédex detail (open the Pokédex panel to that species). The backend already knows each
-      species' Bulbapedia title, so the mapping is there — the reader would recognize a species
-      link and hand it to the Pokédex rather than loading another wiki page.
+- [x] **Cross-link walkthrough Pokémon → our Pokédex.** Shipped: in a Bulbapedia walkthrough a
+      `…(Pokémon)` species link now routes to OUR Pokédex detail instead of loading another wiki
+      page. `WikiPanel.follow` spots the species title (`isSpeciesTitle`) and calls a new
+      `onOpenSpecies` prop; `PlayerShell.readFromWiki` mirrors `readFromPokedex` (hide reader,
+      transfer resume duty, open Pokédex) then resolves the title → national-dex number via a new
+      `GET …/pokedex/resolve?title=` (`species_num_from_title` inverts `bulbapedia_title` back to
+      a PokeAPI slug, looks it up by name) and jumps `PokedexPanel.openTo(num)`. Only wired for
+      Pokémon games; an unresolvable title leaves the Pokédex on its list rather than dead-ending.
 
 ---
 
