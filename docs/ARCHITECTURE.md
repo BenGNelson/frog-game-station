@@ -53,6 +53,14 @@ reachable from anywhere. The shape of them is the design:
   shelf space than it earned.)_
   (`buildShelf` in `shelf.js` decides the whole set; `tagRails` builds the collection rows
   in tag-name order.)
+- **The controller cursor starts on the TOP rail's first game (Jump-back-in), not Systems.**
+  The rails resolve asynchronously — `systems` renders first (before the library loads), then
+  the history rails (`Jump back in`, `Favorites`) land *ahead* of it. `reconcileShelfFocus`
+  (`lib/gridNav.js`) keeps focus on the same rail *by identity* once the user is steering (so a
+  rail inserted ahead can't drag the highlight onto a different game) — but **until they take
+  control it follows rail 0**, so the cursor ends up on Jump-back-in's first game instead of
+  locking onto the systems placeholder. A restored non-default position (returning from a game)
+  counts as already-driven and is preserved as-is.
 - **The systems row never scrolls.** A small, fixed set of machines fits on one screen —
   no carousel, no hidden tile — so you can see the shape of the whole collection at a
   glance. A system with no games keeps its tile, dimmed.
@@ -717,6 +725,16 @@ exact-name key so later loads skip the fallback; and a **custom cover dropped be
 ROM** (same basename) takes precedence over libretro — the durable override for hacks or a
 title with no listing match.
 
+**When libretro has nothing, the game's IGDB cover is the last resort** (`_igdb_cover_bytes`,
+below libretro, above the placeholder). A ROM whose *system or name* libretro keys differently
+— a `.gbc` Pokémon Yellow that libretro files under Game Boy, or a No-Intro name that omits an
+edition subtitle — misses libretro entirely but usually has an IGDB match, so the cover endpoint
+falls back to that match's `cover_image_id` (fetched + downscaled + cached under the same key, so
+it's a straight cache hit thereafter). The libretro **`.miss`** marker now means only "no
+*libretro* art" — the IGDB fallback is still tried past it (and a fresh match is picked up
+without clearing anything), and the DB check gates it so a game with art *nowhere* costs one
+SQLite read per load, not a fetch.
+
 **Set your own cover from a live frame.** The player's save-state shelf has a **"Set as
 cover"** action (it moved there from the pause menu — capturing a frame belongs beside
 snapshotting one): it takes the frame the live-shot timer already keeps ready (the same
@@ -743,7 +761,14 @@ SQLite-cache pattern, not an external script.
   network: **pure helpers** (a platform-id map, filename→search-string cleaning built on
   the title cleaner, the APICalypse query body, and article/word-order-insensitive match
   **scoring**) and thin `requests` calls. Everything degrades to `None` / unmatched on any
-  error, so one bad lookup never breaks a pass.
+  error, so one bad lookup never breaks a pass. The scorer blends a token **Jaccard** with a
+  character sequence ratio, with two guards that reflect real ROM-vs-IGDB naming: tokens are
+  **accent-folded** (`Pokémon` → `pokemon`, else the `[a-z0-9]+` split makes it `pok`+`mon`
+  and never matches), and a **containment lift** rescues a match where every ROM token is
+  present in a longer official title — an edition/subtitle IGDB carries but the No-Intro name
+  omits (`Pokemon Yellow Version` vs `Pokémon Yellow Version: Special Pikachu Edition`), which
+  a raw Jaccard would sink below threshold. The lift is guarded (≥2 ROM tokens, true subset)
+  and is a `max()`, so it only ever *raises* a score — it can't break an existing match.
 - **`app/igdb_sync.py` is the matcher** (`IgdbMatcher`, wired into the app lifespan).
   Dormant unless IGDB creds and a ROM directory are configured. Each ROM is looked up once
   by cleaned title + platform, best match cached in the `igdb_meta` table; ROMs are
