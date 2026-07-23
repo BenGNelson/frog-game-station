@@ -7,20 +7,24 @@ import { lilyPadMarkup, dragonflyMarkup } from './art.js'
 // reduced motion (frog.css owns the kill list). Budget: these are garnishes —
 // a screen mounts at most one of each.
 
-// Two-to-three lily pads resting on the water, drifting on long staggered loops.
-export function LilyPads({ accent = FROG.jade, count = 3 }) {
+// Two-to-three lily pads resting on the water. They keep to the pond FLOOR — the
+// empty band along the bottom edge — so they never share space with the mascot or
+// the rails: at tablet width the old higher positions landed beside the frog and
+// read as big distracting rings rather than set dressing. The third pad only
+// exists where the screen is wide enough to have spare floor.
+export function LilyPads({ accent = FROG.jade }) {
   const pads = [
-    { cls: 'frog-pad-a', style: { width: 92, left: '4%', top: '14%' }, alpha: 0.14 },
-    { cls: 'frog-pad-b', style: { width: 64, right: '6%', top: '58%' }, alpha: 0.11 },
-    { cls: 'frog-pad-c', style: { width: 46, left: '15%', bottom: '9%' }, alpha: 0.09 },
-  ].slice(0, count)
+    { cls: 'frog-pad-a', extra: '', style: { width: 72, left: '2%', bottom: '4%' }, alpha: 0.1 },
+    { cls: 'frog-pad-b', extra: '', style: { width: 54, right: '3%', bottom: '12%' }, alpha: 0.08 },
+    { cls: 'frog-pad-c', extra: 'hidden lg:block', style: { width: 40, right: '16%', bottom: '3%' }, alpha: 0.07 },
+  ]
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
       {pads.map((p) => (
         <svg
           key={p.cls}
           viewBox="0 0 100 60"
-          className={`absolute ${p.cls}`}
+          className={`absolute ${p.cls} ${p.extra}`}
           style={p.style}
           dangerouslySetInnerHTML={{ __html: lilyPadMarkup({ rgb: accent, alpha: p.alpha }) }}
         />

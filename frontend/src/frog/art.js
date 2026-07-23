@@ -105,7 +105,7 @@ export function frogCharacterMarkup({ skin, shade, belly, id, asleep = false }) 
 export function lilyPadMarkup({ rgb = '52, 211, 153', alpha = 0.14 } = {}) {
   return `
   <path d="M50 4 A46 26 0 1 0 50.1 4 L68 22 Z"
-    fill="rgba(${rgb}, ${alpha})" stroke="rgba(160, 255, 214, ${alpha + 0.08})" stroke-width="1.5"/>`
+    fill="rgba(${rgb}, ${alpha})" stroke="rgba(160, 255, 214, ${alpha + 0.04})" stroke-width="1.5"/>`
 }
 
 // A dragonfly in profile: two blurred wing ellipses (the buzz is CSS), a thin
