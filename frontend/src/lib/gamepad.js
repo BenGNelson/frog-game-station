@@ -192,10 +192,11 @@ export function menuGesture(state, event, now, { longMs = 450, chordHold = false
     case 'up': {
       // A chord already consumed it (fired), or it never went down → nothing.
       if (state.fired || state.downAt == null) return { state: MENU_GESTURE_IDLE, action: null }
-      const heldLong = now - state.downAt >= longMs
-      // Long hold → the pause menu, but only fired here in chord mode (normal mode already
-      // fired it on the tick). Short tap → the game's START.
-      const action = heldLong ? (chordHold ? 'pauseMenu' : null) : 'start'
+      // Normal mode: any non-fired press is the game's START (identical to before — the
+      // tick already opened the menu on a long hold and set `fired`, so a non-fired release
+      // is by definition a short press). Chord mode deferred the long-press, so here a long
+      // hold is the pause menu and a short tap is still START.
+      const action = chordHold && now - state.downAt >= longMs ? 'pauseMenu' : 'start'
       return { state: MENU_GESTURE_IDLE, action }
     }
 

@@ -65,11 +65,14 @@ export function useGamepad(handlers, enabled = true) {
         // The raw index, for the Controls screen's "press a button to bind it" and for the
         // app hotkeys mid-play. Handled before everything else and short-circuits: while
         // we're listening for a binding, a press must NOT also navigate the menu it's
-        // sitting in. Menu (9) is excluded so it always reaches the gesture below — that's
-        // both how a long-press opens the pause menu AND how `menu.downAt` tracks "Menu is
-        // held", which turns the NEXT button into a Menu-chord (see hotkeyMatches).
-        if (type === 'down' && button !== 9) {
-          const menuHeld = menu.downAt != null
+        // sitting in.
+        //
+        // Menu (9) is skipped ONLY in chord mode — there, holding Menu ARMS a chord, so it
+        // must fall straight through to the gesture below to set `menu.downAt` ("Menu is
+        // held"). Outside chord mode it still flows through onRawButton so a regular
+        // game-button rebind keeps its "that button belongs to the app" guard on Menu.
+        if (type === 'down' && !(button === 9 && h.menuChordMode)) {
+          const menuHeld = button !== 9 && menu.downAt != null
           if (h.onRawButton?.(button, next.id, { menuHeld })) {
             // A press consumed while Menu was held is a chord — mark the Menu gesture as
             // already fired so releasing Menu won't ALSO send START and its long-press

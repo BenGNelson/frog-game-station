@@ -167,6 +167,13 @@ describe('menuGesture', () => {
     expect(menuGesture(state, 'tick', 450).action).toBe('pauseMenu')
   })
 
+  it('a non-fired release is always START in normal mode, even past the threshold', () => {
+    // Byte-identity guard: without a tick having fired (e.g. release on the same frame the
+    // hold crosses 450ms), the release is still the game's START, never a swallowed no-op.
+    const { state } = menuGesture(MENU_GESTURE_IDLE, 'down', 0)
+    expect(menuGesture(state, 'up', 500).action).toBe('start') // fired never set → START
+  })
+
   it('only fires the menu once per hold', () => {
     let { state } = menuGesture(MENU_GESTURE_IDLE, 'down', 0)
     state = menuGesture(state, 'tick', 500).state
