@@ -127,6 +127,28 @@ describe('player panel render smoke', () => {
     }
   })
 
+  it('ControllerDiagram surfaces the listening prompt and chord badges in its markup', () => {
+    // Pins the two states the drawn pad must communicate, not just render: an off-map
+    // rebind mid-listen shows "Press…" at that button's callout, and a Menu-chord
+    // hotkey wears its "M+" badge.
+    const html = renderToString(
+      <ControllerDiagram
+        resolved={resolveBindings({ scheme: 'letters', custom: { 8: 'RIGHT_STICK' } })}
+        bindings={{ 8: 'RIGHT_STICK' }}
+        listeningFor={8}
+        wikiHotkey={{ button: 3, mod: 'menu' }}
+        pokedexHotkey={10}
+        ffHotkey={null}
+        isPokemon
+        focusedKey="bind:8"
+        onFocusKey={() => {}}
+        onSelectKey={() => {}}
+      />
+    )
+    expect(html).toContain('Press…')
+    expect(html).toContain('M+')
+  })
+
   it('ControllerDiagram mounts with a Menu-chord hotkey (badge on a game button)', () => {
     // A chord {button, mod:'menu'} places its badge on the game button (here Wiki on Y),
     // marked "M+" — a different render path from a bare stick-click hotkey.

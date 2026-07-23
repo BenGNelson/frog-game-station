@@ -420,25 +420,32 @@ the bottom button; best for platformers). Every button is remappable on top, **p
 controller** (`controlBindings` keyed by pad id, so a second pad doesn't rewire the first).
 
 - **The buttons are shown as a big drawn controller, not a list** (`player/ControllerDiagram.jsx`).
-  Following the drawn-not-scraped rule (a frog sits where a real pad prints its logo), each
-  face button wears its **real controller colour** (bottom green / right red / left blue /
-  top amber, the `ButtonLegend` convention) and is labelled with the **game** button it
-  currently triggers — so flipping the scheme visibly **moves "A"** between the bottom and
-  right buttons, which is the whole choice made obvious. The face diamond is spaced so no two
-  buttons — or the centre chrome (Select/Menu, the frog) — ever overlap; every other button
-  gets a **callout** in the margins — a labelled card joined to the button by a thin leader
-  line — that reads at a glance and uses the screen's width (the pad is the hero, callouts
-  flank it). A **skin** (`controlSkin`, a cosmetic setting on the Controls screen) tints the
+  The silhouette is a **real pad** — shoulder humps, descending grips, an arch between them —
+  built as a hand-tuned left half mirrored about the centreline so the two sides can't drift,
+  with faint **still water-rings** behind it (the WATER motif, deliberately static so nothing
+  loops behind a settings surface). Following the drawn-not-scraped rule, the **frog itself
+  sits where a real pad prints its logo**, eyes cresting over the pad's top edge through a
+  dip drawn into the outline, blinking on the mascot's own lid cycle (`frog-lid`/`frog-lid-b`
+  — intentionally alive even under reduced motion, like the mascot). Each face button wears
+  its **real controller colour** (bottom green / right red / left blue / top amber, the
+  `ButtonLegend` convention) and is labelled with the **game** button it currently triggers —
+  so flipping the scheme visibly **moves "A"** between the bottom and right buttons, which is
+  the whole choice made obvious. Every other button gets a **callout** in the margins — a
+  two-line text label (button name over binding) joined to the button's rim by a thin elbow
+  leader line, the visual language of a classic gamepad layout card — with a generous
+  invisible hit-rect so the text is still an easy tap target. A **skin** (`controlSkin`, a
+  cosmetic setting on the Controls screen) tints the
   face buttons to match the pad in your hands — Xbox position colours, the DualSense symbol
   colours, or Switch's monochrome — without touching the mapping. Face buttons, shoulders and
   Select are interactive (focus/click → rebind); the diagram reflects the same linear focus the
   pad walks (`controlRows`, which now carries the skin row between the schemes and the buttons),
   so the picture and the d-pad never disagree.
-- **Callouts are per-physical-button, so nothing is ever hidden.** Each card shows whatever
+- **Callouts are per-physical-button, so nothing is ever hidden.** Each callout shows whatever
   RetroPad button(s) sit on that physical slot: a collision reads "A/B", and a game button a
-  custom rebind pushed onto a stick/d-pad simply appears on **that** button's card (the vacated
-  face slot reads "—", never a hole). App shortcuts are annotated on **every** button, not just
-  the sticks — Fast-Forward bound to RB reads "RB · R" with a jade **FF** badge.
+  custom rebind pushed onto a stick/d-pad simply appears at **that** button's callout (the
+  vacated face slot reads "—", never a hole). App shortcuts are annotated on **every** button,
+  not just the sticks — Fast-Forward bound to RB reads "R" under the RB name with a jade
+  **FF** badge.
 - **Only the stick-clicks are truly free, and the diagram says so.** In-play the engine reads
   the pad itself (its own loop + our preset), so the app can't intercept a press — the *only*
   collision-free buttons for an app **shortcut** are the two stick-clicks L3/R3 (no core uses

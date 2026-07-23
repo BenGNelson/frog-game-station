@@ -244,3 +244,9 @@ Open items carry an inline tag; completed (`[x]`) items are left untagged — th
 - [x] **Navigation SFX** — soft synthesized blips (`lib/sfx.js`, no audio files), off by
       default, a Settings toggle.
 - [x] A true-**OLED-black** ground on phones (`@media (max-width: 640px)`).
+- [x] **Controls-screen makeover (2026-07-22):** redraw the controller diagram — a real pad
+      silhouette (mirrored-half path: shoulder humps, grips, bottom arch), right-sized face
+      buttons, airy two-line text callouts with elbow leader lines in place of the card
+      boxes, the frog at the guide-button spot with eyes cresting the top edge on the
+      mascot's blink cycle, and still water-rings behind the pad. README screenshot
+      regenerated.
