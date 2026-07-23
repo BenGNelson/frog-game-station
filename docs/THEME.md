@@ -135,7 +135,9 @@ The motif is WATER: things **float** (slow bob + `reflection()` shadow), **refle
 
 - **Caustics** — every browse screen; full strength on the shelf, 60% while
   browsing/searching, tinted to the screen's system. The player keeps a still ground.
-- **Lily pads** — shelf only, three, drifting on 26–34s loops.
+- **Lily pads** — shelf only, drifting on 26–34s loops, and pinned to the pond
+  FLOOR (the empty bottom band): higher positions collide with the mascot at
+  tablet width and read as rings, not dressing. Two pads; a third on `lg`+.
 - **Bubbles** — the two loading screens (the frog is underwater on its way up) and
   the screensaver. Motion-only: reduced motion removes them, never freezes them.
 - **Firefly** — shelf, only while the frog dozes (22:00–06:00). One.
