@@ -77,8 +77,15 @@ with sync_playwright() as p:
     rows = page.locator('[data-testid="frog-save-row"]')
     check(rows.count() == 2, f"the save states are listed ({rows.count()})")
 
+    # Delete lives in the save EDITOR now: a row's pencil opens it, and its "Delete save"
+    # closes the editor and routes through the shared "Delete this save state?" confirm.
+    def request_delete():
+        page.locator('[data-testid="frog-save-row"]').first.locator('[aria-label="Edit this save state"]').click(force=True)
+        page.wait_for_selector('[data-testid="frog-save-editor"]', timeout=4000)
+        page.locator('[data-testid="frog-save-delete"]').click(force=True)
+
     # Delete is guarded: request it, then CANCEL — no delete goes out.
-    rows.first.locator('[aria-label="Delete this save state"]').click(force=True)
+    request_delete()
     page.wait_for_selector('[data-testid="frog-confirm"]', timeout=4000)
     check(True, "deleting a save asks to confirm first")
     page.get_by_text("Keep").click()
@@ -86,7 +93,7 @@ with sync_playwright() as p:
     check(len(deletes) == 0, "cancelling the confirm deletes nothing")
 
     # Now confirm it — a DELETE for that slot goes out.
-    rows.first.locator('[aria-label="Delete this save state"]').click(force=True)
+    request_delete()
     page.wait_for_selector('[data-testid="frog-confirm-yes"]', timeout=4000)
     page.locator('[data-testid="frog-confirm-yes"]').click()
     page.wait_for_function("() => !document.querySelector('[data-testid=\"frog-confirm\"]')", timeout=4000)
