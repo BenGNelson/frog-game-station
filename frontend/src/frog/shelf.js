@@ -75,15 +75,18 @@ export function favoriteGames(items = [], favorites = []) {
 // "Jump back in" is rail 0 so it's where focus lands, then Favorites — both the rows
 // that mean most sessions never touch the alphabet. Each disappears entirely when
 // it's empty: a heading over an empty row is a worse first impression than no heading.
+// "Finished" is a per-game FLAG, not a shelf rail: the trophy toggle lives on the game
+// page and a FinishedBadge marks the game wherever its card shows (shelf, every list). It
+// deliberately gets NO home-screen rail — a browse-all-finished row overlapped Recents /
+// Favorites / Systems and cost more shelf room than it earned. `collections.finished` still
+// drives all of that; it just doesn't become a rail here.
 export function buildShelf(items = [], recent = [], favorites = [], collections = {}) {
   const jump = jumpBackIn(items, recent)
   const favs = favoriteGames(items, favorites)
-  const finished = hydrate(items, (collections.finished || []).map((id) => ({ id })))
   const systems = buildSystems(items)
   const history = [
     ...(jump.length ? [{ id: 'jump', title: 'Jump back in', kind: 'game', items: jump }] : []),
     ...(favs.length ? [{ id: 'favorites', title: 'Favorites', kind: 'game', items: favs }] : []),
-    ...(finished.length ? [{ id: 'finished', title: 'Finished', kind: 'game', items: finished }] : []),
     ...tagRails(items, collections.tags),
   ]
   return [...history, { id: 'systems', title: 'Systems', kind: 'system', items: systems }, ...discoverRail(items, history)]
@@ -95,6 +98,10 @@ export function buildShelf(items = [], recent = [], favorites = [], collections 
 // first-run affordance where the empty space is.) It retires the moment the shelf has any
 // history of its own — a Jump-back-in / Favorites / Finished / tag rail — since the space is
 // no longer empty. Nothing to be random about with no games.
+//
+// It counts the SAME history rails buildShelf builds (Jump-back-in / Favorites / tag rails);
+// "Finished" is not among them (it's a per-game flag, no rail), so a library whose only
+// history is finished games still reads as first-run and keeps the Surprise-me card.
 export function discoverRail(items = [], history = []) {
   if (history.length || !items.length) return []
   return [

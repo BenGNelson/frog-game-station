@@ -40,14 +40,17 @@ reachable from anywhere. The shape of them is the design:
   is also what tells Frog Game Station whether to lay itself out for a pad or a thumb. A faint version
   stamp sits in the corner (the app version, injected from `package.json` at build via a
   Vite `define` → `import.meta.env.VITE_APP_VERSION`) — a quiet portfolio signature.
-- **The rails, in order: "Jump back in", Favorites, "Finished", then one
+- **The rails, in order: "Jump back in", Favorites, then one
   rail per collection, then Systems.** You are almost always coming back to the same game,
   so the rows that mean *most sessions never touch the alphabet* come first. Favorites are
-  starred on a game's page (a client-side list, like recents); **Finished** and the **per-tag
-  collection rails** are server-owned (see Collections below), fetched fresh on every return
+  starred on a game's page (a client-side list, like recents); the **per-tag collection
+  rails** are server-owned (see Collections below), fetched fresh on every return
   to the shelf. All are re-hydrated against the live library so a game that has left simply
   drops out, and each row disappears when empty. _(Play-time is still tracked server-side —
-  it just surfaces on the game page rather than as its own rail.)_
+  it surfaces on the game page rather than as its own rail; **"Finished" likewise gets no
+  rail** — it's a per-game flag, a trophy badge on the cover and a toggle on the game page,
+  not a browse-all row, because that row overlapped Recents/Favorites/Systems and cost more
+  shelf space than it earned.)_
   (`buildShelf` in `shelf.js` decides the whole set; `tagRails` builds the collection rows
   in tag-name order.)
 - **The systems row never scrolls.** A small, fixed set of machines fits on one screen —
@@ -80,8 +83,9 @@ reachable from anywhere. The shape of them is the design:
   A finger reaches the same pick two ways it otherwise couldn't: a **shuffle button in the
   header** (browsing screens), and — on a *first-run* shelf with no history of its own — a
   **"Surprise me" card** below the systems. `discoverRail` (`shelf.js`) adds that card only
-  while the shelf is history-less; the moment a Jump-back-in / Favorites / Finished / tag
-  rail exists, the empty space is gone and the card retires.
+  while the shelf is history-less; the moment a Jump-back-in / Favorites / tag
+  rail exists, the empty space is gone and the card retires. (Finished games don't count —
+  they're a flag, not a rail — so a finished-only library still reads as first-run.)
 - **The empty shelf is a first-run nudge, not a wall of dimmed tiles.** With no games the
   pond is simply quiet — a dozing frog over its reflection and a plain-language nudge to
   set `ROMS_DIR`. If IGDB isn't configured either (checked via the matcher's status),
@@ -94,8 +98,11 @@ reachable from anywhere. The shape of them is the design:
   **one exception is "Jump back in": A there resumes the game instantly** (that rail is *for*
   fast resume; a secondary button still opens the page).
   - **Collections: a "finished" flag + free-form tags, both server-owned so they roam.** The
-    finished toggle is a one-tap status (its own action, a trophy badge on every cover, and
-    a "Finished" shelf rail). Marking one — the emotional peak of owning a library — fires a
+    finished toggle is a one-tap status — its own action and a trophy badge on every cover
+    (shelf, every list). It deliberately gets **no shelf rail** (a browse-all-finished row
+    cost more home-screen space than it earned, overlapping Recents/Favorites/Systems); the
+    flag is surfaced where each game already shows. Marking one — the emotional peak of
+    owning a library — fires a
     one-shot celebration (`FinishToast`): the mascot hops and a jade toast rises for a beat,
     on the false→true mark only, `role="status"` for AT and frozen politely under
     reduced-motion. Tags are a *set* — a "Collections" focus zone opens a picker
