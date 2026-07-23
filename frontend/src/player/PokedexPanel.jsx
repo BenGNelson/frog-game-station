@@ -1,6 +1,6 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { ArrowLeft, X, BookOpen, Loader2, Globe, ChevronRight, LayoutGrid, List } from 'lucide-react'
-import { FROG } from '../frog/theme.js'
+import { FROG, scrim } from '../frog/theme.js'
 import { moveInGrid } from '../lib/gridNav.js'
 import { fetchPokedexInfo, fetchPokedexList, fetchPokemon } from '../lib/pokedexApi.js'
 import { typeColor, statPercent, statTotal, filterDex, stepDexBlock, dexScrollStep, STAT_LABELS, STAT_ORDER } from '../lib/pokedex.js'
@@ -271,7 +271,7 @@ const PokedexPanel = forwardRef(function PokedexPanel({
       className="absolute inset-0 z-30 flex flex-col outline-none"
       style={{
         display: open ? 'flex' : 'none',
-        background: 'rgba(5, 17, 13, 0.96)',
+        background: scrim(0.96),
         backdropFilter: 'blur(10px)',
         paddingLeft: 'env(safe-area-inset-left)',
         paddingRight: 'env(safe-area-inset-right)',

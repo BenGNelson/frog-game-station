@@ -215,7 +215,13 @@
 /* --- In-game wiki reader -------------------------------------------------- */
 /* Typography for the sanitized MediaWiki article we render in our own page
    (player/WikiPanel.jsx). The article HTML is arbitrary structural markup, so it
-   needs a readable baseline; --wiki-accent is set inline per system. */
+   needs a readable baseline; --wiki-accent is set inline per system.
+
+   This block is plain CSS (the frog/ folder stays portable), so theme.js tokens
+   appear here as literals. The mapping — change both sides together:
+     #e6f5ee = FROG.ink   ·  #93b5a8 = FROG.soft  ·  #7c9c8f = FROG.faint
+     #0a1c16 = FROG.panel ·  #34d399 / 52,211,153 = FROG.jade
+     #cfe3da = body text, between ink and soft (wiki-only) */
 .wiki-article {
   color: #cfe3da;
   font-size: 15px;
@@ -269,7 +275,7 @@
 .wiki-article figure { margin: 0.8em 0; }
 .wiki-article figcaption {
   font-size: 0.85em;
-  color: #5b7a6e;
+  color: #7c9c8f;
   text-align: center;
   margin-top: 0.3em;
 }
@@ -307,3 +313,19 @@
 .wiki-article th { color: #e6f5ee; background: rgba(255, 255, 255, 0.03); }
 .wiki-article caption { color: #93b5a8; font-size: 0.9em; margin-bottom: 0.3em; }
 .wiki-article hr { border: 0; border-top: 1px solid rgba(255, 255, 255, 0.08); margin: 1em 0; }
+
+/* --- Danger-tinted ghost control ------------------------------------------ */
+/* A quiet destructive control on dark chrome (the player's corner exit): a faint
+   ring at rest, a red wash under press. Plain CSS because hover/active states
+   can't be inline styles; 239, 90, 90 = FROG.danger — change both together. */
+.frog-danger-ghost {
+  color: rgba(239, 90, 90, 0.8);
+  box-shadow: 0 0 0 1px rgba(239, 90, 90, 0.25);
+}
+.frog-danger-ghost:hover {
+  background-color: rgba(239, 90, 90, 0.2);
+  color: #ffe9e9;
+}
+.frog-danger-ghost:active {
+  background-color: rgba(239, 90, 90, 0.3);
+}

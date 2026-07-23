@@ -448,10 +448,10 @@ export function styleStartScreen(frame, { coverUrl, name, onStart, accent, groun
   }
   if (!doc?.head || doc.getElementById(START_STYLE_ID)) return false
 
-  // Frog Game Station's water identity by default (green-black pond, jade glow); falls back to the
-  // Games violet if no palette is passed. PlayerShell hands in FROG's colours — the
-  // player is Frog Game Station's screen now, so the launch flow (shelf → start → loading frog →
-  // game) should read as one continuous world, not a violet screen that turns green.
+  // Frog Game Station's water identity by default (green-black pond, jade glow); falls back to
+  // the games-section accent (also jade) if no palette is passed. PlayerShell hands in FROG's
+  // colours — the player is Frog Game Station's screen now, so the launch flow (shelf → start →
+  // loading frog → game) should read as one continuous world.
   const rgb = accent || sectionAccent('games').rgb
   // A hex, deliberately: the pond gradient appends an alpha (`${bg}00`), which only
   // parses on a hex colour. PlayerShell passes FROG.ground (a hex); this is the fallback.
@@ -465,8 +465,8 @@ export function styleStartScreen(frame, { coverUrl, name, onStart, accent, groun
       transform: scale(1.25);
       opacity: 0.5;
     }
-    /* The pond: Frog Game Station's green-black ground with a jade glow welling up from below,
-       instead of the app-wide violet radiance. */
+    /* The pond: Frog Game Station's green-black ground with a jade glow welling up
+       from below. */
     .ejs_parent::after {
       content: '';
       position: absolute; inset: 0; pointer-events: none;

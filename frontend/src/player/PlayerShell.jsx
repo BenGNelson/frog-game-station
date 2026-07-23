@@ -5,7 +5,7 @@ import { playerSrc, coverUrl, postCover, deleteCover, ENGINE_LOADER_URL, engineI
 import { goBack } from '../lib/nav.js'
 // The player is Frog Game Station's screen — launched from a game's page, it dresses in its
 // clothes (the same theme + boot mascot) so play feels continuous with the browser.
-import { systemForCore, systemStyle, FROG } from '../frog/theme.js'
+import { systemForCore, systemStyle, FROG, scrim } from '../frog/theme.js'
 import FrogBoot from './FrogBoot.jsx'
 import {
   RETROPAD,
@@ -1241,9 +1241,9 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
           style={{
             top: 'calc(env(safe-area-inset-top) + 0.5rem)',
             left: 'calc(env(safe-area-inset-left) + 0.5rem)',
-            background: 'rgba(5, 17, 13, 0.5)',
+            background: scrim(0.5),
           }}
-          className="absolute z-30 rounded-full p-2 text-rose-300/80 ring-1 ring-rose-400/25 backdrop-blur-sm transition-colors hover:bg-rose-500/20 hover:text-rose-100 active:bg-rose-500/30"
+          className="frog-danger-ghost absolute z-30 rounded-full p-2 backdrop-blur-sm transition-colors"
         >
           <X className="h-5 w-5" aria-hidden="true" />
         </button>

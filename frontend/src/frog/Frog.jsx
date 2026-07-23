@@ -81,7 +81,7 @@ export function SystemFrog({ size = 96, system, asleep = false, className = '', 
             bottom: size * 0.04,
             padding: Math.max(2, Math.round(size * 0.035)),
             background: FROG.ground,
-            border: '1px solid rgba(160, 255, 214, 0.22)',
+            border: `1px solid rgba(${FROG.lineRGB}, 0.22)`,
             boxShadow: '0 4px 14px rgba(0,0,0,0.55)',
           }}
         >

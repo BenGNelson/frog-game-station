@@ -1,7 +1,7 @@
 import { useRef } from 'react'
 import { Play, Trash2 } from 'lucide-react'
 import { useFocusTrap } from '../lib/useFocusTrap.js'
-import { FROG } from '../frog/theme.js'
+import { FROG, scrim } from '../frog/theme.js'
 
 // The Load/Delete chooser for a save state.
 //
@@ -44,7 +44,7 @@ export default function SaveActionMenu({ title, focus, onFocusChange, onLoad, on
     <div
       data-testid="frog-save-chooser"
       className={`absolute inset-0 ${z} flex items-center justify-center p-6`}
-      style={{ background: 'rgba(5, 17, 13, 0.72)', backdropFilter: 'blur(3px)' }}
+      style={{ background: scrim(0.72), backdropFilter: 'blur(3px)' }}
     >
       <div
         ref={panelRef}

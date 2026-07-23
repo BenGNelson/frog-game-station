@@ -3,7 +3,7 @@ import { ChevronLeft, Save, ImagePlus, ImageOff } from 'lucide-react'
 import SaveStateCard from '../SaveStateCard.jsx'
 import { Spinner } from '../components/ui.jsx'
 import { moveInGrid } from '../lib/gridNav.js'
-import { FROG } from '../frog/theme.js'
+import { FROG, scrim } from '../frog/theme.js'
 
 // The in-game save-state shelf, opened from the pause menu.
 //
@@ -128,7 +128,7 @@ export default function SaveStatePanel({
       onKeyDown={onKeyDown}
       className="absolute inset-0 z-30 flex flex-col outline-none backdrop-blur-md"
       style={{
-        background: 'rgba(5, 17, 13, 0.9)',
+        background: scrim(0.9),
         paddingLeft: 'env(safe-area-inset-left)',
         paddingRight: 'env(safe-area-inset-right)',
         paddingBottom: 'env(safe-area-inset-bottom)',

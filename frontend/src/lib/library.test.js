@@ -48,9 +48,9 @@ describe('coverUrl', () => {
 })
 
 describe('sectionAccent', () => {
-  it('gives games its constant-palette accent', () => {
-    expect(sectionAccent('games').text).toBe('text-violet-300')
-    expect(sectionAccent('games').rgb).toBe('139,92,246')
+  it('gives games its constant-palette accent — the app jade', () => {
+    expect(sectionAccent('games').text).toBe('text-emerald-300')
+    expect(sectionAccent('games').rgb).toBe('52,211,153')
   })
   it('falls back to a neutral accent for an unknown section', () => {
     expect(sectionAccent('nope').text).toBe('text-slate-300')

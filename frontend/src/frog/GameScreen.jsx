@@ -8,7 +8,7 @@ import { coverUrl, saveStateShotUrl, igdbShotUrl } from '../lib/library.js'
 import { formatPlaytime } from '../lib/format.js'
 import { useFocusTrap } from '../lib/useFocusTrap.js'
 import ConfirmDialog from './ConfirmDialog.jsx'
-import { FROG, systemStyle, reflection } from './theme.js'
+import { FROG, systemStyle, reflection, scrim } from './theme.js'
 import { SystemFrog, Reflected } from './Frog.jsx'
 import { FinishedBadge, HackBadge } from './Shelf.jsx'
 import { agoLabel } from './shelf.js'
@@ -413,7 +413,7 @@ function RichHero({ game, meta, shots, s, slide, focused, finished, hack, onOpen
         <div
           className="absolute inset-0"
           style={{
-            background: `linear-gradient(to top, ${FROG.ground} 4%, rgba(5,17,13,0.88) 32%, rgba(5,17,13,0.32) 66%, rgba(5,17,13,0.5))`,
+            background: `linear-gradient(to top, ${FROG.ground} 4%, ${scrim(0.88)} 32%, ${scrim(0.32)} 66%, ${scrim(0.5)})`,
           }}
         />
         <div
@@ -439,7 +439,7 @@ function RichHero({ game, meta, shots, s, slide, focused, finished, hack, onOpen
         {n > 0 && (
           <span
             className="absolute right-4 top-4 flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium"
-            style={{ background: 'rgba(5,17,13,0.55)', color: FROG.ink, backdropFilter: 'blur(4px)' }}
+            style={{ background: scrim(0.55), color: FROG.ink, backdropFilter: 'blur(4px)' }}
           >
             <Maximize2 className="h-3.5 w-3.5" aria-hidden="true" /> {n}
           </span>
@@ -485,7 +485,7 @@ function RichHero({ game, meta, shots, s, slide, focused, finished, hack, onOpen
                   <span
                     key={g}
                     className="rounded-full px-2.5 py-0.5 text-xs font-medium"
-                    style={{ background: 'rgba(5,17,13,0.5)', color: FROG.soft, border: `1px solid ${FROG.line}` }}
+                    style={{ background: scrim(0.5), color: FROG.soft, border: `1px solid ${FROG.line}` }}
                   >
                     {g}
                   </span>
@@ -887,7 +887,7 @@ function RematchDialog({ rematch, native = false, accent, onHover, onPick, onTog
     <div
       data-testid="frog-rematch"
       className="absolute inset-0 z-20 flex items-center justify-center p-6"
-      style={{ background: 'rgba(5, 17, 13, 0.72)', backdropFilter: 'blur(3px)' }}
+      style={{ background: scrim(0.72), backdropFilter: 'blur(3px)' }}
       onClick={onCancel}
     >
       <div
@@ -1125,7 +1125,7 @@ function TagPicker({ tags, allTags, focus, native, accent, onFocus, onToggle, on
     <div
       data-testid="frog-tag-picker"
       className="absolute inset-0 z-20 flex items-center justify-center p-6"
-      style={{ background: 'rgba(5, 17, 13, 0.72)', backdropFilter: 'blur(3px)' }}
+      style={{ background: scrim(0.72), backdropFilter: 'blur(3px)' }}
       onClick={onClose}
     >
       <div
@@ -1272,7 +1272,7 @@ function SaveEditor({ editor, native, accent, onEdit, onFocus, onOpenLabel, onOp
     <div
       data-testid="frog-save-editor"
       className="absolute inset-0 z-20 flex items-center justify-center p-6"
-      style={{ background: 'rgba(5, 17, 13, 0.72)', backdropFilter: 'blur(3px)' }}
+      style={{ background: scrim(0.72), backdropFilter: 'blur(3px)' }}
       onClick={onClose}
     >
       <div
