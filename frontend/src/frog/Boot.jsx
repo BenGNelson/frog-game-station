@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import Frog, { Reflected } from './Frog.jsx'
-import { FROG } from './theme.js'
+import { FROG, FONT_DISPLAY } from './theme.js'
 
 // The boot.
 //
@@ -85,11 +85,11 @@ export default function Boot({ onDone }) {
 
         <h1
           className="mt-24 text-5xl font-semibold tracking-[0.22em]"
-          style={{ color: FROG.ink, textShadow: `0 0 34px rgba(${FROG.jade}, 0.5)` }}
+          style={{ color: FROG.ink, textShadow: `0 0 34px rgba(${FROG.jade}, 0.5)`, fontFamily: FONT_DISPLAY }}
         >
           FROG
         </h1>
-        <p className="mt-2 text-xs tracking-[0.3em]" style={{ color: FROG.faint }}>
+        <p className="mt-2 text-xs tracking-[0.3em]" style={{ color: FROG.faint, fontFamily: FONT_DISPLAY }}>
           GAME STATION
         </p>
       </div>

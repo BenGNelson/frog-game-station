@@ -28,7 +28,7 @@ import { mediaMatches } from '../lib/useMediaQuery.js'
 import { SkeletonLine } from '../components/ui.jsx'
 import ButtonLegend from '../player/ButtonLegend.jsx'
 import { defaultFrogMode, nextFrogMode, usesNativeKeyboard } from './input.js'
-import { FROG, systemStyle } from './theme.js'
+import { FROG, systemStyle, FONT_DISPLAY } from './theme.js'
 import { buildShelf, hydrate, stepLetter, collectionGames } from './shelf.js'
 import { searchGames, suggestedSearches, matches, KEYS, gridMove } from './search.js'
 import { ROWS as KB_ROWS, keyAt, moveKey, applyKey, appendChar, deleteChar } from '../lib/keyboard.js'
@@ -1551,7 +1551,10 @@ export default function FrogBrowser() {
         ) : (
           <div className="flex min-w-0 items-center gap-2">
             <FrogMark size={22} className="shrink-0" style={{ color: `rgb(${FROG.jade})` }} />
-            <span className="truncate text-sm font-semibold tracking-[0.16em]" style={{ color: FROG.ink }}>
+            <span
+              className="truncate text-sm font-semibold tracking-[0.16em]"
+              style={{ color: FROG.ink, fontFamily: FONT_DISPLAY }}
+            >
               FROG GAME STATION
               {/* The section is redundant with the screen itself, so it only rides along
                   where there's room — hidden on a phone so the name never truncates. */}

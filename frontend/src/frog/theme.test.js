@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { FROG, scrim, focusRing, FOCUS_SCALE } from './theme.js'
+import { FROG, scrim, focusRing, FOCUS_SCALE, FONT_DISPLAY } from './theme.js'
 
 // WCAG relative luminance + contrast ratio, straight from the spec.
 function luminance(hex) {
@@ -60,6 +60,13 @@ describe('single-source colour helpers', () => {
 
   it('scrim() is the ground at the requested opacity', () => {
     expect(scrim(0.72)).toBe(`rgba(${FROG.groundRGB}, 0.72)`)
+  })
+
+  it('FONT_DISPLAY names the display face with a system fallback', () => {
+    // The face must be first (or it never applies) and a system stack must trail it
+    // (or a failed font load renders nothing rather than falling back).
+    expect(FONT_DISPLAY.startsWith("'Fredoka Variable',")).toBe(true)
+    expect(FONT_DISPLAY).toContain('system-ui')
   })
 
   it('focusRing() speaks the one focus language', () => {

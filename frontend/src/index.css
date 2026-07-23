@@ -1,6 +1,26 @@
 @import "tailwindcss";
 
 /*
+  The display face: Fredoka (variable, latin subset), worn by the wordmark, screen
+  titles, and section headings — body text stays on the system stack. Vendored in
+  src/assets/fonts (with its OFL license) rather than pulled from a CDN so the
+  installable PWA never makes a cross-origin font request and the file rides the
+  service worker's precache for offline. The inline-style twin of the family string
+  is FONT_DISPLAY in src/frog/theme.js — change both together.
+*/
+@font-face {
+  font-family: "Fredoka Variable";
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+  src: url("./assets/fonts/fredoka-latin-wght-normal.woff2") format("woff2-variations");
+}
+
+@theme {
+  --font-display: "Fredoka Variable", ui-rounded, system-ui, sans-serif;
+}
+
+/*
   Paint the root background the WATER ground so no white — and no stray blue-slate
   — ever shows through during overscroll bounce or behind the iOS status bar in the
   installed PWA. Frog commits to a single dark look; each screen paints its own

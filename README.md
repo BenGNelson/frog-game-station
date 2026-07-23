@@ -41,7 +41,7 @@ It has a hand-drawn **frog mascot** and a **WATER / jade dark theme** — a pond
 - **Offline + installable PWA** — download games and play offline; a gentle one-time nudge on the phone offers to add it to your home screen (one tap on Android, Share → "Add to Home Screen" on iOS).
 - **Real touch controls** — a from-scratch multi-touch overlay with true d-pad diagonals, hit areas bigger than the buttons, adjustable opacity, and a haptic tick on every press (Android).
 - **Gamepad-native** — pad, arrow keys, and mouse through one code path. The **Controls** screen draws *your* controller (Xbox / PlayStation / Nintendo): pick whether *A* means the letter or the position, remap any button, and badge app shortcuts onto free buttons.
-- **A drawn, living look** — console and mascot art illustrated in-app (no official logos), pond caustics, cover reflections, per-system accents, and true-black OLED on phones. All motion respects `prefers-reduced-motion`.
+- **A drawn, living look** — console and mascot art illustrated in-app (no official logos), a rounded display face (Fredoka, bundled — no font CDN) on the wordmark and headings, pond caustics, cover reflections, per-system accents, and true-black OLED on phones. All motion respects `prefers-reduced-motion`.
 
 ## Screenshots
 
