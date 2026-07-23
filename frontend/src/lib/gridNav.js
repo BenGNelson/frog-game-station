@@ -88,3 +88,31 @@ export function moveInRails(rails, focus, dir, memory = {}) {
   const restored = clamp(remembered[target.id] ?? 0, 0, target.items.length - 1)
   return { focus: { rail: next, index: restored }, memory: remembered }
 }
+
+// Keep the shelf's focus valid as the rails CHANGE SHAPE under it — the library resolves,
+// then async history rails (Jump back in, Favorites) and per-tag rails land, each able to
+// insert AHEAD of the cursor. `prev`/`rails` are the old/new rail arrays; `focus` the
+// current { rail, index }; `driven` whether the user has taken control yet.
+//
+//  - NOT driven yet → pin to the TOP rail (rail 0). The systems placeholder renders before
+//    the library resolves, so without this the cursor locks onto Game Boy and a Jump-back-in
+//    rail arriving ahead just slides it down. We want it on the top rail's first game.
+//  - Driven → keep the SAME rail by identity (find where its id moved to), so a rail inserted
+//    ahead can't drag the highlight onto a different game; fall back to index-clamping only
+//    when that rail is gone. Returns the same `focus` reference when nothing changed (so an
+//    inert reconcile doesn't re-render / re-scroll).
+export function reconcileShelfFocus(prev, rails, focus, driven) {
+  const list = rails || []
+  const f = focus || { rail: 0, index: 0 }
+  if (!driven) {
+    const count = list[0]?.items?.length ?? 0
+    const index = clamp(f.index, 0, Math.max(0, count - 1))
+    return f.rail === 0 && f.index === index ? f : { rail: 0, index }
+  }
+  const wasId = (prev || [])[f.rail]?.id
+  let rail = wasId != null ? list.findIndex((r) => r.id === wasId) : -1
+  if (rail < 0) rail = clamp(f.rail, 0, Math.max(0, list.length - 1))
+  const count = list[rail]?.items?.length ?? 0
+  const index = clamp(f.index, 0, Math.max(0, count - 1))
+  return rail === f.rail && index === f.index ? f : { rail, index }
+}
