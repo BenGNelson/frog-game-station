@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { frogMarkMarkup, FROG_ART } from './art.js'
+import { frogMarkMarkup, frogCharacterMarkup, lilyPadMarkup, dragonflyMarkup, FROG_ART } from './art.js'
 
 // The frog mark is the single source of truth for the favicon + app icons (see
 // art.js / gen-icons.cjs). These guard against two regressions: the mark silently
@@ -20,6 +20,32 @@ describe('frogMarkMarkup', () => {
 
   it('knocks the pupils out to the ground colour so the shape reads flat', () => {
     expect((svg.match(/fill="#05110D"/g) || []).length).toBe(2) // two pupils
+  })
+})
+
+describe('frogCharacterMarkup', () => {
+  const svg = frogCharacterMarkup({ skin: '#5FE3AB', shade: '#2A9D74', belly: '#B6F5DC', id: 't' })
+
+  it('classes the pupils so the CSS-var eye tracking can reach them', () => {
+    expect((svg.match(/class="frog-pupil"/g) || []).length).toBe(2)
+  })
+
+  it('drops the pupils (and their class) when asleep — closed lids have no eyes', () => {
+    const shut = frogCharacterMarkup({ skin: '#5FE3AB', shade: '#2A9D74', belly: '#B6F5DC', id: 't', asleep: true })
+    expect(shut).not.toContain('frog-pupil')
+  })
+})
+
+describe('pond life markup', () => {
+  it('draws a lily pad in the given accent at the given weight', () => {
+    const pad = lilyPadMarkup({ rgb: '155, 188, 75', alpha: 0.2 })
+    expect(pad).toContain('rgba(155, 188, 75, 0.2)')
+    expect(pad).toContain('<path')
+  })
+
+  it('draws the dragonfly with two buzzing wings', () => {
+    const fly = dragonflyMarkup()
+    expect((fly.match(/frog-wing/g) || []).length).toBeGreaterThanOrEqual(2)
   })
 })
 

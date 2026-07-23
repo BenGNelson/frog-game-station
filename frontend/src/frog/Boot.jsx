@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import Frog, { Reflected } from './Frog.jsx'
 import { FROG, FONT_DISPLAY } from './theme.js'
+import { Bubbles } from './pond.jsx'
 
 // The boot.
 //
@@ -66,6 +67,9 @@ export default function Boot({ onDone }) {
           background: `radial-gradient(circle, rgba(${FROG.jade}, 0.16), transparent 62%)`,
         }}
       />
+
+      {/* Bubbles from the deep — the frog is still on its way up. */}
+      <Bubbles count={4} rise="-55vh" />
 
       {/* Rings, spreading from where it broke the surface. */}
       <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">

@@ -30,6 +30,9 @@ import ButtonLegend from '../player/ButtonLegend.jsx'
 import { defaultFrogMode, nextFrogMode, usesNativeKeyboard } from './input.js'
 import { FROG, systemStyle, FONT_DISPLAY } from './theme.js'
 import Caustics from './Caustics.jsx'
+import Screensaver from './Screensaver.jsx'
+import { LilyPads, Firefly, Dragonfly } from './pond.jsx'
+import { useDozing } from '../lib/dayNight.js'
 import { buildShelf, hydrate, stepLetter, collectionGames } from './shelf.js'
 import { searchGames, suggestedSearches, matches, KEYS, gridMove } from './search.js'
 import { ROWS as KB_ROWS, keyAt, moveKey, applyKey, appendChar, deleteChar } from '../lib/keyboard.js'
@@ -65,6 +68,8 @@ const MOVES = new Set(['up', 'down', 'left', 'right', 'railPrev', 'railNext'])
 // keyboard and the persist-on-close trim can't drift apart (the tag/label cap is
 // TAG_MAXLEN, shared from collections.js for the same reason).
 const NOTE_MAXLEN = 280
+// Idle time on a browse screen before the pond takes over (the screensaver).
+const SAVER_IDLE_MS = 3 * 60 * 1000
 
 // Frog Game Station's place, held for the life of the tab rather than the life of the component.
 //
@@ -1327,16 +1332,60 @@ export default function FrogBrowser() {
     }
   }
 
+  // ── The screensaver: the pond after a few idle minutes on any browse screen. ──
+  // Any input wakes it; the waking press is swallowed so it can't also navigate.
+  // Reduced motion never auto-starts it, and the boot screen keeps its own scene.
+  const [saver, setSaver] = useState(false)
+  const saverRef = useRef(false)
+  saverRef.current = saver
+  const lastInputRef = useRef(Date.now())
+  const noteActivity = useCallback(() => {
+    lastInputRef.current = Date.now()
+    if (saverRef.current) setSaver(false)
+  }, [])
+
+  useEffect(() => {
+    const wake = (e) => {
+      // The press that wakes the pond should only wake the pond.
+      if (saverRef.current && e.type !== 'pointermove' && e.type !== 'wheel') e.stopPropagation()
+      noteActivity()
+    }
+    const events = ['keydown', 'pointerdown', 'pointermove', 'touchstart', 'wheel']
+    events.forEach((t) => window.addEventListener(t, wake, { capture: true }))
+    return () => events.forEach((t) => window.removeEventListener(t, wake, { capture: true }))
+  }, [noteActivity])
+
+  useEffect(() => {
+    if (screen === 'boot') return
+    const tick = setInterval(() => {
+      if (
+        !saverRef.current &&
+        document.visibilityState === 'visible' &&
+        Date.now() - lastInputRef.current > SAVER_IDLE_MS &&
+        !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+      ) {
+        setSaver(true)
+      }
+    }, 15_000)
+    return () => clearInterval(tick)
+  }, [screen])
+
   useGamepad({
-    onAction: (a) => act.current(a),
+    onAction: (a) => {
+      if (saverRef.current) return noteActivity()
+      lastInputRef.current = Date.now()
+      act.current(a)
+    },
     // Any button on a sleeping pad is how we learn a controller exists at all — iOS
     // never fires `gamepadconnected` until then. On the boot screen that press is
     // also the "press A" that dismisses it.
     onPadButton: () => {
+      if (saverRef.current) return noteActivity()
       setMode((m) => nextFrogMode(m, 'pad'))
       setScreen((s) => (s === 'boot' ? 'shelf' : s))
     },
     onMenuAction: (a) => {
+      if (saverRef.current) return noteActivity()
       if (a === 'start') act.current('confirm')
       // Hold ☰ opens Settings — mirrors the player, where a hold opens the pause menu.
       else if (a === 'pauseMenu') act.current('settingsToggle')
@@ -1488,6 +1537,7 @@ export default function FrogBrowser() {
             : null
           : hovered(rails, focus)
   const accent = systemStyle(focusedSystem).accent
+  const dozing = useDozing()
 
   return (
     <div
@@ -1515,6 +1565,16 @@ export default function FrogBrowser() {
         <Caustics accent={accent} strength={screen === 'shelf' ? 1 : 0.6} />
       )}
 
+      {/* Pond life, shelf only — lily pads adrift, a firefly after bedtime, and
+          (rarely) a dragonfly crossing. All decoration: hidden from AT, no hit area. */}
+      {screen === 'shelf' && (
+        <>
+          <LilyPads accent={accent} />
+          {dozing && <Firefly />}
+          <Dragonfly accent={accent} />
+        </>
+      )}
+
       {/* "Install me" — only on the shelf, and only on the touch path (where the legend
           is hidden, so there's no bar to overlap, and where installing unlocks the
           full-screen/offline home-screen app). Renders null unless the browser actually
@@ -1524,6 +1584,9 @@ export default function FrogBrowser() {
       {/* One-shot "you finished a game" celebration — fires from the game page, but lives
           at the root so it rides above whatever's on screen and survives the page's zones. */}
       <FinishToast tick={finishTick} />
+
+      {/* The pond after you've wandered off — any input wakes it (and is swallowed). */}
+      {saver && <Screensaver />}
 
       {/* The pond light. It takes the colour of whatever is in focus, which is the
           single cheapest way to make a machine feel *selected* rather than outlined. */}

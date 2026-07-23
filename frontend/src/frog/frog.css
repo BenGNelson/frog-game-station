@@ -96,6 +96,79 @@
   animation: frog-ripple 0.6s ease-out forwards;
 }
 
+/* --- Pond life ------------------------------------------------------------- */
+
+/* The pupils follow the focus (or a fly). Driven by two CSS vars the component
+   sets — the drawn markup stays static, so every consumer of art.js is safe. */
+.frog-pupil {
+  transform: translate(var(--frog-look-x, 0px), var(--frog-look-y, 0px));
+  transition: transform 240ms ease;
+}
+
+/* Lily pads drift, barely — long staggered loops so no two pads ever agree. */
+@keyframes frog-drift-a {
+  50% { transform: translate(14px, 8px) rotate(4deg); }
+}
+@keyframes frog-drift-b {
+  50% { transform: translate(-12px, 6px) rotate(-5deg); }
+}
+.frog-pad-a { animation: frog-drift-a 26s ease-in-out infinite; }
+.frog-pad-b { animation: frog-drift-b 34s ease-in-out infinite; }
+.frog-pad-c { animation: frog-drift-a 30s ease-in-out infinite reverse; }
+
+/* Bubbles rise the height of their container and fade at both waterlines. */
+@keyframes frog-bubble {
+  0%   { transform: translateY(0); opacity: 0; }
+  12%  { opacity: 0.7; }
+  88%  { opacity: 0.7; }
+  100% { transform: translateY(var(--frog-bubble-rise, -18rem)); opacity: 0; }
+}
+.frog-bubble { animation: frog-bubble linear infinite; }
+
+/* The firefly: a compound path (x on the wrapper, y on the dot) plus a flicker. */
+@keyframes frog-fly-x {
+  50% { transform: translateX(var(--frog-fly-x, 160px)); }
+}
+@keyframes frog-fly-y {
+  33% { transform: translateY(var(--frog-fly-y, 90px)); }
+  66% { transform: translateY(calc(var(--frog-fly-y, 90px) * 0.3)); }
+}
+@keyframes frog-flicker {
+  50% { opacity: 0.35; }
+}
+.frog-fly-track { animation: frog-fly-x 11s ease-in-out infinite; }
+.frog-fly-dot {
+  animation:
+    frog-fly-y 7s ease-in-out infinite,
+    frog-flicker 3.4s ease-in-out infinite;
+}
+
+/* The dragonfly: one non-looping cross of the pond; wings buzz on a fast flip. */
+@keyframes frog-cross {
+  0%   { transform: translateX(0) translateY(0); opacity: 0; }
+  6%   { opacity: 1; }
+  92%  { opacity: 1; }
+  100% { transform: translateX(110vw) translateY(-3rem); opacity: 0; }
+}
+.frog-dragonfly { animation: frog-cross 9s linear forwards; }
+@keyframes frog-buzz {
+  to { transform: scaleY(0.5); }
+}
+.frog-wing { animation: frog-buzz 90ms linear infinite alternate; transform-origin: 10px 7px; transform-box: view-box; }
+.frog-wing-b { animation-delay: 45ms; }
+
+/* The screensaver frog's gulp — a quick satisfied squash after a catch. */
+@keyframes frog-gulp {
+  30% { transform: scale(1.06, 0.9); }
+  60% { transform: scale(0.97, 1.04); }
+}
+.frog-gulp { animation: frog-gulp 0.5s ease; transform-origin: 50% 92%; }
+
+/* The tongue: width is set by JS (mouth → fly); the snap is this transition. */
+.frog-tongue {
+  transition: width 120ms ease-in;
+}
+
 /* The boot: the frog surfaces. Comes up through the waterline, so it starts
    below and slightly squashed, as if it's pushing through. */
 @keyframes frog-surface {
@@ -202,8 +275,27 @@
   .frog-surface,
   .frog-rise,
   .frog-caustic-a,
-  .frog-caustic-b {
+  .frog-caustic-b,
+  .frog-pad-a,
+  .frog-pad-b,
+  .frog-pad-c,
+  .frog-bubble,
+  .frog-fly-track,
+  .frog-fly-dot,
+  .frog-dragonfly,
+  .frog-wing,
+  .frog-gulp {
     animation: none;
+  }
+  /* Bubbles and the dragonfly only exist as motion — remove, don't freeze. */
+  .frog-bubble,
+  .frog-dragonfly {
+    opacity: 0;
+  }
+  /* The pupils sit centred when motion is off. */
+  .frog-pupil {
+    transform: none;
+    transition: none;
   }
   .frog-surface,
   .frog-rise {

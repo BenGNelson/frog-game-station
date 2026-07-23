@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { List, ChevronRight, Shuffle } from 'lucide-react'
 import { coverUrl } from '../lib/library.js'
 import { FROG, systemStyle, reflection, FOCUS_SCALE } from './theme.js'
@@ -197,6 +197,29 @@ function SurpriseCard({ focused, onFocus, onPick }) {
 export default function Shelf({ rails, focus, finishedIds, hackIds, onFocus, onPick, padded = false }) {
   const railRefs = useRef([])
   const viewportRef = useRef(null)
+  const heroRef = useRef(null)
+
+  // The frog watches what you're pointing at: a coarse pupil offset toward the
+  // focused tile (dead zones keep it from twitching between neighbours). The
+  // pupils are CSS-var-driven (frog.css .frog-pupil), so this re-render moves
+  // two custom properties, nothing else.
+  const [look, setLook] = useState(null)
+  useEffect(() => {
+    const hero = heroRef.current
+    const target = viewportRef.current?.querySelector('[data-focused]')
+    if (!hero || !target) {
+      setLook(null)
+      return
+    }
+    const hr = hero.getBoundingClientRect()
+    const tr = target.getBoundingClientRect()
+    const dx = tr.left + tr.width / 2 - (hr.left + hr.width / 2)
+    const dy = tr.top + tr.height / 2 - (hr.top + hr.height * 0.3)
+    setLook({
+      x: (Math.abs(dx) < 60 ? 0 : Math.sign(dx)) * 2.4,
+      y: (Math.abs(dy) < 48 ? 0 : Math.sign(dy)) * 2,
+    })
+  }, [focus.rail, focus.index])
   // The mascot dozes after hours (closed eyes), on the wall clock.
   const dozing = useDozing()
 
@@ -252,7 +275,7 @@ export default function Shelf({ rails, focus, finishedIds, hackIds, onFocus, onP
           never rides over a scrolled-to rail. On a phone it's inline above the rails (no lg:),
           so sticky doesn't apply. */}
       <aside className="flex shrink-0 items-center justify-center gap-4 lg:sticky lg:top-8 lg:w-60 lg:flex-col lg:justify-center lg:self-start">
-        <div className="frog-hop shrink-0" key={system || 'none'}>
+        <div ref={heroRef} className="frog-hop shrink-0" key={system || 'none'}>
           <Reflected scale={0.5}>
             {/* One frog, two sizes — small on a phone, big on a wide screen. The
                 show/hide toggle lives on these wrappers, NOT on SystemFrog itself:
@@ -260,10 +283,10 @@ export default function Shelf({ rails, focus, finishedIds, hackIds, onFocus, onP
                 `hidden` passed alongside it, so toggling it directly leaves BOTH
                 frogs on screen. A plain wrapper has no such fight. */}
             <div className="lg:hidden">
-              <SystemFrog size={128} system={system} asleep={dozing} />
+              <SystemFrog size={128} system={system} asleep={dozing} look={look} />
             </div>
             <div className="hidden lg:block">
-              <SystemFrog size={210} system={system} asleep={dozing} />
+              <SystemFrog size={210} system={system} asleep={dozing} look={look} />
             </div>
           </Reflected>
         </div>

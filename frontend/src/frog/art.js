@@ -60,7 +60,7 @@ export function frogCharacterMarkup({ skin, shade, belly, id, asleep = false }) 
         .map(
           (e, i) => `
       <circle cx="${e.cx}" cy="${e.cy - 1}" r="${A.face.white}" fill="#F4FBF8"/>
-      <circle cx="${e.cx + (i === 0 ? 1 : -1)}" cy="${e.cy}" r="${A.face.pupil}" fill="${A.ink}"/>
+      <circle class="frog-pupil" cx="${e.cx + (i === 0 ? 1 : -1)}" cy="${e.cy}" r="${A.face.pupil}" fill="${A.ink}"/>
       <circle cx="${e.cx + 3}" cy="${e.cy - 2.4}" r="${A.face.glint}" fill="#fff"/>
       <ellipse class="frog-lid${i ? ' frog-lid-b' : ''}" cx="${e.cx}" cy="${e.cy - 1}" rx="11" ry="11" fill="${skin}"/>`
         )
@@ -97,6 +97,25 @@ export function frogCharacterMarkup({ skin, shade, belly, id, asleep = false }) 
     <path d="${A.mouth}" stroke="${A.ink}" stroke-width="2.6" fill="none" stroke-linecap="round" opacity="0.75"/>
     ${A.nostrils.map((n) => `<circle cx="${n.cx}" cy="${n.cy}" r="1.7" fill="${A.ink}" opacity="0.5"/>`).join('')}
   </g>`
+}
+
+// A lily pad, seen from above: an ellipse with the classic notch cut toward its
+// centre. `rgb` tints it (the pond's accent); pads render faint so they read as
+// resting ON the water, not floating over the UI.
+export function lilyPadMarkup({ rgb = '52, 211, 153', alpha = 0.14 } = {}) {
+  return `
+  <path d="M50 4 A46 26 0 1 0 50.1 4 L68 22 Z"
+    fill="rgba(${rgb}, ${alpha})" stroke="rgba(160, 255, 214, ${alpha + 0.08})" stroke-width="1.5"/>`
+}
+
+// A dragonfly in profile: two blurred wing ellipses (the buzz is CSS), a thin
+// body, a dot of a head. Drawn in the pond's own palette — a visitor, not a logo.
+export function dragonflyMarkup({ rgb = '52, 211, 153' } = {}) {
+  return `
+  <ellipse class="frog-wing" cx="10" cy="4" rx="9" ry="3.2" fill="rgba(160, 255, 214, 0.35)"/>
+  <ellipse class="frog-wing frog-wing-b" cx="10" cy="10" rx="9" ry="3.2" fill="rgba(160, 255, 214, 0.25)"/>
+  <rect x="8" y="6" width="36" height="2.4" rx="1.2" fill="rgba(${rgb}, 0.8)"/>
+  <circle cx="7" cy="7" r="3.4" fill="rgb(${rgb})"/>`
 }
 
 // The flat two-tone mark: favicons, app icons, the header badge.
