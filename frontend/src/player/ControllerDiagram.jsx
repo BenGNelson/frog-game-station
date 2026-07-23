@@ -305,11 +305,11 @@ export default function ControllerDiagram({
 // on the nexus. It's the MARK, not the mascot, so it doesn't blink — logos hold still.
 // A faint jade halo gives it the glowing-orb read without breaking the flat language.
 function FrogBadge({ x, y }) {
-  const s = 0.21
+  const s = 0.24
   return (
     <g data-testid="pad-frog" aria-hidden="true">
-      <circle cx={x} cy={y} r="16.5" fill="none" stroke={`rgba(${FROG.jade}, 0.14)`} strokeWidth="2" />
-      <circle cx={x} cy={y} r="14" fill={FROG.ground} stroke={`rgba(${FROG.jade}, 0.5)`} strokeWidth="1.5" />
+      <circle cx={x} cy={y} r="19" fill="none" stroke={`rgba(${FROG.jade}, 0.14)`} strokeWidth="2" />
+      <circle cx={x} cy={y} r="16" fill={FROG.ground} stroke={`rgba(${FROG.jade}, 0.5)`} strokeWidth="1.5" />
       <g
         transform={`translate(${x - 50 * s} ${y - 53 * s}) scale(${s})`}
         style={{ color: `rgb(${FROG.jade})` }}

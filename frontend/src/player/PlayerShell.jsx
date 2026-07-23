@@ -217,6 +217,7 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
   const [controlsOpen, setControlsOpen] = useState(false)
   const [controlsFocus, setControlsFocus] = useState(0)
   const [listeningFor, setListeningFor] = useState(null) // RetroPad index awaiting a press
+  const [lastPress, setLastPress] = useState(null) // {index, id} — the Controls screen's input tester
 
   // The in-game wiki reader. `wikiMounted` latches true on first open and never resets,
   // so the panel stays in the DOM (hidden) and keeps its article + scroll across a
@@ -842,6 +843,10 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
     // it must not also move the cursor. Returning true swallows it. Otherwise, in-game,
     // the wiki hotkey opens the reader straight from play (default R3; rebindable).
     onRawButton: (index, id, { menuHeld = false } = {}) => {
+      // The Controls screen's input tester: every press reads back as the app saw it,
+      // BEFORE any capture/consumption — the ground truth for a pad that reports a
+      // nonstandard layout, which is exactly when you're on that screen.
+      if (controlsOpen) setLastPress({ index, id })
       if (captureBinding(index, id, menuHeld)) return true
       if (!isRunning(state)) return false // the hotkeys only act mid-play
       // A hotkey is a bare button (fires on its own) or a Menu-chord (fires only while Menu
@@ -1344,6 +1349,7 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
         {controlsOpen && (
           <ControlsPanel
             padName={padName}
+            lastPress={lastPress}
             scheme={settings.controlScheme}
             skin={settings.controlSkin}
             onSkin={chooseSkin}

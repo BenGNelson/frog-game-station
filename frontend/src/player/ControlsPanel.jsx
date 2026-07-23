@@ -23,6 +23,7 @@ import ControllerDiagram from './ControllerDiagram.jsx'
 // when your controller is doing the wrong thing.
 export default function ControlsPanel({
   padName,
+  lastPress, // {index, id} — the raw button the app last saw, for the input tester line
   scheme,
   skin,
   onSkin,
@@ -95,9 +96,22 @@ export default function ControlsPanel({
 
       <div ref={scrollRef} className="min-h-0 flex-1 touch-auto overflow-y-auto overscroll-contain px-4 pb-8">
         <div className="mx-auto max-w-3xl">
-          <p className="mb-3 mt-1 flex items-center justify-center gap-1.5 text-sm" style={{ color: FROG.faint }}>
+          <p className="mt-1 flex items-center justify-center gap-1.5 text-sm" style={{ color: FROG.faint }}>
             <Gamepad2 className="h-4 w-4" aria-hidden="true" />
             {padName || 'No controller connected'}
+          </p>
+
+          {/* The input tester: every press reads back as the app saw it — the ground
+              truth when a pad reports a nonstandard layout. `raw #n` is the browser's
+              button index; the name is what that wire means to the standard layout. */}
+          <p data-testid="pad-last-press" className="mb-3 mt-1 text-center text-xs" style={{ color: FROG.faint }}>
+            {lastPress ? (
+              <>
+                Last press: <b style={{ color: FROG.soft }}>{rawButtonName(lastPress.index)}</b> (raw #{lastPress.index})
+              </>
+            ) : (
+              'Press any button to test what the app sees.'
+            )}
           </p>
 
           {/* Button layout — the choice that actually matters. Sits above the pad so you
@@ -241,6 +255,15 @@ export default function ControlsPanel({
       </div>
     </div>
   )
+}
+
+// The input tester's name for a raw browser button index. Menu/Guide are app-owned so
+// bindingForButton refuses them — but the tester's job is to report the wire honestly.
+function rawButtonName(index) {
+  if (index === 9) return 'Menu / Start'
+  if (index === 16) return 'Guide'
+  const name = describeBinding(bindingForButton(index))
+  return name === '—' ? 'outside the standard layout' : name
 }
 
 function SchemeCard({ scheme, active, focused, onSelect, onHover }) {
