@@ -1,5 +1,5 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
-import { ArrowLeft, X, BookOpen, Loader2, Globe, ChevronRight, Search as SearchIcon, LayoutGrid, List } from 'lucide-react'
+import { ArrowLeft, X, BookOpen, Loader2, Globe, ChevronRight, LayoutGrid, List } from 'lucide-react'
 import { FROG } from '../frog/theme.js'
 import { moveInGrid } from '../lib/gridNav.js'
 import { fetchPokedexInfo, fetchPokedexList, fetchPokemon } from '../lib/pokedexApi.js'
@@ -48,6 +48,10 @@ const PokedexPanel = forwardRef(function PokedexPanel({
   const loadedRef = useRef(false)
   const scrollerRef = useRef(null)
   const detailScrollerRef = useRef(null)
+  // A cross-link into a species (openTo) can fire WHILE the initial list is still loading;
+  // this tells the in-flight loadList not to clobber the detail view with 'list' when it
+  // lands. Only set while a load is pending, so a later scope-toggle load isn't affected.
+  const wantDetailRef = useRef(null)
   // Tracks a held up/down run so the cursor accelerates the longer it's held (see heldStep).
   const runRef = useRef({ action: null, ts: 0, run: 0 })
 
@@ -70,7 +74,10 @@ const PokedexPanel = forwardRef(function PokedexPanel({
       setQuery('')
       const at = preferredId != null ? arr.findIndex((p) => p.id === preferredId) : -1
       setCursor(at >= 0 ? at : 0)
-      setView('list')
+      // A cross-link jump (openTo) that raced this load owns the view — don't force 'list'
+      // over the species detail it opened; just mark the list ready underneath.
+      if (wantDetailRef.current != null) wantDetailRef.current = null
+      else setView('list')
       setPhase('list')
     } catch {
       setPhase('error')
@@ -223,7 +230,7 @@ const PokedexPanel = forwardRef(function PokedexPanel({
         if (p) openDetail(p.id)
         return true
       }
-      if (action === 'search') { openKeyboard(); return true } // X — type to filter on a pad
+      if (action === 'search') { if (phase === 'list') openKeyboard(); return true } // X — type to filter (list ready only)
       // RS is the one spare forwarded action here (no "surprise me" in the dex) — reuse it
       // to flip list ⇄ grid, matching the header toggle a finger taps.
       if (action === 'random') { setLayout((l) => (l === 'grid' ? 'list' : 'grid')); return true }
@@ -233,9 +240,14 @@ const PokedexPanel = forwardRef(function PokedexPanel({
     },
     // Jump straight to a species' detail — the wiki reader hands us a national-dex number
     // when a walkthrough '…(Pokémon)' link is followed (the reverse of the detail view's
-    // Read-on-Bulbapedia deep-link).
-    openTo(num) { openDetail(num) },
-  }), [view, layout, cols, keyboard, filtered, cursor, detail, onReadWiki, moveCursor, moveBy, heldStep,
+    // Read-on-Bulbapedia deep-link). If the list is still loading (the common cross-link
+    // case — the panel opens and the species resolves concurrently), flag it so the pending
+    // loadList won't overwrite the detail view when it finishes.
+    openTo(num) {
+      if (phase !== 'list') wantDetailRef.current = num
+      openDetail(num)
+    },
+  }), [view, phase, layout, cols, keyboard, filtered, cursor, detail, onReadWiki, moveCursor, moveBy, heldStep,
        openDetail, toList, toggleScope, openKeyboard, pressKey, applyQuery])
 
   const onKeyDown = useCallback((e) => {
@@ -378,8 +390,9 @@ const PokedexPanel = forwardRef(function PokedexPanel({
       {legend && <div className="shrink-0 px-3 py-2">{legend}</div>}
 
       {/* The on-screen keyboard for search-while-browsing on a pad — a full-screen z-40
-          overlay, so it covers the list (and the native field) while it's up. */}
-      {keyboard && (
+          overlay, so it covers the list (and the native field) while it's up. Only over a
+          ready list (search is meaningless mid-load, and loadList clears the query). */}
+      {keyboard && phase === 'list' && (
         <Keyboard
           title="Search the Pokédex"
           text={keyboard.text}

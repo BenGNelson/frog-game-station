@@ -528,6 +528,9 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
 
   const closePokedex = useCallback(() => {
     setPokedexOpen(false)
+    // Drop any species jump still resolving — otherwise a resolveSpecies that lands after
+    // this close would sit in pendingSpecies and yank the user to it on the NEXT open.
+    setPendingSpecies(null)
     if (pokedexFromGameRef.current) dispatch('resume')
   }, [])
 
