@@ -34,7 +34,10 @@ log = logging.getLogger("frog.igdb-sync")
 # pre-v2 row needs a re-fetch to populate it.
 # v3: the query now also pulls `websites` and stores a `wiki_url` (the in-game wiki
 # reader's default source), so every pre-v3 row needs a re-fetch to backfill it.
-_MATCH_VERSION = "3"
+# v4: the scorer now accent-folds tokens and lifts a subtitled-edition subset match
+# (igdb.score), so titles like "Pokémon Yellow …: Special Pikachu Edition" that fell below
+# threshold now match — a re-match re-scores every auto row against the improved logic.
+_MATCH_VERSION = "4"
 _RATE_DELAY = 0.28  # seconds between IGDB calls (~4 req/s, IGDB's published cap)
 _MAX_FAILS = 5  # consecutive lookup failures that abort a pass (API down / bad creds)
 
