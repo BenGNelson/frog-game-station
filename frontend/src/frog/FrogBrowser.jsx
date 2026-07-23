@@ -21,7 +21,7 @@ import {
 } from '../lib/collections.js'
 import { getFavorites } from '../lib/favorites.js'
 import { getRecentSearches, recordSearch, removeRecentSearch } from '../lib/recentSearches.js'
-import { moveInRails } from '../lib/gridNav.js'
+import { moveInRails, reconcileShelfFocus } from '../lib/gridNav.js'
 import { playForAction } from '../lib/sfx.js'
 import { useGamepad } from '../lib/useGamepad.js'
 import { mediaMatches } from '../lib/useMediaQuery.js'
@@ -129,6 +129,13 @@ export default function FrogBrowser() {
   const [focus, setFocus] = useState(place.focus)
   const [memory, setMemory] = useState({})
   const [row, setRow] = useState(place.row) // focus within a system's game list
+
+  // Until the user drives the cursor themselves, focus should follow the TOP rail so the
+  // async history rails (Jump back in first, then Favorites) land UNDER it — instead of the
+  // `systems` placeholder that renders before the library resolves locking the cursor onto
+  // Game Boy. A restored non-default position (returning from a game) counts as already
+  // driven, so it's preserved as-is; any real move/hover flips this on (see below).
+  const focusDriven = useRef(place.focus.rail !== 0 || place.focus.index !== 0)
 
   // Search is transient — a fresh keyboard every time you open it, never restored.
   // `query` is the string you're building; `zone` is which half of the screen has the
@@ -462,14 +469,7 @@ export default function FrogBrowser() {
   useEffect(() => {
     const prev = prevRails.current
     prevRails.current = rails
-    setFocus((f) => {
-      const wasId = prev[f.rail]?.id
-      let rail = wasId != null ? rails.findIndex((r) => r.id === wasId) : -1
-      if (rail < 0) rail = Math.min(f.rail, Math.max(0, rails.length - 1))
-      const count = rails[rail]?.items?.length ?? 0
-      const index = Math.min(f.index, Math.max(0, count - 1))
-      return rail === f.rail && index === f.index ? f : { rail, index }
-    })
+    setFocus((f) => reconcileShelfFocus(prev, rails, f, focusDriven.current))
   }, [rails])
 
   // Same for the game list: a system with 25 games can't hold a cursor at row 300.
@@ -1282,6 +1282,7 @@ export default function FrogBrowser() {
           // same reference — which re-renders and fires a redundant smooth scroll on
           // every press of a button that's supposed to do nothing here.
           if (!MOVES.has(action)) return
+          focusDriven.current = true // the user is steering now — stop auto-following the top rail
           const next = moveInRails(rails, focus, action, memory)
           setMemory(next.memory)
           setFocus(next.focus)
@@ -1787,7 +1788,7 @@ export default function FrogBrowser() {
           // adds breathing room so "Jump back in" clears the header and the last system row
           // clears the legend.
           padded={!native}
-          onFocus={(rail, index) => setFocus({ rail, index })}
+          onFocus={(rail, index) => { focusDriven.current = true; setFocus({ rail, index }) }}
           onPick={pickShelfItem}
         />
       )}

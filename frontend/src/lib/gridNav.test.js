@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { moveInGrid, moveInRails } from './gridNav.js'
+import { moveInGrid, moveInRails, reconcileShelfFocus } from './gridNav.js'
 
 describe('moveInGrid', () => {
   // A 7-cell save shelf at 3 columns:  [0 1 2]
@@ -138,5 +138,44 @@ describe('moveInRails', () => {
 
   it('survives no rails at all', () => {
     expect(moveInRails([], { rail: 0, index: 0 }, 'down').focus).toEqual({ rail: 0, index: 0 })
+  })
+})
+
+describe('reconcileShelfFocus', () => {
+  const rail = (id, n) => ({ id, items: Array.from({ length: n }, (_, i) => ({ id: `${id}${i}` })) })
+  // The bug this fixes: the shelf renders `systems` first (before the library resolves),
+  // so focus starts at {rail:0} = systems. Then Jump-back-in arrives AHEAD of it.
+  const placeholder = [rail('systems', 6)]
+  const resolved = [rail('jump', 4), rail('favorites', 2), rail('systems', 6)]
+
+  it('NOT driven: follows the top rail as history rails land ahead (lands on Jump-back-in)', () => {
+    // Start on the systems placeholder at {0,0}; after resolve, focus is the TOP rail (jump).
+    const next = reconcileShelfFocus(placeholder, resolved, { rail: 0, index: 0 }, false)
+    expect(next).toEqual({ rail: 0, index: 0 }) // rail 0 is now 'jump' — its first game
+    expect(resolved[next.rail].id).toBe('jump')
+  })
+
+  it('NOT driven: clamps the index to the top rail length', () => {
+    const next = reconcileShelfFocus(placeholder, [rail('jump', 2), rail('systems', 6)], { rail: 0, index: 5 }, false)
+    expect(next).toEqual({ rail: 0, index: 1 })
+  })
+
+  it('driven: keeps the SAME rail by identity when one inserts ahead', () => {
+    // Focused on systems (rail 0 of the placeholder); driven, so it must STAY on systems
+    // even though jump/favorites now sit ahead of it.
+    const next = reconcileShelfFocus(placeholder, resolved, { rail: 0, index: 3 }, true)
+    expect(resolved[next.rail].id).toBe('systems')
+    expect(next).toEqual({ rail: 2, index: 3 })
+  })
+
+  it('driven: index-clamps when the focused rail is gone', () => {
+    const next = reconcileShelfFocus(resolved, [rail('jump', 4)], { rail: 2, index: 0 }, true)
+    expect(next.rail).toBe(0) // 'systems' gone → clamp rail to the new length
+  })
+
+  it('returns the same focus reference when nothing changed (no needless re-render)', () => {
+    const f = { rail: 0, index: 0 }
+    expect(reconcileShelfFocus([rail('jump', 4)], [rail('jump', 4)], f, true)).toBe(f)
+    expect(reconcileShelfFocus([rail('jump', 4)], [rail('jump', 4)], f, false)).toBe(f)
   })
 })
