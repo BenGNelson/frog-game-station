@@ -151,6 +151,13 @@ export function scrim(alpha) {
   return `rgba(${GROUND_RGB}, ${alpha})`
 }
 
+// The four depths an overlay may sit at — how far under the surface the content
+// behind it sinks. Every modal/panel picks a named stop (there used to be ten
+// ad-hoc alphas): `dialog` keeps the scene readable behind a small question,
+// `sheet` mutes it under a working surface, `panel` all but replaces it, and
+// `full` is for a lightbox that must kill every distraction.
+export const SCRIM = { dialog: 0.72, sheet: 0.85, panel: 0.94, full: 0.97 }
+
 // One focus scale for everything that swells when focused. This used to drift
 // 1.02–1.06 across otherwise-identical "this is selected" moments.
 export const FOCUS_SCALE = 1.04

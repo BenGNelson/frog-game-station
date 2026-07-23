@@ -1,5 +1,5 @@
 import { RotateCw, Smartphone } from 'lucide-react'
-import { FROG, scrim } from '../frog/theme.js'
+import { FROG, scrim, SCRIM } from '../frog/theme.js'
 import { radiantBackdrop, glowFilter } from '../lib/glow.js'
 
 // "Turn your device sideways."
@@ -16,7 +16,7 @@ export default function RotatePrompt() {
   return (
     <div
       className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-6 text-center"
-      style={{ background: scrim(0.95) }}
+      style={{ background: scrim(SCRIM.panel) }}
       role="status"
     >
       <div className="pointer-events-none absolute inset-0" style={{ background: radiantBackdrop(FROG.jade, 0.16) }} />

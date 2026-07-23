@@ -1,5 +1,5 @@
 import { RefreshCw, KeyRound, Gamepad2, Volume2, Hand } from 'lucide-react'
-import { FROG } from './theme.js'
+import { FROG, focusRing } from './theme.js'
 import { TOUCH_OPACITY_LEVELS, nearestOpacityLevel } from '../lib/playerSettings.js'
 
 // The settings screen.
@@ -47,7 +47,7 @@ export default function Settings({ status, loading, focus, onFocus, onRescan, re
                 data-testid="frog-rescan"
                 onClick={() => canRescan && onRescan()}
                 disabled={!canRescan}
-                className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-colors"
+                className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-colors"
                 style={{
                   background: canRescan ? `rgb(${FROG.jade})` : FROG.panel,
                   color: canRescan ? FROG.ground : FROG.faint,
@@ -75,27 +75,18 @@ export default function Settings({ status, loading, focus, onFocus, onRescan, re
             In the player: <strong>Auto</strong> follows what’s connected; the others pin the
             on-screen touch controls on or off.
           </p>
-          <div className="inline-flex overflow-hidden rounded-lg" style={{ border: `1px solid ${FROG.line}` }}>
-            {MODES.map((m) => {
-              const on = inputMode === m.id
-              return (
-                <button
-                  key={m.id}
-                  type="button"
-                  data-testid={`frog-inputmode-${m.id}`}
-                  aria-pressed={on}
-                  onClick={() => onInputMode(m.id)}
-                  className="px-4 py-2 text-sm font-semibold transition-colors"
-                  style={{
-                    background: on ? `rgb(${FROG.jade})` : 'transparent',
-                    color: on ? FROG.ground : FROG.soft,
-                  }}
-                >
-                  {m.label}
-                </button>
-              )
-            })}
-          </div>
+          <Segmented>
+            {MODES.map((m) => (
+              <Segment
+                key={m.id}
+                testid={`frog-inputmode-${m.id}`}
+                active={inputMode === m.id}
+                onClick={() => onInputMode(m.id)}
+              >
+                {m.label}
+              </Segment>
+            ))}
+          </Segmented>
         </Card>
 
         {/* --- Sound: soft navigation blips, off by default --- */}
@@ -104,30 +95,21 @@ export default function Settings({ status, loading, focus, onFocus, onRescan, re
           <p className="mb-3 mt-2 text-sm leading-relaxed" style={{ color: FROG.faint }}>
             Soft blips as you move around the shelf. Off by default.
           </p>
-          <div className="inline-flex overflow-hidden rounded-lg" style={{ border: `1px solid ${FROG.line}` }}>
+          <Segmented>
             {[
               { on: false, label: 'Off' },
               { on: true, label: 'On' },
-            ].map((opt) => {
-              const active = !!navSfx === opt.on
-              return (
-                <button
-                  key={opt.label}
-                  type="button"
-                  data-testid={`frog-navsfx-${opt.on ? 'on' : 'off'}`}
-                  aria-pressed={active}
-                  onClick={() => onNavSfx(opt.on)}
-                  className="px-4 py-2 text-sm font-semibold transition-colors"
-                  style={{
-                    background: active ? `rgb(${FROG.jade})` : 'transparent',
-                    color: active ? FROG.ground : FROG.soft,
-                  }}
-                >
-                  {opt.label}
-                </button>
-              )
-            })}
-          </div>
+            ].map((opt) => (
+              <Segment
+                key={opt.label}
+                testid={`frog-navsfx-${opt.on ? 'on' : 'off'}`}
+                active={!!navSfx === opt.on}
+                onClick={() => onNavSfx(opt.on)}
+              >
+                {opt.label}
+              </Segment>
+            ))}
+          </Segmented>
         </Card>
 
         {/* --- Touch controls: on-screen control opacity (takes effect in the player). --- */}
@@ -137,29 +119,20 @@ export default function Settings({ status, loading, focus, onFocus, onRescan, re
             How bold the on-screen buttons are in the player. Fainter keeps more of the game
             in view; bolder is easier to find in bright light.
           </p>
-          <div className="inline-flex overflow-hidden rounded-lg" style={{ border: `1px solid ${FROG.line}` }}>
-            {TOUCH_OPACITY_LEVELS.map((lvl) => {
-              // Match the nearest step, so a legacy/off-grid stored value (an old 0.75) still
-              // shows one segment active instead of none.
-              const on = nearestOpacityLevel(touchOpacity) === lvl.value
-              return (
-                <button
-                  key={lvl.label}
-                  type="button"
-                  data-testid={`frog-touchopacity-${lvl.label.toLowerCase()}`}
-                  aria-pressed={on}
-                  onClick={() => onTouchOpacity(lvl.value)}
-                  className="px-4 py-2 text-sm font-semibold transition-colors"
-                  style={{
-                    background: on ? `rgb(${FROG.jade})` : 'transparent',
-                    color: on ? FROG.ground : FROG.soft,
-                  }}
-                >
-                  {lvl.label}
-                </button>
-              )
-            })}
-          </div>
+          <Segmented>
+            {TOUCH_OPACITY_LEVELS.map((lvl) => (
+              <Segment
+                key={lvl.label}
+                testid={`frog-touchopacity-${lvl.label.toLowerCase()}`}
+                // Match the nearest step, so a legacy/off-grid stored value (an old
+                // 0.75) still shows one segment active instead of none.
+                active={nearestOpacityLevel(touchOpacity) === lvl.value}
+                onClick={() => onTouchOpacity(lvl.value)}
+              >
+                {lvl.label}
+              </Segment>
+            ))}
+          </Segmented>
         </Card>
 
         {/* --- Theme: a note, not a control (the single dark WATER identity is deliberate). --- */}
@@ -174,7 +147,7 @@ export default function Settings({ status, loading, focus, onFocus, onRescan, re
   )
 }
 
-// A focusable settings card: a jade ring while the cursor rests on it.
+// A focusable settings card: the jade focus ring while the cursor rests on it.
 function Card({ focused, onFocus, children }) {
   return (
     <div
@@ -183,11 +156,38 @@ function Card({ focused, onFocus, children }) {
       className="rounded-xl px-4 py-3 transition-colors"
       style={{
         background: FROG.panel,
-        boxShadow: focused ? `inset 0 0 0 1px rgba(${FROG.jade}, 0.5)` : `inset 0 0 0 1px ${FROG.line}`,
+        boxShadow: focused ? focusRing() : `inset 0 0 0 1px ${FROG.line}`,
       }}
     >
       {children}
     </div>
+  )
+}
+
+// A segmented control: one pill, its active segment solid jade. The three settings
+// toggles all render through this so they can't drift apart.
+function Segmented({ children }) {
+  return (
+    <div className="inline-flex overflow-hidden rounded-full" style={{ border: `1px solid ${FROG.line}` }}>
+      {children}
+    </div>
+  )
+}
+function Segment({ active, testid, onClick, children }) {
+  return (
+    <button
+      type="button"
+      data-testid={testid}
+      aria-pressed={active}
+      onClick={onClick}
+      className="px-4 py-2 text-sm font-semibold transition-colors"
+      style={{
+        background: active ? `rgb(${FROG.jade})` : 'transparent',
+        color: active ? FROG.ground : FROG.soft,
+      }}
+    >
+      {children}
+    </button>
   )
 }
 

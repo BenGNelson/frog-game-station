@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Pin } from 'lucide-react'
 import { saveStateShotUrl } from './lib/library.js'
 import { formatAgo } from './lib/format.js'
-import { FROG } from './frog/theme.js'
+import { FROG, focusRing, FOCUS_SCALE } from './frog/theme.js'
 
 // One save state: its screenshot, when it was taken, and what you can do with it.
 // Shared by the game's detail page and the in-game pause menu, so a state looks
@@ -15,11 +15,12 @@ export default function SaveStateCard({ game, state, onSelect, onDelete, actionL
   const [failed, setFailed] = useState(false)
   return (
     <div
-      className={`overflow-hidden rounded-xl border transition-transform ${focused ? 'scale-105' : ''}`}
+      className="overflow-hidden rounded-xl border transition-transform"
       style={{
         background: FROG.panel,
         borderColor: focused ? `rgba(${FROG.jade}, 0.6)` : FROG.line,
-        boxShadow: focused ? `0 0 0 2px rgba(${FROG.jade}, 0.5)` : 'none',
+        boxShadow: focused ? focusRing() : 'none',
+        transform: focused ? `scale(${FOCUS_SCALE})` : undefined,
       }}
     >
       <button onClick={onSelect} className="block w-full text-left">

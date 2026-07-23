@@ -2,7 +2,8 @@ import { useRef } from 'react'
 import { ArrowBigUp, Check, Delete } from 'lucide-react'
 import { useFocusTrap } from '../lib/useFocusTrap.js'
 import { ROWS, effectiveCaps } from '../lib/keyboard.js'
-import { FROG, scrim } from './theme.js'
+import { FROG } from './theme.js'
+import ModalScrim from './ModalScrim.jsx'
 
 // FROG GAME STATION — the on-screen keyboard.
 //
@@ -22,10 +23,12 @@ export default function Keyboard({ title, text, placeholder, pos, shift, accent,
   const caps = effectiveCaps(text, shift)
 
   return (
-    <div
-      data-testid="frog-keyboard"
-      className="absolute inset-0 z-40 flex items-center justify-center p-4 sm:p-6"
-      style={{ background: scrim(0.82), backdropFilter: 'blur(3px)' }}
+    <ModalScrim
+      testid="frog-keyboard"
+      z="z-40"
+      depth="sheet"
+      center={false}
+      className="flex items-center justify-center p-4 sm:p-6"
       onClick={onClose}
     >
       <div
@@ -79,7 +82,7 @@ export default function Keyboard({ title, text, placeholder, pos, shift, accent,
           ))}
         </div>
       </div>
-    </div>
+    </ModalScrim>
   )
 }
 

@@ -3,8 +3,8 @@ import { ChevronLeft, Check, RotateCcw, Gamepad2, BookOpen, BookMarked, FastForw
 import { SCHEMES, BINDABLE, resolveBindings, describeBinding } from '../lib/controlPresets.js'
 import { CONTROL_SKINS, isChord } from '../lib/playerSettings.js'
 import { bindingForButton } from '../lib/gamepad.js'
-import { FROG, scrim } from '../frog/theme.js'
-import { glowFilter } from '../lib/glow.js'
+import { FROG, scrim, SCRIM, focusRing, FOCUS_SCALE } from '../frog/theme.js'
+import Heading from '../frog/Heading.jsx'
 import ControllerDiagram from './ControllerDiagram.jsx'
 
 // The Controls screen.
@@ -76,7 +76,7 @@ export default function ControlsPanel({
       tabIndex={-1}
       className="absolute inset-0 z-30 flex flex-col outline-none backdrop-blur-md"
       style={{
-        background: scrim(0.94),
+        background: scrim(SCRIM.panel),
         paddingLeft: 'env(safe-area-inset-left)',
         paddingRight: 'env(safe-area-inset-right)',
         paddingBottom: 'env(safe-area-inset-bottom)',
@@ -85,7 +85,7 @@ export default function ControlsPanel({
       <div className="flex shrink-0 items-center gap-2 px-3 py-2">
         <button
           onClick={onBack}
-          className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-sm active:opacity-70"
+          className="flex items-center gap-1 rounded-full px-3 py-1.5 text-sm active:opacity-70"
           style={{ background: FROG.panel, color: FROG.ink }}
         >
           <ChevronLeft className="h-4 w-4" aria-hidden="true" /> Back
@@ -116,7 +116,7 @@ export default function ControlsPanel({
 
           {/* Button layout — the choice that actually matters. Sits above the pad so you
               watch "A" move between the buttons as you switch. */}
-          <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide" style={{ color: FROG.faint }}>Button layout</h3>
+          <Heading>Button layout</Heading>
           <div className="mb-2 grid gap-2.5 sm:grid-cols-2">
             {Object.values(SCHEMES).map((s) => (
               <SchemeCard
@@ -140,10 +140,10 @@ export default function ControlsPanel({
             <div
               data-focused={focusedKey === 'skin' || undefined}
               onMouseMove={() => onFocus(rows.indexOf('skin'))}
-              className="inline-flex overflow-hidden rounded-lg"
+              className="inline-flex overflow-hidden rounded-full"
               style={{
                 border: `1px solid ${focusedKey === 'skin' ? `rgba(${FROG.jade}, 0.6)` : FROG.line}`,
-                boxShadow: focusedKey === 'skin' ? `0 0 0 2px rgba(${FROG.jade}, 0.5)` : 'none',
+                boxShadow: focusedKey === 'skin' ? focusRing() : 'none',
               }}
             >
               {CONTROL_SKINS.map((sk) => {
@@ -239,7 +239,7 @@ export default function ControlsPanel({
             style={{
               background: resetFocused ? `rgba(${FROG.jade}, 0.14)` : 'transparent',
               borderColor: resetFocused ? `rgba(${FROG.jade}, 0.6)` : FROG.line,
-              boxShadow: resetFocused ? `0 0 0 2px rgba(${FROG.jade}, 0.5)` : 'none',
+              boxShadow: resetFocused ? focusRing() : 'none',
               color: resetFocused ? FROG.ink : FROG.soft,
             }}
           >
@@ -273,12 +273,12 @@ function SchemeCard({ scheme, active, focused, onSelect, onHover }) {
       onMouseMove={onHover}
       data-focused={focused || undefined}
       aria-current={focused || undefined}
-      className={`rounded-2xl border p-3 text-left transition-all ${focused ? 'scale-[1.02]' : ''}`}
+      className="rounded-2xl border p-3 text-left transition-all"
       style={{
         background: focused ? `rgba(${FROG.jade}, 0.14)` : FROG.panel,
         borderColor: focused ? `rgba(${FROG.jade}, 0.6)` : active ? `rgba(${FROG.jade}, 0.5)` : FROG.line,
-        boxShadow: focused ? `0 0 0 2px rgba(${FROG.jade}, 0.5)` : 'none',
-        filter: focused ? glowFilter(FROG.jade, 0.4) : undefined,
+        boxShadow: focused ? focusRing() : 'none',
+        transform: focused ? `scale(${FOCUS_SCALE})` : undefined,
       }}
     >
       <span className="flex items-center gap-1.5 text-sm font-semibold" style={{ color: FROG.ink }}>
@@ -304,7 +304,7 @@ function HotkeyRow({ Icon, label, hint, value, listening, focused, onSelect, onH
       style={{
         background: focused ? `rgba(${FROG.jade}, 0.14)` : FROG.panel,
         borderColor: focused ? `rgba(${FROG.jade}, 0.6)` : FROG.line,
-        boxShadow: focused ? `0 0 0 2px rgba(${FROG.jade}, 0.5)` : 'none',
+        boxShadow: focused ? focusRing() : 'none',
       }}
     >
       <span className="flex min-w-0 flex-1 items-center gap-2 text-sm font-medium" style={{ color: FROG.ink }}>

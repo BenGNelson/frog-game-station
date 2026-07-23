@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { Search as SearchIcon, X } from 'lucide-react'
 import { coverUrl } from '../lib/library.js'
-import { FROG, systemStyle, reflection } from './theme.js'
+import { FROG, systemStyle, reflection, focusRing } from './theme.js'
+import Heading from './Heading.jsx'
 import { KEYS, COLS, liveKeys } from './search.js'
 import Frog, { Reflected } from './Frog.jsx'
 import SystemChip from './SystemChip.jsx'
@@ -174,10 +175,10 @@ export default function Search({ query, results, zone, keyIndex, resultRow, allG
                     data-testid="frog-search-row"
                     onMouseMove={() => onResult(i)}
                     onClick={() => onPick(g)}
-                    className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors"
+                    className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left transition-colors"
                     style={{
                       background: on ? `rgba(${s.accent}, 0.16)` : 'transparent',
-                      boxShadow: on ? `inset 0 0 0 1px rgba(${s.accent}, 0.5)` : 'none',
+                      boxShadow: on ? focusRing(s.accent) : 'none',
                     }}
                   >
                     <span
@@ -232,12 +233,7 @@ export default function Search({ query, results, zone, keyIndex, resultRow, allG
 function RecentSearches({ recent, zone, resultRow, onResult, onRecent, onRemoveRecent }) {
   return (
     <div>
-      <p
-        className="px-3 pb-1 pt-1 text-[11px] font-semibold uppercase tracking-[0.18em]"
-        style={{ color: FROG.faint }}
-      >
-        Recent searches
-      </p>
+      <Heading className="px-3 pt-1">Recent searches</Heading>
       <ul className="space-y-0.5">
         {recent.map((r, i) => {
           const on = zone === 'results' && i === resultRow
@@ -252,7 +248,7 @@ function RecentSearches({ recent, zone, resultRow, onResult, onRecent, onRemoveR
                 className="flex min-w-0 flex-1 items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors"
                 style={{
                   background: on ? `rgba(${FROG.jade}, 0.14)` : 'transparent',
-                  boxShadow: on ? `inset 0 0 0 1px rgba(${FROG.jade}, 0.5)` : 'none',
+                  boxShadow: on ? focusRing() : 'none',
                 }}
               >
                 <SearchIcon
@@ -291,12 +287,7 @@ function RecentSearches({ recent, zone, resultRow, onResult, onRecent, onRemoveR
 function Suggestions({ suggestions, zone, resultRow, onResult, onRun }) {
   return (
     <div>
-      <p
-        className="px-3 pb-2 pt-1 text-[11px] font-semibold uppercase tracking-[0.18em]"
-        style={{ color: FROG.faint }}
-      >
-        Try one
-      </p>
+      <Heading className="px-3 pt-1">Try one</Heading>
       <div className="flex flex-wrap gap-2 px-1">
         {suggestions.map((q, i) => {
           const on = zone === 'results' && i === resultRow

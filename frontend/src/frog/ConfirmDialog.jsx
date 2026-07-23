@@ -1,6 +1,8 @@
 import { useRef } from 'react'
 import { useFocusTrap } from '../lib/useFocusTrap.js'
-import { FROG, scrim } from './theme.js'
+import { FROG } from './theme.js'
+import ModalScrim from './ModalScrim.jsx'
+import Button from './Button.jsx'
 
 // A small yes/no gate. Controller-drivable and tappable — it guards a delete/remove
 // behind one deliberate step. Shared by the game-detail page and the in-game save-state
@@ -48,11 +50,7 @@ export default function ConfirmDialog({
   const noFocused = focus === 1
 
   return (
-    <div
-      data-testid="frog-confirm"
-      className={`absolute inset-0 ${z} flex items-center justify-center p-6`}
-      style={{ background: scrim(0.72), backdropFilter: 'blur(3px)' }}
-    >
+    <ModalScrim testid="frog-confirm" z={z} depth="dialog">
       <div
         ref={panelRef}
         role="dialog"
@@ -67,38 +65,33 @@ export default function ConfirmDialog({
           {message}
         </p>
         <div className="mt-5 flex justify-center gap-3">
-          <button
-            type="button"
+          {/* The destructive commit is the one SOLID danger in the app — the gate
+              should look heavier than the thing it guards. */}
+          <Button
+            variant="solid"
+            accent={FROG.danger}
             data-testid="frog-confirm-yes"
-            data-focused={yesFocused || undefined}
+            focused={yesFocused}
             onClick={onYes}
             onMouseMove={() => onFocusChange?.(0)}
-            className={`rounded-xl px-5 py-2.5 text-sm font-semibold transition-transform ${yesFocused ? 'scale-105' : ''}`}
-            style={{
-              background: `rgb(${FROG.danger})`,
-              color: FROG.ink,
-              boxShadow: yesFocused ? `0 0 0 3px rgba(${FROG.danger}, 0.55)` : 'none',
-            }}
           >
             {yesLabel}
-          </button>
-          <button
-            type="button"
-            data-focused={noFocused || undefined}
+          </Button>
+          <Button
+            variant="quiet"
+            focused={noFocused}
             onClick={onNo}
             onMouseMove={() => onFocusChange?.(1)}
-            className={`rounded-xl px-5 py-2.5 text-sm font-medium transition-transform ${noFocused ? 'scale-105' : ''}`}
-            style={{
-              background: noFocused ? `rgba(${FROG.jade}, 0.16)` : 'transparent',
-              color: noFocused ? `rgb(${FROG.jade})` : FROG.soft,
-              border: `1px solid ${noFocused ? `rgba(${FROG.jade}, 0.8)` : FROG.line}`,
-              boxShadow: noFocused ? `0 0 0 3px rgba(${FROG.jade}, 0.45)` : 'none',
-            }}
+            style={
+              noFocused
+                ? { background: `rgba(${FROG.jade}, 0.16)`, color: `rgb(${FROG.jade})` }
+                : undefined
+            }
           >
             {noLabel}
-          </button>
+          </Button>
         </div>
       </div>
-    </div>
+    </ModalScrim>
   )
 }

@@ -1,7 +1,7 @@
 import { useRef } from 'react'
 import { Play, Trash2 } from 'lucide-react'
 import { useFocusTrap } from '../lib/useFocusTrap.js'
-import { FROG, scrim } from '../frog/theme.js'
+import { FROG, scrim, SCRIM, focusRing } from '../frog/theme.js'
 
 // The Load/Delete chooser for a save state.
 //
@@ -44,7 +44,7 @@ export default function SaveActionMenu({ title, focus, onFocusChange, onLoad, on
     <div
       data-testid="frog-save-chooser"
       className={`absolute inset-0 ${z} flex items-center justify-center p-6`}
-      style={{ background: scrim(0.72), backdropFilter: 'blur(3px)' }}
+      style={{ background: scrim(SCRIM.dialog), backdropFilter: 'blur(3px)' }}
     >
       <div
         ref={panelRef}
@@ -69,11 +69,11 @@ export default function SaveActionMenu({ title, focus, onFocusChange, onLoad, on
                 data-focused={on || undefined}
                 onClick={() => commit(i)}
                 onMouseMove={() => onFocusChange(i)}
-                className={`flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left text-sm font-medium transition-transform ${on ? 'scale-[1.02]' : ''}`}
+                className="flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left text-sm font-medium transition-colors"
                 style={{
                   background: on ? `rgba(${tint}, 0.14)` : 'transparent',
                   borderColor: on ? `rgba(${tint}, 0.7)` : FROG.line,
-                  boxShadow: on ? `0 0 0 2px rgba(${tint}, 0.5)` : 'none',
+                  boxShadow: on ? focusRing(tint) : 'none',
                   color: on ? FROG.ink : FROG.soft,
                 }}
               >
