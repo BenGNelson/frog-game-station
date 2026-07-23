@@ -254,3 +254,8 @@ Open items carry an inline tag; completed (`[x]`) items are left untagged — th
       guide button wearing the flat frog mark in jade with a faint halo — the way an Xbox
       pad prints its logo on the nexus — replacing the peeking-eyes face. README
       screenshot regenerated.
+- [x] **Frog logo lowered + triggers freed (2026-07-22):** the guide-button frog mark now
+      sits below Select/Menu (the home-button spot). RetroPad L2/R2 ship unbound — no
+      supported core has a real second shoulder row (mGBA's "Turbo L/R" there can never
+      fire in EmulatorJS) — making the triggers collision-free app-shortcut targets
+      alongside the stick-clicks; Fast-Forward's natural home is now RT.

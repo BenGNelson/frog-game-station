@@ -446,15 +446,18 @@ controller** (`controlBindings` keyed by pad id, so a second pad doesn't rewire 
   vacated face slot reads "—", never a hole). App shortcuts are annotated on **every** button,
   not just the sticks — Fast-Forward bound to RB reads "R" under the RB name with a jade
   **FF** badge.
-- **Only the stick-clicks are truly free, and the diagram says so.** In-play the engine reads
-  the pad itself (its own loop + our preset), so the app can't intercept a press — the *only*
-  collision-free buttons for an app **shortcut** are the two stick-clicks L3/R3 (no core uses
-  them). The diagram flags them jade and annotates what's on each. The **Menu** button is
-  app-reserved (short = Start, long = the pause menu) and shown locked.
+- **Only the stick-clicks and triggers are truly free, and the diagram says so.** In-play the
+  engine reads the pad itself (its own loop + our preset), so the app can't intercept a press —
+  the collision-free buttons for an app **shortcut** are the two stick-clicks L3/R3 and the two
+  triggers LT/RT. No supported core reads any of them: the only taker was mGBA, which parks
+  "Turbo L/R" on RetroPad L2/R2 — and EmulatorJS has no turbo-fire mechanism, so those could
+  never do anything. L2/R2 therefore ship **unbound** (see `controlPresets.js`), which is what
+  frees the triggers. The diagram flags free buttons jade and annotates what's on each. The
+  **Menu** button is app-reserved (short = Start, long = the pause menu) and shown locked.
 - **Shortcuts: Wiki, Pokédex, Fast Forward.** Each is an app action bindable to any button
   (a game button will also fire in-game — surfaced as the tradeoff). Wiki defaults to **R3**,
-  Pokédex to **L3**; **Fast Forward** ships **unassigned** (both free clicks are taken) — you
-  opt in and pick the button (`ffHotkey`; toggles the core turbo via `emuBridge.setFastForward`
+  Pokédex to **L3**; **Fast Forward** ships **unassigned** (the free stick-clicks are taken —
+  a trigger is its natural home) — you opt in and pick the button (`ffHotkey`; toggles the core turbo via `emuBridge.setFastForward`
   when pressed in-play). The screen scroll-follows the controller (the house
   `scrollIntoView({block:'nearest'})` pattern) so the shortcuts and Reset at the bottom are reachable.
 - **Hold-Menu modifier — more than the two free clicks.** Only the stick-clicks (L3/R3) are

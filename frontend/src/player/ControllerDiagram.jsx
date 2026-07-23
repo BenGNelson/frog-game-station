@@ -286,7 +286,7 @@ export default function ControllerDiagram({
         </text>
       </g>
 
-      <FrogBadge x="280" y="112" />
+      <FrogBadge x="280" y="154" />
 
       {CALLOUTS.map((c) => (
         <Callout key={c.physical} {...c} />

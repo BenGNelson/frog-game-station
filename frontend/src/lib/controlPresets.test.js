@@ -75,6 +75,17 @@ describe('START', () => {
   })
 })
 
+describe('L2/R2', () => {
+  it.each(Object.keys(SCHEMES))('are never bound to the pad (%s)', (scheme) => {
+    // No supported core has a real second shoulder row — mGBA parks unfireable
+    // "Turbo L/R" there — so leaving these unbound is what makes the triggers
+    // collision-free app-shortcut targets (Fast-Forward's natural home).
+    const map = resolveBindings({ scheme })
+    expect(map[RETROPAD.L2]).toBe('')
+    expect(map[RETROPAD.R2]).toBe('')
+  })
+})
+
 describe('custom bindings', () => {
   it('override the scheme, one button at a time', () => {
     const map = resolveBindings({ scheme: 'letters', custom: { [RETROPAD.A]: 'BUTTON_4' } })
