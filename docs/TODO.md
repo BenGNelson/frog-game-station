@@ -250,3 +250,7 @@ Open items carry an inline tag; completed (`[x]`) items are left untagged — th
       boxes, the frog at the guide-button spot with eyes cresting the top edge on the
       mascot's blink cycle, and still water-rings behind the pad. README screenshot
       regenerated.
+- [x] **Guide-button frog mark (2026-07-22):** the drawn pad's centre frog is now a round
+      guide button wearing the flat frog mark in jade with a faint halo — the way an Xbox
+      pad prints its logo on the nexus — replacing the peeking-eyes face. README
+      screenshot regenerated.

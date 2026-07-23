@@ -423,10 +423,10 @@ controller** (`controlBindings` keyed by pad id, so a second pad doesn't rewire 
   The silhouette is a **real pad** — shoulder humps, descending grips, an arch between them —
   built as a hand-tuned left half mirrored about the centreline so the two sides can't drift,
   with faint **still water-rings** behind it (the WATER motif, deliberately static so nothing
-  loops behind a settings surface). Following the drawn-not-scraped rule, the **frog itself
-  sits where a real pad prints its logo**, eyes cresting over the pad's top edge through a
-  dip drawn into the outline, blinking on the mascot's own lid cycle (`frog-lid`/`frog-lid-b`
-  — intentionally alive even under reduced motion, like the mascot). Each face button wears
+  loops behind a settings surface). Following the drawn-not-scraped rule, a **round guide
+  button at the top centre wears the flat frog mark** (`frogMarkMarkup`, the favicon frog)
+  in jade with a faint halo — the way an Xbox pad prints its logo on the nexus. It's the
+  mark, not the mascot, so it holds still. Each face button wears
   its **real controller colour** (bottom green / right red / left blue / top amber, the
   `ButtonLegend` convention) and is labelled with the **game** button it currently triggers —
   so flipping the scheme visibly **moves "A"** between the bottom and right buttons, which is

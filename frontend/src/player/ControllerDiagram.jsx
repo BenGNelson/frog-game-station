@@ -4,6 +4,7 @@ import { XBOX } from '../lib/gamepad.js'
 import { RETROPAD } from '../lib/retropad.js'
 import { isChord, hotkeyButton } from '../lib/playerSettings.js'
 import { glowFilter } from '../lib/glow.js'
+import { frogMarkMarkup } from '../frog/art.js'
 import '../frog/frog.css'
 
 // A drawn, frog-themed controller — the Controls screen's hero.
@@ -11,11 +12,10 @@ import '../frog/frog.css'
 // Console art is DRAWN, never scraped (see frog/Console.jsx): one flat look, one light
 // source, the rounded language of the frog. The silhouette is a real pad — shoulder
 // humps, descending grips, an arch between them — built as a hand-tuned left half
-// mirrored about the centreline so the two sides can't drift. Where a real pad prints
-// its logo sits the frog itself, eyes cresting over the top edge, blinking on the same
-// lid cycle as the mascot (frog-lid — deliberately alive even under reduced motion).
-// Faint still water-rings sit behind the pad: the WATER motif, without a loop competing
-// with the focus walk. NO official wordmarks.
+// mirrored about the centreline so the two sides can't drift. At the top centre, where
+// an Xbox pad puts its glowing nexus, sits a round guide button wearing the flat frog
+// mark (the favicon frog) in jade. Faint still water-rings sit behind the pad: the
+// WATER motif, without a loop competing with the focus walk. NO official wordmarks.
 //
 // The mapping is made to READ. Face buttons wear their real controller colours (bottom
 // green / right red / left blue / top amber) and carry the GAME button they trigger, so
@@ -32,16 +32,16 @@ import '../frog/frog.css'
 const VW = 560
 const VH = 300
 
-// The pad's outline. Left half hand-tuned (top-centre dip → shoulder hump → widest point
-// → grip → grip bottom → inner rise → bottom arch), right half is the same numbers
+// The pad's outline. Left half hand-tuned (gently-dipped top → shoulder hump → widest
+// point → grip → grip bottom → inner rise → bottom arch), right half is the same numbers
 // reflected about x=280.
 const PAD_PATH =
-  'M280 96 C250 89 220 83 196 88 C156 94 137 120 134 156 ' +
+  'M280 93 C250 88 220 83 196 88 C156 94 137 120 134 156 ' +
   'C130 192 132 222 146 246 C154 262 168 272 184 266 ' +
   'C200 260 208 244 216 226 C232 231 256 234 280 234 ' +
   'C304 234 328 231 344 226 C352 244 360 260 376 266 ' +
   'C392 272 406 262 414 246 C428 222 430 192 426 156 ' +
-  'C423 120 404 94 364 88 C340 83 310 89 280 96 Z'
+  'C423 120 404 94 364 88 C340 83 310 88 280 93 Z'
 
 // Face-button colour by physical position — and by SKIN, so the drawn pad can match the
 // controller in your hands. Xbox uses its position colours; PlayStation borrows the DualSense
@@ -286,7 +286,7 @@ export default function ControllerDiagram({
         </text>
       </g>
 
-      <FrogBadge x="280" y="114" />
+      <FrogBadge x="280" y="112" />
 
       {CALLOUTS.map((c) => (
         <Callout key={c.physical} {...c} />
@@ -300,23 +300,21 @@ export default function ControllerDiagram({
   )
 }
 
-// The frog at the guide-button spot — eyes cresting over the pad's top edge (the body
-// path dips at the centre to let them peek through), blinking on the mascot's lid cycle.
-// The lids reuse frog.css's .frog-lid / .frog-lid-b (collapsed scaleY(0), snapping shut
-// for ~110ms of a 5.2s cycle) — intentionally NOT disabled under reduced motion; the
-// blink is how you know the app is alive.
+// The frog at the guide-button spot — a round centre button wearing the flat two-tone
+// mark (frogMarkMarkup, the favicon frog) in jade, the way an Xbox pad prints its logo
+// on the nexus. It's the MARK, not the mascot, so it doesn't blink — logos hold still.
+// A faint jade halo gives it the glowing-orb read without breaking the flat language.
 function FrogBadge({ x, y }) {
-  const skin = `rgb(${FROG.jade})`
+  const s = 0.21
   return (
-    <g data-testid="pad-frog" transform={`translate(${x} ${y})`} aria-hidden="true">
-      <circle cx="-9.5" cy="-19.5" r="7" fill={skin} opacity="0.92" />
-      <circle cx="9.5" cy="-19.5" r="7" fill={skin} opacity="0.92" />
-      <ellipse cx="0" cy="0" rx="17" ry="13.5" fill={skin} opacity="0.92" />
-      <circle cx="-9.5" cy="-20.5" r="3" fill={FROG.ground} />
-      <circle cx="9.5" cy="-20.5" r="3" fill={FROG.ground} />
-      <ellipse className="frog-lid" cx="-9.5" cy="-19.5" rx="7.2" ry="7.2" fill={skin} opacity="0.92" />
-      <ellipse className="frog-lid frog-lid-b" cx="9.5" cy="-19.5" rx="7.2" ry="7.2" fill={skin} opacity="0.92" />
-      <path d="M-7.5 5 Q0 10.5 7.5 5" stroke={FROG.ground} strokeWidth="1.8" fill="none" strokeLinecap="round" />
+    <g data-testid="pad-frog" aria-hidden="true">
+      <circle cx={x} cy={y} r="16.5" fill="none" stroke={`rgba(${FROG.jade}, 0.14)`} strokeWidth="2" />
+      <circle cx={x} cy={y} r="14" fill={FROG.ground} stroke={`rgba(${FROG.jade}, 0.5)`} strokeWidth="1.5" />
+      <g
+        transform={`translate(${x - 50 * s} ${y - 53 * s}) scale(${s})`}
+        style={{ color: `rgb(${FROG.jade})` }}
+        dangerouslySetInnerHTML={{ __html: frogMarkMarkup({ ground: FROG.ground }) }}
+      />
     </g>
   )
 }
