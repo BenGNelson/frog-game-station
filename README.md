@@ -165,7 +165,7 @@ frog-game-station/
 │   └── public/             # emulator.html, PWA manifest, (emulatorjs/ fetched)
 ├── e2e/                # Playwright smoke tests
 ├── scripts/            # test.sh, deploy.sh, verify.sh, fetch-emulatorjs.sh
-└── docs/               # ARCHITECTURE.md, TODO.md
+└── docs/               # ARCHITECTURE.md, THEME.md (the design system), TODO.md
 ```
 
 ## Built on

@@ -1332,6 +1332,10 @@ export default function FrogBrowser() {
     }
   }
 
+  // Hooks must all run before the boot-screen early return below — this one rides
+  // with the saver block so the shelf's night flourishes can read it.
+  const dozing = useDozing()
+
   // ── The screensaver: the pond after a few idle minutes on any browse screen. ──
   // Any input wakes it; the waking press is swallowed so it can't also navigate.
   // Reduced motion never auto-starts it, and the boot screen keeps its own scene.
@@ -1537,7 +1541,6 @@ export default function FrogBrowser() {
             : null
           : hovered(rails, focus)
   const accent = systemStyle(focusedSystem).accent
-  const dozing = useDozing()
 
   return (
     <div

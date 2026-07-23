@@ -263,3 +263,22 @@ Open items carry an inline tag; completed (`[x]`) items are left untagged — th
       (r16, mark scale 0.24), and the Controls screen gained an input tester under the pad
       name — every press reads back exactly as the app saw it ("Last press: LB (raw #4)"),
       the ground truth for pads that report a nonstandard layout.
+- [x] **Theme finishing pass — "frog in a pond" (2026-07-23):** the whole-app cohesion
+      sweep, decided screen-by-screen against a live direction sampler. Shipped across
+      five commits: (1) colour single-sourcing — `groundRGB`/`lineRGB` triplets, a
+      `scrim()` helper over every overlay, the touch overlay's leftover violet press-glow
+      retired to jade, the player exit off Tailwind rose onto `FROG.danger`, the wiki
+      reader's stale pre-WCAG grey fixed; (2) **Fredoka** display face (vendored latin
+      variable woff2 + OFL, ~30 KB) on the wordmark/titles/headings, wired into the
+      service-worker precache (`globPatterns` gained `woff2` — it would have 404'd
+      offline) with an e2e guard that the face loads and nothing leaves the origin;
+      (3) **docs/THEME.md** theme bible + shared primitives — the Pebble all-pill
+      `Button` family, `Heading`, `ModalScrim` over a named 4-stop scrim ladder,
+      `EmptyState`, consolidated badges, one inset `focusRing()` + `FOCUS_SCALE` 1.04
+      across browser AND player; (4) the pond deepened — caustics on all browse screens
+      (system-tinted), press ripples on every persistent control; (5) **pond life** —
+      drifting lily pads, loading-screen bubbles, a night firefly, pupil eye-tracking of
+      the focused tile, a rare dragonfly, and an idle **screensaver** where the frog
+      hunts flies (sleeps after bedtime), any input waking it. Smoke grew reduced-motion
+      and boot→shelf-crossing checks (the latter caught a real hooks-order crash);
+      README screenshots regenerated from the demo library.

@@ -125,6 +125,35 @@ def check_reduced_motion(browser):
         page.close()
 
 
+def check_boot_advance(browser):
+    """Cross boot → shelf. Dismissing the boot screen re-renders FrogBrowser with
+    its full hook set — the exact path a conditional-hook regression (React #310)
+    blanks, and one the per-route checks never cross. One press, then the shelf
+    must actually be there."""
+    page = browser.new_page()
+    errors = []
+    page.on("pageerror", lambda e: errors.append(str(e)))
+    try:
+        page.goto(f"{BASE_URL}/frog", wait_until="domcontentloaded")
+        page.wait_for_selector("[data-testid='frog-boot']", timeout=15000)
+        # Let the surface animation finish ("rising" → "ready"); a press mid-rise
+        # only fast-forwards, so press once ready, and once more if still rising.
+        page.wait_for_timeout(2600)
+        for _ in range(2):
+            page.mouse.click(200, 300)
+            page.wait_for_timeout(1600)
+            if page.locator("[data-testid='frog']").count():
+                break
+        problems = []
+        if page.locator("[data-testid='frog']").count() == 0:
+            problems.append("shelf did not arrive after dismissing boot")
+        if errors:
+            problems.append(f"page errors: {errors[:2]}")
+        return problems
+    finally:
+        page.close()
+
+
 def main():
     failures = []
     with sync_playwright() as p:
@@ -145,20 +174,24 @@ def main():
             else:
                 print(f"ok   {path}")
 
-        try:
-            problems = check_reduced_motion(browser)
-        except Exception as e:
-            problems = [f"exception: {e}"]
-        if problems:
-            failures.append(("/frog (reduced motion)", problems))
-            print("FAIL /frog (reduced motion)")
-            for pr in problems:
-                print(f"      - {pr}")
-        else:
-            print("ok   /frog (reduced motion)")
+        for name, check in (
+            ("/frog (reduced motion)", check_reduced_motion),
+            ("/frog (boot → shelf)", check_boot_advance),
+        ):
+            try:
+                problems = check(browser)
+            except Exception as e:
+                problems = [f"exception: {e}"]
+            if problems:
+                failures.append((name, problems))
+                print(f"FAIL {name}")
+                for pr in problems:
+                    print(f"      - {pr}")
+            else:
+                print(f"ok   {name}")
         browser.close()
 
-    checks = len(PAGES) + 1  # the routes + the reduced-motion pass
+    checks = len(PAGES) + 2  # the routes + reduced-motion + boot-advance
     print()
     if failures:
         print(f"SMOKE FAILED: {len(failures)}/{checks} check(s)")
