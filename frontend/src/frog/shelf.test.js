@@ -84,7 +84,14 @@ describe('buildShelf', () => {
   it('retires the discover rail the moment the shelf has any history', () => {
     expect(buildShelf(LIBRARY, [{ id: '1', ts: 1 }]).map((r) => r.id)).not.toContain('discover') // recents
     expect(buildShelf(LIBRARY, [], [{ id: '3' }]).map((r) => r.id)).not.toContain('discover') // favorites
-    expect(buildShelf(LIBRARY, [], [], { finished: ['3'] }).map((r) => r.id)).not.toContain('discover') // finished
+  })
+
+  it('does NOT count finished games as history — they are a flag, not a rail', () => {
+    // Finished games get no shelf rail, so a library whose only "history" is finished games
+    // still reads as first-run and keeps the Surprise-me card.
+    const rails = buildShelf(LIBRARY, [], [], { finished: ['3'] }).map((r) => r.id)
+    expect(rails).not.toContain('finished')
+    expect(rails).toContain('discover')
   })
 
   it('shows no discover rail when there are no games to be random about', () => {
@@ -101,14 +108,13 @@ describe('buildShelf', () => {
     expect(rails.map((r) => r.id)).toEqual(['favorites', 'systems'])
   })
 
-  it('adds a Finished rail (after Favorites) and one rail per tag, then Systems', () => {
+  it('builds no Finished rail — finished is a flag; just tag rails, then Systems', () => {
     const rails = buildShelf(LIBRARY, [], [], {
       finished: ['3'],
       tags: { Zelda: ['2'], Sonic: ['4'] },
     })
-    // finished after favorites; tag rails in tag-name order; systems always last.
-    expect(rails.map((r) => r.id)).toEqual(['finished', 'tag:Sonic', 'tag:Zelda', 'systems'])
-    expect(rails.find((r) => r.id === 'finished').items.map((g) => g.id)).toEqual(['3'])
+    // No 'finished' rail; tag rails in tag-name order; systems always last.
+    expect(rails.map((r) => r.id)).toEqual(['tag:Sonic', 'tag:Zelda', 'systems'])
   })
 })
 

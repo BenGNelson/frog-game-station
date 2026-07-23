@@ -454,7 +454,7 @@ export default function FrogBrowser() {
   //
   // The rails CHANGE SHAPE after the shelf is already interactive — not just once when
   // the library resolves (Jump back in / Favorites appearing) but again as the async
-  // Finished and per-tag rails land. Keeping focus.rail as a bare index
+  // per-tag collection rails land. Keeping focus.rail as a bare index
   // would let a rail inserted AHEAD of you slide the highlight onto a different game. So
   // we keep focus on the SAME rail by identity: find where its id moved to, and only
   // fall back to index-clamping when that rail is gone (or on the first resolve).
