@@ -259,3 +259,7 @@ Open items carry an inline tag; completed (`[x]`) items are left untagged — th
       supported core has a real second shoulder row (mGBA's "Turbo L/R" there can never
       fire in EmulatorJS) — making the triggers collision-free app-shortcut targets
       alongside the stick-clicks; Fast-Forward's natural home is now RT.
+- [x] **Bigger centre mark + input tester (2026-07-22):** the guide-button frog mark grew
+      (r16, mark scale 0.24), and the Controls screen gained an input tester under the pad
+      name — every press reads back exactly as the app saw it ("Last press: LB (raw #4)"),
+      the ground truth for pads that report a nonstandard layout.

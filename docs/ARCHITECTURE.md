@@ -446,6 +446,10 @@ controller** (`controlBindings` keyed by pad id, so a second pad doesn't rewire 
   vacated face slot reads "—", never a hole). App shortcuts are annotated on **every** button,
   not just the sticks — Fast-Forward bound to RB reads "R" under the RB name with a jade
   **FF** badge.
+- **An input tester under the pad name.** While the screen is open, every press reads back
+  exactly as the app saw it — `Last press: LB (raw #4)` — including Menu/Guide and indices
+  outside the standard layout. It's the ground truth for a pad that reports a nonstandard
+  arrangement, which is precisely when you'd be on this screen.
 - **Only the stick-clicks and triggers are truly free, and the diagram says so.** In-play the
   engine reads the pad itself (its own loop + our preset), so the app can't intercept a press —
   the collision-free buttons for an app **shortcut** are the two stick-clicks L3/R3 and the two

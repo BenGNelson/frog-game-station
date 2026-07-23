@@ -170,6 +170,32 @@ describe('player panel render smoke', () => {
     ).not.toThrow()
   })
 
+  it('ControlsPanel input tester reads back the last raw press', () => {
+    const html = renderToString(
+      <ControlsPanel
+        padName="Xbox Wireless Controller"
+        lastPress={{ index: 4, id: 'pad' }}
+        scheme="letters"
+        bindings={{}}
+        listeningFor={null}
+        wikiHotkey={11}
+        pokedexHotkey={10}
+        ffHotkey={null}
+        isPokemon
+        focus={2}
+        onFocus={() => {}}
+        onScheme={() => {}}
+        onListen={() => {}}
+        onReset={() => {}}
+        onBack={() => {}}
+      />
+    )
+    // React SSR splits adjacent text expressions with comment nodes — strip them
+    // before matching the assembled "raw #4" string.
+    expect(html.replace(/<!-- -->/g, '')).toContain('raw #4')
+    expect(html).toContain('LB')
+  })
+
   it('ControlsPanel mounts (with the diagram + a chord hotkey) without throwing', () => {
     for (const wikiHotkey of [11, { button: 3, mod: 'menu' }]) {
       expect(() =>
