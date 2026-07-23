@@ -8,6 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/BenGNelson/frog-game-station/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/BenGNelson/frog-game-station/ci.yml?branch=main&style=flat-square&label=CI&logo=github" alt="CI"></a>
+  <img src="https://img.shields.io/badge/version-1.0.0-2ea44f?style=flat-square" alt="Version 1.0.0">
   <img src="https://img.shields.io/badge/license-MIT-2ea44f?style=flat-square" alt="License: MIT">
   <img src="https://img.shields.io/badge/React-18-149eca?style=flat-square&logo=react&logoColor=white" alt="React">
   <img src="https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white" alt="FastAPI">
@@ -15,47 +16,34 @@
   <img src="https://img.shields.io/badge/PWA-5A0FC8?style=flat-square&logo=pwa&logoColor=white" alt="PWA">
 </p>
 
-<p align="center"><em>AI-assisted build.</em></p>
+Frog Game Station turns a folder of ROMs into a console you can actually enjoy browsing. Point it at a directory and play — no installs, no per-game setup. It organizes and enriches your library, then hands gameplay to an isolated, in-browser [EmulatorJS](https://emulatorjs.org) frame.
 
-Frog Game Station is a portfolio-quality, self-hosted web app that turns a folder of ROMs into a console-style library you can actually enjoy browsing. It's a *host* for your games: it organizes and enriches the collection, then hands the actual gameplay off to an isolated, in-browser [EmulatorJS](https://emulatorjs.org) frame. No installs, no per-game setup — point it at a folder and play.
+<p align="center"><img src="docs/img/shelf-desktop.png" alt="The console-style home shelf" width="100%"></p>
 
 ## What it is
 
-Most emulator front-ends pick one audience. Frog Game Station is built for two, as first-class citizens:
+The idea: an emulator front-end that's neither a spreadsheet of filenames nor a couch-only kiosk — one library that's genuinely nice to use from the sofa *and* the bus. So it's built for two audiences, both first-class:
 
-- **Couch + controller.** A five-screen, console-style UI you drive entirely with a gamepad (or keyboard): boot → shelf → game list → game page, with search reachable from anywhere. Rails, cursors, and a letter-at-a-time list keep hundreds of games one flick away. Even free text — naming a collection or a save state — has an on-screen keyboard, so you never need a hardware keyboard on the couch.
-- **Phone + thumb.** The exact same browser, touch-first: real tap targets on every tile and row, an on-screen keyboard for search, on-screen touch controls in the player, and an installable PWA so you can add it to your home screen and play downloaded games offline.
+- **Couch + controller.** A five-screen, console-style UI you drive entirely with a gamepad (or keyboard): boot → shelf → game list → game page, search anywhere. Rails, cursors, and a letter-at-a-time list keep hundreds of games one flick away — even naming a collection or a save state has an on-screen keyboard, so you never reach for a hardware one.
+- **Phone + thumb.** The exact same browser, touch-first: real tap targets on every tile, an on-screen keyboard for search, touch controls in the player, and an installable PWA so you can add it to your home screen and play downloaded games offline.
 
-It has a hand-drawn **frog mascot** and a **WATER / jade dark theme** — a pond-and-lilypad motif where things float, reflect, and ripple. And it enriches each game with **[IGDB](https://www.igdb.com)** metadata (cover art, screenshots, summary, genres, rating) via a background matcher, so a bare filename becomes a real game page.
+It has a hand-drawn **frog mascot** and a **WATER / jade dark theme** — a pond motif where things float, reflect, and ripple. And it enriches each game with **[IGDB](https://www.igdb.com)** metadata (cover art, screenshots, summary, genres, rating) via a background matcher, so a bare filename becomes a real game page.
 
 ## Features
 
-- **Console-style, not a wall of boxes** — boot → shelf → per-system list → game page, search anywhere. The shelf opens on "Jump back in," so most sessions skip the alphabet; hit "Surprise me" (the right stick on a pad, or the header shuffle by thumb) for a random pick.
-- **Rich game pages** — a background matcher pulls IGDB art, screenshots, summary, genres, and rating. Unmatched ROMs still get a clean cover-and-title page — nothing looks broken.
-- **"More like this"** — each game suggests similar titles you *actually own*.
-- **Play-time tracking** — clocks how long you play each game and shows the total on its page.
-- **Collections & a "finished" flag** — sort your library into free-form collections and badge the games you've beaten (with a little mascot cheer when you mark one done); both roam from couch to phone.
-- **Your own cover art** — grab a frame mid-game as box art — perfect for ROM hacks and unmatched titles.
-- **ROM-hack aware** — tag a hack of a base game: it borrows the base's art, keeps its own name, wears a **HACK** badge, and links back to the base.
-- **Save states + battery saves** — battery saves roam and back up server-side; snapshot save states carry a thumbnail and can be named, pinned, and relaunched.
-- **In-game wiki reader** — pull up a game's wiki over the paused game — controller-navigable, in-theme, and reopening right where you left off — with the right page picked per game (a Pokémon walkthrough, a franchise wiki, or a one-tap search for a hack).
-- **In-game Pokédex** — for a Pokémon game or hack, a full dex over the paused game: sprites, types, base stats, and tappable evolution chains, scoped to the game's region.
-- **Offline + installable PWA** — download games and play offline; a gentle, one-time nudge on the phone shelf offers to add Frog Game Station to your home screen (a one-tap install on Android, the Share → "Add to Home Screen" route on iOS).
-- **Real touch controls** — a from-scratch multi-touch overlay with true d-pad diagonals and hit areas bigger than the buttons, adjustable opacity, and a haptic tick on every press (Android).
-- **Gamepad-native** — pad, arrow keys, and mouse through one code path. The **Controls** screen draws your pad: pick whether *A* means the letter or the position (Nintendo vs Xbox), match the drawing to your controller (Xbox / PlayStation / Nintendo), remap any button, and badge shortcuts onto the free buttons.
-- **Drawn, not scraped** — console art is illustrated in-app (no official logos), for one coherent look.
-- **Settings** — check the matcher and re-scan, set the input mode, and toggle nav sounds, all from a header gear.
-- **A living WATER theme** — pond caustics, cover reflections, per-system accents, and true-black OLED on phones; all motion respects `prefers-reduced-motion`.
+- **Console-style, not a wall of boxes** — boot → shelf → per-system list → game page, search anywhere. The shelf opens on "Jump back in," so most sessions skip the alphabet; hit "Surprise me" for a random pick.
+- **Rich game pages** — a background matcher pulls IGDB art, screenshots, summary, genres, and rating, and suggests **similar titles you *actually own*.** Unmatched ROMs still get a clean cover-and-title page — nothing looks broken.
+- **Collections** — sort your library into free-form rails that follow you from couch to phone.
+- **Progress that sticks** — play-time is clocked per game, and a **finished** flag badges the ones you've beaten (with a little mascot cheer when you mark one done).
+- **ROM-hack aware, with your own covers** — tag a hack of a base game and it borrows the base's art, keeps its own name, wears a **HACK** badge, and links back; or grab a frame mid-game as custom box art for any hack or unmatched title.
+- **Save states + battery saves** — battery saves roam and back up server-side; snapshot states carry a thumbnail and can be named, pinned, and relaunched.
+- **In-game companions** — over the paused game, pull up a **wiki** (the right page picked per game — a Pokémon walkthrough, a franchise wiki, or a one-tap search for a hack) or, for Pokémon games, a full **Pokédex** (sprites, types, base stats, tappable evolution chains, region-scoped). Both are in-theme, controller-navigable, and reopen right where you left off.
+- **Offline + installable PWA** — download games and play offline; a gentle one-time nudge on the phone offers to add it to your home screen (one tap on Android, Share → "Add to Home Screen" on iOS).
+- **Real touch controls** — a from-scratch multi-touch overlay with true d-pad diagonals, hit areas bigger than the buttons, adjustable opacity, and a haptic tick on every press (Android).
+- **Gamepad-native** — pad, arrow keys, and mouse through one code path. The **Controls** screen draws *your* controller (Xbox / PlayStation / Nintendo): pick whether *A* means the letter or the position, remap any button, and badge app shortcuts onto free buttons.
+- **A drawn, living look** — console and mascot art illustrated in-app (no official logos), pond caustics, cover reflections, per-system accents, and true-black OLED on phones. All motion respects `prefers-reduced-motion`.
 
 ## Screenshots
-
-<p align="center"><img src="docs/img/boot-desktop.png" alt="Boot screen" width="72%"></p>
-<p align="center"><em>Turn it on — press A, or tap.</em></p>
-
-<p align="center"><img src="docs/img/shelf-desktop.png" alt="The home shelf" width="100%"></p>
-
-The console-style home shelf — pick a system or jump back into a recent game, all
-driven by a controller, the arrow keys, or a tap.
 
 |  |  |
 |---|---|
@@ -97,7 +85,7 @@ cd frog-game-station
 # 1. Configure
 cp .env.example .env
 #    then edit .env:
-#      - point GAMES_ROM_DIR at your ROM folder (mounted read-only)
+#      - point ROMS_DIR at your ROM folder (mounted read-only)
 #      - optionally add IGDB (Twitch) credentials for rich metadata
 
 # 2. Fetch the EmulatorJS engine (~300MB, not committed)
@@ -122,20 +110,13 @@ All configuration lives in `.env` (copy it from `.env.example`; it is never comm
 | Variable | Default | Purpose |
 |---|---|---|
 | `FRONTEND_PORT` | `8585` | Host port the nginx frontend is published on. |
-| `GAMES_ROM_DIR` | `./roms-sample` | Path to your ROM folder. Mounted **read-only** into the backend. |
+| `ROMS_DIR` | `./roms` | Path to your ROM folder. Mounted **read-only** into the backend. |
 | `IGDB_CLIENT_ID` | *(empty)* | Twitch app client ID for IGDB metadata. Empty = metadata dormant. |
 | `IGDB_CLIENT_SECRET` | *(empty)* | Twitch app client secret. Secret — never commit. |
 | `IGDB_SYNC_ENABLED` | `true` | Whether the background IGDB matcher runs (no-op without credentials). |
 | `IGDB_SYNC_INTERVAL` | `3600` | Seconds between matcher passes. |
 
-Backend internal port is `8000`, with the API mounted at `/api`. Data directories live under the `/data` volume:
-
-| `/data` dir | Contents |
-|---|---|
-| `/data/frog.db` | SQLite database (IGDB matches, game progress, save-state index). |
-| `/data/igdb-art/` | Cached, downscaled IGDB screenshots/cover art (WebP). |
-| `/data/covers/` | Cached box-art thumbnails (WebP). |
-| `/data/saves/` | Battery saves (SRAM) + explicit save states, one folder per game. |
+The API is mounted at `/api` (backend internal port `8000`). The named `/data` volume holds the SQLite database, WebP art caches, and per-game saves — details in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ## Production vs dev
 
@@ -197,3 +178,5 @@ Console art is drawn in-app; no official hardware logos or wordmarks are used.
 ## License
 
 MIT.
+
+<sub><em>AI-assisted build.</em></sub>
