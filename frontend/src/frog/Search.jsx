@@ -3,6 +3,7 @@ import { Search as SearchIcon, X } from 'lucide-react'
 import { coverUrl } from '../lib/library.js'
 import { FROG, systemStyle, reflection, focusRing } from './theme.js'
 import Heading from './Heading.jsx'
+import { useRipple, Ripples } from './ripple.jsx'
 import { KEYS, COLS, liveKeys } from './search.js'
 import Frog, { Reflected } from './Frog.jsx'
 import SystemChip from './SystemChip.jsx'
@@ -108,31 +109,16 @@ export default function Search({ query, results, zone, keyIndex, resultRow, allG
                 role="group"
                 aria-label="On-screen keyboard"
               >
-                {KEYS.map((ch, i) => {
-                  const on = zone === 'grid' && i === keyIndex
-                  const dead = discriminates && !live.has(ch) // a key that leads nowhere
-                  return (
-                    <button
-                      key={ch}
-                      type="button"
-                      // A dead key leads to zero results, so `typeKey` no-ops on it —
-                      // tell assistive tech that too, without disabling it (the pointer
-                      // cursor still needs to move across the grid).
-                      aria-disabled={dead || undefined}
-                      onMouseMove={() => onKey(i)}
-                      onClick={() => onPick(null, ch)}
-                      className="flex aspect-square items-center justify-center rounded-lg text-lg font-semibold transition-colors"
-                      style={{
-                        background: on ? `rgb(${FROG.jade})` : FROG.panel,
-                        color: on ? FROG.ground : dead ? FROG.faint : FROG.soft,
-                        opacity: dead ? 0.35 : 1,
-                        boxShadow: on ? `0 0 18px rgba(${FROG.jade}, 0.6)` : 'none',
-                      }}
-                    >
-                      {ch}
-                    </button>
-                  )
-                })}
+                {KEYS.map((ch, i) => (
+                  <GridKey
+                    key={ch}
+                    ch={ch}
+                    on={zone === 'grid' && i === keyIndex}
+                    dead={discriminates && !live.has(ch)}
+                    onHover={() => onKey(i)}
+                    onPress={() => onPick(null, ch)}
+                  />
+                ))}
               </div>
             </>
           )}
@@ -223,6 +209,33 @@ export default function Search({ query, results, zone, keyIndex, resultRow, allG
         </aside>
       </div>
     </div>
+  )
+}
+
+// One key of the 6×6 grid. `dead` marks a key that leads to zero results — dimmed
+// and announced as disabled, but still hoverable so the pointer cursor can cross it.
+function GridKey({ ch, on, dead, onHover, onPress }) {
+  const { ripples, spawnRipple } = useRipple()
+  return (
+    <button
+      type="button"
+      aria-disabled={dead || undefined}
+      onMouseMove={onHover}
+      onClick={(e) => {
+        if (!dead) spawnRipple(e)
+        onPress(e)
+      }}
+      className="relative flex aspect-square items-center justify-center overflow-hidden rounded-lg text-lg font-semibold transition-colors"
+      style={{
+        background: on ? `rgb(${FROG.jade})` : FROG.panel,
+        color: on ? FROG.ground : dead ? FROG.faint : FROG.soft,
+        opacity: dead ? 0.35 : 1,
+        boxShadow: on ? `0 0 18px rgba(${FROG.jade}, 0.6)` : 'none',
+      }}
+    >
+      <Ripples ripples={ripples} accent={on ? FROG.lineRGB : FROG.jade} />
+      {ch}
+    </button>
   )
 }
 
