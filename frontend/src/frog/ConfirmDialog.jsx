@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 import { useFocusTrap } from '../lib/useFocusTrap.js'
-import { FROG } from './theme.js'
+import { FROG, scrim } from './theme.js'
 
 // A small yes/no gate. Controller-drivable and tappable — it guards a delete/remove
 // behind one deliberate step. Shared by the game-detail page and the in-game save-state
@@ -51,7 +51,7 @@ export default function ConfirmDialog({
     <div
       data-testid="frog-confirm"
       className={`absolute inset-0 ${z} flex items-center justify-center p-6`}
-      style={{ background: 'rgba(5, 17, 13, 0.72)', backdropFilter: 'blur(3px)' }}
+      style={{ background: scrim(0.72), backdropFilter: 'blur(3px)' }}
     >
       <div
         ref={panelRef}
@@ -76,7 +76,7 @@ export default function ConfirmDialog({
             className={`rounded-xl px-5 py-2.5 text-sm font-semibold transition-transform ${yesFocused ? 'scale-105' : ''}`}
             style={{
               background: `rgb(${FROG.danger})`,
-              color: '#fff',
+              color: FROG.ink,
               boxShadow: yesFocused ? `0 0 0 3px rgba(${FROG.danger}, 0.55)` : 'none',
             }}
           >

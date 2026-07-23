@@ -3,7 +3,7 @@ import { ChevronLeft, Check, RotateCcw, Gamepad2, BookOpen, BookMarked, FastForw
 import { SCHEMES, BINDABLE, resolveBindings, describeBinding } from '../lib/controlPresets.js'
 import { CONTROL_SKINS, isChord } from '../lib/playerSettings.js'
 import { bindingForButton } from '../lib/gamepad.js'
-import { FROG } from '../frog/theme.js'
+import { FROG, scrim } from '../frog/theme.js'
 import { glowFilter } from '../lib/glow.js'
 import ControllerDiagram from './ControllerDiagram.jsx'
 
@@ -76,7 +76,7 @@ export default function ControlsPanel({
       tabIndex={-1}
       className="absolute inset-0 z-30 flex flex-col outline-none backdrop-blur-md"
       style={{
-        background: 'rgba(5, 17, 13, 0.94)',
+        background: scrim(0.94),
         paddingLeft: 'env(safe-area-inset-left)',
         paddingRight: 'env(safe-area-inset-right)',
         paddingBottom: 'env(safe-area-inset-bottom)',

@@ -2,7 +2,7 @@ import { useRef } from 'react'
 import { ArrowBigUp, Check, Delete } from 'lucide-react'
 import { useFocusTrap } from '../lib/useFocusTrap.js'
 import { ROWS, effectiveCaps } from '../lib/keyboard.js'
-import { FROG } from './theme.js'
+import { FROG, scrim } from './theme.js'
 
 // FROG GAME STATION — the on-screen keyboard.
 //
@@ -25,7 +25,7 @@ export default function Keyboard({ title, text, placeholder, pos, shift, accent,
     <div
       data-testid="frog-keyboard"
       className="absolute inset-0 z-40 flex items-center justify-center p-4 sm:p-6"
-      style={{ background: 'rgba(5, 17, 13, 0.82)', backdropFilter: 'blur(3px)' }}
+      style={{ background: scrim(0.82), backdropFilter: 'blur(3px)' }}
       onClick={onClose}
     >
       <div

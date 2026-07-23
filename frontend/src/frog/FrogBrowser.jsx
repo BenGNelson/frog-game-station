@@ -1573,7 +1573,7 @@ export default function FrogBrowser() {
             <span
               data-testid="frog-offline"
               className="flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium tracking-wide"
-              style={{ background: 'rgba(251, 191, 36, 0.12)', color: 'rgb(251, 191, 36)' }}
+              style={{ background: `rgba(${FROG.amber}, 0.12)`, color: `rgb(${FROG.amber})` }}
             >
               <Plane className="h-3 w-3" aria-hidden="true" />
               Offline

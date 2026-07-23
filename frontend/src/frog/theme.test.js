@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { FROG } from './theme.js'
+import { FROG, scrim, focusRing, FOCUS_SCALE } from './theme.js'
 
 // WCAG relative luminance + contrast ratio, straight from the spec.
 function luminance(hex) {
@@ -39,5 +39,33 @@ describe('text-colour contrast (WCAG AA)', () => {
     // UI leans on (dead search keys, empty-state prose) stops reading as recessive.
     expect(contrast(FROG.faint, FROG.panel)).toBeLessThan(contrast(FROG.soft, FROG.panel))
     expect(contrast(FROG.ink, FROG.panel)).toBeGreaterThan(contrast(FROG.soft, FROG.panel))
+  })
+})
+
+// A hex token and its RGB-triplet twin must be the same colour — the triplet exists
+// only so overlays can vary alpha, never as a second place the colour is defined.
+function hexToTriplet(hex) {
+  const h = hex.replace('#', '')
+  return [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16)).join(', ')
+}
+
+describe('single-source colour helpers', () => {
+  it('groundRGB is exactly the ground hex, unpacked', () => {
+    expect(FROG.groundRGB).toBe(hexToTriplet(FROG.ground))
+  })
+
+  it('line derives from lineRGB', () => {
+    expect(FROG.line).toBe(`rgba(${FROG.lineRGB}, 0.10)`)
+  })
+
+  it('scrim() is the ground at the requested opacity', () => {
+    expect(scrim(0.72)).toBe(`rgba(${FROG.groundRGB}, 0.72)`)
+  })
+
+  it('focusRing() speaks the one focus language', () => {
+    // Inset ring by default; the glow variant appends, never replaces, the ring.
+    expect(focusRing()).toBe(`inset 0 0 0 2px rgba(${FROG.jade}, 0.55)`)
+    expect(focusRing(FROG.jade, { glow: true })).toContain(focusRing())
+    expect(FOCUS_SCALE).toBe(1.04)
   })
 })

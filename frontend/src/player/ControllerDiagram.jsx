@@ -49,7 +49,7 @@ const PAD_PATH =
 // monochrome, so they read in one neutral. The game-button LETTER stays the label either way —
 // the skin is the look, not the mapping.
 const FACE_COLOR = {
-  xbox: { bottom: '#34d399', right: '#fb7185', left: '#38bdf8', top: '#fbbf24' },
+  xbox: { bottom: `rgb(${FROG.jade})`, right: '#fb7185', left: '#38bdf8', top: '#fbbf24' },
   playstation: { bottom: '#7aa0e6', right: '#f0607e', left: '#e07ad0', top: '#4fd0a0' },
   nintendo: { bottom: '#dfe4e8', right: '#dfe4e8', left: '#dfe4e8', top: '#dfe4e8' },
 }

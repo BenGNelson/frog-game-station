@@ -5,8 +5,11 @@ import { API_BASE } from './useApi.js'
 // token) so the colour survives a theme swap, the same rule the back-lit radiance
 // motif follows. `rgb` feeds the glow/backdrop helpers; `text` tints the Lucide
 // icon. Kept as a keyed lookup (with a neutral default) so callers stay uniform.
+// The games accent IS the app's jade — the touch overlay's press glow and the
+// player start screen's fallback tint both read it, and anything but jade there
+// breaks the WATER look mid-game.
 const SECTION_ACCENTS = {
-  games: { rgb: '139,92,246', text: 'text-violet-300' },
+  games: { rgb: '52,211,153', text: 'text-emerald-300' },
 }
 const _DEFAULT_ACCENT = { rgb: '148,163,184', text: 'text-slate-300' }
 export function sectionAccent(key) {

@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { Play, Save, FastForward, Maximize, Gamepad2, RotateCcw, LogOut, BookOpen, BookMarked, ChevronRight } from 'lucide-react'
 import { moveInGrid } from '../lib/gridNav.js'
-import { FROG } from '../frog/theme.js'
+import { FROG, scrim } from '../frog/theme.js'
 import { radiantBackdrop, glowFilter } from '../lib/glow.js'
 
 // The in-game menu. Replaces EmulatorJS's own bottom bar, which is a strip of
@@ -87,7 +87,7 @@ export default function PauseMenu({ open, name, fastForward, canFullscreen, isPo
       onKeyDown={onKeyDown}
       className="absolute inset-0 z-20 touch-auto overflow-y-auto overscroll-contain outline-none backdrop-blur-md"
       style={{
-        background: 'rgba(5, 17, 13, 0.72)',
+        background: scrim(0.72),
         paddingLeft: 'env(safe-area-inset-left)',
         paddingRight: 'env(safe-area-inset-right)',
         paddingBottom: 'env(safe-area-inset-bottom)',

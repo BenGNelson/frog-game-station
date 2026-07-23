@@ -5,12 +5,21 @@
 // palette is a near-black GREEN ground, one jade accent, and constant-RGB tokens
 // (not Tailwind color classes) so the look is fixed and deliberate.
 
+// The hairline hue and the ground, as bare RGB triplets, for the one thing a hex
+// can't do: vary its alpha. `line` and `scrim()` build on these so the numbers exist
+// exactly once (the ground used to be re-typed, each time with its own alpha, in
+// eleven files' overlays).
+const GROUND_RGB = '5, 17, 13'
+const LINE_RGB = '160, 255, 214'
+
 // A GREEN-black ground — dark enough to disappear, warm enough to read as its own
 // thing rather than a generic slate dark mode.
 export const FROG = {
   ground: '#05110D',
+  groundRGB: GROUND_RGB,
   panel: '#0A1C16',
-  line: 'rgba(160, 255, 214, 0.10)',
+  lineRGB: LINE_RGB,
+  line: `rgba(${LINE_RGB}, 0.10)`,
 
   ink: '#E6F5EE',
   soft: '#93B5A8',
@@ -129,4 +138,22 @@ export function systemForCore(core) {
 // to drift 0.4 / 0.45 / 0.5 across otherwise-identical cards).
 export function reflection(rgb, alpha = 0.45) {
   return `0 26px 40px -22px rgba(${rgb}, ${alpha}), 0 2px 0 rgba(255,255,255,0.04) inset`
+}
+
+// The water's surface, pulled over the screen. Every overlay is the ground at some
+// opacity — built here so the RGB can never drift from the ground it must match.
+export function scrim(alpha) {
+  return `rgba(${GROUND_RGB}, ${alpha})`
+}
+
+// One focus scale for everything that swells when focused. This used to drift
+// 1.02–1.06 across otherwise-identical "this is selected" moments.
+export const FOCUS_SCALE = 1.04
+
+// The focus ring, in one language: a crisp accent ring drawn inset so it never
+// collides with a neighbour in a tight list. `glow` is the louder variant the dark
+// player chrome wears. New surfaces take this rather than hand-rolling a box-shadow.
+export function focusRing(rgb = FROG.jade, { glow = false } = {}) {
+  const ring = `inset 0 0 0 2px rgba(${rgb}, 0.55)`
+  return glow ? `${ring}, 0 0 18px rgba(${rgb}, 0.35)` : ring
 }
