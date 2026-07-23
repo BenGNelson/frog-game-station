@@ -245,6 +245,14 @@ frozen under `prefers-reduced-motion`):
   decision is a pure function; the dispatcher plays it once, before the per-screen
   handling, so every screen clicks the same way.
 
+The full flourish inventory and its budget live in **docs/THEME.md** (the theme
+bible — tokens, type, radius/focus/scrim ladders, the pond-life layer, and the
+"adding a new surface" checklist). Notable since v1.0: press **ripples** on every
+persistent control, **lily pads / bubbles / a night firefly / a rare dragonfly**,
+the shelf frog's **eye tracking**, and an idle **screensaver** (the frog hunts
+flies; any input wakes; never under reduced motion — `frog/Screensaver.jsx`, idle
+timer in FrogBrowser, wake-lock untouched and gameplay-only).
+
 **Typography:** one display face — **Fredoka** (rounded geometric, OFL, variable) — worn
 by the wordmark, screen titles, and section headings only; body text stays on the system
 stack. The latin-subset woff2 (~30 KB) is vendored in `src/assets/fonts/` with its

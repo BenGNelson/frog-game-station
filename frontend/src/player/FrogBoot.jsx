@@ -1,5 +1,6 @@
 import Frog from '../frog/Frog.jsx'
 import { FROG } from '../frog/theme.js'
+import { Bubbles } from '../frog/pond.jsx'
 import '../frog/frog.css'
 
 // The screen between tapping Play and the game appearing.
@@ -35,6 +36,9 @@ export default function FrogBoot({ done }) {
       aria-label="Loading"
       role="status"
     >
+      {/* Bubbles on the way up — the frog is underwater until the game surfaces. */}
+      <Bubbles count={5} rise="-60vh" />
+
       {/* One ring, breathing out from under it — the pond, not a spinner. */}
       <span
         aria-hidden="true"

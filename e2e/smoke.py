@@ -104,6 +104,27 @@ def check_page(page, path, expect):
     return problems
 
 
+def check_reduced_motion(browser):
+    """The pond must respect prefers-reduced-motion: the app still renders and the
+    ambient layer's looping pieces are either frozen or removed (frog.css owns the
+    kill list; a regression here means motion a user opted out of)."""
+    page = browser.new_page(reduced_motion="reduce")
+    try:
+        page.goto(f"{BASE_URL}/frog", wait_until="domcontentloaded")
+        page.wait_for_selector("#root > *", timeout=15000)
+        page.wait_for_timeout(500)
+        if page.locator("#root > *").count() == 0:
+            return ["root is empty under reduced motion"]
+        # Any bubble/dragonfly present must be invisible (opacity 0), not animating.
+        bad = page.evaluate(
+            "Array.from(document.querySelectorAll('.frog-bubble, .frog-dragonfly'))"
+            ".filter(el => getComputedStyle(el).opacity !== '0').length"
+        )
+        return [f"{bad} motion-only ornament(s) visible under reduced motion"] if bad else []
+    finally:
+        page.close()
+
+
 def main():
     failures = []
     with sync_playwright() as p:
@@ -123,13 +144,26 @@ def main():
                     print(f"      - {pr}")
             else:
                 print(f"ok   {path}")
+
+        try:
+            problems = check_reduced_motion(browser)
+        except Exception as e:
+            problems = [f"exception: {e}"]
+        if problems:
+            failures.append(("/frog (reduced motion)", problems))
+            print("FAIL /frog (reduced motion)")
+            for pr in problems:
+                print(f"      - {pr}")
+        else:
+            print("ok   /frog (reduced motion)")
         browser.close()
 
+    checks = len(PAGES) + 1  # the routes + the reduced-motion pass
     print()
     if failures:
-        print(f"SMOKE FAILED: {len(failures)}/{len(PAGES)} page(s)")
+        print(f"SMOKE FAILED: {len(failures)}/{checks} check(s)")
         sys.exit(1)
-    print(f"SMOKE PASSED: all {len(PAGES)} pages render cleanly")
+    print(f"SMOKE PASSED: all {checks} checks render cleanly")
 
 
 if __name__ == "__main__":

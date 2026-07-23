@@ -130,6 +130,28 @@ The motif is WATER: things **float** (slow bob + `reflection()` shadow), **refle
 - Pond-life budget per screen: two caustic layers max, ambient loops ≥ 15s, one-shot
   feedback ≤ 600ms. Decorations are `aria-hidden` + `pointer-events: none`.
 
+**The pond-life inventory** (`frog/pond.jsx`, `frog/Caustics.jsx`,
+`frog/Screensaver.jsx`):
+
+- **Caustics** — every browse screen; full strength on the shelf, 60% while
+  browsing/searching, tinted to the screen's system. The player keeps a still ground.
+- **Lily pads** — shelf only, three, drifting on 26–34s loops.
+- **Bubbles** — the two loading screens (the frog is underwater on its way up) and
+  the screensaver. Motion-only: reduced motion removes them, never freezes them.
+- **Firefly** — shelf, only while the frog dozes (22:00–06:00). One.
+- **Dragonfly** — shelf, ~1 visit in 8 with a 5-minute cooldown (localStorage). Rare
+  is the point; do not raise the odds.
+- **Eye tracking** — the shelf frog's pupils follow the focused tile (±2px, CSS-var
+  driven, dead-zoned). The screensaver frog watches the fly it's about to catch.
+- **Ripples** — every press on a surface that stays mounted (keys, segments, shared
+  Buttons). Controls that navigate away don't ripple — nobody would see it.
+- **The screensaver** — after 3 idle minutes on any browse screen: the frog hunts
+  flies (tongue-snap + gulp) by day, sleeps under a firefly after bedtime. Any input
+  wakes it and is swallowed. Never auto-starts under reduced motion. The screen
+  wake-lock stays gameplay-only — on browse screens devices sleep naturally; the
+  saver is for the couch screen that never sleeps (and is OLED-burn-in-friendly:
+  dark, slow, mostly black).
+
 ## 8. The mascot
 
 - One drawing, in `frog/art.js` as markup strings; React (`Frog.jsx`) and the player

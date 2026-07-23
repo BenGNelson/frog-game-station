@@ -68,11 +68,11 @@ export function Reflected({ children, scale = 0.5, className = '' }) {
 // the game screen. Without a `system` it's just the plain frog (boot, search), so this
 // is a safe drop-in for `<Frog system>`. The badge rides inside `<Reflected>` with the
 // frog, so it reflects on the water like everything else.
-export function SystemFrog({ size = 96, system, asleep = false, className = '', style }) {
+export function SystemFrog({ size = 96, system, asleep = false, look, className = '', style }) {
   const badge = Math.round(size * 0.4)
   return (
     <div className={`relative inline-block ${className}`} style={{ width: size, height: size, ...style }}>
-      <Frog size={size} system={system} asleep={asleep} />
+      <Frog size={size} system={system} asleep={asleep} look={look} />
       {system && (
         <div
           className="absolute flex items-center justify-center rounded-full"
@@ -95,11 +95,14 @@ export function SystemFrog({ size = 96, system, asleep = false, className = '', 
 // The full character: the boot, the shelf, the empty states.
 //
 // `system` dresses it in that console's colours. `asleep` shuts its eyes — used when
-// the app has been sitting idle.
-export default function Frog({ size = 96, system, asleep = false, className = '', style }) {
+// the app has been sitting idle. `look` ({ x, y } in px, a couple at most) aims the
+// pupils — the drawn markup stays static; only two CSS vars move (frog.css
+// `.frog-pupil`), so the favicon/iframe consumers of the same art are untouched.
+export default function Frog({ size = 96, system, asleep = false, look, className = '', style }) {
   const s = systemStyle(system)
   // The gradient needs an id, and two frogs on one page must not share one.
   const id = `frog-${size}-${system || 'default'}`.replace(/\W/g, '')
+  const lookVars = look ? { '--frog-look-x': `${look.x}px`, '--frog-look-y': `${look.y}px` } : {}
 
   return (
     <svg
@@ -107,7 +110,7 @@ export default function Frog({ size = 96, system, asleep = false, className = ''
       width={size}
       height={size}
       className={`frog-body ${className}`}
-      style={style}
+      style={{ ...lookVars, ...style }}
       role="img"
       aria-label="Frog"
       dangerouslySetInnerHTML={{
