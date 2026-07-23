@@ -809,6 +809,78 @@ def test_cover_transient_index_failure_does_not_cache_miss(client, rom_dir, tmp_
     assert misses == []
 
 
+# --- IGDB cover fallback (when libretro has no art) ------------------------
+
+def _png_bytes(color=(30, 120, 60)):
+    import io
+    from PIL import Image
+    buf = io.BytesIO()
+    Image.new("RGB", (300, 400), color).save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def test_igdb_cover_bytes_no_network_without_a_matched_cover(monkeypatch):
+    from app.routers import library as libr
+
+    def _boom(*a, **k):
+        raise AssertionError("must not touch the network without a matched IGDB cover")
+
+    monkeypatch.setattr("app.routers.library.requests.get", _boom)
+    # No row at all, an unmatched row, and a matched row WITHOUT a cover id — all None, no GET.
+    assert libr._igdb_cover_bytes("nope.gb") is None
+    db.upsert_igdb_meta("unmatched.gb", {"matched": False, "source": "auto"})
+    assert libr._igdb_cover_bytes("unmatched.gb") is None
+    db.upsert_igdb_meta("nocover.gb", {"matched": True, "source": "auto", "igdb_id": 5})
+    assert libr._igdb_cover_bytes("nocover.gb") is None
+
+
+def test_igdb_cover_bytes_fetches_and_thumbnails_a_matched_cover(monkeypatch):
+    from app.routers import library as libr
+
+    db.upsert_igdb_meta("g.gb", {"matched": True, "source": "auto", "igdb_id": 9, "cover_image_id": "co5pih"})
+
+    seen = {}
+
+    class Resp:
+        status_code, content = 200, _png_bytes()
+
+    def fake_get(url, timeout=0, headers=None):
+        seen["url"] = url
+        return Resp()
+
+    monkeypatch.setattr("app.routers.library.requests.get", fake_get)
+    out = libr._igdb_cover_bytes("g.gb")
+    assert out and out[:4] == b"RIFF"  # a WebP thumbnail
+    assert "co5pih" in seen["url"] and "images.igdb.com" in seen["url"]
+
+
+def test_game_cover_falls_back_to_igdb_when_libretro_misses(client, rom_dir, monkeypatch):
+    from app.routers import library as libr
+
+    monkeypatch.setattr(settings, "covers_dir", str(rom_dir / "_covers"))
+    # A .gbc ROM libretro has no boxart for; it DID match IGDB with a cover.
+    (rom_dir / "Pokemon - Yellow Version (USA, Europe).gbc").write_bytes(b"GBC")
+    db.upsert_igdb_meta(
+        "Pokemon - Yellow Version (USA, Europe).gbc",
+        {"matched": True, "source": "auto", "igdb_id": 1512, "cover_image_id": "co5pih"},
+    )
+
+    class Resp:
+        def __init__(self, status, content=b""):
+            self.status_code, self.content = status, content
+
+    def fake_get(url, timeout=0, headers=None):
+        if "images.igdb.com" in url:
+            return Resp(200, _png_bytes())  # IGDB cover art
+        if "api.github.com" in url:
+            return Resp(403)  # libretro index rate-limited → fuzzy is a transient miss
+        return Resp(404)  # libretro exact boxart missing
+
+    monkeypatch.setattr("app.routers.library.requests.get", fake_get)
+    r = client.get("/api/library/games/cover", params={"id": "Pokemon - Yellow Version (USA, Europe).gbc"})
+    assert r.status_code == 200 and r.headers["content-type"] == "image/webp"
+
+
 # --- game cover override + libretro pointer --------------------------------
 
 def test_sidecar_cover_beside_rom(rom_dir):

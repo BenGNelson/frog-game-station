@@ -72,6 +72,31 @@ def test_score_is_article_and_order_insensitive():
     assert igdb.score("Super Mario World", "Sonic the Hedgehog") < 0.3
 
 
+def test_score_folds_accents_so_pokemon_matches():
+    # 'Pokémon' must tokenise to 'pokemon', not split at the é into 'pok' + 'mon' (which
+    # made every Pokémon ROM score against a broken token set).
+    assert igdb._tokens("Pokémon Red") == ["pokemon", "red"]
+    assert igdb.score("Pokemon Red Version", "Pokémon Red Version") == pytest.approx(1.0)
+
+
+def test_score_lifts_a_subtitled_edition_over_the_threshold():
+    # The real miss: Pokémon Yellow's ROM name is a subset of IGDB's fuller edition title,
+    # so Jaccard sank it under 0.6 and it went uncovered. The containment lift rescues it.
+    rom = "Pokemon: Yellow Version"
+    cand = "Pokémon Yellow Version: Special Pikachu Edition"
+    assert igdb.score(rom, cand) >= 0.6
+    chosen, sc = igdb.best_match(rom, [{"id": 1512, "name": cand}])
+    assert chosen["id"] == 1512 and sc >= 0.6
+
+
+def test_score_containment_lift_is_guarded():
+    # The ≥2-token guard: a bare single-token ROM must NOT latch onto a longer title that
+    # merely contains it.
+    assert igdb.score("Tetris", "Tetris Attack") < 0.6
+    # The lift is a max() — it never lowers a score; an exact match stays 1.0.
+    assert igdb.score("Super Mario Land", "Super Mario Land") == pytest.approx(1.0)
+
+
 def test_best_match_picks_top_over_threshold():
     cands = [
         {"id": 1, "name": "Some Other Game"},

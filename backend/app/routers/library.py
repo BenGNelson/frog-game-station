@@ -234,14 +234,37 @@ def _fuzzy_cover_bytes(item_id):
     return None, False  # listing named it but the art GET failed → transient
 
 
+def _igdb_cover_bytes(item_id):
+    """The game's IGDB cover as a downscaled WebP thumbnail, or None — the last-resort box
+    art when libretro-thumbnails has nothing for a ROM (its system/name is keyed differently
+    there, like a `.gbc` Pokémon libretro files under Game Boy, or a No-Intro/edition-name
+    mismatch). Gated on a cheap local DB read: no matched IGDB cover → return at once with NO
+    network call, so a game with art nowhere costs only a SQLite lookup per load, not a fetch.
+    Only when a cover id exists do we hit IGDB (once; the caller caches the result)."""
+    row = db.get_igdb_meta(item_id)
+    if not row or not row.get("matched"):
+        return None
+    cover_id = row.get("cover_image_id")
+    if not cover_id or not _IGDB_IMAGE_ID_RE.match(cover_id):
+        return None
+    try:
+        resp = requests.get(igdb.image_url(cover_id, "t_cover_big"), timeout=10)
+    except requests.RequestException:
+        return None  # transient — caller doesn't cache a miss, so it retries later
+    if resp.status_code == 200 and resp.content:
+        return images.to_thumbnail(resp.content, max_width=400)
+    return None
+
+
 @router.get("/library/games/cover")
 def get_game_cover(id: str = Query(description="Game id from the section listing")):
     """Box art for a game, proxied + cached as a small WebP. Precedence: a cover the
     user SET from an in-game screenshot (highest) → a custom cover dropped beside the
     ROM (override) → libretro-thumbnails matched by the ROM's No-Intro name (following
-    libretro's text-pointer pseudo-symlinks) → placeholder. Fetched once and downscaled
-    to a cached WebP, so browsing makes no repeat external calls and a no-match is
-    remembered as a miss. 404 → the frontend shows a placeholder."""
+    libretro's text-pointer pseudo-symlinks) → the game's IGDB cover (when libretro has
+    nothing — e.g. a `.gbc` Pokémon libretro files under Game Boy) → placeholder. Fetched
+    once and downscaled to a cached WebP, so browsing makes no repeat external calls and a
+    libretro no-match is remembered as a miss. 404 → the frontend shows a placeholder."""
     cache_dir = settings.covers_dir
     # 0. A cover the user explicitly set (from a live frame) wins over everything. It's
     #    already a stored WebP; the client busts its 30-day immutable cache via the
@@ -297,6 +320,15 @@ def get_game_cover(id: str = Query(description="Game id from the section listing
             pass
         return FileResponse(png, media_type="image/png", headers=_ART_CACHE_HEADERS)
     if os.path.isfile(miss):
+        # libretro definitively has nothing for this ROM (remembered). Skip its fetch, but
+        # still try the game's IGDB cover — the miss only means "no libretro art", and an
+        # IGDB match may have landed since. A hit caches under `webp`, so it's served
+        # directly next time (this branch isn't reached again).
+        thumb = _igdb_cover_bytes(id)
+        if thumb:
+            os.makedirs(cache_dir, exist_ok=True)
+            images.write_atomic(webp, thumb)
+            return FileResponse(webp, media_type="image/webp", headers=_ART_CACHE_HEADERS)
         return Response(status_code=404)
 
     try:
@@ -328,8 +360,16 @@ def get_game_cover(id: str = Query(description="Game id from the section listing
         images.write_atomic(png, fuzzy)  # not decodable — cache raw, like the exact path
         return FileResponse(png, media_type="image/png", headers=_ART_CACHE_HEADERS)
 
+    # libretro has nothing — fall back to the game's IGDB cover (a ROM whose system/name
+    # libretro keys differently, like a .gbc Pokémon it files under Game Boy). Cached under
+    # the libretro key, so later loads are a straight cache hit with no external call.
+    thumb = _igdb_cover_bytes(id)
+    if thumb:
+        images.write_atomic(webp, thumb)
+        return FileResponse(webp, media_type="image/webp", headers=_ART_CACHE_HEADERS)
+
     if definitive:
-        open(miss, "w").close()  # genuinely no art for this game — remember it
+        open(miss, "w").close()  # no libretro art for this ROM — remember it (IGDB is retried)
     return Response(status_code=404)  # transient failure → no miss cached, retry later
 
 

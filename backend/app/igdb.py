@@ -26,6 +26,7 @@ from __future__ import annotations
 import logging
 import re
 import time
+import unicodedata
 from difflib import SequenceMatcher
 from urllib.parse import urlparse
 
@@ -101,10 +102,18 @@ def query_body(name: str, platform_id: int | None, limit: int = 8) -> str:
     return f'search "{term}"; fields {_FIELDS};{where} limit {limit};'
 
 
+def _strip_accents(s: str) -> str:
+    """Fold diacritics to ASCII ('Pokémon' → 'Pokemon'). Without this the token regex
+    below ([a-z0-9]+) splits an accented word at the accent — 'pokémon' becomes 'pok' +
+    'mon', which never matches the ROM's 'pokemon' and tanks the score for every accented
+    IGDB title."""
+    return "".join(c for c in unicodedata.normalize("NFKD", s) if not unicodedata.combining(c))
+
+
 def _tokens(name: str) -> list[str]:
-    """Comparable word tokens of a title: tag-free, lowercased, punctuation split
-    out, stopwords dropped."""
-    core = base_title(name or "")
+    """Comparable word tokens of a title: tag-free, accent-folded, lowercased, punctuation
+    split out, stopwords dropped."""
+    core = _strip_accents(base_title(name or "")).lower()
     words = re.findall(r"[a-z0-9]+", core)
     return [w for w in words if w not in _STOPWORDS]
 
@@ -119,7 +128,16 @@ def score(rom_name: str, igdb_name: str) -> float:
     sa, sb = set(a), set(b)
     jaccard = len(sa & sb) / len(sa | sb)
     seq = SequenceMatcher(None, "".join(a), "".join(b)).ratio()
-    return round(0.6 * jaccard + 0.4 * seq, 4)
+    base = 0.6 * jaccard + 0.4 * seq
+    # An official IGDB title often adds an edition/subtitle the No-Intro ROM name omits
+    # ("Pokémon Yellow Version: Special Pikachu Edition" vs "Pokemon Yellow Version"): the
+    # extra words inflate Jaccard's union and sink an otherwise-correct match. When EVERY
+    # ROM token is present in the candidate — a true subset — and the ROM has ≥2 tokens (so
+    # a bare "Tetris" can't latch onto any "Tetris <X>"), lift toward full ROM coverage.
+    # It's a max(), so it can only RAISE a score, never break an existing match.
+    if len(sa) >= 2 and sa <= sb:
+        base = max(base, 0.5 * base + 0.5)
+    return round(base, 4)
 
 
 def best_match(rom_name: str, candidates: list[dict], threshold: float = 0.6):
