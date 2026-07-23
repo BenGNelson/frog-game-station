@@ -172,7 +172,7 @@ export default function ControlsPanel({
             {listeningFor != null && typeof listeningFor === 'number' ? (
               <span className="animate-pulse font-medium" style={{ color: `rgb(${FROG.jade})` }}>Press a button to bind it…</span>
             ) : (
-              <>Pick a face button, shoulder, or Select to rebind it. <b style={{ color: `rgb(${FROG.jade})` }}>Jade</b> marks an app shortcut — the two sticks are the only buttons the app can use without also acting in-game.</>
+              <>Pick a face button, shoulder, or Select to rebind it. <b style={{ color: `rgb(${FROG.jade})` }}>Jade</b> marks an app shortcut — the sticks and triggers are the buttons the app can use without also acting in-game.</>
             )}
           </p>
 

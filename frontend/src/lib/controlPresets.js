@@ -93,8 +93,14 @@ const SHARED = {
   [RETROPAD.RIGHT]: 'DPAD_RIGHT',
   [RETROPAD.L]: 'LEFT_TOP_SHOULDER',
   [RETROPAD.R]: 'RIGHT_TOP_SHOULDER',
-  [RETROPAD.L2]: 'LEFT_BOTTOM_SHOULDER',
-  [RETROPAD.R2]: 'RIGHT_BOTTOM_SHOULDER',
+
+  // L2/R2 get NO pad binding, on purpose. None of the supported systems has a real
+  // second shoulder row — the only core that reads these at all is mGBA, which parks
+  // "Turbo L/R" there, and EmulatorJS has no turbo-fire mechanism, so they could never
+  // do anything. Left unbound, the triggers become collision-free targets for app
+  // shortcuts (Fast-Forward on RT feels right), same as the stick-clicks.
+  [RETROPAD.L2]: '',
+  [RETROPAD.R2]: '',
 
   // START gets NO pad binding, on purpose. The app owns the controller's Menu
   // button: a short press sends a synthetic START to the game, a long press opens
