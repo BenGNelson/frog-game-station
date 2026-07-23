@@ -4,6 +4,7 @@ import { useFocusTrap } from '../lib/useFocusTrap.js'
 import { ROWS, effectiveCaps } from '../lib/keyboard.js'
 import { FROG } from './theme.js'
 import ModalScrim from './ModalScrim.jsx'
+import { useRipple, Ripples } from './ripple.jsx'
 
 // FROG GAME STATION — the on-screen keyboard.
 //
@@ -90,6 +91,11 @@ export default function Keyboard({ title, text, placeholder, pos, shift, accent,
 // keys carry an icon (or the space bar's width) and grow to fill the row.
 function Key({ keyDef, caps, shift, on, accent, onHover, onPress }) {
   const fn = typeof keyDef === 'object' ? keyDef.fn : null
+  const { ripples, spawnRipple } = useRipple()
+  const press = (e) => {
+    spawnRipple(e)
+    onPress(e)
+  }
   // The armed Shift key stays lit even when the cursor is elsewhere, so you can see
   // the next letter will be forced-cased before you commit to it.
   const active = on || (fn === 'shift' && shift)
@@ -99,12 +105,14 @@ function Key({ keyDef, caps, shift, on, accent, onHover, onPress }) {
     boxShadow: on ? `0 0 18px rgba(${accent}, 0.6)` : 'none',
     border: `1px solid ${on ? `rgb(${accent})` : FROG.line}`,
   }
-  const common = 'flex h-11 items-center justify-center rounded-lg text-base font-semibold transition-colors'
+  const common =
+    'relative overflow-hidden flex h-11 items-center justify-center rounded-lg text-base font-semibold transition-colors'
 
   if (!fn) {
     const glyph = /[a-z]/i.test(keyDef) ? (caps ? keyDef.toUpperCase() : keyDef.toLowerCase()) : keyDef
     return (
-      <button type="button" onMouseMove={onHover} onClick={onPress} className={`${common} flex-1`} style={base}>
+      <button type="button" onMouseMove={onHover} onClick={press} className={`${common} flex-1`} style={base}>
+        <Ripples ripples={ripples} accent={active ? FROG.lineRGB : accent} />
         {glyph}
       </button>
     )
@@ -118,10 +126,11 @@ function Key({ keyDef, caps, shift, on, accent, onHover, onPress }) {
       type="button"
       aria-label={label}
       onMouseMove={onHover}
-      onClick={onPress}
+      onClick={press}
       className={`${common} ${grow} gap-1.5`}
       style={base}
     >
+      <Ripples ripples={ripples} accent={active ? FROG.lineRGB : accent} />
       {Icon && <Icon className="h-5 w-5" aria-hidden="true" />}
       {fn === 'space' && <span className="text-xs font-medium tracking-wide">space</span>}
       {fn === 'done' && <span className="text-sm">Done</span>}

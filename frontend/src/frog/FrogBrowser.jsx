@@ -29,6 +29,7 @@ import { SkeletonLine } from '../components/ui.jsx'
 import ButtonLegend from '../player/ButtonLegend.jsx'
 import { defaultFrogMode, nextFrogMode, usesNativeKeyboard } from './input.js'
 import { FROG, systemStyle, FONT_DISPLAY } from './theme.js'
+import Caustics from './Caustics.jsx'
 import { buildShelf, hydrate, stepLetter, collectionGames } from './shelf.js'
 import { searchGames, suggestedSearches, matches, KEYS, gridMove } from './search.js'
 import { ROWS as KB_ROWS, keyAt, moveKey, applyKey, appendChar, deleteChar } from '../lib/keyboard.js'
@@ -1506,19 +1507,12 @@ export default function FrogBrowser() {
         paddingBottom: native ? 'env(safe-area-inset-bottom)' : 0,
       }}
     >
-      {/* Ambient caustics — the pond's own slow shimmer, only at rest on the shelf
-          (a game list or the player wants a still ground). Sits under the pond light. */}
-      {screen === 'shelf' && (
-        <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
-          <div
-            className="frog-caustic frog-caustic-a"
-            style={{ background: `radial-gradient(38% 38% at 32% 42%, rgba(${FROG.jade}, 0.06), transparent 70%)` }}
-          />
-          <div
-            className="frog-caustic frog-caustic-b"
-            style={{ background: `radial-gradient(44% 44% at 70% 62%, rgba(${FROG.jade}, 0.05), transparent 70%)` }}
-          />
-        </div>
+      {/* Ambient caustics — the pond's own slow shimmer. Full strength on the shelf at
+          rest; dimmed while browsing a list or searching (content needs more quiet),
+          tinted to the screen's system so the water follows the machine. The player
+          keeps a still ground. Sits under the pond light. */}
+      {(screen === 'shelf' || screen === 'games' || screen === 'search') && (
+        <Caustics accent={accent} strength={screen === 'shelf' ? 1 : 0.6} />
       )}
 
       {/* "Install me" — only on the shelf, and only on the touch path (where the legend

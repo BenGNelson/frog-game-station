@@ -210,6 +210,11 @@
     opacity: 1;
     transform: none;
   }
+  /* A ripple with its animation killed would sit as a full-size ring for the
+     650ms until React removes it — hide it outright instead. */
+  .frog-ripple {
+    opacity: 0;
+  }
 }
 
 /* --- In-game wiki reader -------------------------------------------------- */

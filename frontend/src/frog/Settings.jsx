@@ -1,5 +1,6 @@
 import { RefreshCw, KeyRound, Gamepad2, Volume2, Hand } from 'lucide-react'
 import { FROG, focusRing } from './theme.js'
+import { useRipple, Ripples } from './ripple.jsx'
 import { TOUCH_OPACITY_LEVELS, nearestOpacityLevel } from '../lib/playerSettings.js'
 
 // The settings screen.
@@ -174,18 +175,23 @@ function Segmented({ children }) {
   )
 }
 function Segment({ active, testid, onClick, children }) {
+  const { ripples, spawnRipple } = useRipple()
   return (
     <button
       type="button"
       data-testid={testid}
       aria-pressed={active}
-      onClick={onClick}
-      className="px-4 py-2 text-sm font-semibold transition-colors"
+      onClick={(e) => {
+        spawnRipple(e)
+        onClick(e)
+      }}
+      className="relative overflow-hidden px-4 py-2 text-sm font-semibold transition-colors"
       style={{
         background: active ? `rgb(${FROG.jade})` : 'transparent',
         color: active ? FROG.ground : FROG.soft,
       }}
     >
+      <Ripples ripples={ripples} accent={active ? FROG.lineRGB : FROG.jade} />
       {children}
     </button>
   )

@@ -1,4 +1,5 @@
 import { FROG, focusRing, FOCUS_SCALE } from './theme.js'
+import { useRipple, Ripples } from './ripple.jsx'
 
 // THE button — the Pebble family: every action is a smooth pill, like a river
 // stone. Three variants, one focus language:
@@ -18,10 +19,12 @@ export default function Button({
   accent = FROG.jade,
   className = '',
   style,
+  onClick,
   children,
   ...rest
 }) {
   const pad = size === 'lg' ? 'px-7 py-3 text-base' : 'px-5 py-2.5 text-sm'
+  const { ripples, spawnRipple } = useRipple()
   const looks = {
     solid: { background: `rgb(${accent})`, color: FROG.ground },
     quiet: { background: FROG.panel, color: FROG.ink, boxShadow: `inset 0 0 0 1px ${FROG.line}` },
@@ -40,7 +43,11 @@ export default function Button({
     <button
       type="button"
       data-focused={focused || undefined}
-      className={`rounded-full font-semibold transition-[transform,box-shadow,background] duration-150 ${pad} ${className}`}
+      onClick={(e) => {
+        spawnRipple(e)
+        onClick?.(e)
+      }}
+      className={`relative overflow-hidden rounded-full font-semibold transition-[transform,box-shadow,background] duration-150 ${pad} ${className}`}
       style={{
         ...looks[variant],
         ...(focused ? { transform: `scale(${FOCUS_SCALE})`, ...focusLooks[variant] } : {}),
@@ -48,6 +55,10 @@ export default function Button({
       }}
       {...rest}
     >
+      <Ripples
+        ripples={ripples}
+        accent={variant === 'danger' ? FROG.danger : variant === 'solid' ? FROG.lineRGB : accent}
+      />
       {children}
     </button>
   )
