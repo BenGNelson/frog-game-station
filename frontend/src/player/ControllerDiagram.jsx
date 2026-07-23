@@ -3,36 +3,47 @@ import { BINDABLE } from '../lib/controlPresets.js'
 import { XBOX } from '../lib/gamepad.js'
 import { RETROPAD } from '../lib/retropad.js'
 import { isChord, hotkeyButton } from '../lib/playerSettings.js'
+import { glowFilter } from '../lib/glow.js'
+import '../frog/frog.css'
 
 // A drawn, frog-themed controller — the Controls screen's hero.
 //
 // Console art is DRAWN, never scraped (see frog/Console.jsx): one flat look, one light
-// source, the rounded language of the frog, a little frog where a real pad prints its logo.
-// NO official wordmarks.
+// source, the rounded language of the frog. The silhouette is a real pad — shoulder
+// humps, descending grips, an arch between them — built as a hand-tuned left half
+// mirrored about the centreline so the two sides can't drift. Where a real pad prints
+// its logo sits the frog itself, eyes cresting over the top edge, blinking on the same
+// lid cycle as the mascot (frog-lid — deliberately alive even under reduced motion).
+// Faint still water-rings sit behind the pad: the WATER motif, without a loop competing
+// with the focus walk. NO official wordmarks.
 //
 // The mapping is made to READ. Face buttons wear their real controller colours (bottom
 // green / right red / left blue / top amber) and carry the GAME button they trigger, so
 // flipping the scheme visibly moves "A" between the bottom and right button. Every other
-// button gets a **callout** in the margins — a labelled card joined to the button by a thin
-// leader line — showing what it does AND any app shortcut on it (so Fast-Forward bound to
-// RB reads "RB · R" with an "FF" badge). Callouts are per-physical-button, so a collision
-// shows both game buttons and an off-map rebind still surfaces at that button's card —
-// nothing is hidden.
+// button gets a **callout** in the margins — a two-line text label joined to the button
+// by a thin leader line, the visual language of a classic gamepad layout card — showing
+// what it does AND any app shortcut on it (so Fast-Forward bound to RB reads "R" with an
+// "FF" badge). Callouts are per-physical-button, so a collision shows both game buttons
+// and an off-map rebind still surfaces at that button's callout — nothing is hidden.
 //
 // Face buttons, shoulders and Select are interactive (focus/click → rebind); the diagram
 // reflects the same linear focus the pad walks (focusedKey), so picture and d-pad agree.
 
-const VW = 520
-const VH = 250
+const VW = 560
+const VH = 300
 
-// The pad's outline — a wider, taller body than before so the face-button diamond and the
-// centre chrome (Select/Menu, the frog) each get their own room instead of overlapping.
+// The pad's outline. Left half hand-tuned (top-centre dip → shoulder hump → widest point
+// → grip → grip bottom → inner rise → bottom arch), right half is the same numbers
+// reflected about x=280.
 const PAD_PATH =
-  'M156 122 Q148 92 196 94 Q238 98 262 98 Q286 98 328 94 Q376 92 368 122 ' +
-  'Q388 178 366 226 Q352 250 318 240 Q288 230 262 230 Q236 230 208 240 ' +
-  'Q174 250 160 226 Q138 178 156 122 Z'
+  'M280 96 C250 89 220 83 196 88 C156 94 137 120 134 156 ' +
+  'C130 192 132 222 146 246 C154 262 168 272 184 266 ' +
+  'C200 260 208 244 216 226 C232 231 256 234 280 234 ' +
+  'C304 234 328 231 344 226 C352 244 360 260 376 266 ' +
+  'C392 272 406 262 414 246 C428 222 430 192 426 156 ' +
+  'C423 120 404 94 364 88 C340 83 310 89 280 96 Z'
 
-// Face-button colour by physical position — and now by SKIN, so the drawn pad can match the
+// Face-button colour by physical position — and by SKIN, so the drawn pad can match the
 // controller in your hands. Xbox uses its position colours; PlayStation borrows the DualSense
 // symbol colours (△ green, ○ red, ✕ blue, □ pink); Nintendo's Switch/Pro face buttons are
 // monochrome, so they read in one neutral. The game-button LETTER stays the label either way —
@@ -43,22 +54,23 @@ const FACE_COLOR = {
   nintendo: { bottom: '#dfe4e8', right: '#dfe4e8', left: '#dfe4e8', top: '#dfe4e8' },
 }
 
-// Button centres on the drawn pad (body spans x≈150–370, centred ~260). The face diamond sits
-// clear in the upper-right lobe, well-spaced so no two buttons — or the chrome — collide.
+// Button centres on the drawn pad (body spans x≈130–430, centred 280) — the real Xbox
+// arrangement: left stick upper-left, D-pad lower-left, face diamond upper-right, right
+// stick lower-right of centre.
 const PAD = {
-  LEFT_BOTTOM_SHOULDER: { x: 198, y: 66 }, // LT
-  RIGHT_BOTTOM_SHOULDER: { x: 322, y: 66 }, // RT
-  LEFT_TOP_SHOULDER: { x: 198, y: 86 }, // LB
-  RIGHT_TOP_SHOULDER: { x: 322, y: 86 }, // RB
-  LEFT_STICK: { x: 198, y: 126 }, // L3
-  RIGHT_STICK: { x: 274, y: 206 }, // R3
-  DPAD: { x: 206, y: 170 },
-  SELECT: { x: 238, y: 118 },
-  MENU: { x: 272, y: 118 },
-  BUTTON_4: { x: 312, y: 118, face: 'top' }, // Y
-  BUTTON_3: { x: 278, y: 152, face: 'left' }, // X
-  BUTTON_2: { x: 346, y: 152, face: 'right' }, // B
-  BUTTON_1: { x: 312, y: 186, face: 'bottom' }, // A
+  LEFT_BOTTOM_SHOULDER: { x: 200, y: 60 }, // LT
+  RIGHT_BOTTOM_SHOULDER: { x: 360, y: 60 }, // RT
+  LEFT_TOP_SHOULDER: { x: 200, y: 84 }, // LB
+  RIGHT_TOP_SHOULDER: { x: 360, y: 84 }, // RB
+  LEFT_STICK: { x: 200, y: 140 }, // L3
+  RIGHT_STICK: { x: 328, y: 205 }, // R3
+  DPAD: { x: 232, y: 202 },
+  SELECT: { x: 244, y: 120 },
+  MENU: { x: 316, y: 120 },
+  BUTTON_4: { x: 360, y: 114, face: 'top' }, // Y
+  BUTTON_3: { x: 334, y: 140, face: 'left' }, // X
+  BUTTON_2: { x: 386, y: 140, face: 'right' }, // B
+  BUTTON_1: { x: 360, y: 166, face: 'bottom' }, // A
 }
 
 // Raw browser pad index behind each physical button (for hotkey lookup).
@@ -69,17 +81,18 @@ const PHYS_RAW = {
   LEFT_STICK: XBOX.LS, RIGHT_STICK: XBOX.RS, SELECT: XBOX.VIEW,
 }
 
-// Peripheral callouts — physical button, gutter side, vertical slot, printed name. Face
-// buttons and Select are labelled on the pad itself, so they're absent. R3 sits low on the
-// right so its leader passes BELOW the A button instead of crossing it.
+// Peripheral callouts — physical button, gutter side, vertical slot, printed name, and the
+// leader's route: `rim` is where the line lands (on the control's rim, not its centre) and
+// `bend` an optional elbow. Face buttons and Select are labelled on the pad itself, so
+// they're absent. R3's leader routes BELOW the A button instead of crossing the diamond.
 const CALLOUTS = [
-  { physical: 'LEFT_BOTTOM_SHOULDER', side: 'left', y: 52, name: 'LT' },
-  { physical: 'LEFT_TOP_SHOULDER', side: 'left', y: 96, name: 'LB' },
-  { physical: 'LEFT_STICK', side: 'left', y: 140, name: 'L3' },
-  { physical: 'DPAD', side: 'left', y: 192, name: 'D-pad', fixed: 'Move' },
-  { physical: 'RIGHT_BOTTOM_SHOULDER', side: 'right', y: 52, name: 'RT' },
-  { physical: 'RIGHT_TOP_SHOULDER', side: 'right', y: 96, name: 'RB' },
-  { physical: 'RIGHT_STICK', side: 'right', y: 214, name: 'R3' },
+  { physical: 'LEFT_BOTTOM_SHOULDER', side: 'left', y: 52, name: 'LT', rim: [182, 60], bend: [156, 52] },
+  { physical: 'LEFT_TOP_SHOULDER', side: 'left', y: 88, name: 'LB', rim: [174, 84], bend: [150, 88] },
+  { physical: 'LEFT_STICK', side: 'left', y: 140, name: 'L3', rim: [183, 140] },
+  { physical: 'DPAD', side: 'left', y: 202, name: 'D-pad', fixed: 'Move', rim: [211, 202] },
+  { physical: 'RIGHT_BOTTOM_SHOULDER', side: 'right', y: 52, name: 'RT', rim: [378, 60], bend: [404, 52] },
+  { physical: 'RIGHT_TOP_SHOULDER', side: 'right', y: 88, name: 'RB', rim: [386, 84], bend: [410, 88] },
+  { physical: 'RIGHT_STICK', side: 'right', y: 218, name: 'R3', rim: [343, 212], bend: [404, 218] },
 ]
 
 const BINDABLE_SET = new Set(BINDABLE.map((b) => b.index))
@@ -129,41 +142,53 @@ export default function ControllerDiagram({
 
   const jade = `rgb(${FROG.jade})`
 
-  const Callout = ({ physical, side, y, name, fixed }) => {
-    const p = PAD[physical]
+  const Callout = ({ physical, side, y, name, fixed, rim, bend }) => {
     const s = slot(physical, fixed)
-    const w = 128
-    const h = 36
-    const x = side === 'left' ? 6 : VW - 6 - w
-    const anchorX = side === 'left' ? x + w : x
+    const left = side === 'left'
+    const tx = left ? 100 : 460 // text edge — right-aligned on the left, left-aligned on the right
+    const anchor = left ? 'end' : 'start'
+    const startX = left ? 108 : 452
     const on = s.focused
     const hk = s.hotkeys.join(' / ')
     const interactive = !!s.key
+    const points = [[startX, y], ...(bend ? [bend] : []), rim].map((p) => p.join(',')).join(' ')
     return (
       <g
+        data-testid={`pad-callout-${physical}`}
         role={interactive ? 'button' : undefined}
         onClick={interactive ? () => onSelectKey(s.key) : undefined}
         onMouseMove={interactive ? () => onFocusKey(s.key) : undefined}
         style={{ cursor: interactive ? 'pointer' : 'default' }}
       >
-        <line x1={anchorX} y1={y} x2={p.x} y2={p.y} stroke={on ? jade : FROG.line} strokeWidth={on ? 1.6 : 1} />
-        <circle cx={p.x} cy={p.y} r="2.8" fill={on ? jade : FROG.soft} />
-        <rect
-          x={x} y={y - h / 2} width={w} height={h} rx="10"
-          fill={on ? `rgba(${FROG.jade}, 0.12)` : FROG.panel}
+        {/* Generous invisible hit area — the text alone would be a mean touch target.
+            `transparent`, not `none`: it has to receive pointer events. */}
+        <rect x={left ? 4 : 456} y={y - 22} width="100" height="44" rx="8" fill="transparent" />
+        <polyline
+          points={points}
+          fill="none"
           stroke={on ? jade : FROG.line}
           strokeWidth={on ? 1.6 : 1}
+          strokeLinejoin="round"
         />
-        <text x={x + 13} y={y - 7} fontSize="9" fontWeight="700" letterSpacing="0.6" fill={FROG.faint}>
+        <circle cx={rim[0]} cy={rim[1]} r="2.4" fill={on ? jade : FROG.soft} />
+        <text x={tx} y={y - 5} textAnchor={anchor} fontSize="8.5" fontWeight="600" letterSpacing="1" fill={FROG.faint}>
           {name.toUpperCase()}
         </text>
-        <text x={x + 13} y={y + 9} fontSize="14" fontWeight="700" fill={s.listening ? jade : s.label === '—' ? FROG.faint : FROG.ink}>
+        <text
+          x={tx} y={y + 11} textAnchor={anchor} fontSize="13.5" fontWeight="700"
+          className={s.listening ? 'frog-invite' : undefined}
+          fill={s.listening || on ? jade : s.label === '—' ? FROG.faint : FROG.ink}
+        >
           {s.listening ? 'Press…' : s.label}
+          {hk && <tspan dx="6" fontSize="9.5" fontWeight="800" fill={jade}>{hk}</tspan>}
         </text>
-        {hk && (
-          <text x={x + w - 13} y={y + 3} textAnchor="end" fontSize="10.5" fontWeight="800" fill={jade}>{hk}</text>
+        {on && (
+          <rect
+            x={left ? tx - 52 : tx} y={y + 15} width="52" height="2" rx="1"
+            fill={jade} opacity="0.55" style={{ filter: glowFilter(FROG.jade, 0.5) }}
+          />
         )}
-        {s.custom && <circle cx={x + w - 8} cy={y - h / 2 + 8} r="2.6" fill={jade} />}
+        {s.custom && <circle cx={left ? tx + 7 : tx - 7} cy={y - 8} r="2.5" fill={jade} />}
       </g>
     )
   }
@@ -172,22 +197,24 @@ export default function ControllerDiagram({
     const p = PAD[physical]
     const s = slot(physical)
     const color = faceColors[p.face] || jade
-    const r = 17
+    const r = 11.5
     const hk = s.hotkeys.join('/')
     return (
       <g
+        data-testid={`pad-face-${physical}`}
         role={s.key ? 'button' : undefined}
         onClick={s.key ? () => onSelectKey(s.key) : undefined}
         onMouseMove={s.key ? () => onFocusKey(s.key) : undefined}
         style={{ cursor: s.key ? 'pointer' : 'default' }}
       >
-        {s.focused && <circle cx={p.x} cy={p.y} r={r + 4} fill="none" stroke={jade} strokeWidth="2.5" />}
-        <circle cx={p.x} cy={p.y} r={r} fill={FROG.panel} stroke={s.label === '—' ? FROG.line : color} strokeWidth="3" />
-        <text x={p.x} y={p.y} textAnchor="middle" dominantBaseline="central" fontSize={s.label.length > 1 ? 12 : 17} fontWeight="800" fill={s.listening ? jade : s.label === '—' ? FROG.faint : FROG.ink}>
+        {s.focused && <circle cx={p.x} cy={p.y} r={r + 3.5} fill="none" stroke={jade} strokeWidth="2" />}
+        <circle cx={p.x} cy={p.y} r={r} fill={FROG.panel} stroke={s.label === '—' ? FROG.line : color} strokeWidth="2.2" />
+        <text x={p.x} y={p.y} textAnchor="middle" dominantBaseline="central" fontSize={s.label.length > 1 ? 8.5 : 12} fontWeight="800" fill={s.listening ? jade : s.label === '—' ? FROG.faint : FROG.ink}>
           {s.listening ? '…' : s.label}
         </text>
-        {s.custom && <circle cx={p.x + r - 3} cy={p.y - r + 3} r="3" fill={jade} />}
-        {hk && <text x={p.x} y={p.y + r + 11} textAnchor="middle" fontSize="10" fontWeight="800" fill={jade}>{hk}</text>}
+        {s.custom && <circle cx={p.x + 8.5} cy={p.y - 8.5} r="2.5" fill={jade} />}
+        {/* Badge above the TOP face button (below it would sit inside the diamond), below the rest. */}
+        {hk && <text x={p.x} y={p.face === 'top' ? p.y - r - 6 : p.y + r + 9} textAnchor="middle" fontSize="8.5" fontWeight="800" fill={jade}>{hk}</text>}
       </g>
     )
   }
@@ -206,34 +233,45 @@ export default function ControllerDiagram({
         </linearGradient>
       </defs>
 
-      {/* Triggers, then body, then bumpers (bumpers sit in front of the body top edge) */}
-      <rect x="176" y="52" width="44" height="12" rx="6" fill={FROG.ground} stroke={FROG.line} strokeWidth="1" />
-      <rect x="300" y="52" width="44" height="12" rx="6" fill={FROG.ground} stroke={FROG.line} strokeWidth="1" />
+      {/* Still water-rings behind the pad — the WATER motif, kept static so nothing
+          loops behind a settings surface. */}
+      <g aria-hidden="true">
+        <ellipse cx="280" cy="180" rx="170" ry="58" fill="none" stroke={`rgba(${FROG.jade}, 0.08)`} strokeWidth="1" />
+        <ellipse cx="280" cy="180" rx="215" ry="73" fill="none" stroke={`rgba(${FROG.jade}, 0.055)`} strokeWidth="1" />
+        <ellipse cx="280" cy="180" rx="260" ry="88" fill="none" stroke={`rgba(${FROG.jade}, 0.035)`} strokeWidth="1" />
+      </g>
+
+      {/* Triggers (behind the body — only their tops show), then body, then bumpers
+          seated in front of the shoulder humps */}
+      <rect x="182" y="55" width="36" height="30" rx="10" fill={FROG.ground} stroke={FROG.line} strokeWidth="1" />
+      <rect x="342" y="55" width="36" height="30" rx="10" fill={FROG.ground} stroke={FROG.line} strokeWidth="1" />
 
       <path d={PAD_PATH} fill={FROG.panel} stroke={FROG.line} strokeWidth="1.5" />
       <path d={PAD_PATH} fill="url(#frog-pad-sheen)" />
 
-      <rect x="178" y="78" width="40" height="12" rx="6" fill={FROG.ground} stroke={FROG.line} strokeWidth="1" />
-      <rect x="302" y="78" width="40" height="12" rx="6" fill={FROG.ground} stroke={FROG.line} strokeWidth="1" />
+      <rect x="174" y="79" width="52" height="14" rx="7" fill={FROG.ground} stroke={FROG.line} strokeWidth="1" />
+      <rect x="334" y="79" width="52" height="14" rx="7" fill={FROG.ground} stroke={FROG.line} strokeWidth="1" />
 
-      {/* D-pad */}
+      {/* D-pad — a cross in a round recess */}
+      <circle cx={PAD.DPAD.x} cy={PAD.DPAD.y} r="21" fill={FROG.ground} stroke={FROG.line} strokeWidth="1" />
       <g fill={FROG.soft}>
-        <rect x={PAD.DPAD.x - 5} y={PAD.DPAD.y - 16} width="10" height="32" rx="2.5" />
-        <rect x={PAD.DPAD.x - 16} y={PAD.DPAD.y - 5} width="32" height="10" rx="2.5" />
+        <rect x={PAD.DPAD.x - 5.5} y={PAD.DPAD.y - 17} width="11" height="34" rx="3" />
+        <rect x={PAD.DPAD.x - 17} y={PAD.DPAD.y - 5.5} width="34" height="11" rx="3" />
       </g>
 
-      {/* Sticks */}
+      {/* Sticks — well, cap, and a faint concave ring on top */}
       {[PAD.LEFT_STICK, PAD.RIGHT_STICK].map((st, i) => (
         <g key={i}>
-          <circle cx={st.x} cy={st.y} r="16" fill={FROG.ground} stroke={FROG.line} strokeWidth="2" />
-          <circle cx={st.x} cy={st.y} r="8.5" fill={FROG.panel} stroke={FROG.line} strokeWidth="1" />
+          <circle cx={st.x} cy={st.y} r="17" fill={FROG.ground} stroke={FROG.line} strokeWidth="1.5" />
+          <circle cx={st.x} cy={st.y} r="10.5" fill={FROG.panel} stroke={FROG.line} strokeWidth="1" />
+          <circle cx={st.x} cy={st.y} r="5.5" fill="none" stroke={FROG.line} strokeWidth="1" />
         </g>
       ))}
 
-      {/* Menu (locked) + Select (focusable) + the frog */}
+      {/* Menu (locked) + Select (focusable) */}
       <g>
-        <rect x={PAD.MENU.x - 11} y={PAD.MENU.y - 7} width="22" height="14" rx="7" fill={FROG.ground} stroke={FROG.line} strokeWidth="1" />
-        <text x={PAD.MENU.x} y={PAD.MENU.y} textAnchor="middle" dominantBaseline="central" fontSize="9" fill={FROG.faint}>☰</text>
+        <rect x={PAD.MENU.x - 12} y={PAD.MENU.y - 6.5} width="24" height="13" rx="6.5" fill={FROG.ground} stroke={FROG.line} strokeWidth="1" />
+        <text x={PAD.MENU.x} y={PAD.MENU.y} textAnchor="middle" dominantBaseline="central" fontSize="8.5" fill={FROG.faint}>☰</text>
       </g>
       <g
         role={sel.key ? 'button' : undefined}
@@ -241,13 +279,14 @@ export default function ControllerDiagram({
         onMouseMove={sel.key ? () => onFocusKey(sel.key) : undefined}
         style={{ cursor: sel.key ? 'pointer' : 'default' }}
       >
-        {sel.focused && <rect x={selP.x - 15} y={selP.y - 9} width="30" height="18" rx="9" fill="none" stroke={jade} strokeWidth="2" />}
-        <rect x={selP.x - 12} y={selP.y - 7} width="24" height="14" rx="7" fill={FROG.ground} stroke={sel.focused ? jade : FROG.line} strokeWidth="1" />
-        <text x={selP.x} y={selP.y} textAnchor="middle" dominantBaseline="central" fontSize="8" fontWeight="700" fill={sel.listening ? jade : FROG.soft}>
+        {sel.focused && <rect x={selP.x - 15.5} y={selP.y - 10} width="31" height="20" rx="10" fill="none" stroke={jade} strokeWidth="2" />}
+        <rect x={selP.x - 12} y={selP.y - 6.5} width="24" height="13" rx="6.5" fill={FROG.ground} stroke={sel.focused ? jade : FROG.line} strokeWidth="1" />
+        <text x={selP.x} y={selP.y} textAnchor="middle" dominantBaseline="central" fontSize="7.5" fontWeight="700" fill={sel.listening ? jade : FROG.soft}>
           {sel.listening ? '…' : 'Sel'}
         </text>
       </g>
-      <FrogBadge x="236" y="182" />
+
+      <FrogBadge x="280" y="114" />
 
       {CALLOUTS.map((c) => (
         <Callout key={c.physical} {...c} />
@@ -261,15 +300,23 @@ export default function ControllerDiagram({
   )
 }
 
+// The frog at the guide-button spot — eyes cresting over the pad's top edge (the body
+// path dips at the centre to let them peek through), blinking on the mascot's lid cycle.
+// The lids reuse frog.css's .frog-lid / .frog-lid-b (collapsed scaleY(0), snapping shut
+// for ~110ms of a 5.2s cycle) — intentionally NOT disabled under reduced motion; the
+// blink is how you know the app is alive.
 function FrogBadge({ x, y }) {
+  const skin = `rgb(${FROG.jade})`
   return (
-    <g transform={`translate(${x} ${y})`} aria-hidden="true">
-      <ellipse cx="0" cy="1.5" rx="11" ry="9" fill={`rgb(${FROG.jade})`} opacity="0.92" />
-      <circle cx="-5.5" cy="-6" r="3.6" fill={`rgb(${FROG.jade})`} opacity="0.92" />
-      <circle cx="5.5" cy="-6" r="3.6" fill={`rgb(${FROG.jade})`} opacity="0.92" />
-      <circle cx="-5.5" cy="-6.5" r="1.7" fill={FROG.ground} />
-      <circle cx="5.5" cy="-6.5" r="1.7" fill={FROG.ground} />
-      <path d="M-5 4 Q0 8 5 4" stroke={FROG.ground} strokeWidth="1.5" fill="none" strokeLinecap="round" />
+    <g data-testid="pad-frog" transform={`translate(${x} ${y})`} aria-hidden="true">
+      <circle cx="-9.5" cy="-19.5" r="7" fill={skin} opacity="0.92" />
+      <circle cx="9.5" cy="-19.5" r="7" fill={skin} opacity="0.92" />
+      <ellipse cx="0" cy="0" rx="17" ry="13.5" fill={skin} opacity="0.92" />
+      <circle cx="-9.5" cy="-20.5" r="3" fill={FROG.ground} />
+      <circle cx="9.5" cy="-20.5" r="3" fill={FROG.ground} />
+      <ellipse className="frog-lid" cx="-9.5" cy="-19.5" rx="7.2" ry="7.2" fill={skin} opacity="0.92" />
+      <ellipse className="frog-lid frog-lid-b" cx="9.5" cy="-19.5" rx="7.2" ry="7.2" fill={skin} opacity="0.92" />
+      <path d="M-7.5 5 Q0 10.5 7.5 5" stroke={FROG.ground} strokeWidth="1.8" fill="none" strokeLinecap="round" />
     </g>
   )
 }
