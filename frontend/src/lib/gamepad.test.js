@@ -3,6 +3,7 @@ import {
   XBOX,
   snapshotPad,
   padDiff,
+  orderPadEvents,
   axisDirection,
   repeatTick,
   stickRepeatRate,
@@ -48,6 +49,33 @@ describe('padDiff', () => {
   it('reports several buttons at once', () => {
     const events = padDiff(null, snapshotPad(pad([XBOX.A, XBOX.MENU])))
     expect(events).toHaveLength(2)
+  })
+})
+
+describe('orderPadEvents', () => {
+  // A Menu DOWN must be handled before a same-frame chord button below index 9, or the
+  // chord button is diffed first (Menu not yet "held") and misfires as a plain press.
+  it('hoists a same-frame Menu down ahead of a lower-index button down', () => {
+    // padDiff would emit these in index order: A(0) then MENU(9).
+    const raw = padDiff(null, snapshotPad(pad([XBOX.A, XBOX.MENU])))
+    expect(raw[0]).toEqual({ button: XBOX.A, type: 'down' }) // index order, as emitted
+    const ordered = orderPadEvents(raw)
+    expect(ordered[0]).toEqual({ button: XBOX.MENU, type: 'down' }) // Menu now first
+    expect(ordered).toHaveLength(2)
+  })
+
+  it('does NOT hoist a Menu release (only the down edge)', () => {
+    const held = snapshotPad(pad([XBOX.A, XBOX.MENU]))
+    // Release Menu and press B in the same frame → B down (index 1) + MENU up (index 9).
+    const ordered = orderPadEvents(padDiff(held, snapshotPad(pad([XBOX.A, XBOX.B]))))
+    expect(ordered.map((e) => `${e.button}:${e.type}`)).toEqual(['1:down', '9:up'])
+  })
+
+  it('leaves non-Menu events in their natural order and returns a new array', () => {
+    const raw = padDiff(null, snapshotPad(pad([XBOX.A, XBOX.B])))
+    const ordered = orderPadEvents(raw)
+    expect(ordered).toEqual(raw)
+    expect(ordered).not.toBe(raw) // pure — new array, input untouched
   })
 })
 

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { snapshotPad, padDiff, axisDirection, repeatTick, stickRepeatRate, padAction, menuGesture, MENU_GESTURE_IDLE } from './gamepad.js'
+import { snapshotPad, padDiff, orderPadEvents, axisDirection, repeatTick, stickRepeatRate, padAction, menuGesture, MENU_GESTURE_IDLE } from './gamepad.js'
 
 // Polls the physical controller and turns it into semantic actions.
 //
@@ -55,7 +55,10 @@ export function useGamepad(handlers, enabled = true) {
         return
       }
 
-      for (const { button, type } of padDiff(prev, next)) {
+      // Menu-down-first (see orderPadEvents): so a chord button pressed in the SAME poll
+      // frame as Menu sees Menu already held, and its chord-consumption isn't undone by
+      // Menu's own 'down' landing afterwards.
+      for (const { button, type } of orderPadEvents(padDiff(prev, next))) {
         // ANY button press is what tells us a controller is live. We can't wait for
         // `gamepadconnected` — on iOS Safari it doesn't fire until a button is
         // pressed anyway, so the touch controls would sit there over a working pad.

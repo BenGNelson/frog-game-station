@@ -54,6 +54,16 @@ export function padDiff(prev, next) {
   return events
 }
 
+// Order a frame's button edges so a Menu (9) DOWN is handled before the rest. padDiff emits
+// in button-index order, so a chord button BELOW index 9 pressed in the SAME poll frame as
+// Menu would otherwise be seen first — before `menu.downAt` is set — and misfire as a plain
+// press instead of arming the hold-Menu chord. Only the down edge is hoisted; a Menu release
+// keeps its natural order. Stable for every other event (returns a new array).
+export function orderPadEvents(events) {
+  const isMenuDown = (e) => e.button === 9 && e.type === 'down'
+  return [...events].sort((a, b) => isMenuDown(b) - isMenuDown(a))
+}
+
 // Treat the analog stick as a D-pad. Deadzone is generous (0.5) because we want a
 // deliberate push, not a drift; the dominant axis wins so a diagonal shove picks
 // one direction instead of chattering between two.
