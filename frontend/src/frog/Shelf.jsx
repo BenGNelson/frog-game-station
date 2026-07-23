@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { Trophy, List, ChevronRight, Shuffle } from 'lucide-react'
 import { coverUrl } from '../lib/library.js'
-import { FROG, systemStyle, reflection } from './theme.js'
+import { FROG, systemStyle, reflection, FONT_DISPLAY } from './theme.js'
 import { agoLabel } from './shelf.js'
 import { useDozing } from '../lib/dayNight.js'
 import { Reflected, SystemFrog } from './Frog.jsx'
@@ -230,7 +230,10 @@ function SurpriseCard({ focused, onFocus, onPick }) {
 // with it.
 function Heading({ children }) {
   return (
-    <h2 className="mb-2 px-1 text-[11px] font-semibold tracking-[0.2em]" style={{ color: FROG.faint }}>
+    <h2
+      className="mb-2 px-1 text-[11px] font-semibold tracking-[0.2em]"
+      style={{ color: FROG.faint, fontFamily: FONT_DISPLAY }}
+    >
       {children.toUpperCase()}
     </h2>
   )

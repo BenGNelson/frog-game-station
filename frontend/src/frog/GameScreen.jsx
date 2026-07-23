@@ -8,7 +8,7 @@ import { coverUrl, saveStateShotUrl, igdbShotUrl } from '../lib/library.js'
 import { formatPlaytime } from '../lib/format.js'
 import { useFocusTrap } from '../lib/useFocusTrap.js'
 import ConfirmDialog from './ConfirmDialog.jsx'
-import { FROG, systemStyle, reflection, scrim } from './theme.js'
+import { FROG, systemStyle, reflection, scrim, FONT_DISPLAY } from './theme.js'
 import { SystemFrog, Reflected } from './Frog.jsx'
 import { FinishedBadge, HackBadge } from './Shelf.jsx'
 import { agoLabel } from './shelf.js'
@@ -464,7 +464,7 @@ function RichHero({ game, meta, shots, s, slide, focused, finished, hack, onOpen
           <div className="min-w-0 flex-1 pb-1">
             <h1
               className="text-2xl font-semibold leading-tight sm:text-3xl"
-              style={{ color: FROG.ink, textShadow: '0 2px 14px rgba(0,0,0,0.6)' }}
+              style={{ color: FROG.ink, textShadow: '0 2px 14px rgba(0,0,0,0.6)', fontFamily: FONT_DISPLAY }}
             >
               {game.name}
             </h1>
@@ -1420,7 +1420,10 @@ function FieldRow({ testid, value, placeholder, on, accent, onFocus, onOpen }) {
 // A section heading — small, wide-tracked, quiet.
 function Heading({ children }) {
   return (
-    <h2 className="mb-2 text-[11px] font-semibold tracking-[0.2em]" style={{ color: FROG.faint }}>
+    <h2
+      className="mb-2 text-[11px] font-semibold tracking-[0.2em]"
+      style={{ color: FROG.faint, fontFamily: FONT_DISPLAY }}
+    >
       {children}
     </h2>
   )

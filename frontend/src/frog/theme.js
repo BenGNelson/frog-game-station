@@ -140,6 +140,11 @@ export function reflection(rgb, alpha = 0.45) {
   return `0 26px 40px -22px rgba(${rgb}, ${alpha}), 0 2px 0 rgba(255,255,255,0.04) inset`
 }
 
+// The display face — the wordmark, screen titles, and section headings. Body text
+// stays on the system stack (fast, and it keeps the headings special). Mirrors the
+// @font-face / @theme registration in src/index.css — change both together.
+export const FONT_DISPLAY = "'Fredoka Variable', ui-rounded, system-ui, sans-serif"
+
 // The water's surface, pulled over the screen. Every overlay is the ground at some
 // opacity — built here so the RGB can never drift from the ground it must match.
 export function scrim(alpha) {

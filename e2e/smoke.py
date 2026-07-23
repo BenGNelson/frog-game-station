@@ -73,6 +73,22 @@ def check_page(page, path, expect):
         if page.get_by_text(text, exact=False).count() == 0:
             problems.append(f"missing expected text: {text!r}")
 
+    # The display face must actually load from our own origin — a silent fallback
+    # to the system stack (bad @font-face URL, missing precache entry) renders
+    # "fine" and would otherwise never fail a test.
+    if path in ("/", "/frog"):
+        font_ok = page.evaluate("document.fonts.check(\"600 16px 'Fredoka Variable'\")")
+        if not font_ok:
+            problems.append("display font 'Fredoka Variable' did not load")
+        foreign_fonts = [u for (u, _s, t) in bad if t == "font"] + page.evaluate(
+            "performance.getEntriesByType('resource')"
+            ".filter(e => e.initiatorType === 'css' && e.name.includes('woff'))"
+            ".map(e => e.name)"
+            ".filter(u => !u.startsWith(location.origin))"
+        )
+        if foreign_fonts:
+            problems.append(f"cross-origin font requests: {foreign_fonts}")
+
     unexpected = [b for b in bad if not _benign_response(*b)]
     if unexpected:
         problems.append(f"unexpected non-OK responses: {unexpected}")

@@ -4,7 +4,7 @@ import { coverUrl, ALPHABET, letterOf } from '../lib/library.js'
 import { neighborCoverUrls, prefetchCovers } from '../lib/prefetchCovers.js'
 import { useMediaQuery } from '../lib/useMediaQuery.js'
 import { windowRange, spacers } from '../lib/windowRange.js'
-import { FROG, systemStyle, reflection } from './theme.js'
+import { FROG, systemStyle, reflection, FONT_DISPLAY } from './theme.js'
 import Console from './Console.jsx'
 import { Reflected, SystemFrog } from './Frog.jsx'
 import { FinishedBadge, HackBadge } from './Shelf.jsx'
@@ -326,7 +326,10 @@ export function CollectionListHeader({ tag, count, loading = false }) {
         <Tag className="h-4 w-4" style={{ color: `rgb(${FROG.jade})` }} aria-hidden="true" />
       </span>
       <div className="min-w-0">
-        <h1 className="truncate text-lg font-semibold leading-none" style={{ color: FROG.ink }}>
+        <h1
+          className="truncate text-lg font-semibold leading-none"
+          style={{ color: FROG.ink, fontFamily: FONT_DISPLAY }}
+        >
           {tag}
         </h1>
         {/* While the mount fetch is still in flight (a post-launch remount) the count
@@ -346,7 +349,10 @@ export function GameListHeader({ system, count }) {
     <div className="flex items-center gap-3">
       <Console system={system} size={38} />
       <div>
-        <h1 className="text-lg font-semibold leading-none" style={{ color: FROG.ink }}>
+        <h1
+          className="text-lg font-semibold leading-none"
+          style={{ color: FROG.ink, fontFamily: FONT_DISPLAY }}
+        >
           {system}
         </h1>
         <p className="mt-1 text-[11px] tabular-nums" style={{ color: `rgb(${s.accent})` }}>

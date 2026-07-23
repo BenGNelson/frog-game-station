@@ -245,6 +245,22 @@ frozen under `prefers-reduced-motion`):
   decision is a pure function; the dispatcher plays it once, before the per-screen
   handling, so every screen clicks the same way.
 
+**Typography:** one display face — **Fredoka** (rounded geometric, OFL, variable) — worn
+by the wordmark, screen titles, and section headings only; body text stays on the system
+stack. The latin-subset woff2 (~30 KB) is vendored in `src/assets/fonts/` with its
+license, registered once in `index.css` (`@font-face` + a Tailwind `@theme` token) and
+mirrored as `FONT_DISPLAY` in `frog/theme.js` for inline-style call sites. Vendored
+rather than CDN-loaded so play and browse never make a cross-origin font request, and
+listed in the service worker's precache globs (`vite.config.js` adds `woff2` to
+`globPatterns`) so the installed PWA renders its own face offline.
+
+**Colour discipline:** every colour is a `FROG` token in `frog/theme.js`. Alpha-varying
+colours are RGB-triplet tokens (`jade`, `amber`, `danger`, `groundRGB`, `lineRGB`);
+fixed colours are hex. Overlays go through `scrim(alpha)` (the ground at an opacity) and
+floating cards through `reflection()` — the single-source helpers that keep eleven
+overlay call sites and every card shadow from drifting. `focusRing()` + `FOCUS_SCALE`
+define the one focus language (an inset accent ring at scale 1.04).
+
 ---
 
 ## The player / emulator
@@ -923,6 +939,10 @@ The player and readers are **real routes**, not overlays, so the phone's back ge
   repo publishable — no official logos or wordmarks.
 - **The theme commits to a single dark WATER identity.** A deliberate design choice, carried
   all the way into the player's start screen, not an omission of a light mode.
+- **The display face is vendored, not CDN-loaded.** Fredoka's latin variable woff2 lives in
+  the repo (with its OFL license) and rides the PWA precache — a webfont `<link>` would be a
+  cross-origin request on every cold start and a missing face offline. Headings only; body
+  text stays on the system stack for speed and contrast with the display voice.
 - **IGDB via a background collector, cached in SQLite.** Match each ROM once (skipping by
   mtime), cache misses as real results so hacks aren't re-queried forever, rate-limit to the
   API's budget, and fetch art lazily on first view — so passes stay fast and metadata is

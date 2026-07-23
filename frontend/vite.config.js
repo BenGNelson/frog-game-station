@@ -53,6 +53,10 @@ export default defineConfig({
         // (frontend/public/emulatorjs/, ~300 MB) and the isolated emulator host
         // page load on demand — never precache them (would bloat the install and
         // blow the size cap).
+        // `globPatterns` restates the plugin default (js/css/html) PLUS woff2:
+        // without it the display font would build fine but 404 offline in the
+        // installed PWA — the shell must carry its own typeface.
+        globPatterns: ['**/*.{js,css,html,woff2}'],
         globIgnores: ['**/emulatorjs/**', 'emulator.html'],
       },
     }),
