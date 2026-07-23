@@ -8,9 +8,11 @@ import { coverUrl, saveStateShotUrl, igdbShotUrl } from '../lib/library.js'
 import { formatPlaytime } from '../lib/format.js'
 import { useFocusTrap } from '../lib/useFocusTrap.js'
 import ConfirmDialog from './ConfirmDialog.jsx'
-import { FROG, systemStyle, reflection, scrim, FONT_DISPLAY } from './theme.js'
+import { FROG, systemStyle, reflection, scrim, SCRIM, focusRing, FOCUS_SCALE, FONT_DISPLAY } from './theme.js'
+import Button from './Button.jsx'
+import Heading from './Heading.jsx'
 import { SystemFrog, Reflected } from './Frog.jsx'
-import { FinishedBadge, HackBadge } from './Shelf.jsx'
+import { FinishedBadge, HackBadge, HackTag } from './badges.jsx'
 import { agoLabel } from './shelf.js'
 import Keyboard from './Keyboard.jsx'
 
@@ -97,22 +99,17 @@ export default function GameScreen({
 
   const actions = (
     <div className="flex flex-wrap items-center gap-2">
-      <button
-        type="button"
+      <Button
+        variant="solid"
+        size="lg"
         data-testid="frog-detail-play"
-        data-focused={on('actions', 0) || undefined}
+        focused={on('actions', 0)}
         onMouseMove={() => onFocus('actions', 0)}
         onClick={onPlay}
-        className="flex items-center gap-2 rounded-xl px-6 py-3 text-base font-semibold transition-transform"
-        style={{
-          background: `rgb(${FROG.jade})`,
-          color: FROG.ground,
-          transform: on('actions', 0) ? 'scale(1.04)' : 'scale(1)',
-          boxShadow: on('actions', 0) ? `0 0 26px rgba(${FROG.jade}, 0.55)` : 'none',
-        }}
+        className="flex items-center gap-2"
       >
         <Play className="h-5 w-5" fill="currentColor" aria-hidden="true" /> Play
-      </button>
+      </Button>
 
       <ActionButton
         focused={on('actions', 1)}
@@ -431,7 +428,7 @@ function RichHero({ game, meta, shots, s, slide, focused, finished, hack, onOpen
         {focused && (
           <div
             className="pointer-events-none absolute inset-0"
-            style={{ boxShadow: `inset 0 0 0 2px rgb(${s.accent}), inset 0 0 44px rgba(${s.accent}, 0.45)` }}
+            style={{ boxShadow: `${focusRing(s.accent)}, inset 0 0 44px rgba(${s.accent}, 0.45)` }}
           />
         )}
 
@@ -623,7 +620,7 @@ function SaveShelf({ game, saves, loadingSaves, on, accent, onFocus, onPlaySlot,
                 className="flex items-center gap-3 rounded-xl px-3 py-2"
                 style={{
                   background: on('saves', i) ? `rgba(${accent}, 0.16)` : FROG.panel,
-                  boxShadow: on('saves', i) ? `inset 0 0 0 1px rgba(${accent}, 0.5)` : `inset 0 0 0 1px ${FROG.line}`,
+                  boxShadow: on('saves', i) ? focusRing(accent) : `inset 0 0 0 1px ${FROG.line}`,
                 }}
               >
                 <button
@@ -713,7 +710,7 @@ function SimilarCard({ game, focused, onFocus, onOpen }) {
         background: FROG.panel,
         border: `1px solid ${focused ? `rgba(${s.accent}, 0.6)` : FROG.line}`,
         boxShadow: focused ? reflection(s.accent) : 'none',
-        transform: focused ? 'scale(1.05)' : 'scale(1)',
+        transform: focused ? `scale(${FOCUS_SCALE})` : 'scale(1)',
       }}
     >
       <div className="relative aspect-[3/4] w-full overflow-hidden" style={{ background: '#000' }}>
@@ -755,7 +752,7 @@ function Lightbox({ gameId, gameName, shots, index, onClose, onNav }) {
       aria-label={`${gameName} screenshots`}
       tabIndex={-1}
       className="absolute inset-0 z-30 flex items-center justify-center p-4 outline-none"
-      style={{ background: 'rgba(0,0,0,0.88)', backdropFilter: 'blur(2px)' }}
+      style={{ background: scrim(SCRIM.full), backdropFilter: 'blur(2px)' }}
       onClick={onClose}
     >
       <img
@@ -811,14 +808,7 @@ function LightboxArrow({ side, onClick }) {
 // IGDB match, so it's the real game's name even though the title stays the hack's own.
 function HackLine({ baseName, baseGameId, focused, accent, onFocus, onOpenBase }) {
   const linkable = !!baseGameId
-  const Tag = (
-    <span
-      className="rounded-full px-2 py-0.5 text-[11px] font-bold tracking-wider"
-      style={{ background: `rgba(${FROG.amber}, 0.16)`, color: `rgb(${FROG.amber})` }}
-    >
-      ROM HACK
-    </span>
-  )
+  const Tag = <HackTag className="px-2 text-[11px]">ROM HACK</HackTag>
   if (!baseName) return <div className="flex">{Tag}</div>
   const inner = (
     <>
@@ -839,7 +829,7 @@ function HackLine({ baseName, baseGameId, focused, accent, onFocus, onOpenBase }
       className="flex w-full flex-wrap items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition-colors"
       style={{
         background: focused ? `rgba(${accent}, 0.14)` : 'transparent',
-        boxShadow: focused ? `inset 0 0 0 1px rgba(${accent}, 0.5)` : `inset 0 0 0 1px ${FROG.line}`,
+        boxShadow: focused ? focusRing(accent) : `inset 0 0 0 1px ${FROG.line}`,
       }}
     >
       {inner}
@@ -887,7 +877,7 @@ function RematchDialog({ rematch, native = false, accent, onHover, onPick, onTog
     <div
       data-testid="frog-rematch"
       className="absolute inset-0 z-20 flex items-center justify-center p-6"
-      style={{ background: scrim(0.72), backdropFilter: 'blur(3px)' }}
+      style={{ background: scrim(SCRIM.dialog), backdropFilter: 'blur(3px)' }}
       onClick={onCancel}
     >
       <div
@@ -924,7 +914,7 @@ function RematchDialog({ rematch, native = false, accent, onHover, onPick, onTog
           className="mb-2 flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left"
           style={{
             background: index < 0 ? `rgba(${accent}, 0.16)` : 'transparent',
-            boxShadow: index < 0 ? `inset 0 0 0 1px rgba(${accent}, 0.5)` : `inset 0 0 0 1px ${FROG.line}`,
+            boxShadow: index < 0 ? focusRing(accent) : `inset 0 0 0 1px ${FROG.line}`,
           }}
         >
           <span className="text-sm font-medium" style={{ color: hack ? FROG.ink : FROG.soft }}>
@@ -971,7 +961,7 @@ function RematchDialog({ rematch, native = false, accent, onHover, onPick, onTog
                   className="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left"
                   style={{
                     background: focused ? `rgba(${accent}, 0.16)` : 'transparent',
-                    boxShadow: focused ? `inset 0 0 0 1px rgba(${accent}, 0.5)` : 'none',
+                    boxShadow: focused ? focusRing(accent) : 'none',
                   }}
                 >
                   {isClear ? (
@@ -1004,7 +994,7 @@ function RematchDialog({ rematch, native = false, accent, onHover, onPick, onTog
         <button
           type="button"
           onClick={onCancel}
-          className="mt-3 w-full rounded-xl px-4 py-2 text-sm font-medium"
+          className="mt-3 w-full rounded-full px-4 py-2 text-sm font-medium"
           style={{ background: 'transparent', color: FROG.soft, border: `1px solid ${FROG.line}`, opacity: busy ? 0.6 : 1 }}
         >
           Cancel
@@ -1050,7 +1040,7 @@ function SearchRow({ native, focused, accent, searching, onFocus, onSearch }) {
       className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left"
       style={{
         background: focused ? `rgba(${accent}, 0.16)` : 'transparent',
-        boxShadow: focused ? `inset 0 0 0 1px rgba(${accent}, 0.5)` : `inset 0 0 0 1px ${FROG.line}`,
+        boxShadow: focused ? focusRing(accent) : `inset 0 0 0 1px ${FROG.line}`,
       }}
     >
       {searching
@@ -1076,7 +1066,7 @@ function CollectionsRow({ tags, focused, accent, onFocus, onOpen }) {
         className="flex w-full flex-wrap items-center gap-2 rounded-xl px-3 py-2.5 text-left transition-colors"
         style={{
           background: focused ? `rgba(${accent}, 0.14)` : FROG.panel,
-          boxShadow: focused ? `inset 0 0 0 1px rgba(${accent}, 0.5)` : `inset 0 0 0 1px ${FROG.line}`,
+          boxShadow: focused ? focusRing(accent) : `inset 0 0 0 1px ${FROG.line}`,
         }}
       >
         {tags.length === 0 ? (
@@ -1125,7 +1115,7 @@ function TagPicker({ tags, allTags, focus, native, accent, onFocus, onToggle, on
     <div
       data-testid="frog-tag-picker"
       className="absolute inset-0 z-20 flex items-center justify-center p-6"
-      style={{ background: scrim(0.72), backdropFilter: 'blur(3px)' }}
+      style={{ background: scrim(SCRIM.dialog), backdropFilter: 'blur(3px)' }}
       onClick={onClose}
     >
       <div
@@ -1194,7 +1184,7 @@ function TagPicker({ tags, allTags, focus, native, accent, onFocus, onToggle, on
             className="mb-3 flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-medium"
             style={{
               background: focus.index < 0 ? `rgba(${accent}, 0.16)` : 'transparent',
-              boxShadow: focus.index < 0 ? `inset 0 0 0 1px rgba(${accent}, 0.5)` : `inset 0 0 0 1px ${FROG.line}`,
+              boxShadow: focus.index < 0 ? focusRing(accent) : `inset 0 0 0 1px ${FROG.line}`,
               color: focus.index < 0 ? FROG.ink : FROG.soft,
             }}
           >
@@ -1218,7 +1208,7 @@ function TagPicker({ tags, allTags, focus, native, accent, onFocus, onToggle, on
                     className="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left"
                     style={{
                       background: focused ? `rgba(${accent}, 0.16)` : 'transparent',
-                      boxShadow: focused ? `inset 0 0 0 1px rgba(${accent}, 0.5)` : 'none',
+                      boxShadow: focused ? focusRing(accent) : 'none',
                     }}
                   >
                     <span className="flex items-center gap-2 text-sm font-medium" style={{ color: active ? FROG.ink : FROG.soft }}>
@@ -1239,7 +1229,7 @@ function TagPicker({ tags, allTags, focus, native, accent, onFocus, onToggle, on
         <button
           type="button"
           onClick={onClose}
-          className="mt-3 w-full rounded-xl px-4 py-2 text-sm font-medium"
+          className="mt-3 w-full rounded-full px-4 py-2 text-sm font-medium"
           style={{ background: 'transparent', color: FROG.soft, border: `1px solid ${FROG.line}` }}
         >
           Done
@@ -1272,7 +1262,7 @@ function SaveEditor({ editor, native, accent, onEdit, onFocus, onOpenLabel, onOp
     <div
       data-testid="frog-save-editor"
       className="absolute inset-0 z-20 flex items-center justify-center p-6"
-      style={{ background: scrim(0.72), backdropFilter: 'blur(3px)' }}
+      style={{ background: scrim(SCRIM.dialog), backdropFilter: 'blur(3px)' }}
       onClick={onClose}
     >
       <div
@@ -1382,7 +1372,7 @@ function SaveEditor({ editor, native, accent, onEdit, onFocus, onOpenLabel, onOp
         <button
           type="button"
           onClick={onClose}
-          className="mt-3 w-full rounded-xl px-4 py-2 text-sm font-medium"
+          className="mt-3 w-full rounded-full px-4 py-2 text-sm font-medium"
           style={{ background: 'transparent', color: FROG.soft, border: `1px solid ${FROG.line}` }}
         >
           Done
@@ -1406,7 +1396,7 @@ function FieldRow({ testid, value, placeholder, on, accent, onFocus, onOpen }) {
       className="mb-2 flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left"
       style={{
         background: on ? `rgba(${accent}, 0.16)` : 'transparent',
-        boxShadow: on ? `inset 0 0 0 1px rgba(${accent}, 0.5)` : `inset 0 0 0 1px ${FROG.line}`,
+        boxShadow: on ? focusRing(accent) : `inset 0 0 0 1px ${FROG.line}`,
       }}
     >
       <Pencil className="h-4 w-4 shrink-0" style={{ color: on ? `rgb(${accent})` : FROG.faint }} aria-hidden="true" />
@@ -1417,17 +1407,6 @@ function FieldRow({ testid, value, placeholder, on, accent, onFocus, onOpen }) {
   )
 }
 
-// A section heading — small, wide-tracked, quiet.
-function Heading({ children }) {
-  return (
-    <h2
-      className="mb-2 text-[11px] font-semibold tracking-[0.2em]"
-      style={{ color: FROG.faint, fontFamily: FONT_DISPLAY }}
-    >
-      {children}
-    </h2>
-  )
-}
 
 // A snapshot's thumbnail. The backend flags saves with no `.png` sibling as
 // `has_shot:false`; those (and any that 404 anyway) show a "no preview" tile instead
@@ -1463,13 +1442,13 @@ function ActionButton({ focused, onFocus, onClick, accent, active, busy, label, 
       onMouseMove={onFocus}
       onClick={onClick}
       disabled={busy}
-      className="flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-medium transition-transform"
+      className="flex items-center gap-2 rounded-full px-4 py-3 text-sm font-medium transition-[transform,box-shadow]"
       style={{
         background: active ? `rgba(${accent}, 0.14)` : FROG.panel,
         color: active ? `rgb(${accent})` : FROG.soft,
-        border: `1px solid ${focused ? `rgba(${accent}, 0.6)` : active ? `rgba(${accent}, 0.35)` : FROG.line}`,
-        transform: focused ? 'scale(1.04)' : 'scale(1)',
-        boxShadow: focused ? `0 0 20px rgba(${accent}, 0.4)` : 'none',
+        border: `1px solid ${active ? `rgba(${accent}, 0.35)` : FROG.line}`,
+        transform: focused ? `scale(${FOCUS_SCALE})` : 'scale(1)',
+        boxShadow: focused ? focusRing(accent) : 'none',
       }}
     >
       {children}

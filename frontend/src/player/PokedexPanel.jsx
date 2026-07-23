@@ -1,6 +1,6 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { ArrowLeft, X, BookOpen, Loader2, Globe, ChevronRight, LayoutGrid, List } from 'lucide-react'
-import { FROG, scrim } from '../frog/theme.js'
+import { FROG, scrim, SCRIM, focusRing } from '../frog/theme.js'
 import { moveInGrid } from '../lib/gridNav.js'
 import { fetchPokedexInfo, fetchPokedexList, fetchPokemon } from '../lib/pokedexApi.js'
 import { typeColor, statPercent, statTotal, filterDex, stepDexBlock, dexScrollStep, STAT_LABELS, STAT_ORDER } from '../lib/pokedex.js'
@@ -271,7 +271,7 @@ const PokedexPanel = forwardRef(function PokedexPanel({
       className="absolute inset-0 z-30 flex flex-col outline-none"
       style={{
         display: open ? 'flex' : 'none',
-        background: scrim(0.96),
+        background: scrim(SCRIM.panel),
         backdropFilter: 'blur(10px)',
         paddingLeft: 'env(safe-area-inset-left)',
         paddingRight: 'env(safe-area-inset-right)',
@@ -421,7 +421,7 @@ function DexRow({ p, focused, onFocus, onOpen }) {
         className="flex w-full items-center gap-3 rounded-lg px-3 py-1.5 text-left transition-colors"
         style={{
           background: focused ? `rgba(${FROG.jade}, 0.14)` : 'transparent',
-          boxShadow: focused ? `0 0 0 2px rgba(${FROG.jade}, 0.5)` : 'none',
+          boxShadow: focused ? focusRing() : 'none',
         }}
       >
         <span className="w-10 shrink-0 text-right text-xs tabular-nums" style={{ color: FROG.faint }}>
@@ -446,7 +446,7 @@ function DexTile({ p, focused, onFocus, onOpen }) {
         className="flex w-full flex-col items-center gap-0.5 rounded-lg px-1 py-2 transition-colors"
         style={{
           background: focused ? `rgba(${FROG.jade}, 0.14)` : 'transparent',
-          boxShadow: focused ? `0 0 0 2px rgba(${FROG.jade}, 0.5)` : 'none',
+          boxShadow: focused ? focusRing() : 'none',
         }}
       >
         <img src={p.sprite} alt="" loading="lazy" className="h-14 w-14" style={{ imageRendering: 'pixelated' }} />

@@ -3,7 +3,8 @@ import { ChevronLeft, Save, ImagePlus, ImageOff } from 'lucide-react'
 import SaveStateCard from '../SaveStateCard.jsx'
 import { Spinner } from '../components/ui.jsx'
 import { moveInGrid } from '../lib/gridNav.js'
-import { FROG, scrim } from '../frog/theme.js'
+import { FROG, scrim, SCRIM, focusRing, FOCUS_SCALE } from '../frog/theme.js'
+import EmptyState from '../frog/EmptyState.jsx'
 
 // The in-game save-state shelf, opened from the pause menu.
 //
@@ -128,7 +129,7 @@ export default function SaveStatePanel({
       onKeyDown={onKeyDown}
       className="absolute inset-0 z-30 flex flex-col outline-none backdrop-blur-md"
       style={{
-        background: scrim(0.9),
+        background: scrim(SCRIM.panel),
         paddingLeft: 'env(safe-area-inset-left)',
         paddingRight: 'env(safe-area-inset-right)',
         paddingBottom: 'env(safe-area-inset-bottom)',
@@ -137,7 +138,7 @@ export default function SaveStatePanel({
       <div className="flex shrink-0 items-center gap-2 px-3 py-2">
         <button
           onClick={onBack}
-          className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-sm active:opacity-70"
+          className="flex items-center gap-1 rounded-full px-3 py-1.5 text-sm active:opacity-70"
           style={{ background: FROG.panel, color: FROG.ink }}
         >
           <ChevronLeft className="h-4 w-4" aria-hidden="true" /> Back
@@ -166,14 +167,13 @@ export default function SaveStatePanel({
             onMouseMove={() => onFocus(0)}
             disabled={busy}
             data-focused={focus === 0 || undefined}
-            className={`flex aspect-[4/3] flex-col items-center justify-center gap-2 rounded-xl border border-dashed transition-transform active:opacity-80 disabled:opacity-50 ${
-              focus === 0 ? 'scale-105' : ''
-            }`}
+            className="flex aspect-[4/3] flex-col items-center justify-center gap-2 rounded-xl border border-dashed transition-transform active:opacity-80 disabled:opacity-50"
             style={{
               background: `rgba(${FROG.jade}, 0.10)`,
               color: `rgb(${FROG.jade})`,
               borderColor: focus === 0 ? `rgba(${FROG.jade}, 0.8)` : `rgba(${FROG.jade}, 0.5)`,
-              boxShadow: focus === 0 ? `0 0 0 2px rgba(${FROG.jade}, 0.5)` : 'none',
+              boxShadow: focus === 0 ? focusRing() : 'none',
+              transform: focus === 0 ? `scale(${FOCUS_SCALE})` : undefined,
             }}
           >
             {busy ? <Spinner /> : <Save className="h-6 w-6" aria-hidden="true" />}
@@ -204,14 +204,13 @@ export default function SaveStatePanel({
                 onClick={c.run}
                 onMouseMove={() => onFocus(idx)}
                 data-focused={f || undefined}
-                className={`flex aspect-[4/3] flex-col items-center justify-center gap-2 rounded-xl border border-dashed transition-transform active:opacity-80 ${
-                  f ? 'scale-105' : ''
-                }`}
+                className="flex aspect-[4/3] flex-col items-center justify-center gap-2 rounded-xl border border-dashed transition-transform active:opacity-80"
                 style={{
                   background: FROG.panel,
                   color: f ? FROG.ink : FROG.soft,
                   borderColor: f ? `rgba(${FROG.jade}, 0.8)` : FROG.line,
-                  boxShadow: f ? `0 0 0 2px rgba(${FROG.jade}, 0.5)` : 'none',
+                  boxShadow: f ? focusRing() : 'none',
+                  transform: f ? `scale(${FOCUS_SCALE})` : undefined,
                 }}
               >
                 <c.Icon className="h-6 w-6" aria-hidden="true" />
@@ -223,9 +222,9 @@ export default function SaveStatePanel({
 
         {loading && <p className="py-6 text-center text-sm" style={{ color: FROG.faint }}>loading…</p>}
         {!loading && states.length === 0 && (
-          <p className="py-8 text-center text-sm" style={{ color: FROG.faint }}>
-            No saved states yet. Save one here and it’ll show up on your other devices too.
-          </p>
+          <EmptyState size={80} title="No saved states yet.">
+            Save one here and it’ll show up on your other devices too.
+          </EmptyState>
         )}
       </div>
 

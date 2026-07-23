@@ -4,10 +4,11 @@ import { coverUrl, ALPHABET, letterOf } from '../lib/library.js'
 import { neighborCoverUrls, prefetchCovers } from '../lib/prefetchCovers.js'
 import { useMediaQuery } from '../lib/useMediaQuery.js'
 import { windowRange, spacers } from '../lib/windowRange.js'
-import { FROG, systemStyle, reflection, FONT_DISPLAY } from './theme.js'
+import { FROG, systemStyle, reflection, focusRing, FONT_DISPLAY } from './theme.js'
 import Console from './Console.jsx'
 import { Reflected, SystemFrog } from './Frog.jsx'
-import { FinishedBadge, HackBadge } from './Shelf.jsx'
+import { FinishedBadge, HackBadge, HackTag } from './badges.jsx'
+import EmptyState from './EmptyState.jsx'
 import SystemChip from './SystemChip.jsx'
 
 // Row height. Bigger on a TV/desktop (`lg`) — 15px rows on a 1080p panel viewed from a
@@ -154,15 +155,17 @@ export default function GameList({ system, collection, loading = false, games, f
   // gap would misread as "empty".
   if (inCollection && !games.length) {
     return (
-      <div data-testid="frog-games" className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 px-8 text-center">
-        <Reflected>
-          <SystemFrog size={96} system={null} asleep={!loading} />
-        </Reflected>
-        <p className="text-sm" style={{ color: FROG.soft }}>
-          {loading
-            ? 'Loading…'
-            : `Nothing in “${collection}” anymore — every game has left this collection.`}
-        </p>
+      <div data-testid="frog-games" className="flex min-h-0 flex-1 flex-col items-center justify-center">
+        <EmptyState
+          system={null}
+          size={96}
+          asleep={!loading}
+          title={
+            loading
+              ? 'Loading…'
+              : `Nothing in “${collection}” anymore — every game has left this collection.`
+          }
+        />
       </div>
     )
   }
@@ -230,13 +233,13 @@ export default function GameList({ system, collection, loading = false, games, f
                   data-testid="frog-row"
                   onMouseMove={() => onFocus(index)}
                   onClick={() => onPick(g)}
-                  className="flex w-full items-center gap-3 rounded-lg px-3 text-left transition-colors lg:gap-4 lg:px-4"
+                  className="flex w-full items-center gap-3 rounded-xl px-3 text-left transition-colors lg:gap-4 lg:px-4"
                   style={{
                     height: rowH,
-                    // A stronger selection on the big screen: the focused row is the entire
+                    // A stronger fill on the big screen: the focused row is the entire
                     // state of the screen, so it has to pop from a couch, not whisper.
                     background: on ? `rgba(${listAccent}, ${showsArt ? 0.24 : 0.16})` : 'transparent',
-                    boxShadow: on ? `inset 0 0 0 ${showsArt ? 1.5 : 1}px rgba(${listAccent}, ${showsArt ? 0.72 : 0.5})` : 'none',
+                    boxShadow: on ? focusRing(listAccent) : 'none',
                   }}
                 >
                   {/* The cursor: a lit edge on the focused row, in the list's colour —
@@ -255,14 +258,7 @@ export default function GameList({ system, collection, loading = false, games, f
                     {g.name}
                   </span>
                   {/* A ROM hack says so — it borrows the base's art but isn't the base. */}
-                  {isHack(g.id) && (
-                    <span
-                      className="shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-bold tracking-wider"
-                      style={{ background: `rgba(${FROG.amber}, 0.18)`, color: `rgb(${FROG.amber})` }}
-                    >
-                      HACK
-                    </span>
-                  )}
+                  {isHack(g.id) && <HackTag />}
                   {/* A collection spans machines, so each row names its system. */}
                   {inCollection && <SystemChip label={g.label} />}
                   {isFinished(g.id) && (

@@ -1,46 +1,13 @@
 import { useEffect, useRef } from 'react'
-import { Trophy, List, ChevronRight, Shuffle } from 'lucide-react'
+import { List, ChevronRight, Shuffle } from 'lucide-react'
 import { coverUrl } from '../lib/library.js'
-import { FROG, systemStyle, reflection, FONT_DISPLAY } from './theme.js'
+import { FROG, systemStyle, reflection, FOCUS_SCALE } from './theme.js'
 import { agoLabel } from './shelf.js'
 import { useDozing } from '../lib/dayNight.js'
 import { Reflected, SystemFrog } from './Frog.jsx'
 
-// The "finished" ribbon, corner-pinned on a cover. Exported so the game list and the
-// game page badge the same way — one trophy, everywhere a cover shows.
-export function FinishedBadge({ size = 24 }) {
-  return (
-    <span
-      className="absolute right-1.5 top-1.5 flex items-center justify-center rounded-full"
-      style={{
-        width: size,
-        height: size,
-        background: `rgba(${FROG.jade}, 0.92)`,
-        color: FROG.ground,
-        boxShadow: '0 2px 8px rgba(0,0,0,0.55)',
-      }}
-      title="Finished"
-      aria-label="Finished"
-    >
-      <Trophy className="h-3.5 w-3.5" fill="currentColor" aria-hidden="true" />
-    </span>
-  )
-}
-// The ROM-hack ribbon — top-LEFT so it never collides with the finished trophy
-// (top-right), in the amber cartridge-label colour. Exported so every cover badges a
-// hack the same way. It says a game is a hack (borrowing its base's art), not the base.
-export function HackBadge() {
-  return (
-    <span
-      className="absolute left-1.5 top-1.5 rounded-full px-1.5 py-0.5 text-[9px] font-bold leading-none tracking-wider"
-      style={{ background: `rgba(${FROG.amber}, 0.94)`, color: FROG.ground, boxShadow: '0 2px 8px rgba(0,0,0,0.55)' }}
-      title="ROM hack"
-      aria-label="ROM hack"
-    >
-      HACK
-    </span>
-  )
-}
+import { FinishedBadge, HackBadge } from './badges.jsx'
+import Heading from './Heading.jsx'
 import Console from './Console.jsx'
 
 // The shelf: Frog Game Station's home screen.
@@ -93,7 +60,7 @@ function SystemTile({ system, focused, onFocus, onPick }) {
           : FROG.panel,
         border: `1px solid ${focused ? `rgba(${s.accent}, 0.55)` : FROG.line}`,
         boxShadow: focused ? reflection(s.accent) : 'none',
-        transform: focused ? 'scale(1.06)' : 'scale(1)',
+        transform: focused ? `scale(${FOCUS_SCALE})` : 'scale(1)',
         opacity: empty ? 0.35 : 1,
       }}
     >
@@ -132,7 +99,7 @@ function GameCard({ game, focused, finished, hack, onFocus, onPick }) {
         background: FROG.panel,
         border: `1px solid ${focused ? `rgba(${s.accent}, 0.6)` : FROG.line}`,
         boxShadow: focused ? reflection(s.accent) : 'none',
-        transform: focused ? 'scale(1.05)' : 'scale(1)',
+        transform: focused ? `scale(${FOCUS_SCALE})` : 'scale(1)',
       }}
     >
       <div className="relative aspect-[3/4] w-full overflow-hidden" style={{ background: '#000' }}>
@@ -181,7 +148,7 @@ function SeeAllCard({ collection, focused, onFocus, onPick }) {
         background: focused ? `rgba(${FROG.jade}, 0.14)` : FROG.panel,
         border: `1px dashed ${focused ? `rgba(${FROG.jade}, 0.7)` : FROG.line}`,
         boxShadow: focused ? reflection(FROG.jade) : 'none',
-        transform: focused ? 'scale(1.05)' : 'scale(1)',
+        transform: focused ? `scale(${FOCUS_SCALE})` : 'scale(1)',
       }}
     >
       <List className="h-7 w-7" style={{ color: `rgb(${FROG.jade})` }} aria-hidden="true" />
@@ -212,7 +179,7 @@ function SurpriseCard({ focused, onFocus, onPick }) {
         background: focused ? `rgba(${FROG.jade}, 0.14)` : FROG.panel,
         border: `1px dashed ${focused ? `rgba(${FROG.jade}, 0.7)` : FROG.line}`,
         boxShadow: focused ? reflection(FROG.jade) : 'none',
-        transform: focused ? 'scale(1.05)' : 'scale(1)',
+        transform: focused ? `scale(${FOCUS_SCALE})` : 'scale(1)',
       }}
     >
       <Shuffle className="h-7 w-7" style={{ color: `rgb(${FROG.jade})` }} aria-hidden="true" />
@@ -226,18 +193,6 @@ function SurpriseCard({ focused, onFocus, onPick }) {
   )
 }
 
-// A rail heading. Small, wide-tracked, quiet — it labels the row without competing
-// with it.
-function Heading({ children }) {
-  return (
-    <h2
-      className="mb-2 px-1 text-[11px] font-semibold tracking-[0.2em]"
-      style={{ color: FROG.faint, fontFamily: FONT_DISPLAY }}
-    >
-      {children.toUpperCase()}
-    </h2>
-  )
-}
 
 export default function Shelf({ rails, focus, finishedIds, hackIds, onFocus, onPick, padded = false }) {
   const railRefs = useRef([])
@@ -342,7 +297,7 @@ export default function Shelf({ rails, focus, finishedIds, hackIds, onFocus, onP
       <div className={`flex min-w-0 flex-1 flex-col justify-start gap-7 ${padded ? 'lg:justify-start' : 'lg:justify-center'}`}>
         {rails.map((rail, r) => (
           <section key={rail.id}>
-            <Heading>{rail.title}</Heading>
+            <Heading className="px-1">{rail.title}</Heading>
 
             {rail.kind === 'system' ? (
               // Six across, never scrolling — the whole point of the shelf. Two rows

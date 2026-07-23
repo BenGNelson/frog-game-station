@@ -1,6 +1,6 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { ArrowLeft, X, ExternalLink, Search, BookOpen, Loader2, RefreshCw } from 'lucide-react'
-import { FROG, scrim } from '../frog/theme.js'
+import { FROG, scrim, SCRIM } from '../frog/theme.js'
 import { fetchWikiSource, fetchWikiPage, searchWiki, setWikiOverride } from '../lib/wikiApi.js'
 import {
   wikiLinkTarget, isSpeciesTitle, pushPage, goBack, currentPage, canGoBack, startHistory, emptyHistory, nextLinkIndex,
@@ -264,7 +264,7 @@ const WikiPanel = forwardRef(function WikiPanel({
       className="absolute inset-0 z-30 flex flex-col outline-none"
       style={{
         display: open ? 'flex' : 'none',
-        background: scrim(0.96),
+        background: scrim(SCRIM.panel),
         backdropFilter: 'blur(10px)',
         paddingLeft: 'env(safe-area-inset-left)',
         paddingRight: 'env(safe-area-inset-right)',

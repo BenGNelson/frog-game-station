@@ -1,8 +1,8 @@
 import { useEffect, useRef } from 'react'
 import { Play, Save, FastForward, Maximize, Gamepad2, RotateCcw, LogOut, BookOpen, BookMarked, ChevronRight } from 'lucide-react'
 import { moveInGrid } from '../lib/gridNav.js'
-import { FROG, scrim } from '../frog/theme.js'
-import { radiantBackdrop, glowFilter } from '../lib/glow.js'
+import { FROG, scrim, SCRIM, focusRing } from '../frog/theme.js'
+import { radiantBackdrop } from '../lib/glow.js'
 
 // The in-game menu. Replaces EmulatorJS's own bottom bar, which is a strip of
 // small mouse-sized icons that a D-pad can't reach.
@@ -87,7 +87,7 @@ export default function PauseMenu({ open, name, fastForward, canFullscreen, isPo
       onKeyDown={onKeyDown}
       className="absolute inset-0 z-20 touch-auto overflow-y-auto overscroll-contain outline-none backdrop-blur-md"
       style={{
-        background: scrim(0.72),
+        background: scrim(SCRIM.dialog),
         paddingLeft: 'env(safe-area-inset-left)',
         paddingRight: 'env(safe-area-inset-right)',
         paddingBottom: 'env(safe-area-inset-bottom)',
@@ -166,9 +166,7 @@ function MenuRow({ item, focused, onSelect, onHover }) {
       style={{
         background: focused ? `rgba(${FROG.jade}, 0.14)` : FROG.panel,
         borderColor: focused ? `rgba(${FROG.jade}, 0.6)` : FROG.line,
-        boxShadow: focused ? `0 0 0 2px rgba(${FROG.jade}, 0.5)` : 'none',
-        filter: focused ? glowFilter(FROG.jade, 0.55) : undefined,
-        transform: focused ? 'scale(1.02)' : undefined,
+        boxShadow: focused ? focusRing() : 'none',
       }}
     >
       <Icon className="h-6 w-6 shrink-0" style={{ color: iconColor }} aria-hidden="true" />
