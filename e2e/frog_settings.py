@@ -98,6 +98,18 @@ with sync_playwright() as p:
     )
     check(after is not None and after != before, f"a pad Right cycles the input mode ({before} -> {after})")
 
+    # Pond stats: the card's View opens the report; cards render real numbers; B backs
+    # out to Settings.
+    page.locator('[data-testid="frog-stats-open"]').click()
+    page.wait_for_selector('[data-testid="frog-stats"]', timeout=5000)
+    page.wait_for_timeout(400)
+    stats_text = page.inner_text('[data-testid="frog-stats"]')
+    check("The pond" in stats_text, "Pond stats opens with the library card")
+    check("games" in stats_text and "Time in the pond" in stats_text, "and the time card")
+    page.keyboard.press("Escape")
+    page.wait_for_selector('[data-testid="frog-settings"]', timeout=5000)
+    check(page.locator('[data-testid="frog-stats"]').count() == 0, "Escape returns to settings")
+
     # Escape closes back to the shelf.
     page.keyboard.press("Escape")
     page.wait_for_selector('[data-testid="frog"]', timeout=5000)

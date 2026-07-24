@@ -1,4 +1,4 @@
-import { RefreshCw, KeyRound, Gamepad2, Volume2, Hand, HardDrive } from 'lucide-react'
+import { RefreshCw, KeyRound, Gamepad2, Volume2, Hand, HardDrive, BarChart3 } from 'lucide-react'
 import { FROG, focusRing } from './theme.js'
 import { useRipple, Ripples } from './ripple.jsx'
 import { TOUCH_OPACITY_LEVELS, nearestOpacityLevel } from '../lib/playerSettings.js'
@@ -17,7 +17,7 @@ const MODES = [
   { id: 'pad', label: 'Pad' },
 ]
 
-export default function Settings({ status, loading, focus, onFocus, onRescan, rescanBusy, inputMode, onInputMode, navSfx, onNavSfx, touchOpacity, onTouchOpacity, onStorage }) {
+export default function Settings({ status, loading, focus, onFocus, onRescan, rescanBusy, inputMode, onInputMode, navSfx, onNavSfx, touchOpacity, onTouchOpacity, onStorage, onStats }) {
   const configured = !!status?.configured
   const running = !!status?.running
   const canRescan = configured && !running && !rescanBusy
@@ -152,6 +152,24 @@ export default function Settings({ status, loading, focus, onFocus, onRescan, re
             style={{ background: `rgb(${FROG.jade})`, color: FROG.ground }}
           >
             Manage
+          </button>
+        </Card>
+
+        {/* --- Pond stats: the door to the library's report card. --- */}
+        <Card focused={focus === 'stats'} onFocus={() => onFocus('stats')}>
+          <Row icon={<BarChart3 className="h-4 w-4" style={{ color: `rgb(${FROG.jade})` }} aria-hidden="true" />} title="Pond stats" />
+          <p className="mb-3 mt-2 text-sm leading-relaxed" style={{ color: FROG.faint }}>
+            The library looking back at you — totals, time played, most played, and
+            what the pond plays.
+          </p>
+          <button
+            type="button"
+            data-testid="frog-stats-open"
+            onClick={onStats}
+            className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-colors"
+            style={{ background: `rgb(${FROG.jade})`, color: FROG.ground }}
+          >
+            View
           </button>
         </Card>
 

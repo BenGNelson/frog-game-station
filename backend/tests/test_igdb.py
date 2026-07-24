@@ -718,7 +718,7 @@ def test_candidates_endpoint_returns_shortlist_and_current(client):
 def test_candidates_empty_when_no_row(client):
     assert client.get(
         "/api/library/games/meta/candidates", params={"id": "nope.gb"}
-    ).json() == {"candidates": [], "current": None}
+    ).json() == {"candidates": [], "current": None, "confidence": None}
 
 
 def _rematch_env(monkeypatch, fetch=None):

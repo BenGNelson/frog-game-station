@@ -950,7 +950,7 @@ function RematchButton({ matched, focused, accent, onFocus, onClick }) {
 // tappable. Options come from the SHARED `rematchOptions` so the index lines up with the
 // parent's controller nav exactly.
 function RematchDialog({ rematch, native = false, accent, onHover, onPick, onToggleHack, onSearch, onCancel }) {
-  const { candidates, current, index, hack, searchResults = [], searching, error, busy } = rematch
+  const { candidates, current, confidence, index, hack, searchResults = [], searching, error, busy } = rematch
   const panelRef = useRef(null)
   useFocusTrap(panelRef)
   const options = rematchOptions(rematch)
@@ -980,7 +980,9 @@ function RematchDialog({ rematch, native = false, accent, onHover, onPick, onTog
             ? 'No close matches — search for the game by name below.'
             : hack
               ? 'Pick the base game — this ROM borrows its art but keeps its own name and a “hack” badge.'
-              : 'Choose the correct IGDB match, or fall back to the basic page.'}
+              : typeof confidence === 'number'
+                ? `The matcher was ${Math.round(confidence * 100)}% sure — pick the right one, or fall back to the basic page.`
+                : 'Choose the correct IGDB match, or fall back to the basic page.'}
         </p>
 
         {/* The hack toggle (index -1) — flips whether a pick means "this IS the game" or

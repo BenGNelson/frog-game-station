@@ -48,6 +48,8 @@ import FinishToast from './FinishToast.jsx'
 import Search from './Search.jsx'
 import SettingsPanel from './Settings.jsx'
 import StoragePanel from './Storage.jsx'
+import StatsPanel from './Stats.jsx'
+import { buildStats } from './stats.js'
 import GameScreen from './GameScreen.jsx'
 import GameList, { GameListHeader, CollectionListHeader, FacetListHeader } from './GameList.jsx'
 import './frog.css'
@@ -177,6 +179,8 @@ export default function FrogBrowser() {
   // return there). `storageData` is the summarizeStorage view, re-gathered on open and
   // after every removal; `storageAudit` is null | 'busy' | the auditStorage verdict.
   const [storageFocus, setStorageFocus] = useState('verify')
+  // Pond stats — same one-level-under-Settings overlay shape as storage.
+  const [statsFocus, setStatsFocus] = useState('pond')
   const [storageData, setStorageData] = useState(null)
   const [storageAudit, setStorageAudit] = useState(null)
   const [storageRefresh, setStorageRefresh] = useState(0)
@@ -373,6 +377,11 @@ export default function FrogBrowser() {
     () => buildShelf(items, recents, favMarkers, collections),
     [items, recents, favMarkers, collections]
   )
+  // Pond stats, derived only while the screen is up — every source is already here.
+  const stats = useMemo(
+    () => (screen === 'stats' ? buildStats(items, playStatItems, collections, facets) : null),
+    [screen, items, playStatItems, collections, facets]
+  )
   // The 'games' screen's list: a collection's members (naturally sorted, spanning
   // systems) when a tag is open, otherwise the focused system's games.
   const games = useMemo(
@@ -551,7 +560,7 @@ export default function FrogBrowser() {
     const persistScreen =
       screen === 'search'
         ? searchFrom
-        : screen === 'settings' || screen === 'storage' // storage opens from settings, so both resolve the same hop
+        : screen === 'settings' || screen === 'storage' || screen === 'stats' // all open from settings, so they resolve the same hop
           ? settingsFrom
           : screen === 'detail'
             ? detailFrom === 'search'
@@ -689,6 +698,11 @@ export default function FrogBrowser() {
     setConfirm(null)
     setScreen('settings')
   }, [])
+  const openStats = useCallback(() => {
+    setStatsFocus('pond')
+    setScreen('stats')
+  }, [])
+  const closeStats = useCallback(() => setScreen('settings'), [])
   const storageVerify = async () => {
     setStorageAudit('busy')
     try {
@@ -1026,7 +1040,8 @@ export default function FrogBrowser() {
       // the "It's a ROM hack" toggle sits one Up above it (index -1). With no candidates
       // to pick, start on the toggle since it's the only thing to touch.
       setRematch({
-        candidates: cands, current: d.current ?? null, matched, hack: isHack,
+        candidates: cands, current: d.current ?? null, confidence: d.confidence ?? null,
+        matched, hack: isHack,
         searchResults: [], searching: false, query: '',
         index: cands.length ? 0 : -1,
       })
@@ -1256,7 +1271,7 @@ export default function FrogBrowser() {
     // so it rides the app's existing "hold ☰ for the menu" gesture (the same one that
     // opens the pause menu in the player) — plus ',' on a keyboard.
     if (action === 'settingsToggle') {
-      screen === 'settings' ? closeSettings() : screen === 'storage' ? closeStorage() : openSettings()
+      screen === 'settings' ? closeSettings() : screen === 'storage' ? closeStorage() : screen === 'stats' ? closeStats() : openSettings()
       return
     }
 
@@ -1357,7 +1372,7 @@ export default function FrogBrowser() {
     // re-scans; on the segmented rows A / left-right cycle the value; on the storage
     // card A steps into the Downloads & Storage screen. B closes.
     if (screen === 'settings') {
-      const rows = ['igdb', 'inputMode', 'sound', 'touch', 'storage']
+      const rows = ['igdb', 'inputMode', 'sound', 'touch', 'storage', 'stats']
       const idx = rows.indexOf(settingsFocus)
       const modes = ['auto', 'touch', 'pad']
       const cycleMode = (dir) =>
@@ -1388,7 +1403,8 @@ export default function FrogBrowser() {
           else if (settingsFocus === 'inputMode') cycleMode(1)
           else if (settingsFocus === 'sound') setNavSfx(!navSfx)
           else if (settingsFocus === 'touch') stepOpacity(1, true)
-          else openStorage()
+          else if (settingsFocus === 'storage') openStorage()
+          else openStats()
           return
         case 'left':
           if (settingsFocus === 'inputMode') cycleMode(-1)
@@ -1438,6 +1454,17 @@ export default function FrogBrowser() {
         }
         default:
       }
+      return
+    }
+
+    // Pond stats: a read-only card walk — up/down move (which scrolls the focused
+    // card into view), B backs out to Settings. Nothing here commits anything.
+    if (screen === 'stats') {
+      const rows = ['pond', 'time', 'trophies', ...(stats?.genres?.length ? ['genres'] : [])]
+      const idx = Math.max(0, rows.indexOf(statsFocus))
+      if (action === 'back') closeStats()
+      else if (action === 'up') setStatsFocus(rows[Math.max(0, idx - 1)])
+      else if (action === 'down') setStatsFocus(rows[Math.min(rows.length - 1, idx + 1)])
       return
     }
 
@@ -1874,9 +1901,9 @@ export default function FrogBrowser() {
               FROG GAME STATION
               {/* The section is redundant with the screen itself, so it only rides along
                   where there's room — hidden on a phone so the name never truncates. */}
-              {(screen === 'search' || screen === 'settings' || screen === 'storage') && (
+              {(screen === 'search' || screen === 'settings' || screen === 'storage' || screen === 'stats') && (
                 <span className="hidden sm:inline">
-                  {screen === 'search' ? ' · SEARCH' : screen === 'settings' ? ' · SETTINGS' : ' · STORAGE'}
+                  {screen === 'search' ? ' · SEARCH' : screen === 'settings' ? ' · SETTINGS' : screen === 'storage' ? ' · STORAGE' : ' · STATS'}
                 </span>
               )}
             </span>
@@ -1930,7 +1957,7 @@ export default function FrogBrowser() {
           {/* Settings — a header entry point (there's no dedicated pad button for it,
               so the gear is how both thumb and cursor reach it). Hidden on the overlay
               screens that own the ✕. */}
-          {screen !== 'search' && screen !== 'detail' && screen !== 'settings' && screen !== 'storage' && (
+          {screen !== 'search' && screen !== 'detail' && screen !== 'settings' && screen !== 'storage' && screen !== 'stats' && (
             <button
               onClick={openSettings}
               className="rounded-full p-2"
@@ -1948,6 +1975,7 @@ export default function FrogBrowser() {
                 else if (screen === 'detail') closeDetail()
                 else if (screen === 'settings') closeSettings()
                 else if (screen === 'storage') closeStorage()
+                else if (screen === 'stats') closeStats()
                 else if (screen === 'games') setScreen('shelf')
               }}
               className="rounded-full p-2"
@@ -1961,7 +1989,9 @@ export default function FrogBrowser() {
                       ? 'Close settings'
                       : screen === 'storage'
                         ? 'Close storage'
-                        : 'Back to the shelf'
+                        : screen === 'stats'
+                          ? 'Close stats'
+                          : 'Back to the shelf'
               }
             >
               <X className="h-5 w-5" aria-hidden="true" />
@@ -2021,6 +2051,7 @@ export default function FrogBrowser() {
           touchOpacity={touchOpacity}
           onTouchOpacity={setTouchOpacity}
           onStorage={openStorage}
+          onStats={openStats}
         />
       ) : screen === 'storage' ? (
         <StoragePanel
@@ -2035,6 +2066,8 @@ export default function FrogBrowser() {
           onConfirmYes={storageConfirmYes}
           onConfirmNo={() => setConfirm(null)}
         />
+      ) : screen === 'stats' && stats ? (
+        <StatsPanel stats={stats} focus={statsFocus} onFocus={setStatsFocus} />
       ) : screen === 'detail' && detailGame ? (
         <GameScreen
           game={detailGame}
@@ -2254,6 +2287,11 @@ export default function FrogBrowser() {
                         { button: 'B', label: 'Back' },
                         { button: 'D-pad', label: 'Move' },
                       ]
+                : screen === 'stats'
+                  ? [
+                      { button: 'B', label: 'Back' },
+                      { button: 'D-pad', label: 'Move' },
+                    ]
                 : screen === 'games'
                   ? [
                       { button: 'A', label: 'Open' },

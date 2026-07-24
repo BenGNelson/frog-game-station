@@ -132,11 +132,18 @@ Open items carry an inline tag; completed (`[x]`) items are left untagged — th
       hacks included) and `facetGames` hydration. *Smart shelf rails deliberately not
       added — shelf space stays curated (the same reasoning that removed the Finished
       rail); facets are navigation, not furniture.*
-- [ ] **[P2] Stats screen.** A "Pond stats" overlay: total playtime, most played,
-      % finished per system, library counts/sizes. One aggregate endpoint — the data all
-      exists. Keep it frog-themed.
-- [ ] **[P3] Show match confidence.** `igdb_meta.confidence` is stored, never shown;
-      surface it in the "Wrong game?" flow so low-confidence matches are findable.
+- [x] **Stats screen.** Shipped: **Pond stats** (Settings → a card → View, or the
+      settings row walk): four cards — *The pond* (game count, bytes, per-system
+      spread), *Time in the pond* (total playtime, sessions, most-played top 5),
+      *Trophies* (finished + % of library, favorites), *What the pond plays* (genre
+      spread) — each list a quiet proportion bar, the mascot signing the report.
+      *No new endpoint needed:* every number derives client-side (`frog/stats.js`,
+      pure + tested) from data the browser already fetches (items, play-stats,
+      collections, facets).
+- [x] **Show match confidence.** Shipped: the candidates payload now carries the
+      stored score for AUTO matches (a manual pick is the user's word — no score),
+      and the "Wrong game?" picker's subhead reads "The matcher was 87% sure — pick
+      the right one…" so a shaky match announces itself.
 
 ### v2.0 — "The disc era" (NDS, N64, PS1, PSP)
 

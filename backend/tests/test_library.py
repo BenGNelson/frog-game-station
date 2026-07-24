@@ -298,6 +298,26 @@ def test_facets_empty_db_is_empty_maps(client):
     assert out == {"genres": {}, "franchises": {}}
 
 
+# --- match confidence on the candidates payload -----------------------------
+
+def test_candidates_carry_auto_match_confidence(client):
+    db.upsert_igdb_meta("a.gb", {"matched": 1, "igdb_id": 7, "name": "A", "source": "auto",
+                                 "confidence": 0.87, "candidates": [{"id": 7, "name": "A"}]})
+    out = client.get("/api/library/games/meta/candidates", params={"id": "a.gb"}).json()
+    assert out["confidence"] == 0.87
+    assert out["current"] == 7
+
+
+def test_candidates_hide_confidence_for_manual_and_unmatched(client):
+    # A manual pick is the user's word — no score. An unmatched row has no match to score.
+    db.upsert_igdb_meta("m.gb", {"matched": 1, "igdb_id": 9, "name": "M", "source": "manual",
+                                 "confidence": 0.5, "candidates": []})
+    assert client.get("/api/library/games/meta/candidates", params={"id": "m.gb"}).json()["confidence"] is None
+    db.upsert_igdb_meta("u.gb", {"matched": 0, "source": "auto", "confidence": 0.4})
+    assert client.get("/api/library/games/meta/candidates", params={"id": "u.gb"}).json()["confidence"] is None
+    assert client.get("/api/library/games/meta/candidates", params={"id": "none.gb"}).json()["confidence"] is None
+
+
 # --- collections: finished flag + tags -------------------------------------
 
 def test_set_finished_toggles_and_clears():

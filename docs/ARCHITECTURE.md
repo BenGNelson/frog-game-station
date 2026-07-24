@@ -485,6 +485,16 @@ airplane mode fills in the full library by itself when the network returns. Laun
 downloaded game offline hands off to the player exactly as online — it boots from the
 cached ROM and engine.
 
+**Pond stats** (`frog/Stats.jsx`, opened from Settings) is the library's report card —
+The pond (counts/bytes/per-system spread), Time in the pond (playtime, sessions, most
+played), Trophies (finished %, favorites), and the genre spread, each list a quiet
+proportion bar with the mascot signing off. Deliberately **no aggregate endpoint**:
+every number is pure client-side derivation (`frog/stats.js`) over data the browser
+already fetched (items, play-stats, collections, facets) — testable without a DOM, and
+nothing new to keep consistent server-side. The "Wrong game?" picker also now shows the
+auto-matcher's stored **confidence** ("The matcher was 87% sure…") — a manual pick shows
+no score, since it's the user's word.
+
 **Downloads & Storage** (`frog/Storage.jsx`, opened from Settings) is the UI over the
 offline store's accounting layer (`lib/offlineStore.js`). Three zones: an **"On this
 device" breakdown** that reconciles the browser's own `storage.estimate()` figure against

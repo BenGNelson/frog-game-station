@@ -624,11 +624,17 @@ def rescan_game_meta():
 @router.get("/library/games/meta/candidates")
 def get_game_meta_candidates(id: str = Query(description="Game id from the section listing")):
     """The IGDB match candidates the matcher shortlisted for this game (id + name +
-    year), plus which one is currently chosen — feeds the 'Wrong game?' picker."""
+    year), plus which one is currently chosen and — for an AUTO match — how sure the
+    matcher was (0..1), so the picker can say "87% sure" instead of implying
+    certainty. A manual pick is the user's word: no score shown."""
     row = db.get_igdb_meta(id)
     if not row:
-        return {"candidates": [], "current": None}
-    return {"candidates": row.get("candidates") or [], "current": row.get("igdb_id")}
+        return {"candidates": [], "current": None, "confidence": None}
+    return {
+        "candidates": row.get("candidates") or [],
+        "current": row.get("igdb_id"),
+        "confidence": row.get("confidence") if row.get("source") == "auto" and row.get("matched") else None,
+    }
 
 
 @router.get("/library/games/meta/search")
