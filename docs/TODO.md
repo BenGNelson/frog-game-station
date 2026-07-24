@@ -184,6 +184,18 @@ shape:
       COOP/COEP headers on the whole origin, which conflicts with YouTube trailer embeds.
       Couch-only if it ships at all; explicitly cuttable.
 
+### Known issues (backlogged)
+
+- [ ] **[P3] N64: a ~1/3-inch green-black strip at the bottom of the screen (Ben can
+      live with it).** Three fixes attempted, none landed, so the diagnosis is still
+      open: (1) player swaps theme-color to black — no change; (2) the player wrapper
+      was already bg-black with safe-area padding; (3) mupen64plus overscan crop
+      (OverscanBottom=12, kept — harmless and standard) — no change. Never reproduces
+      headlessly (software GL renders those regions clean black). Next diagnostic
+      step when it itches: which device/browser it appears on + a photo of the strip,
+      then bisect between iOS PWA letterbox chrome (manifest background_color is the
+      pond green `#0b1512` — a suspect if it's the iPad) vs in-frame rendering.
+
 ### Process
 
 - [ ] **[P2] Decide the versioning rhyme-and-reason.** The tags so far (1.0.0 release,
