@@ -125,12 +125,21 @@ reachable from anywhere. The shape of them is the design:
     strip; the cover, title, summary, genres, rating, and developer/publisher sit over
     it). **Clicking the banner (or A) opens the shots fullscreen** — a controller-drivable
     lightbox you can peek through in the background. The crossfade is opacity-only and
-    pauses under reduced-motion or while the lightbox is open. Focus zones stack
+    pauses under reduced-motion or while the lightbox or trailer overlay is open. Focus zones stack
     vertically — hero → actions → save list → **"More like this"** — and up/down cross
     between whichever are present (left/right walk within the actions row and the similar
     rail). When IGDB *hasn't* matched (a ROM hack, or no key configured) the page
     **degrades to exactly the basic cover-and-name layout**, so nothing ever looks broken.
-  - **"More like this" is IGDB's own similar-games list, intersected with what you own.**
+  - **Trailers play in-app** (`frog/Trailer.jsx`). IGDB's videos (YouTube ids, cached with
+    the match) surface as a **Trailer** action at the end of the actions row — only when
+    videos exist AND the network probe says online (a trailer button that can't stream is
+    a lie, so offline it simply isn't there, and the focus row clamps). It opens a
+    fullscreen overlay on the screenshot lightbox's exact contract — ◀ ▶ switch videos, B
+    or ✕ closes, input trapped in FrogBrowser while open, hero crossfade paused — around
+    a 16:9 **`www.youtube-nocookie.com` embed**: the privacy-enhanced YouTube domain, and
+    the ONE named external frame source in nginx's app-shell CSP (`frame-src`). The
+    embed URL builder is pure and unit-tested (id URL-encoded so it can't escape the
+    path).
     IGDB returns each game's similar-game ids; the backend keeps only the ROMs in your
     library (`db.owned_by_igdb_ids`, an `igdb_id IN (…)` reverse lookup) and returns them on
     the meta response in IGDB's relevance order. So every tile is a game you can actually

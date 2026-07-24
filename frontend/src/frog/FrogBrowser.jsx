@@ -211,6 +211,8 @@ export default function FrogBrowser() {
   const [meta, setMeta] = useState(null)
   // A screenshot opened fullscreen: its index into meta.screenshot_ids, or null.
   const [lightbox, setLightbox] = useState(null)
+  // The trailer overlay: an index into the game's IGDB videos, or null when closed.
+  const [trailer, setTrailer] = useState(null)
   // The game hero's active background screenshot — it slowly crossfades on its own
   // (and the D-pad can peek). Owned here so the auto-advance pauses while the lightbox
   // is open and resets when you open a different game.
@@ -384,6 +386,12 @@ export default function FrogBrowser() {
   // The screenshots the game screen shows (only when IGDB matched this game). Drives
   // both the strip's focus range and the fullscreen lightbox.
   const shots = meta?.matched ? meta.screenshot_ids ?? [] : []
+  // The game's IGDB trailers — gated on the live-network probe, because the button
+  // opens a YouTube embed and an offline "Trailer" that spins forever is worse than
+  // no button. Empty ⇒ the action and its focus slot simply don't exist.
+  const trailerVideos = online && meta?.matched ? meta.videos ?? [] : []
+  // The actions row's last index: Play / Favorite / Download / Finished, + Trailer.
+  const actionsMax = trailerVideos.length ? 4 : 3
   // "More like this": IGDB's similar-game ids for the open game, re-hydrated against
   // the live library (same pattern as the shelf's recents/favorites) so a tile is
   // always a real, playable game with the library's own name — and games that have
@@ -434,11 +442,11 @@ export default function FrogBrowser() {
   // lightbox is open (you're looking at one) and under reduced-motion (leave it still).
   // Local UI churn only — it never refetches, so it can't disturb scroll/data.
   useEffect(() => {
-    if (screen !== 'detail' || lightbox !== null || shots.length < 2) return
+    if (screen !== 'detail' || lightbox !== null || trailer !== null || shots.length < 2) return
     if (window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches) return
     const t = setInterval(() => setHeroSlide((i) => (i + 1) % shots.length), 5000)
     return () => clearInterval(t)
-  }, [screen, lightbox, shots.length])
+  }, [screen, lightbox, trailer, shots.length])
 
   useEffect(() => {
     if (screen === 'boot') return
@@ -671,6 +679,7 @@ export default function FrogBrowser() {
     setDetailFocus({ zone: 'actions', index: 0 })
     setConfirm(null)
     setLightbox(null)
+    setTrailer(null)
     setRematch(null)
     setTagPicker(null)
     setSaveEditor(null)
@@ -687,6 +696,7 @@ export default function FrogBrowser() {
   const closeDetail = () => {
     setConfirm(null)
     setLightbox(null)
+    setTrailer(null)
     setRematch(null)
     setTagPicker(null)
     setSaveEditor(null)
@@ -978,7 +988,9 @@ export default function FrogBrowser() {
   // Clamp the index and, when a zone empties, hand the cursor to the nearest one above.
   useEffect(() => {
     setDetailFocus((f) => {
-      if (f.zone === 'actions') return f
+      // The Trailer button (index 4) can vanish under the cursor — meta re-resolving,
+      // or the network dropping — so the actions row clamps like the lists do.
+      if (f.zone === 'actions') return f.index <= actionsMax ? f : { zone: 'actions', index: actionsMax }
       if (f.zone === 'tags') return { zone: 'tags', index: 0 } // always present, single target
       // The hero / base / fix controls are single targets; if they went away, fall to actions.
       if (f.zone === 'hero') return shots.length ? { zone: 'hero', index: 0 } : { zone: 'actions', index: 0 }
@@ -993,7 +1005,7 @@ export default function FrogBrowser() {
       if (saves.length === 0) return { zone: 'actions', index: 0 }
       return f.index < saves.length ? f : { zone: 'saves', index: saves.length - 1 }
     })
-  }, [saves, shots.length, detailBaseId, canRematch, similar.length])
+  }, [saves, shots.length, detailBaseId, canRematch, similar.length, actionsMax])
 
   // Append a key, but only if it keeps the list alive — the same dead-key rule the
   // grid dims by, enforced here so you physically cannot type into an empty result
@@ -1035,6 +1047,15 @@ export default function FrogBrowser() {
       if (action === 'left') setLightbox((i) => Math.max(0, i - 1))
       else if (action === 'right') setLightbox((i) => Math.min(shots.length - 1, i + 1))
       else if (action === 'back' || action === 'confirm') setLightbox(null)
+      return
+    }
+
+    // The fullscreen trailer, same trap: left/right switch videos, B closes. A is left
+    // to the embedded player (play/pause lives inside the frame, not with us).
+    if (screen === 'detail' && trailer !== null) {
+      if (action === 'left') setTrailer((i) => Math.max(0, i - 1))
+      else if (action === 'right') setTrailer((i) => Math.min(trailerVideos.length - 1, i + 1))
+      else if (action === 'back') setTrailer(null)
       return
     }
 
@@ -1332,7 +1353,8 @@ export default function FrogBrowser() {
             if (f.index === 0) play(detailGame)
             else if (f.index === 1) toggleFav()
             else if (f.index === 2) startOrRemoveDownload()
-            else toggleFinished()
+            else if (f.index === 3) toggleFinished()
+            else if (trailerVideos.length) setTrailer(0)
           } else if (f.zone === 'tags') {
             setTagPicker({ index: native ? 0 : -1 })
           } else if (f.zone === 'similar') {
@@ -1358,7 +1380,7 @@ export default function FrogBrowser() {
           return
         case 'right':
           if (f.zone === 'hero') setHeroSlide((i) => (i + 1) % shots.length)
-          else if (f.zone === 'actions') setDetailFocus((p) => ({ zone: 'actions', index: Math.min(3, p.index + 1) }))
+          else if (f.zone === 'actions') setDetailFocus((p) => ({ zone: 'actions', index: Math.min(actionsMax, p.index + 1) }))
           else if (f.zone === 'similar') setDetailFocus((p) => ({ zone: 'similar', index: Math.min(similar.length - 1, p.index + 1) }))
           return
         case 'up':
@@ -1954,6 +1976,13 @@ export default function FrogBrowser() {
           onLightboxNav={(dir) =>
             setLightbox((i) => Math.max(0, Math.min(shots.length - 1, i + dir)))
           }
+          videos={trailerVideos}
+          trailer={trailer}
+          onOpenTrailer={() => setTrailer(0)}
+          onCloseTrailer={() => setTrailer(null)}
+          onTrailerNav={(dir) =>
+            setTrailer((i) => Math.max(0, Math.min(trailerVideos.length - 1, i + dir)))
+          }
           onConfirmYes={confirmYes}
           onConfirmNo={() => setConfirm(null)}
         />
@@ -2035,6 +2064,11 @@ export default function FrogBrowser() {
                   ? [
                       { button: 'B', label: 'Close' },
                       { button: 'D-pad', label: 'Browse' },
+                    ]
+                  : trailer !== null
+                  ? [
+                      { button: 'B', label: 'Close' },
+                      ...(trailerVideos.length > 1 ? [{ button: 'D-pad', label: 'Videos' }] : []),
                     ]
                   : rematch
                     ? [

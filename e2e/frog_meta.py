@@ -36,7 +36,7 @@ RICH = {
     "genres": ["Adventure", "Puzzle"],
     "cover_image_id": "covtest",
     "screenshot_ids": ["shotA", "shotB", "shotC"],
-    "videos": [],
+    "videos": [{"id": "vid001", "name": "Trailer"}, {"id": "vid002", "name": "Gameplay video"}],
 }
 
 
@@ -82,9 +82,16 @@ with sync_playwright() as p:
     )
     page.route("**/api/library/games/meta*", meta_route)
     page.route("**/api/library/games/screenshot*", shot_route)
+    # YouTube is external — serve the embed a stub document so the trailer check is
+    # deterministic and runs with no internet. The CSP allows the domain; we just
+    # never actually fetch it in the test.
+    page.route("**://www.youtube-nocookie.com/**", lambda r: r.fulfill(body="<html></html>", content_type="text/html"))
 
     # --- rich pass -----------------------------------------------------------
-    page.goto(f"{BASE}/frog", wait_until="networkidle")
+    resp = page.goto(f"{BASE}/frog", wait_until="networkidle")
+    csp = (resp.headers or {}).get("content-security-policy", "")
+    if csp:  # prod nginx sets it; the dev server doesn't
+        check("www.youtube-nocookie.com" in csp, "the CSP names the trailer embed domain")
     drill_to_game(page)
     check(True, "picking a matched game opens its rich page")
 
@@ -105,6 +112,22 @@ with sync_playwright() as p:
     page.wait_for_selector('[data-testid="frog-lightbox"]', state="detached", timeout=4000)
     check(True, "the gallery closes")
 
+    # The Trailer action (IGDB brought videos): opens the fullscreen embed, the
+    # arrow pages to the next video, Escape closes.
+    trailer_btn = page.locator('[data-testid="frog-detail-trailer"]')
+    check(trailer_btn.count() == 1, "the Trailer action renders when meta has videos")
+    trailer_btn.click(force=True)
+    page.wait_for_selector('[data-testid="frog-trailer"]', timeout=4000)
+    frame_src = page.locator('[data-testid="frog-trailer"] iframe').get_attribute("src") or ""
+    check("youtube-nocookie.com/embed/vid001" in frame_src, "the embed plays the first video")
+    page.locator('[aria-label="Next video"]').click()
+    page.wait_for_timeout(200)
+    frame_src = page.locator('[data-testid="frog-trailer"] iframe').get_attribute("src") or ""
+    check("embed/vid002" in frame_src, "the arrow pages to the next video")
+    page.keyboard.press("Escape")
+    page.wait_for_selector('[data-testid="frog-trailer"]', state="detached", timeout=4000)
+    check(True, "the trailer closes")
+
     page.screenshot(path=os.environ.get("SHOT", "/work/frog_meta.png"), full_page=False)
 
     # --- degrade pass: an unmatched game falls back to the basic page --------
@@ -118,6 +141,10 @@ with sync_playwright() as p:
     check(
         page.locator('[data-testid="frog-detail-play"]').count() == 1,
         "the unmatched game still shows the basic page (Play present)",
+    )
+    check(
+        page.locator('[data-testid="frog-detail-trailer"]').count() == 0,
+        "no Trailer action without videos",
     )
 
     context.close()

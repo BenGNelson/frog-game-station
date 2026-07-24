@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   Play, Star, Download, Check, Trash2, TriangleAlert, Loader, X, ChevronLeft, ChevronRight,
-  Maximize2, RefreshCw, Trophy, Tag, Plus, Pin, Pencil, Search,
+  Maximize2, RefreshCw, Trophy, Tag, Plus, Pin, Pencil, Search, Clapperboard,
 } from 'lucide-react'
 import { rematchOptions } from './rematch.js'
 import { coverUrl, saveStateShotUrl, igdbShotUrl } from '../lib/library.js'
@@ -15,6 +15,7 @@ import { SystemFrog, Reflected } from './Frog.jsx'
 import { FinishedBadge, HackBadge, HackTag } from './badges.jsx'
 import { agoLabel } from './shelf.js'
 import Keyboard from './Keyboard.jsx'
+import TrailerOverlay from './Trailer.jsx'
 
 // FROG GAME STATION — a game's page.
 //
@@ -80,6 +81,11 @@ export default function GameScreen({
   onOpenShot,
   onCloseLightbox,
   onLightboxNav,
+  videos = [],
+  trailer = null,
+  onOpenTrailer,
+  onCloseTrailer,
+  onTrailerNav,
   onOpenRematch,
   onRematchHover,
   onRematchPick,
@@ -160,6 +166,21 @@ export default function GameScreen({
       >
         <Trophy className="h-5 w-5" fill={finished ? 'currentColor' : 'none'} aria-hidden="true" />
       </ActionButton>
+
+      {/* Trailer — only when IGDB brought videos AND we're online (FrogBrowser passes
+          an empty list offline; a button to a player that can't load is a lie). */}
+      {videos.length > 0 && (
+        <ActionButton
+          focused={on('actions', 4)}
+          onFocus={() => onFocus('actions', 4)}
+          onClick={onOpenTrailer}
+          accent={FROG.jade}
+          label="Trailer"
+          testid="frog-detail-trailer"
+        >
+          <Clapperboard className="h-5 w-5" aria-hidden="true" />
+        </ActionButton>
+      )}
     </div>
   )
 
@@ -326,6 +347,16 @@ export default function GameScreen({
           index={lightbox}
           onClose={onCloseLightbox}
           onNav={onLightboxNav}
+        />
+      )}
+
+      {trailer !== null && videos[trailer] && (
+        <TrailerOverlay
+          gameName={game.name}
+          videos={videos}
+          index={trailer}
+          onClose={onCloseTrailer}
+          onNav={onTrailerNav}
         />
       )}
 

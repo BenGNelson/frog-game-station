@@ -32,7 +32,7 @@ It has a hand-drawn **frog mascot** and a **WATER / jade dark theme** — a pond
 ## Features
 
 - **Console-style, not a wall of boxes** — boot → shelf → per-system list → game page, search anywhere. The shelf opens on "Jump back in," so most sessions skip the alphabet; hit "Surprise me" for a random pick.
-- **Rich game pages** — a background matcher pulls IGDB art, screenshots, summary, genres, and rating, and suggests **similar titles you *actually own*.** Unmatched ROMs still get a clean cover-and-title page — nothing looks broken.
+- **Rich game pages** — a background matcher pulls IGDB art, screenshots, summary, genres, and rating, and suggests **similar titles you *actually own*.** A **Trailer** button plays the game's videos fullscreen in-app (privacy-friendly YouTube no-cookie embed; hidden offline). Unmatched ROMs still get a clean cover-and-title page — nothing looks broken.
 - **Collections** — sort your library into free-form rails that follow you from couch to phone.
 - **Progress that sticks** — play-time is clocked per game, and a **finished** flag badges the ones you've beaten (with a little mascot cheer when you mark one done).
 - **ROM-hack aware, with your own covers** — tag a hack of a base game and it borrows the base's art, keeps its own name, wears a **HACK** badge, and links back; or grab a frame mid-game as custom box art for any hack or unmatched title.

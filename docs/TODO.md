@@ -53,10 +53,12 @@ Open items carry an inline tag; completed (`[x]`) items are left untagged — th
       only when something escapes), every downloaded game listed with size + age and
       removable behind the shared confirm gate, **Verify storage** (the manifest↔cache
       audit), and **Remove all**. Fully controller-navigable with its own legend hints.
-- [ ] **[P1] Trailer on the game page.** `GameMetaModel.videos` (YouTube trailer ids) is
-      fetched, stored, and returned — rendered nowhere. A "Trailer" action on
-      `GameScreen.jsx` when present; embed in a lightbox (screenshot-lightbox pattern);
-      hidden offline.
+- [x] **Trailer on the game page.** Shipped: `GameMetaModel.videos` finally renders — a
+      **Trailer** action (end of the actions row, only when videos exist and the network
+      probe says online) opens `frog/Trailer.jsx`, a fullscreen overlay on the screenshot
+      lightbox's contract (◀ ▶ switch videos, B/✕ close, input trapped, hero crossfade
+      paused) around a 16:9 `www.youtube-nocookie.com` embed — the one named external
+      frame source added to nginx's app-shell CSP.
 - [ ] **[P1] Cross-device recents & favorites.** `recentGames.js` ("for now") and
       `favorites.js` are localStorage-only while saves/SRAM/playtime roam. Derive recents
       from the server's existing progress/playtime data; store favorites as a reserved tag
