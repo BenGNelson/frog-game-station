@@ -82,12 +82,22 @@ import ButtonLegend from './ButtonLegend.jsx'
 import RotatePrompt from './RotatePrompt.jsx'
 import TouchOverlay from './TouchOverlay.jsx'
 import { portraitGameHeight } from '../lib/touchLayouts.js'
+import { LARGE_ROM_BYTES } from '../lib/library.js'
 
 // How long the frog is up for, at minimum, and how long its exit takes. The exit
 // number must match .frog-boot[data-phase='done'] in frog.css — the animation plays,
 // then the element goes.
 const BOOT_MS = 1100
 const BOOT_OUT_MS = 900
+
+// The load watchdog. A cached small ROM starts in ~300ms; a 400 MB disc image over
+// wifi can legitimately take a while — so this is generous. Past it, the engine has
+// not fired its start event and it never will (the classic case: a disc/DS ROM too
+// big for a phone/tablet browser's per-tab memory — the tab silently dies mid-load).
+// Rather than the frog hanging forever, surface an honest failure with guidance.
+const LOAD_WATCHDOG_MS = 75_000
+
+
 
 // The game player. Hosts the emulator iframe and everything layered over it.
 //
@@ -174,6 +184,7 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
   // booting), `booted` = the engine is live, `bootDone` = the frog is taking its bow.
   const [bootAt, setBootAt] = useState(null)
   const [booted, setBooted] = useState(false)
+  const [loadFailed, setLoadFailed] = useState(false)
   const [bootDone, setBootDone] = useState(false)
 
   // The save-state shelf, layered over the pause menu.
@@ -349,6 +360,15 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
       clearTimeout(hop)
       clearTimeout(gone)
     }
+  }, [bootAt, booted])
+
+  // The load watchdog: if the frog has been up past the timeout and the game still
+  // hasn't started, it's not going to. Stop hanging and say so. Cleared the instant
+  // the game boots (booted flips true), so a slow-but-successful load never trips it.
+  useEffect(() => {
+    if (!bootAt || booted) return
+    const t = setTimeout(() => setLoadFailed(true), LOAD_WATCHDOG_MS)
+    return () => clearTimeout(t)
   }, [bootAt, booted])
 
   // Suppress the engine's own UI: its bottom bar and context menu always (the HQ
@@ -1435,7 +1455,29 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
         </button>
       )}
 
-      {bootAt && <FrogBoot system={label || systemForCore(core)} done={bootDone} />}
+      {bootAt && !loadFailed && <FrogBoot system={label || systemForCore(core)} done={bootDone} />}
+
+      {loadFailed && (
+        <div
+          className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-4 p-8 text-center"
+          style={{ background: FROG.ground, color: FROG.ink }}
+        >
+          <p className="text-lg font-semibold">This game didn’t load.</p>
+          <p className="max-w-sm text-sm leading-relaxed" style={{ color: FROG.soft }}>
+            {Number(size) >= LARGE_ROM_BYTES
+              ? 'Big 3D and disc games can be too large for a phone or tablet’s browser to hold in memory. This one plays best on a computer or TV.'
+              : 'The emulator didn’t start. Try again, or play it on a computer or TV.'}
+          </p>
+          <button
+            type="button"
+            onClick={exit}
+            className="rounded-full px-5 py-2.5 text-sm font-semibold"
+            style={{ background: `rgb(${FROG.jade})`, color: FROG.ground }}
+          >
+            Back
+          </button>
+        </div>
+      )}
 
       <div className="relative min-h-0 w-full flex-1">
         <iframe

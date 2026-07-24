@@ -23,6 +23,13 @@ export function sectionAccent(key) {
 // 'https://cdn.emulatorjs.org/4.2.3/data/'. emulator.html allowlists both forms.
 export const EMULATORJS_DATA = '/emulatorjs/'
 
+// Above this, a ROM is "large" — the range where a phone/tablet browser can run out
+// of memory just LOADING it (every disc image and the big DS carts; cartridge systems
+// and the small DS games sit well under it). Drives the game-page heads-up and the
+// player's load-failure message. The exact cliff is device-specific, so this is set
+// high enough not to cry wolf on games that actually run.
+export const LARGE_ROM_BYTES = 300 * 1024 * 1024
+
 // The engine's loader script, under the configured base. When the base is a local
 // path (the self-hosted default), the app can HEAD this to detect an engine that
 // hasn't been fetched yet (scripts/fetch-emulatorjs.sh) and show a friendly notice

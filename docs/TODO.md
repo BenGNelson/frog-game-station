@@ -196,6 +196,20 @@ shape:
 
 ### Known issues (backlogged)
 
+- [ ] **[P2] Large ROMs (disc images + big DS carts) can't load on iOS Safari.**
+      Confirmed on the iPad: a 459 MB PS1 `.chd` and a 512 MB DS `.nds` both die —
+      the tab hits WebKit's per-tab memory ceiling loading the ROM into the WASM heap
+      (the transient double-copy during load ~doubles it). Both boot fine on desktop
+      Chrome (proven headlessly), so it's a hard platform limit, not a bug. **Shipped
+      mitigations** (2026-07-24): a **load watchdog** turns the infinite frog-hang into
+      an honest "this game didn't load — plays best on a computer or TV" after 75s, and
+      the game page shows a **large-game heads-up** on touch devices (ROM ≥
+      `LARGE_ROM_BYTES` = 300 MB). Not solved (can't be, easily): actually PLAYING these
+      on iOS. Possible future angles if it matters — a smaller-footprint core, or
+      accepting these as couch/desktop-only and gating them out of the phone UI.
+      Calibrate the 300 MB threshold once Ben tests medium DS games (Chrono Trigger
+      128 MB, Mario Kart DS 32 MB should be fine) on the actual iPad.
+
 - [ ] **[P3] N64: a ~1/3-inch green-black strip at the bottom of the screen (Ben can
       live with it).** Three fixes attempted, none landed, so the diagnosis is still
       open: (1) player swaps theme-color to black — no change; (2) the player wrapper

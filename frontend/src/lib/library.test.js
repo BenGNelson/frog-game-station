@@ -9,6 +9,7 @@ import {
   naturalCompare,
   sectionAccent,
   gameOfflineUrls,
+  LARGE_ROM_BYTES,
   systemGames,
   letterOf,
   gameMetaUrl,
@@ -176,5 +177,14 @@ describe('engine detection', () => {
   })
   it('reports the default (self-hosted) base as local', () => {
     expect(engineIsLocal()).toBe(true)
+  })
+})
+
+describe('LARGE_ROM_BYTES', () => {
+  it('sits above cartridge/small-DS ROMs and below disc images', () => {
+    expect(26 * 1024 * 1024).toBeLessThan(LARGE_ROM_BYTES) // a big GBA hack
+    expect(128 * 1024 * 1024).toBeLessThan(LARGE_ROM_BYTES) // Chrono Trigger DS
+    expect(400 * 1024 * 1024).toBeGreaterThan(LARGE_ROM_BYTES) // a PS1 disc
+    expect(512 * 1024 * 1024).toBeGreaterThan(LARGE_ROM_BYTES) // a big DS cart
   })
 })
