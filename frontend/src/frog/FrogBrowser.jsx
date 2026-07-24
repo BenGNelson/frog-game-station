@@ -7,7 +7,7 @@ import { useDownloadedEntries } from '../lib/useDownloaded.js'
 import { useDownload } from '../lib/useDownload.js'
 import {
   systemGames, gameOfflineUrls, saveStatesUrl, gameMetaUrl, gameCandidatesUrl, gameMetaSearchUrl,
-  postGameMatch, GAME_META_STATUS_PATH, fetchPlayStats, postMetaRescan, fetchContinue,
+  postGameMatch, GAME_META_STATUS_PATH, fetchPlayStats, postMetaRescan, fetchContinue, fetchFacets,
 } from '../lib/library.js'
 import { rematchOptions } from './rematch.js'
 import { readSettings, writeSettings, TOUCH_OPACITY_LEVELS, nearestOpacityLevel } from '../lib/playerSettings.js'
@@ -37,7 +37,7 @@ import Caustics from './Caustics.jsx'
 import Screensaver from './Screensaver.jsx'
 import { LilyPads, Firefly, Dragonfly } from './pond.jsx'
 import { useDozing } from '../lib/dayNight.js'
-import { buildShelf, hydrate, stepLetter, collectionGames } from './shelf.js'
+import { buildShelf, hydrate, stepLetter, collectionGames, facetGames } from './shelf.js'
 import { searchGames, suggestedSearches, matches, KEYS, gridMove } from './search.js'
 import { ROWS as KB_ROWS, keyAt, moveKey, applyKey, appendChar, deleteChar } from '../lib/keyboard.js'
 import Frog, { FrogMark, Reflected } from './Frog.jsx'
@@ -49,7 +49,7 @@ import Search from './Search.jsx'
 import SettingsPanel from './Settings.jsx'
 import StoragePanel from './Storage.jsx'
 import GameScreen from './GameScreen.jsx'
-import GameList, { GameListHeader, CollectionListHeader } from './GameList.jsx'
+import GameList, { GameListHeader, CollectionListHeader, FacetListHeader } from './GameList.jsx'
 import './frog.css'
 
 // FROG GAME STATION — the games browser.
@@ -83,7 +83,7 @@ const SAVER_IDLE_MS = 3 * 60 * 1000
 // replay the whole boot animation, ask you to PRESS A again, and dump you back on
 // rail zero — having forgotten which system you were three hundred games into. The
 // boot is once per app open; your place survives a session.
-const place = { booted: false, screen: 'shelf', system: null, collection: null, focus: { rail: 0, index: 0 }, row: 0 }
+const place = { booted: false, screen: 'shelf', system: null, collection: null, facet: null, focus: { rail: 0, index: 0 }, row: 0 }
 
 export default function FrogBrowser() {
   const navigate = useNavigate()
@@ -136,6 +136,9 @@ export default function FrogBrowser() {
   // it is comes down to whether a collection tag is set (openSystem / openCollection each
   // clear the other), so the screen, the header, and the list styling all fork on this.
   const [collectionTag, setCollectionTag] = useState(place.collection)
+  // …OR one facet's (a tapped genre/franchise chip) — the third, equally exclusive
+  // dress of the same 'games' screen.
+  const [facetView, setFacetView] = useState(place.facet)
 
   const [focus, setFocus] = useState(place.focus)
   const [memory, setMemory] = useState({})
@@ -298,6 +301,17 @@ export default function FrogBrowser() {
   }, [])
   const finishedSet = useMemo(() => new Set(collections.finished), [collections.finished])
 
+  // The IGDB browse facets (genre/franchise → ids) behind the game page's tappable
+  // chips. One-shot like collections; a failure just means chips lead to short lists.
+  const [facets, setFacets] = useState({ genres: {}, franchises: {} })
+  useEffect(() => {
+    let alive = true
+    fetchFacets().then((d) => alive && d && setFacets(d))
+    return () => {
+      alive = false
+    }
+  }, [reloadNonce])
+
   // The server's "recently played" (games with saves) — one of Jump back in's three
   // sources. Re-fetched on the offline→online edge with the library (same nonce);
   // failure just leaves [] and the rail falls back to this device's own recents.
@@ -362,8 +376,15 @@ export default function FrogBrowser() {
   // The 'games' screen's list: a collection's members (naturally sorted, spanning
   // systems) when a tag is open, otherwise the focused system's games.
   const games = useMemo(
-    () => (collectionTag ? collectionGames(items, collections.tags, collectionTag) : system ? systemGames(items, system) : []),
-    [items, system, collectionTag, collections.tags]
+    () =>
+      facetView
+        ? facetGames(items, facets, facetView)
+        : collectionTag
+          ? collectionGames(items, collections.tags, collectionTag)
+          : system
+            ? systemGames(items, system)
+            : [],
+    [items, system, collectionTag, facetView, facets, collections.tags]
   )
   // Searched across EVERY system, not just the open one — from the shelf you haven't
   // picked a console yet, and "which box is Zelda in" is exactly what search is for.
@@ -460,6 +481,15 @@ export default function FrogBrowser() {
   // Whether a "Wrong game?" / "Find on IGDB" fix control is offered (there's a
   // candidate shortlist to fix the match against).
   const canRematch = !!meta?.can_rematch
+  // The tappable browse chips on the game page: the series first, then each genre.
+  // Only for matched games — an unmatched ROM has nothing to browse by.
+  const detailFacets = useMemo(() => {
+    if (!meta?.matched) return []
+    const f = []
+    if (meta.franchise) f.push({ kind: 'franchise', value: meta.franchise })
+    for (const g of meta.genres ?? []) f.push({ kind: 'genre', value: g })
+    return f
+  }, [meta])
   // The open game's collection state, derived from the shared `collections`.
   const detailFinished = detailGame ? finishedSet.has(detailGame.id) : false
   // Favorited, derived the same way (the reserved tag), so the star reflects a change
@@ -490,12 +520,13 @@ export default function FrogBrowser() {
     if (shots.length) z.push('hero') // the banner sits above the actions
     z.push('actions')
     if (detailBaseId) z.push('base') // "Based on <base>", just under the actions
+    if (detailFacets.length) z.push('facets') // the browse chips, under the About block
     if (canRematch) z.push('fix') // the "Wrong game?" control, below the facts
     z.push('tags') // "Collections" — always available (you can always tag a game)
     if (saves.length) z.push('saves')
     if (similar.length) z.push('similar') // the rail at the foot of the page
     return z
-  }, [shots.length, detailBaseId, canRematch, saves.length, similar.length])
+  }, [shots.length, detailBaseId, detailFacets.length, canRematch, saves.length, similar.length])
 
   // Slowly crossfade the hero's background through the screenshots. Paused while the
   // lightbox is open (you're looking at one) and under reduced-motion (leave it still).
@@ -527,7 +558,7 @@ export default function FrogBrowser() {
               ? searchFrom
               : detailFrom
             : screen
-    Object.assign(place, { booted: true, screen: persistScreen, system, collection: collectionTag, focus, row })
+    Object.assign(place, { booted: true, screen: persistScreen, system, collection: collectionTag, facet: facetView, focus, row })
   })
 
   // Typing narrows the list under the cursor: keep the result focus in range, and if
@@ -579,7 +610,8 @@ export default function FrogBrowser() {
 
   const openSystem = useCallback((label) => {
     setSystem(label)
-    setCollectionTag(null) // a system and a collection are mutually exclusive views
+    setCollectionTag(null) // the three list dresses are mutually exclusive views
+    setFacetView(null)
     setRow(0)
     setScreen('games')
   }, [])
@@ -589,6 +621,17 @@ export default function FrogBrowser() {
   const openCollection = useCallback((tag) => {
     setCollectionTag(tag)
     setSystem(null)
+    setFacetView(null)
+    setRow(0)
+    setScreen('games')
+  }, [])
+
+  // Open a facet ({kind: 'genre'|'franchise', value}) as the full list — the game
+  // page's chips land here. Same dress as a collection (games span machines).
+  const openFacet = useCallback((view) => {
+    setFacetView(view)
+    setSystem(null)
+    setCollectionTag(null)
     setRow(0)
     setScreen('games')
   }, [])
@@ -1060,6 +1103,10 @@ export default function FrogBrowser() {
       // The hero / base / fix controls are single targets; if they went away, fall to actions.
       if (f.zone === 'hero') return shots.length ? { zone: 'hero', index: 0 } : { zone: 'actions', index: 0 }
       if (f.zone === 'base') return detailBaseId ? { zone: 'base', index: 0 } : { zone: 'actions', index: 0 }
+      if (f.zone === 'facets') {
+        if (detailFacets.length === 0) return { zone: 'actions', index: 0 }
+        return f.index < detailFacets.length ? f : { zone: 'facets', index: detailFacets.length - 1 }
+      }
       if (f.zone === 'fix') return canRematch ? { zone: 'fix', index: 0 } : { zone: 'actions', index: 0 }
       // The two list zones clamp their index and fall to actions when they empty.
       if (f.zone === 'similar') {
@@ -1070,7 +1117,7 @@ export default function FrogBrowser() {
       if (saves.length === 0) return { zone: 'actions', index: 0 }
       return f.index < saves.length ? f : { zone: 'saves', index: saves.length - 1 }
     })
-  }, [saves, shots.length, detailBaseId, canRematch, similar.length, actionsMax])
+  }, [saves, shots.length, detailBaseId, detailFacets.length, canRematch, similar.length, actionsMax])
 
   // Append a key, but only if it keeps the list alive — the same dead-key rule the
   // grid dims by, enforced here so you physically cannot type into an empty result
@@ -1412,6 +1459,8 @@ export default function FrogBrowser() {
             if (shots.length) setLightbox(heroSlide) // open the hero's shots fullscreen
           } else if (f.zone === 'base') {
             openBase(detailBaseId) // hop to the base game this hack is based on
+          } else if (f.zone === 'facets') {
+            if (detailFacets[f.index]) openFacet(detailFacets[f.index]) // browse this genre/series
           } else if (f.zone === 'fix') {
             openRematch()
           } else if (f.zone === 'actions') {
@@ -1441,11 +1490,13 @@ export default function FrogBrowser() {
         case 'left':
           if (f.zone === 'hero') setHeroSlide((i) => (i - 1 + shots.length) % shots.length)
           else if (f.zone === 'actions') setDetailFocus((p) => ({ zone: 'actions', index: Math.max(0, p.index - 1) }))
+          else if (f.zone === 'facets') setDetailFocus((p) => ({ zone: 'facets', index: Math.max(0, p.index - 1) }))
           else if (f.zone === 'similar') setDetailFocus((p) => ({ zone: 'similar', index: Math.max(0, p.index - 1) }))
           return
         case 'right':
           if (f.zone === 'hero') setHeroSlide((i) => (i + 1) % shots.length)
           else if (f.zone === 'actions') setDetailFocus((p) => ({ zone: 'actions', index: Math.min(actionsMax, p.index + 1) }))
+          else if (f.zone === 'facets') setDetailFocus((p) => ({ zone: 'facets', index: Math.min(detailFacets.length - 1, p.index + 1) }))
           else if (f.zone === 'similar') setDetailFocus((p) => ({ zone: 'similar', index: Math.min(similar.length - 1, p.index + 1) }))
           return
         case 'up':
@@ -1807,7 +1858,9 @@ export default function FrogBrowser() {
         className="relative flex items-center justify-between gap-4 px-6 py-3 transition-[box-shadow] duration-500"
         style={{ boxShadow: `inset 0 -1px 0 rgba(${accent}, 0.45), 0 7px 20px -14px rgba(${accent}, 0.6)` }}
       >
-        {screen === 'games' && collectionTag ? (
+        {screen === 'games' && facetView ? (
+          <FacetListHeader view={facetView} count={games.length} />
+        ) : screen === 'games' && collectionTag ? (
           <CollectionListHeader tag={collectionTag} count={games.length} loading={!collectionsLoaded} />
         ) : screen === 'games' && system ? (
           <GameListHeader system={system} count={games.length} />
@@ -2043,6 +2096,8 @@ export default function FrogBrowser() {
           onLightboxNav={(dir) =>
             setLightbox((i) => Math.max(0, Math.min(shots.length - 1, i + dir)))
           }
+          facets={detailFacets}
+          onOpenFacet={openFacet}
           videos={trailerVideos}
           trailer={trailer}
           onOpenTrailer={() => setTrailer(0)}
@@ -2056,7 +2111,7 @@ export default function FrogBrowser() {
       ) : screen === 'games' ? (
         <GameList
           system={system}
-          collection={collectionTag}
+          collection={collectionTag || (facetView ? facetView.value : null)}
           loading={!!collectionTag && !collectionsLoaded}
           games={games}
           focus={row}
@@ -2168,6 +2223,8 @@ export default function FrogBrowser() {
                                   ? 'Screenshots'
                                   : detailFocus.zone === 'base'
                                     ? 'Base game'
+                                    : detailFocus.zone === 'facets'
+                                      ? 'Browse'
                                     : detailFocus.zone === 'fix'
                                       ? 'Fix match'
                                       : detailFocus.zone === 'similar'

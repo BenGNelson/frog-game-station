@@ -56,10 +56,12 @@ _TIMEOUT = 15
 # The fields pulled for every candidate. `total_rating` blends critic + user;
 # we fall back to `rating` (user only) when it's absent.
 _FIELDS = (
-    "name,summary,first_release_date,rating,total_rating,"
+    "name,summary,first_release_date,rating,total_rating,total_rating_count,"
     "genres.name,involved_companies.company.name,involved_companies.developer,"
     "involved_companies.publisher,cover.image_id,screenshots.image_id,"
-    "videos.video_id,videos.name,similar_games,websites.url,websites.category"
+    "videos.video_id,videos.name,similar_games,websites.url,websites.category,"
+    "franchises.name,collections.name,game_modes.name,themes.name,"
+    "alternative_names.name"
 )
 
 # IGDB `website.category` enum values that name a WIKI. 2 = Fandom/Wikia (usually the
@@ -140,12 +142,27 @@ def score(rom_name: str, igdb_name: str) -> float:
     return round(base, 4)
 
 
+def candidate_score(rom_name: str, candidate: dict) -> float:
+    """A candidate's best similarity to the ROM title, considering its ALTERNATIVE
+    names too (regional titles, subtitles — "Pocket Monsters Midori" for a JP dump).
+    Alt-name scores are shaved a hair (×0.98) so the official title still wins an
+    exact tie, but a strong alt match beats a weak primary one — which is the whole
+    point: recall on dumps named after a regional release."""
+    best = score(rom_name, candidate.get("name", ""))
+    for alt in candidate.get("alternative_names") or []:
+        n = alt.get("name") if isinstance(alt, dict) else None
+        if n:
+            best = max(best, round(score(rom_name, n) * 0.98, 4))
+    return best
+
+
 def best_match(rom_name: str, candidates: list[dict], threshold: float = 0.6):
-    """Pick the highest-scoring candidate at/above `threshold`. Returns
-    (candidate, score); (None, best_score) when nothing qualifies — a definite
-    'IGDB has nothing good for this ROM', which the caller caches as unmatched."""
+    """Pick the highest-scoring candidate at/above `threshold` (primary OR alt
+    names — see candidate_score). Returns (candidate, score); (None, best_score)
+    when nothing qualifies — a definite 'IGDB has nothing good for this ROM',
+    which the caller caches as unmatched."""
     ranked = sorted(
-        ((c, score(rom_name, c.get("name", ""))) for c in candidates),
+        ((c, candidate_score(rom_name, c)) for c in candidates),
         key=lambda cs: cs[1],
         reverse=True,
     )
@@ -206,8 +223,16 @@ def flatten(candidate: dict | None) -> dict:
                 return c["company"]["name"]
         return None
 
+    def _names(key):
+        return [x["name"] for x in (candidate.get(key) or []) if isinstance(x, dict) and x.get("name")]
+
     year = year_of(candidate)
     rating = candidate.get("total_rating") or candidate.get("rating")
+    # The series facet: one name per game. IGDB models this twice (franchises AND
+    # collections); franchises reads better when present ("Pokémon" vs "Pokémon
+    # main series"), collections cover far more games — so franchise first, then
+    # the first collection.
+    franchises = _names("franchises") or _names("collections")
     return {
         "igdb_id": candidate.get("id"),
         "name": candidate.get("name"),
@@ -232,6 +257,15 @@ def flatten(candidate: dict | None) -> dict:
         # Best wiki link (Fandom/Wikia > Wikipedia) — the auto default source for the
         # in-game wiki reader; a user override in game_wiki takes precedence.
         "wiki_url": pick_wiki(candidate.get("websites")),
+        "franchise": franchises[0] if franchises else None,
+        "game_modes": _names("game_modes"),
+        "themes": _names("themes"),
+        # Regional/alternate titles — kept for match scoring and future search recall,
+        # never displayed.
+        "alt_names": _names("alternative_names"),
+        # How many ratings the blended score rests on — 90 from four votes and 90 from
+        # four thousand are different facts.
+        "rating_count": candidate.get("total_rating_count"),
     }
 
 

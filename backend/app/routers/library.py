@@ -466,6 +466,14 @@ class GameMetaModel(BaseModel):
         default=None,
         description="game_id of the OWNED base ROM (when is_hack and you have it), for a deep-link",
     )
+    franchise: str | None = Field(
+        default=None, description="The series facet (first IGDB franchise/collection name)"
+    )
+    game_modes: list[str] = []
+    themes: list[str] = []
+    rating_count: int | None = Field(
+        default=None, description="How many ratings the blended score rests on"
+    )
 
 
 @router.get("/library/games/meta", response_model=GameMetaModel)
@@ -507,6 +515,10 @@ def get_game_meta(id: str = Query(description="Game id from the section listing"
         is_hack=is_hack,
         base_name=row["name"] if is_hack else None,
         base_game_id=base_game_id,
+        franchise=row.get("franchise"),
+        game_modes=row.get("game_modes") or [],
+        themes=row.get("themes") or [],
+        rating_count=row.get("rating_count"),
     )
 
 
@@ -1038,6 +1050,24 @@ class CollectionsModel(BaseModel):
     hacks: dict[str, str] = Field(
         default={}, description="each hack game_id → the base game's name it's based on"
     )
+
+
+class FacetsModel(BaseModel):
+    genres: dict[str, list[str]] = Field(
+        default={}, description="each IGDB genre → the game_ids that wear it"
+    )
+    franchises: dict[str, list[str]] = Field(
+        default={}, description="each series (IGDB franchise/collection) → its game_ids"
+    )
+
+
+@router.get("/library/games/facets", response_model=FacetsModel)
+def get_facets():
+    """The IGDB-derived browse facets — every genre and franchise with its member
+    game_ids, in one read. Ids only, exactly like collections: the frontend
+    re-hydrates against the live library, so games that have left simply drop out
+    and no filesystem walk happens here."""
+    return db.facets()
 
 
 @router.get("/library/games/collections", response_model=CollectionsModel)

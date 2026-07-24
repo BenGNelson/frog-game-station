@@ -153,6 +153,16 @@ reachable from anywhere. The shape of them is the design:
     the meta response in IGDB's relevance order. So every tile is a game you can actually
     play — picking one opens its page (inheriting the current page's Back target, never a
     dead-ended `detail`). Empty (and the rail hidden) until the matcher has run at v2+.
+  - **Browse chips (zone `facets`): the series, then each genre — tap one, get
+    everything you own that wears it.** Backed by `GET /library/games/facets`
+    (genre/franchise → game ids in one read, hacks included — a hack of a Pokémon
+    game IS a Pokémon game for browsing) and re-hydrated client-side (`facetGames`),
+    the facet opens as the SAME letter-railed list a collection uses, in collection
+    dress with a Series/Genre kicker header. The fields behind it ride the matcher
+    (match v5): franchise (first IGDB franchise, collections fallback), game modes,
+    themes, alternative names — which also became a match-scoring source
+    (`candidate_score`: best of primary + alt names ×0.98, so a dump named after a
+    regional title finally matches) — and the rating's vote count.
   - **A game you've sunk time into wears it:** a quiet "Played 3h 20m · 5 sessions ·
     2 days ago" line under the actions, shown for rich and basic pages alike — total,
     session count, and last-played, all server-owned so every device agrees (see

@@ -277,6 +277,27 @@ def test_play_stats_endpoint_returns_ids_and_totals_most_played_first(client, ro
     assert top["updated_ms"] > 0
 
 
+# --- facets: IGDB-derived genre / franchise browse --------------------------
+
+def test_facets_groups_matched_games_by_genre_and_franchise(client):
+    db.upsert_igdb_meta("a.gb", {"matched": 1, "name": "A", "source": "auto",
+                                 "genres": ["RPG", "Adventure"], "franchise": "Zelda"})
+    db.upsert_igdb_meta("b.gb", {"matched": 1, "name": "B", "source": "auto",
+                                 "genres": ["RPG"], "franchise": "Zelda", "is_hack": 1})
+    db.upsert_igdb_meta("c.gb", {"matched": 0, "name": None, "source": "auto",
+                                 "genres": ["RPG"], "franchise": "Metroid"})  # unmatched: excluded
+    out = client.get("/api/library/games/facets").json()
+    assert set(out["genres"]["RPG"]) == {"a.gb", "b.gb"}  # the hack counts too
+    assert out["genres"]["Adventure"] == ["a.gb"]
+    assert set(out["franchises"]["Zelda"]) == {"a.gb", "b.gb"}
+    assert "Metroid" not in out["franchises"]
+
+
+def test_facets_empty_db_is_empty_maps(client):
+    out = client.get("/api/library/games/facets").json()
+    assert out == {"genres": {}, "franchises": {}}
+
+
 # --- collections: finished flag + tags -------------------------------------
 
 def test_set_finished_toggles_and_clears():

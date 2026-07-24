@@ -117,13 +117,21 @@ Open items carry an inline tag; completed (`[x]`) items are left untagged — th
 
 ### v1.4 — "Library intelligence + deeper metadata"
 
-- [ ] **[P2] Fetch more IGDB fields** (one matcher change + `_MATCH_VERSION` bump →
-      auto re-enrich): franchises/collection, game modes, themes, alternative names (also
-      a match-scoring tiebreaker — improves match rate), rating counts, time-to-beat.
-- [ ] **[P2] Genre / franchise browse facets.** Genres + franchise on the game page become
-      tappable → a filtered game list (reuse the collection-list path). Auto "smart" rails
-      fall out for free (franchise rail; "short games you haven't started" via
-      time-to-beat + zero playtime).
+- [x] **Fetch more IGDB fields.** Shipped (match version 5 → the library auto
+      re-enriches): **franchise** (first IGDB franchise, collections fallback),
+      **game modes**, **themes**, **alternative names** (now a match-scoring source —
+      `candidate_score` takes the best of primary + alt names ×0.98, so a JP dump named
+      after its regional title finally matches), and **rating_count** (votes behind the
+      score). Field list verified against the live IGDB API. *Time-to-beat deferred: it
+      lives on a separate IGDB endpoint (`game_time_to_beats`, one query per game) —
+      pick it up with the smart-rail work that would actually use it.*
+- [x] **Genre / franchise browse facets.** Shipped: a **BROWSE chips row** on every
+      matched game page (zone `facets` — the series chip first, then each genre) → the
+      full letter-railed list in collection dress with a Series/Genre kicker header.
+      Backed by `GET /library/games/facets` (genre/franchise → game ids, one read,
+      hacks included) and `facetGames` hydration. *Smart shelf rails deliberately not
+      added — shelf space stays curated (the same reasoning that removed the Finished
+      rail); facets are navigation, not furniture.*
 - [ ] **[P2] Stats screen.** A "Pond stats" overlay: total playtime, most played,
       % finished per system, library counts/sizes. One aggregate endpoint — the data all
       exists. Keep it frog-themed.

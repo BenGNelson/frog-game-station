@@ -155,6 +155,55 @@ def test_flatten_none_and_sparse():
     assert sparse["rating"] is None and sparse["release_year"] is None
     assert sparse["similar_games"] == []
     assert sparse["wiki_url"] is None
+    assert sparse["franchise"] is None
+    assert sparse["game_modes"] == [] and sparse["themes"] == [] and sparse["alt_names"] == []
+    assert sparse["rating_count"] is None
+
+
+def test_flatten_library_intelligence_fields():
+    out = igdb.flatten({
+        "id": 9,
+        "name": "Pokemon Crystal",
+        "total_rating_count": 412,
+        "franchises": [{"name": "Pokémon"}, {"name": "Other"}],
+        "collections": [{"name": "Pokémon main series"}],
+        "game_modes": [{"name": "Single player"}, {"name": "Multiplayer"}],
+        "themes": [{"name": "Fantasy"}, {}],
+        "alternative_names": [{"name": "Pocket Monsters Crystal"}],
+    })
+    # Franchise wins over collections when both exist; one series name per game.
+    assert out["franchise"] == "Pokémon"
+    assert out["game_modes"] == ["Single player", "Multiplayer"]
+    assert out["themes"] == ["Fantasy"]
+    assert out["alt_names"] == ["Pocket Monsters Crystal"]
+    assert out["rating_count"] == 412
+
+
+def test_flatten_franchise_falls_back_to_collections():
+    out = igdb.flatten({"id": 9, "name": "X", "collections": [{"name": "X Series"}]})
+    assert out["franchise"] == "X Series"
+
+
+def test_candidate_score_uses_alternative_names():
+    # The JP dump is named after the regional release; the primary title alone
+    # would miss, the alt name carries it.
+    cand = {
+        "name": "Pokémon Green",
+        "alternative_names": [{"name": "Pocket Monsters Midori"}],
+    }
+    assert igdb.candidate_score("Pocket Monsters Midori", cand) > 0.9
+    # The primary title still wins an exact tie (alt scores shaved ×0.98).
+    tie = {"name": "Tetris Attack", "alternative_names": [{"name": "Tetris Attack"}]}
+    assert igdb.candidate_score("Tetris Attack", tie) == igdb.score("Tetris Attack", "Tetris Attack")
+
+
+def test_best_match_recalls_via_alt_name():
+    candidates = [
+        {"id": 1, "name": "Wrong Game Entirely"},
+        {"id": 2, "name": "Pokémon Green", "alternative_names": [{"name": "Pocket Monsters Midori"}]},
+    ]
+    chosen, sc = igdb.best_match("Pocket Monsters Midori", candidates)
+    assert chosen["id"] == 2 and sc > 0.9
 
 
 FANDOM = "https://zelda.fandom.com/wiki/Oracle_of_Seasons"

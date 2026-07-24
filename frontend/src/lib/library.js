@@ -130,6 +130,12 @@ export function fetchPlayStats() {
   return fetch(`${API_BASE}/library/games/play-stats`).then((r) => (r.ok ? r.json() : null))
 }
 
+// The IGDB-derived browse facets (genre / franchise -> game ids), for the tappable
+// chips on a game page. Null on failure — offline just means no facet browsing.
+export function fetchFacets() {
+  return fetch(`${API_BASE}/library/games/facets`).then((r) => (r.ok ? r.json() : null)).catch(() => null)
+}
+
 // The server's "recently played" list (games with saves, newest first) — one of the
 // three sources the cross-device "Jump back in" rail merges (with this device's own
 // recents and the play-stats stamps). Null on failure, so offline just means "no

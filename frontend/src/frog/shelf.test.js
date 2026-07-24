@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildShelf, buildSystems, jumpBackIn, favoriteGames, tagRails, collectionGames, discoverRail, COLLECTION_LIST_MIN, agoLabel, stepLetter, SYSTEM_ORDER } from './shelf.js'
+import { buildShelf, buildSystems, jumpBackIn, favoriteGames, tagRails, collectionGames, facetGames, discoverRail, COLLECTION_LIST_MIN, agoLabel, stepLetter, SYSTEM_ORDER } from './shelf.js'
 
 const g = (id, name, label) => ({ id, name, label, core: 'gb' })
 
@@ -260,5 +260,32 @@ describe('agoLabel', () => {
 
   it('says nothing when it has nothing to say', () => {
     expect(agoLabel(undefined)).toBe('')
+  })
+})
+
+describe('facetGames', () => {
+  const FACETS = {
+    genres: { RPG: ['2', '1', 'gone'] },
+    franchises: { Zelda: ['3'] },
+  }
+  const ITEMS = [
+    { id: '1', name: 'Beta', core: 'gb', label: 'Game Boy' },
+    { id: '2', name: 'Alpha', core: 'gba', label: 'Game Boy Advance' },
+    { id: '3', name: 'Links', core: 'gb', label: 'Game Boy' },
+  ]
+
+  it('resolves a genre view to its live games, naturally sorted', () => {
+    const out = facetGames(ITEMS, FACETS, { kind: 'genre', value: 'RPG' })
+    expect(out.map((g) => g.name)).toEqual(['Alpha', 'Beta']) // sorted; "gone" dropped
+  })
+
+  it('resolves a franchise view from the other map', () => {
+    expect(facetGames(ITEMS, FACETS, { kind: 'franchise', value: 'Zelda' }).map((g) => g.id)).toEqual(['3'])
+  })
+
+  it('is empty for an unknown value, a missing view, or empty facets', () => {
+    expect(facetGames(ITEMS, FACETS, { kind: 'genre', value: 'Sports' })).toEqual([])
+    expect(facetGames(ITEMS, FACETS, null)).toEqual([])
+    expect(facetGames(ITEMS, {}, { kind: 'genre', value: 'RPG' })).toEqual([])
   })
 })

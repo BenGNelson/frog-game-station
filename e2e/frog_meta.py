@@ -8,8 +8,10 @@ screenshot-image endpoints are mocked; everything else hits the real backend.
 
     BASE_URL=http://localhost:8585 python frog_meta.py
 """
+import json
 import os
 import sys
+import urllib.request
 from playwright.sync_api import sync_playwright
 
 BASE = os.environ.get("BASE_URL", "http://localhost:8585")
@@ -37,6 +39,10 @@ RICH = {
     "cover_image_id": "covtest",
     "screenshot_ids": ["shotA", "shotB", "shotC"],
     "videos": [{"id": "vid001", "name": "Trailer"}, {"id": "vid002", "name": "Gameplay video"}],
+    "franchise": "Testland",
+    "game_modes": ["Single player"],
+    "themes": ["Fantasy"],
+    "rating_count": 42,
 }
 
 
@@ -62,6 +68,13 @@ def drill_to_game(page):
     page.wait_for_selector('[data-testid="frog-detail"]', timeout=5000)
 
 
+# The facet mock must point at REAL library ids (the frontend re-hydrates against
+# the live list, so made-up ids would hydrate to an empty screen).
+with urllib.request.urlopen(f"{BASE}/api/library/games") as _r:
+    _items = json.load(_r)["items"]
+FACET_IDS = [g["id"] for g in _items[:3]]
+FACETS = {"genres": {"Adventure": FACET_IDS, "Puzzle": FACET_IDS[:1]}, "franchises": {"Testland": FACET_IDS[:2]}}
+
 with sync_playwright() as p:
     browser = p.chromium.launch()
     context = browser.new_context(service_workers="block", reduced_motion="reduce")
@@ -82,6 +95,7 @@ with sync_playwright() as p:
     )
     page.route("**/api/library/games/meta*", meta_route)
     page.route("**/api/library/games/screenshot*", shot_route)
+    page.route("**/api/library/games/facets", lambda r: r.fulfill(json=FACETS))
     # YouTube is external — serve the embed a stub document so the trailer check is
     # deterministic and runs with no internet. The CSP allows the domain; we just
     # never actually fetch it in the test.
@@ -127,6 +141,19 @@ with sync_playwright() as p:
     page.keyboard.press("Escape")
     page.wait_for_selector('[data-testid="frog-trailer"]', state="detached", timeout=4000)
     check(True, "the trailer closes")
+
+    # The browse chips: the series first, then each genre; tapping one opens the
+    # facet list (a collection-dress games screen with a Series/Genre kicker).
+    chips = page.locator('[data-testid="frog-facet-chip"]')
+    check(chips.count() == 3, f"the browse chips render (series + 2 genres, got {chips.count()})")
+    check(chips.first.inner_text().strip() == "Testland", "the series chip leads")
+    chips.first.click(force=True)
+    page.wait_for_selector('[data-testid="frog"]', timeout=5000)
+    page.wait_for_timeout(400)
+    header = page.locator("header").inner_text()
+    check("SERIES" in header.upper() and "Testland" in header, "the facet header names the series")
+    check("2 games" in header, "and counts its live games")
+    check(page.locator('[data-testid="frog-row"]').count() == 2, "the list shows exactly those games")
 
     page.screenshot(path=os.environ.get("SHOT", "/work/frog_meta.png"), full_page=False)
 

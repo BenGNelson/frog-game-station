@@ -310,6 +310,35 @@ export default function GameList({ system, collection, loading = false, games, f
   )
 }
 
+// A facet's header — like a collection's, with the facet KIND as a kicker line so
+// "RPG" reads as a genre you tapped, not a collection you made.
+export function FacetListHeader({ view, count, loading = false }) {
+  return (
+    <div className="flex min-w-0 items-center gap-3">
+      <span
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+        style={{ background: `rgba(${FROG.jade}, 0.16)`, border: `1px solid rgba(${FROG.jade}, 0.4)` }}
+      >
+        <Tag className="h-4 w-4" style={{ color: `rgb(${FROG.jade})` }} aria-hidden="true" />
+      </span>
+      <div className="min-w-0">
+        <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: FROG.faint }}>
+          {view.kind === 'franchise' ? 'Series' : 'Genre'}
+        </p>
+        <h1
+          className="truncate text-lg font-semibold leading-none"
+          style={{ color: FROG.ink, fontFamily: FONT_DISPLAY }}
+        >
+          {view.value}
+        </h1>
+        <p className="mt-1 text-[11px] tabular-nums" style={{ color: `rgb(${FROG.jade})` }}>
+          {loading ? '…' : `${count} game${count === 1 ? '' : 's'}`}
+        </p>
+      </div>
+    </div>
+  )
+}
+
 // A collection's header — a tag glyph, its name, how many — in the neutral collection
 // jade (its games span machines, so no one console colour fits). Mirrors GameListHeader.
 export function CollectionListHeader({ tag, count, loading = false }) {

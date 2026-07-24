@@ -83,6 +83,12 @@ CREATE TABLE IF NOT EXISTS igdb_meta (
                                       -- USER override lives in game_wiki so it isn't
                                       -- stomped by the matcher (source guards the ROW,
                                       -- not a re-derived column)
+    franchise      TEXT,              -- the series facet (first IGDB franchise/collection)
+    game_modes     TEXT,              -- JSON array of strings (Single player, Co-op, …)
+    themes         TEXT,              -- JSON array of strings (Fantasy, Horror, …)
+    alt_names      TEXT,              -- JSON array of regional/alternate titles (match
+                                      -- recall + future search; never displayed)
+    rating_count   INTEGER,           -- votes behind `rating` (confidence context)
     updated_at     REAL NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_igdb_meta_igdb_id ON igdb_meta (igdb_id);
@@ -153,6 +159,13 @@ _MIGRATIONS = [
     # in-game wiki reader. A pre-existing DB backfills it on the next matcher pass
     # (the _MATCH_VERSION bump forces a re-fetch).
     "ALTER TABLE igdb_meta ADD COLUMN wiki_url TEXT",
+    # The library-intelligence fields (franchise/modes/themes/alt-names/vote count).
+    # A pre-existing DB backfills them on the next matcher pass (_MATCH_VERSION bump).
+    "ALTER TABLE igdb_meta ADD COLUMN franchise TEXT",
+    "ALTER TABLE igdb_meta ADD COLUMN game_modes TEXT",
+    "ALTER TABLE igdb_meta ADD COLUMN themes TEXT",
+    "ALTER TABLE igdb_meta ADD COLUMN alt_names TEXT",
+    "ALTER TABLE igdb_meta ADD COLUMN rating_count INTEGER",
 ]
 
 
@@ -239,12 +252,14 @@ def list_play_stats(limit=200):
 # --- IGDB game metadata cache ----------------------------------------------
 
 # JSON-encoded columns on igdb_meta, decoded back to Python on read.
-_IGDB_JSON_COLS = ("genres", "screenshot_ids", "videos", "candidates", "similar_games")
+_IGDB_JSON_COLS = ("genres", "screenshot_ids", "videos", "candidates", "similar_games",
+                   "game_modes", "themes", "alt_names")
 _IGDB_COLS = (
     "game_id", "igdb_id", "matched", "name", "summary", "release_year", "rating",
     "developer", "publisher", "genres", "cover_image_id", "screenshot_ids",
     "videos", "candidates", "confidence", "source", "match_version", "rom_mtime",
-    "similar_games", "is_hack", "wiki_url", "updated_at",
+    "similar_games", "is_hack", "wiki_url", "franchise", "game_modes", "themes",
+    "alt_names", "rating_count", "updated_at",
 )
 
 
@@ -358,6 +373,30 @@ def owned_base_by_igdb_id(igdb_id, exclude_game_id=None):
         if r["game_id"] != exclude_game_id:
             return r["game_id"]
     return None
+
+
+def facets():
+    """{genres: {name: [game_ids]}, franchises: {name: [game_ids]}} across every
+    matched row — the IGDB-derived browse facets (tap a genre on a game page, get
+    every game that wears it). Hacks are included: a hack of a Pokémon game IS a
+    Pokémon game for browsing. One read, like tags_grouped; names keep IGDB's
+    casing and the id lists are unordered (the frontend re-hydrates + sorts
+    against the live library anyway)."""
+    genres, franchises = {}, {}
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT game_id, genres, franchise FROM igdb_meta WHERE matched = 1"
+        ).fetchall()
+    for r in rows:
+        try:
+            names = json.loads(r["genres"]) if r["genres"] else []
+        except ValueError:
+            names = []
+        for g in names:
+            genres.setdefault(g, []).append(r["game_id"])
+        if r["franchise"]:
+            franchises.setdefault(r["franchise"], []).append(r["game_id"])
+    return {"genres": genres, "franchises": franchises}
 
 
 def list_hacks():

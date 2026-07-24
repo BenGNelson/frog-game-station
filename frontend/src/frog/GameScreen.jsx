@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   Play, Star, Download, Check, Trash2, TriangleAlert, Loader, X, ChevronLeft, ChevronRight,
-  Maximize2, RefreshCw, Trophy, Tag, Plus, Pin, Pencil, Search, Clapperboard,
+  Maximize2, RefreshCw, Trophy, Tag, Plus, Pin, Pencil, Search, Clapperboard, Sparkles,
 } from 'lucide-react'
 import { rematchOptions } from './rematch.js'
 import { coverUrl, saveStateShotUrl, igdbShotUrl } from '../lib/library.js'
@@ -83,6 +83,8 @@ export default function GameScreen({
   onOpenShot,
   onCloseLightbox,
   onLightboxNav,
+  facets = [],
+  onOpenFacet,
   videos = [],
   trailer = null,
   onOpenTrailer,
@@ -230,6 +232,10 @@ export default function GameScreen({
           {playMs > 0 && <PlayedLine ms={playMs} plays={plays} lastMs={lastPlayedMs} />}
 
           {rich && <About meta={meta} />}
+
+          {facets.length > 0 && (
+            <FacetChips facets={facets} focus={focus} onFocus={onFocus} onOpen={onOpenFacet} />
+          )}
 
           {canRematch && (
             <RematchButton
@@ -581,6 +587,41 @@ function PlayedLine({ ms, plays, lastMs }) {
         <span style={{ color: FROG.faint }}>{` · ${agoLabel(lastMs).toLowerCase()}`}</span>
       )}
     </p>
+  )
+}
+
+// The browse chips (zone 'facets') — the series first, then each genre, each a
+// one-press hop to "every game you own that wears this". The same pill language as
+// the collection chips, jade-ringed under the controller cursor.
+function FacetChips({ facets, focus, onFocus, onOpen }) {
+  return (
+    <div>
+      <Heading>BROWSE</Heading>
+      <div className="flex flex-wrap items-center gap-2">
+        {facets.map((f, i) => {
+          const focused = focus.zone === 'facets' && focus.index === i
+          return (
+            <button
+              key={`${f.kind}:${f.value}`}
+              type="button"
+              data-testid="frog-facet-chip"
+              data-focused={focused || undefined}
+              onMouseMove={() => onFocus('facets', i)}
+              onClick={() => onOpen?.(f)}
+              className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors"
+              style={{
+                background: FROG.panel,
+                color: f.kind === 'franchise' ? `rgb(${FROG.jade})` : FROG.soft,
+                boxShadow: focused ? focusRing() : `inset 0 0 0 1px ${FROG.line}`,
+              }}
+            >
+              {f.kind === 'franchise' && <Sparkles className="h-3 w-3" aria-hidden="true" />}
+              {f.value}
+            </button>
+          )
+        })}
+      </div>
+    </div>
   )
 }
 

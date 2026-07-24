@@ -150,6 +150,16 @@ export function collectionGames(items = [], tags = {}, tag) {
   return hydrate(items, ids.map((id) => ({ id }))).sort((a, b) => naturalCompare(a.name, b.name))
 }
 
+// A facet's games ({kind: 'genre'|'franchise', value}) as the same flat, naturally
+// sorted list a collection uses — tap "RPG" on a game page, get every RPG you own.
+// The maps come from /library/games/facets (ids only) and re-hydrate here.
+export function facetGames(items = [], facets = {}, view) {
+  if (!view) return []
+  const map = view.kind === 'franchise' ? facets.franchises : facets.genres
+  const ids = (map && map[view.value]) || []
+  return hydrate(items, ids.map((id) => ({ id }))).sort((a, b) => naturalCompare(a.name, b.name))
+}
+
 // The letters this list actually has, IN THE ORDER THE LIST IS SORTED, each mapped
 // to the index of its first game.
 //

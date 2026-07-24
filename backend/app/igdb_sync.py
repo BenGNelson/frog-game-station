@@ -37,7 +37,7 @@ log = logging.getLogger("frog.igdb-sync")
 # v4: the scorer now accent-folds tokens and lifts a subtitled-edition subset match
 # (igdb.score), so titles like "Pokémon Yellow …: Special Pikachu Edition" that fell below
 # threshold now match — a re-match re-scores every auto row against the improved logic.
-_MATCH_VERSION = "4"
+_MATCH_VERSION = "5"
 _RATE_DELAY = 0.28  # seconds between IGDB calls (~4 req/s, IGDB's published cap)
 _MAX_FAILS = 5  # consecutive lookup failures that abort a pass (API down / bad creds)
 
