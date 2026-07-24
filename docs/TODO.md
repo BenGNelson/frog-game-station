@@ -16,7 +16,14 @@ now shipped too**, clearing the backlog: the walkthrough-species → Pokédex cr
 search-while-browsing + a cover-grid toggle, and a hold-Menu modifier that unlocks more
 app-shortcut slots than the two free stick-clicks — plus the iOS keyboard auto-raise item
 **closed as won't-fix** (no clean web fix; the field is one tap away). Shipped work lives in the
-git history (`git log`); everything below is now **`[x]` — history**, not an open list.
+git history (`git log`); the sections below the Roadmap are **`[x]` — history**, not an open list.
+
+**The backlog is now re-seeded** (2026-07-23) from a full post-v1.1 sweep — an audit of the
+app's own unsurfaced capabilities, the EmulatorJS engine's switched-off features, and a
+comparison against other self-hosted frontends (RomM, Gaseous, RetroAssembly, desktop
+frontends). The result is the **Roadmap** section below: four milestones, each independently
+shippable. Deliberate non-goals confirmed during the sweep: no multi-user/auth, no netplay,
+no RetroAchievements, no second metadata scraper, single WATER dark theme stays.
 
 > **Deployment status:** the standalone stack is deployed and runs as its own installable
 > PWA (its own origin, manifest, and service worker — independent of any parent app). See
@@ -32,6 +39,95 @@ Open items carry an inline tag; completed (`[x]`) items are left untagged — th
 - **[P1]** — do next. Small + clearly wanted, or unblocks other work.
 - **[P2]** — worth doing; not urgent.
 - **[P3]** — nice-to-have / someday / parked.
+
+---
+
+## Roadmap — the post-v1.1 backlog
+
+### v1.2 — "Surface the hidden" (quick wins; mostly wiring)
+
+- [ ] **[P1] Downloads & Storage screen.** The storage-accounting layer in
+      `lib/offlineStore.js` (`summarizeStorage`, `auditStorage`, `getEstimate`,
+      `clearGameSaves`…) is fully built and tested but has **no UI**. Add an overlay
+      (pattern: `frog/Settings.jsx`): all downloaded games with sizes, total usage vs the
+      browser storage estimate, verify + remove / remove-all.
+- [ ] **[P1] Trailer on the game page.** `GameMetaModel.videos` (YouTube trailer ids) is
+      fetched, stored, and returned — rendered nowhere. A "Trailer" action on
+      `GameScreen.jsx` when present; embed in a lightbox (screenshot-lightbox pattern);
+      hidden offline.
+- [ ] **[P1] Cross-device recents & favorites.** `recentGames.js` ("for now") and
+      `favorites.js` are localStorage-only while saves/SRAM/playtime roam. Derive recents
+      from the server's existing progress/playtime data; store favorites as a reserved tag
+      in `game_tags` (endpoints already exist — zero schema change). localStorage stays as
+      the offline fallback.
+- [ ] **[P1] Favorites rail on the shelf.** The star action exists; favorites appear
+      nowhere. Same code path as collection rails.
+- [ ] **[P1] Volume control.** No volume/mute anywhere in the app — a real gap on a TV.
+      Pause-menu slider + mute through `emuBridge.js`; persist in `lib/playerSettings.js`.
+- [ ] **[P1] Surface play stats per game.** `plays` + last-played are tracked but never
+      shown. Grow the game-page play-time line: "played N times · last played X ago"
+      (extend `GET /library/games/play-stats`).
+
+### v1.3 — "Player power pack" (re-expose engine features)
+
+- [ ] **[P2] Rewind.** Engine supports it; enable + hold-button binding + pause-menu
+      toggle, wired into the Controls-screen hotkey system (which already handles FF).
+- [ ] **[P2] Display options.** Pause-menu "Display" group: CRT/scanline shader toggle,
+      aspect-ratio / integer scale — driven through `emuBridge.js` settings (engine chrome
+      stays hidden).
+- [ ] **[P2] Screenshot capture.** The canvas is already readable (save-thumbnail patch);
+      add "Save screenshot" to the pause menu → download / share sheet on phone.
+- [ ] **[P2] Fast-forward speed setting.** Expose the ratio (2×/3×/unlimited) on the
+      Controls screen.
+- [ ] **[P3] Cheats (optional).** Engine has a cheat manager; minimal per-game cheat list,
+      server-stored. Skip if it feels off-brand.
+
+### v1.4 — "Library intelligence + deeper metadata"
+
+- [ ] **[P2] Fetch more IGDB fields** (one matcher change + `_MATCH_VERSION` bump →
+      auto re-enrich): franchises/collection, game modes, themes, alternative names (also
+      a match-scoring tiebreaker — improves match rate), rating counts, time-to-beat.
+- [ ] **[P2] Genre / franchise browse facets.** Genres + franchise on the game page become
+      tappable → a filtered game list (reuse the collection-list path). Auto "smart" rails
+      fall out for free (franchise rail; "short games you haven't started" via
+      time-to-beat + zero playtime).
+- [ ] **[P2] Stats screen.** A "Pond stats" overlay: total playtime, most played,
+      % finished per system, library counts/sizes. One aggregate endpoint — the data all
+      exists. Keep it frog-themed.
+- [ ] **[P3] Show match confidence.** `igdb_meta.confidence` is stored, never shown;
+      surface it in the "Wrong game?" flow so low-confidence matches are findable.
+
+### v2.0 — "The disc era" (NDS, N64, PS1, PSP)
+
+The pinned engine already ships all four cores — this is config + input wiring, not an
+engine change. Full design (formats, BIOS, guards, risks) lives with the milestone; the
+shape:
+
+- [ ] **[P3] Phase 1 — NDS + N64.** Formats `.nds` / `.z64`+`.n64`+`.v64`; IGDB ids +
+      thumbnail repos; per-extension save-state caps (N64 states ≫ the flat 16MB cap);
+      analog rows 16–23 in `controlPresets.js` (N64 stick + C-buttons, and bind L2/R2 —
+      N64's Z is RetroPad L2; app-shortcut chords move to L3/R3); new touch layouts incl.
+      a draggable analog stick; per-core portrait game height (DS stacks two screens).
+- [ ] **[P3] Phase 2 — PS1 via `.chd` + BIOS.** `.chd` only (one file per disc — no
+      cue/bin/zip plumbing; `.bin` stays unmapped). New `GAMES_BIOS_DIR` read-only mount +
+      allowlisted `GET /api/library/bios` → `EJS_biosUrl` param (one ENGINE_VERSION bump).
+      Multi-disc punt: one `.chd` per disc, but share the memory card across discs by
+      stripping a trailing "(Disc N)" from the SRAM key. Size-aware blob bypass in
+      `emulator.html` (>~200MB streams instead of loading whole-ROM into memory);
+      per-system offline-download policy. **Verify chd boots in the pinned pcsx_rearmed
+      day 1** (fallback: mednafen_psx_hw or an engine-pin bump).
+- [ ] **[P3] Phase 3 — PSP (optional; spike first).** ppsspp needs SharedArrayBuffer →
+      COOP/COEP headers on the whole origin, which conflicts with YouTube trailer embeds.
+      Couch-only if it ships at all; explicitly cuttable.
+
+### Rework (fold into whichever milestone touches them first)
+
+- [ ] **[P2] Library scan cache** — replace the per-request `os.walk` in `library.py`
+      with a cached index + mtime refresh (matters once disc-era file sizes arrive).
+- [ ] **[P2] SRAM stale-write guard** — server rejects an SRAM POST older than the stored
+      save unless forced; closes a real cross-device foot-gun.
+- [ ] **[P3] Save-state hygiene** — cap unpinned slots per game (keep newest N, pinned
+      exempt) instead of unbounded growth.
 
 ---
 
