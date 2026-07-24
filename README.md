@@ -35,6 +35,7 @@ It has a hand-drawn **frog mascot** and a **WATER / jade dark theme** — a pond
 - **Rich game pages** — a background matcher pulls IGDB art, screenshots, summary, genres, and rating, and suggests **similar titles you *actually own*.** A **Trailer** button plays the game's videos fullscreen in-app (privacy-friendly YouTube no-cookie embed; hidden offline). Unmatched ROMs still get a clean cover-and-title page — nothing looks broken.
 - **Collections** — sort your library into free-form rails that follow you from couch to phone. **Favorites and "Jump back in" roam too**: star a game on the TV and it's starred on your phone; play on one device and it's front-and-centre on the next.
 - **Progress that sticks** — play-time, session count, and last-played are clocked per game ("Played 3h 20m · 5 sessions · 2 days ago"), and a **finished** flag badges the ones you've beaten (with a little mascot cheer when you mark one done).
+- **Rewind & fast-forward** — run time either way from the pause menu or a bound button: rewind scrubs back through the last stretch of play (missed jump, wrong dialogue choice — just back up), fast-forward is the classic turbo.
 - **In-game volume** — a Volume row in the pause menu: step the level with the pad or a thumb, tap to mute, remembered across sessions.
 - **ROM-hack aware, with your own covers** — tag a hack of a base game and it borrows the base's art, keeps its own name, wears a **HACK** badge, and links back; or grab a frame mid-game as custom box art for any hack or unmatched title.
 - **Save states + battery saves** — battery saves roam and back up server-side; snapshot states carry a thumbnail and can be named, pinned, and relaunched.
@@ -56,7 +57,7 @@ It has a hand-drawn **frog mascot** and a **WATER / jade dark theme** — a pond
 
 The in-game **Controls** screen draws your pad as a frog-themed controller — every button
 labelled with what it does, the face buttons in their real colours (flip the layout and
-watch **A** move between them), app shortcuts (Wiki, Pokédex, Fast Forward) badged on the
+watch **A** move between them), app shortcuts (Wiki, Pokédex, Fast Forward, Rewind) badged on the
 buttons that hold them, and any button remappable.
 
 ### On a phone

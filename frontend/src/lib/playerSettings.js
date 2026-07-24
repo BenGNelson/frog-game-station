@@ -47,6 +47,9 @@ export const DEFAULTS = {
   // player picks a button in Controls and owns the tradeoff (any game button also fires
   // in-game). Rebindable like the others.
   ffHotkey: null,
+  // The rewind hotkey — same opt-in shape as fast-forward: unassigned until the
+  // player picks a button (or a hold-Menu chord) in Controls.
+  rewindHotkey: null,
 }
 
 // --- App-shortcut hotkeys (Wiki / Pokédex / Fast-Forward) ------------------
@@ -145,6 +148,7 @@ export function resetControls(settings, padId) {
     wikiHotkey: DEFAULTS.wikiHotkey,
     pokedexHotkey: DEFAULTS.pokedexHotkey,
     ffHotkey: DEFAULTS.ffHotkey,
+    rewindHotkey: DEFAULTS.rewindHotkey,
   }
 }
 

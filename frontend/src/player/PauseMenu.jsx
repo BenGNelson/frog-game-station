@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { Play, Save, FastForward, Maximize, Gamepad2, RotateCcw, LogOut, BookOpen, BookMarked, ChevronRight, ChevronLeft, Volume2, VolumeX } from 'lucide-react'
+import { Play, Save, FastForward, Rewind, Maximize, Gamepad2, RotateCcw, LogOut, BookOpen, BookMarked, ChevronRight, ChevronLeft, Volume2, VolumeX } from 'lucide-react'
 import { moveInGrid } from '../lib/gridNav.js'
 import { FROG, scrim, SCRIM, focusRing } from '../frog/theme.js'
 import { radiantBackdrop } from '../lib/glow.js'
@@ -26,12 +26,14 @@ const SECTION_LABEL = { snapshots: 'Snapshots', play: 'Play', game: 'Game', setu
 // The menu's contents, exported so the controller can walk the same list the
 // touch/keyboard user sees — one source of truth for what's on screen and what
 // index each thing sits at.
-export function pauseItems(fastForward, { canFullscreen = true, isPokemon = false, volume } = {}) {
+export function pauseItems(fastForward, { canFullscreen = true, isPokemon = false, volume, rewinding = false } = {}) {
   return [
     { id: 'resume', label: 'Resume', Icon: Play, primary: true, section: 'top' },
     // Save and Load open the SAME shelf (it defaults focus to "Save new"), so they're
     // one row, not two — the shelf is where you both save and load.
     { id: 'states', label: 'Save / Load States', Icon: Save, chevron: true, section: 'snapshots' },
+    // The time controls, together: rewind ⟲, fast-forward ⟳, then the volume.
+    { id: 'rewind', label: 'Rewind', Icon: Rewind, active: rewinding, section: 'play' },
     { id: 'fastForward', label: 'Fast Forward', Icon: FastForward, active: fastForward, section: 'play' },
     // Game audio. An adjustable row (◀ ▶ / the − + taps step it; A / tap toggles
     // mute), shown only when the shell passes a level — older callers just omit it.
@@ -55,8 +57,8 @@ export function pauseItems(fastForward, { canFullscreen = true, isPokemon = fals
   ]
 }
 
-export default function PauseMenu({ open, name, fastForward, canFullscreen, isPokemon, volume, onVolume, focus, onFocus, onAction, legend }) {
-  const items = pauseItems(fastForward, { canFullscreen, isPokemon, volume })
+export default function PauseMenu({ open, name, fastForward, rewinding, canFullscreen, isPokemon, volume, onVolume, focus, onFocus, onAction, legend }) {
+  const items = pauseItems(fastForward, { canFullscreen, isPokemon, volume, rewinding })
 
   // Keyboard parity with the controller — the same 1-column list walk drives both, so
   // desktop and pad can never diverge. cols:1 makes left/right no-ops and up/down step

@@ -192,13 +192,14 @@ describe('control bindings, per controller', () => {
     // The bug: "Reset" only cleared per-button rebinds, so changing the scheme or a
     // hotkey and hitting Reset looked like it did nothing.
     let s = withBinding(DEFAULTS, XBOX, 8, 'BUTTON_2')
-    s = { ...s, controlScheme: 'positions', wikiHotkey: 3, pokedexHotkey: 2, ffHotkey: 5 }
+    s = { ...s, controlScheme: 'positions', wikiHotkey: 3, pokedexHotkey: 2, ffHotkey: 5, rewindHotkey: 4 }
     const out = resetControls(s, XBOX)
     expect(bindingsFor(out, XBOX)).toEqual({}) // rebinds cleared
     expect(out.controlScheme).toBe(DEFAULTS.controlScheme) // 'letters'
     expect(out.wikiHotkey).toBe(DEFAULTS.wikiHotkey) // 11
     expect(out.pokedexHotkey).toBe(DEFAULTS.pokedexHotkey) // 10
     expect(out.ffHotkey).toBe(DEFAULTS.ffHotkey) // null
+    expect(out.rewindHotkey).toBe(DEFAULTS.rewindHotkey) // null
   })
 
   it('resetControls leaves OTHER controllers’ rebinds alone', () => {

@@ -41,6 +41,15 @@ describe('pauseItems', () => {
     expect(ids({ isPokemon: true })).toContain('pokedex')
   })
 
+  it('carries a Rewind toggle in Play, right before Fast Forward', () => {
+    const items = pauseItems(false, { rewinding: true })
+    const rw = items.find((i) => i.id === 'rewind')
+    expect(rw.section).toBe('play')
+    expect(rw.active).toBe(true) // the On badge while time runs backwards
+    const list = items.map((i) => i.id)
+    expect(list.indexOf('rewind')).toBe(list.indexOf('fastForward') - 1)
+  })
+
   it('carries a Volume row only when the shell passes a level', () => {
     expect(ids({})).not.toContain('volume')
     expect(ids({ volume: 0.5 })).toContain('volume')

@@ -46,7 +46,10 @@ export function playerConfig(core, controls, { coverUrl } = {}) {
     backgroundColor: '#020617', // slate-950, so it matches the rest of the app
     // Save states go to the browser (IndexedDB), not a downloaded .state file
     // (which iOS can't open). Our own EJS_onSaveState hook does the real work.
-    defaultOptions: { 'save-state-location': 'browser' },
+    // rewindEnabled must be decided at BOOT (the core allocates its rewind buffer
+    // when RetroArch starts), so it lives here rather than being toggled later.
+    // Cheap for these 8/16-bit cores; it's what makes setRewind below do anything.
+    defaultOptions: { 'save-state-location': 'browser', rewindEnabled: 'enabled' },
 
     // A physical pad works out of the box (see controlPresets).
     defaultControls: buildControls(controls),
@@ -416,6 +419,19 @@ export function setFastForward(emu, on) {
     // so the ratio configured in its settings is respected and `emu.isFastForward`
     // stays truthful.
     emu.changeSettingOption('fastForward', on ? 'enabled' : 'disabled')
+    return true
+  } catch {
+    return false
+  }
+}
+
+// Run time backwards (or stop). Input index 28 is the engine's rewind channel — held
+// down it rewinds, released it plays — driven exactly like its own keybind does
+// (0x7fff = pressed). The app exposes it as a TOGGLE (matching fast-forward): on = a
+// held virtual button. Requires rewindEnabled in the boot config above.
+export function setRewind(emu, on) {
+  try {
+    emu.gameManager.simulateInput(0, 28, on ? 0x7fff : 0)
     return true
   } catch {
     return false

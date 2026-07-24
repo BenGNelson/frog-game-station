@@ -26,6 +26,7 @@ import {
   gateEngineGamepad,
   setPaused,
   setFastForward,
+  setRewind,
   setVolume as applyEngineVolume,
   restart as restartGame,
 } from '../lib/emuBridge.js'
@@ -158,6 +159,7 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
   const [state, dispatch] = useReducer(nextPlayerState, INITIAL_PLAYER_STATE)
   const [menuFocus, setMenuFocus] = useState(0)
   const [fastForward, setFF] = useState(false)
+  const [rewinding, setRewinding] = useState(false)
   const [immersive, setImmersive] = useState(false)
 
   // The frog between Play and the game. `bootAt` is when Play was tapped (null = not
@@ -491,6 +493,26 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
     writeSettings(window.localStorage, next)
   }, [])
 
+  // The two time controls, mutually exclusive — the core can't run time both ways,
+  // so turning either on switches the other off. Both are TOGGLES (the app's idiom;
+  // rewind holds the engine's virtual rewind button down until toggled back).
+  const applyFF = useCallback((on) => {
+    if (on) {
+      setRewind(emuRef.current, false)
+      setRewinding(false)
+    }
+    setFastForward(emuRef.current, on)
+    setFF(on)
+  }, [])
+  const applyRewind = useCallback((on) => {
+    if (on) {
+      setFastForward(emuRef.current, false)
+      setFF(false)
+    }
+    setRewind(emuRef.current, on)
+    setRewinding(on)
+  }, [])
+
   // Game audio. The saved level is the source of truth (settings.volume); changes
   // persist AND drive the live engine at once. The last non-zero level is remembered
   // so mute (A / tap on the row) is a true toggle rather than a one-way trip to 0.
@@ -656,11 +678,11 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
       // Holding Menu during the press records a CHORD (hold-Menu + button) instead of a
       // bare button — the way to spend a game button on a shortcut without it firing the
       // shortcut every time you use that button in-game.
-      if (listeningFor === 'wiki' || listeningFor === 'pokedex' || listeningFor === 'fastForward') {
+      if (['wiki', 'pokedex', 'fastForward', 'rewind'].includes(listeningFor)) {
         if (buttonIndex === 9 || buttonIndex === 16) {
           setError('That button belongs to the app — pick another.')
         } else {
-          const key = listeningFor === 'wiki' ? 'wikiHotkey' : listeningFor === 'pokedex' ? 'pokedexHotkey' : 'ffHotkey'
+          const key = { wiki: 'wikiHotkey', pokedex: 'pokedexHotkey', fastForward: 'ffHotkey', rewind: 'rewindHotkey' }[listeningFor]
           const value = menuHeld ? { button: buttonIndex, mod: 'menu' } : buttonIndex
           // One slot, one shortcut: free any OTHER shortcut that was on this exact slot
           // (same bare button, or same Menu-chord). Otherwise onRawButton checks them in
@@ -668,7 +690,7 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
           // here the freed one visibly reads Unassigned. A bare button and a Menu-chord on
           // the same button DON'T collide (sameHotkey knows), so both can coexist.
           const patch = { ...settings, [key]: value }
-          for (const other of ['wikiHotkey', 'pokedexHotkey', 'ffHotkey']) {
+          for (const other of ['wikiHotkey', 'pokedexHotkey', 'ffHotkey', 'rewindHotkey']) {
             if (other !== key && sameHotkey(patch[other], value)) patch[other] = null
           }
           saveSettings(patch)
@@ -746,13 +768,14 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
           // Save and Load are one tile — the shelf does both (it opens on "Save new").
           openShelf()
           break
-        case 'fastForward': {
-          const on = !fastForward
-          setFastForward(emu, on)
-          setFF(on)
+        case 'rewind':
+          applyRewind(!rewinding)
+          dispatch('resume') // rewind is something you want to SEE
+          break
+        case 'fastForward':
+          applyFF(!fastForward)
           dispatch('resume') // fast-forward is something you want to SEE
           break
-        }
         case 'volume':
           // A / tap on the row toggles mute; the level itself is stepped with ◀ ▶
           // (pad/keyboard) or the row's − + taps. Stays on the menu — you're tuning.
@@ -784,7 +807,7 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
           break
       }
     },
-    [fastForward, openShelf, goFullscreen, openControls, openWiki, openPokedex, toggleMute]
+    [fastForward, rewinding, applyFF, applyRewind, openShelf, goFullscreen, openControls, openWiki, openPokedex, toggleMute]
   )
 
   const openMenu = useCallback(() => {
@@ -825,12 +848,10 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
       else if (action === 'wiki') openWiki()
       else if (action === 'pokedex') openPokedex()
       else if (action === 'fastForward') {
-        const on = !fastForward
-        setFastForward(emuRef.current, on)
-        setFF(on)
+        applyFF(!fastForward)
       }
     },
-    [fastForward, openMenu, openWiki, openPokedex]
+    [fastForward, applyFF, openMenu, openWiki, openPokedex]
   )
 
   // --- the physical controller ---------------------------------------------
@@ -852,7 +873,7 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state === 'PLAYING'])
 
-  const menuItems = pauseItems(fastForward, { canFullscreen, isPokemon, volume })
+  const menuItems = pauseItems(fastForward, { canFullscreen, isPokemon, volume, rewinding })
 
   const rows = controlRows(isPokemon)
 
@@ -871,7 +892,7 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
     // makes the Menu long-press defer to release (see menuGesture); off, nothing changes.
     menuChordMode:
       isChord(settings.wikiHotkey) || isChord(settings.pokedexHotkey) || isChord(settings.ffHotkey) ||
-      listeningFor === 'wiki' || listeningFor === 'pokedex' || listeningFor === 'fastForward',
+      ['wiki', 'pokedex', 'fastForward', 'rewind'].includes(listeningFor),
 
     // While the Controls screen is waiting for a press, that press IS the binding —
     // it must not also move the cursor. Returning true swallows it. Otherwise, in-game,
@@ -897,9 +918,12 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
       }
       // The fast-forward hotkey — toggle the core's turbo mid-play.
       if (hotkeyMatches(settings.ffHotkey, index, menuHeld)) {
-        const on = !fastForward
-        setFastForward(emuRef.current, on)
-        setFF(on)
+        applyFF(!fastForward)
+        return true
+      }
+      // The rewind hotkey — hold time in reverse until toggled back.
+      if (hotkeyMatches(settings.rewindHotkey, index, menuHeld)) {
+        applyRewind(!rewinding)
         return true
       }
       return false
@@ -986,7 +1010,7 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
         else if (action === 'confirm') {
           if (row === 'reset') resetBindings()
           else if (row === 'skin') cycleSkin(1)
-          else if (row === 'wiki' || row === 'pokedex' || row === 'fastForward') setListeningFor(row)
+          else if (['wiki', 'pokedex', 'fastForward', 'rewind'].includes(row)) setListeningFor(row)
           else if (row.startsWith('bind:')) setListeningFor(Number(row.slice(5)))
           else chooseScheme(row)
         } else if ((action === 'left' || action === 'right') && row === 'skin') {
@@ -1364,6 +1388,7 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
           open={paused && !shelfOpen}
           name={name}
           fastForward={fastForward}
+          rewinding={rewinding}
           canFullscreen={canFullscreen}
           isPokemon={isPokemon}
           volume={volume}
@@ -1396,6 +1421,7 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
             wikiHotkey={settings.wikiHotkey}
             pokedexHotkey={settings.pokedexHotkey}
             ffHotkey={settings.ffHotkey}
+          rewindHotkey={settings.rewindHotkey}
             isPokemon={isPokemon}
             focus={controlsFocus}
             onFocus={setControlsFocus}

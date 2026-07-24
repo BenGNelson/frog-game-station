@@ -336,7 +336,9 @@ colours), and the **button-legend glyphs** keep the real controller's face-butto
   only omit. Nav reuses `moveInGrid` at `cols: 1` (the section headers are cosmetic; the
   controller walks the flat item array so index ↔ action stays 1:1 across touch, keyboard,
   and pad). Save and Load collapsed into one **"Save / Load States"** row — both open the
-  same shelf, which lands on Save-new. A **Volume** row sits right under Fast Forward —
+  same shelf, which lands on Save-new. **Rewind** and **Fast Forward** sit together in
+  Play — the two time toggles (each wears an On badge while live; picking either resumes,
+  since running time is something you want to see). A **Volume** row sits right under them —
   the one adjustable row in the list: ◀ ▶ (pad/keyboard) or its − + taps step the level
   in tenths, A / tap toggles mute (remembering the last audible level). The level is
   applied live through `emuBridge.setVolume` (the engine's own hidden slider machinery,
@@ -522,11 +524,17 @@ controller** (`controlBindings` keyed by pad id, so a second pad doesn't rewire 
   never do anything. L2/R2 therefore ship **unbound** (see `controlPresets.js`), which is what
   frees the triggers. The diagram flags free buttons jade and annotates what's on each. The
   **Menu** button is app-reserved (short = Start, long = the pause menu) and shown locked.
-- **Shortcuts: Wiki, Pokédex, Fast Forward.** Each is an app action bindable to any button
+- **Shortcuts: Wiki, Pokédex, Fast Forward, Rewind.** Each is an app action bindable to any
+  button
   (a game button will also fire in-game — surfaced as the tradeoff). Wiki defaults to **R3**,
-  Pokédex to **L3**; **Fast Forward** ships **unassigned** (the free stick-clicks are taken —
-  a trigger is its natural home) — you opt in and pick the button (`ffHotkey`; toggles the core turbo via `emuBridge.setFastForward`
-  when pressed in-play). The screen scroll-follows the controller (the house
+  Pokédex to **L3**; **Fast Forward** and **Rewind** ship **unassigned** (the free
+  stick-clicks are taken) — you opt in and pick the button (`ffHotkey` toggles the core
+  turbo via `emuBridge.setFastForward`; `rewindHotkey` toggles time-in-reverse via
+  `emuBridge.setRewind` — the engine's rewind input channel, held down as a virtual
+  button; the two are mutually exclusive, so turning one on drops the other). Rewind
+  itself must be enabled at core BOOT (the rewind buffer is allocated when RetroArch
+  starts), so `rewindEnabled` rides the player's `defaultOptions` boot config. The
+  screen scroll-follows the controller (the house
   `scrollIntoView({block:'nearest'})` pattern) so the shortcuts and Reset at the bottom are reachable.
 - **Hold-Menu modifier — more than the two free clicks.** Only the stick-clicks (L3/R3) are
   collision-free on their own, so a shortcut is otherwise stuck choosing between them or a game

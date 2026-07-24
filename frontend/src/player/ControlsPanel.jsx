@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { ChevronLeft, Check, RotateCcw, Gamepad2, BookOpen, BookMarked, FastForward } from 'lucide-react'
+import { ChevronLeft, Check, RotateCcw, Gamepad2, BookOpen, BookMarked, FastForward, Rewind } from 'lucide-react'
 import { SCHEMES, BINDABLE, resolveBindings, describeBinding } from '../lib/controlPresets.js'
 import { CONTROL_SKINS, isChord } from '../lib/playerSettings.js'
 import { bindingForButton } from '../lib/gamepad.js'
@@ -28,10 +28,11 @@ export default function ControlsPanel({
   skin,
   onSkin,
   bindings,
-  listeningFor, // the RetroPad index (or 'wiki'/'pokedex'/'fastForward') waiting for a press, or null
+  listeningFor, // the RetroPad index (or 'wiki'/'pokedex'/'fastForward'/'rewind') waiting for a press, or null
   wikiHotkey, // the raw pad-button index bound to the wiki reader
   pokedexHotkey, // the raw pad-button index bound to the Pokédex (Pokémon games only)
   ffHotkey, // the raw pad-button index bound to fast-forward (null = unassigned)
+  rewindHotkey, // the raw pad-button index bound to rewind (null = unassigned)
   isPokemon, // whether to show the Pokédex hotkey row
   focus,
   onFocus,
@@ -176,6 +177,7 @@ export default function ControlsPanel({
               wikiHotkey={wikiHotkey}
               pokedexHotkey={pokedexHotkey}
               ffHotkey={ffHotkey}
+              rewindHotkey={rewindHotkey}
               isPokemon={isPokemon}
               focusedKey={focusedKey}
               onFocusKey={(key) => onFocus(rows.indexOf(key))}
@@ -227,6 +229,16 @@ export default function ControlsPanel({
               focused={focusedKey === 'fastForward'}
               onSelect={() => onListen('fastForward')}
               onHover={() => onFocus(rows.indexOf('fastForward'))}
+            />
+            <HotkeyRow
+              Icon={Rewind}
+              label="Rewind"
+              hint="toggles rewind"
+              value={describeHotkey(rewindHotkey)}
+              listening={listeningFor === 'rewind'}
+              focused={focusedKey === 'rewind'}
+              onSelect={() => onListen('rewind')}
+              onHover={() => onFocus(rows.indexOf('rewind'))}
             />
           </div>
 
@@ -325,7 +337,7 @@ function HotkeyRow({ Icon, label, hint, value, listening, focused, onSelect, onH
 
 // The flat row order the d-pad walks. Exported so PlayerShell can drive focus against
 // exactly what's on screen. The `bind:*` rows are the game buttons drawn on the diagram;
-// 'wiki'/'pokedex'/'fastForward' are the app-level shortcuts, then Reset.
+// 'wiki'/'pokedex'/'fastForward'/'rewind' are the app-level shortcuts, then Reset.
 export function controlRows(isPokemon = false) {
   return [
     ...Object.keys(SCHEMES),
@@ -334,6 +346,7 @@ export function controlRows(isPokemon = false) {
     'wiki',
     ...(isPokemon ? ['pokedex'] : []),
     'fastForward',
+    'rewind',
     'reset',
   ]
 }

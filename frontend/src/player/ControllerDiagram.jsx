@@ -103,7 +103,7 @@ const RETRO_NAME = {
 }
 
 export default function ControllerDiagram({
-  resolved, bindings, listeningFor, wikiHotkey, pokedexHotkey, ffHotkey, isPokemon,
+  resolved, bindings, listeningFor, wikiHotkey, pokedexHotkey, ffHotkey, rewindHotkey, isPokemon,
   skin = 'xbox', focusedKey, onFocusKey, onSelectKey,
 }) {
   const faceColors = FACE_COLOR[skin] || FACE_COLOR.xbox
@@ -124,6 +124,7 @@ export default function ControllerDiagram({
     tag(wikiHotkey, 'Wiki')
     if (isPokemon) tag(pokedexHotkey, 'Dex')
     tag(ffHotkey, 'FF')
+    tag(rewindHotkey, 'RW')
     return out
   }
 

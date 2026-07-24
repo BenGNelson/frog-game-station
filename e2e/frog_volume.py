@@ -1,4 +1,9 @@
-"""Targeted check for the pause menu's Volume row, against a REAL booted core.
+"""Targeted check for the pause menu's play controls, against a REAL booted core.
+
+Volume: the 50% default, stepping, mute/unmute, persistence across a reload.
+Rewind: the engine boots with rewindEnabled (the buffer is allocated at core start),
+the Rewind row toggles it (On badge), and rewind and Fast Forward are mutually
+exclusive — turning one on drops the other.
 
 Boots the library's first Game Boy ROM headlessly (autoplay + software-GL flags), opens
 the pause menu, and drives the volume row end to end: the 50% default, stepping with
@@ -82,8 +87,8 @@ with sync_playwright() as p:
     check("Volume" in t, "the Volume row renders")
     check("50%" in t, "at the shipped 50% default")
 
-    for _ in range(3):
-        page.keyboard.press("ArrowDown")  # resume -> states -> fast-forward -> volume
+    for _ in range(4):
+        page.keyboard.press("ArrowDown")  # resume -> states -> rewind -> fast-forward -> volume
     page.keyboard.press("ArrowRight")
     check("60%" in menu_text(page), "ArrowRight steps the level to 60%")
 
@@ -95,10 +100,50 @@ with sync_playwright() as p:
     check(boot(page, URL), "the player reloads")
     check("60%" in menu_text(page), "the level survived the reload (persisted)")
 
-    for _ in range(3):
+    for _ in range(4):
         page.keyboard.press("ArrowDown")
     page.keyboard.press("ArrowLeft")
     check("50%" in menu_text(page), "ArrowLeft steps back to 50%")
+
+    # --- rewind ------------------------------------------------------------
+    enabled = None
+    for f in page.frames:
+        if "emulator.html" in f.url:
+            enabled = f.evaluate("window.EJS_emulator && window.EJS_emulator.rewindEnabled")
+    check(enabled is True, "the engine booted with rewind enabled (boot config)")
+
+    # The menu is still open with focus parked on the Volume row — close it and
+    # reopen so each toggle walk below starts from Resume (index 0).
+    page.keyboard.press("Escape")
+    page.wait_for_timeout(400)
+
+    def reopen_menu():
+        # By now the keyboard presses have flipped the app out of touch mode, so the
+        # ☰ overlay is gone — Escape is the desktop way in while the game runs.
+        page.keyboard.press("Escape")
+        page.wait_for_selector('[role="dialog"][aria-label="Game menu"]', timeout=5000)
+        page.wait_for_timeout(300)
+
+    def toggle_row(downs):
+        for _ in range(downs):
+            page.keyboard.press("ArrowDown")
+        page.keyboard.press("Enter")  # toggles + resumes (the menu closes)
+        page.wait_for_timeout(400)
+
+    on = lambda label: page.locator(f'button:has-text("{label}"):has-text("On")').count()
+
+    reopen_menu()
+    toggle_row(2)  # resume -> states -> rewind
+    reopen_menu()
+    check(on("Rewind") == 1, "toggling Rewind wears the On badge (time runs backwards)")
+
+    toggle_row(3)  # -> fast forward
+    reopen_menu()
+    check(on("Fast Forward") == 1 and on("Rewind") == 0, "Fast Forward on drops Rewind (mutually exclusive)")
+
+    toggle_row(3)  # fast forward off again — leave the session as found
+    reopen_menu()
+    check(on("Fast Forward") == 0 and on("Rewind") == 0, "both toggles off again")
     b.close()
 
 if errors:

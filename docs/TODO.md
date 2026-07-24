@@ -85,8 +85,13 @@ Open items carry an inline tag; completed (`[x]`) items are left untagged — th
 
 ### v1.3 — "Player power pack" (re-expose engine features)
 
-- [ ] **[P2] Rewind.** Engine supports it; enable + hold-button binding + pause-menu
-      toggle, wired into the Controls-screen hotkey system (which already handles FF).
+- [x] **Rewind.** Shipped: `rewindEnabled` rides the boot config (the core allocates its
+      rewind buffer at start), a **Rewind** row joins the pause menu right before Fast
+      Forward (both toggles resume on pick, On badge while live), a `rewindHotkey` slot
+      joins the Controls screen (bare button or hold-Menu chord, RW badge on the drawn
+      pad), and `emuBridge.setRewind` holds the engine's rewind channel (input 28) down
+      as a virtual button. Rewind and fast-forward are mutually exclusive — turning one
+      on drops the other.
 - [ ] **[P2] Display options.** Pause-menu "Display" group: CRT/scanline shader toggle,
       aspect-ratio / integer scale — driven through `emuBridge.js` settings (engine chrome
       stays hidden).

@@ -5,7 +5,9 @@ describe('controlRows', () => {
   it('includes the Fast Forward shortcut, before Reset', () => {
     const rows = controlRows(false)
     expect(rows).toContain('fastForward')
-    expect(rows.indexOf('fastForward')).toBeLessThan(rows.indexOf('reset'))
+    expect(rows).toContain('rewind')
+    expect(rows.indexOf('fastForward')).toBeLessThan(rows.indexOf('rewind'))
+    expect(rows.indexOf('rewind')).toBeLessThan(rows.indexOf('reset'))
     // Reset is always last.
     expect(rows[rows.length - 1]).toBe('reset')
   })
