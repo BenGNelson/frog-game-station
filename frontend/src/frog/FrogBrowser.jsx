@@ -27,6 +27,7 @@ import { getFavorites } from '../lib/favorites.js'
 import { getRecentSearches, recordSearch, removeRecentSearch } from '../lib/recentSearches.js'
 import { moveInRails, reconcileShelfFocus } from '../lib/gridNav.js'
 import { playForAction } from '../lib/sfx.js'
+import { applyDeferredSwReload } from '../lib/swReload.js'
 import { useGamepad } from '../lib/useGamepad.js'
 import { mediaMatches } from '../lib/useMediaQuery.js'
 import { SkeletonLine } from '../components/ui.jsx'
@@ -89,6 +90,11 @@ const place = { booted: false, screen: 'shelf', system: null, collection: null, 
 
 export default function FrogBrowser() {
   const navigate = useNavigate()
+  // A service-worker takeover that happened mid-game deferred its reload — apply
+  // it now, before this (post-game) mount renders with mismatched assets.
+  useEffect(() => {
+    applyDeferredSwReload()
+  }, [])
   const { online } = useOnline()
 
   // Re-fetch the library once the server becomes reachable again, so Frog Game Station opened in

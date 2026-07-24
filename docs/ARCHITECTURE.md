@@ -476,6 +476,15 @@ and finished. And the two body-text tiers (`FROG.soft`, `FROG.faint`) are held t
 contrast** on every ground by `theme.test.js`, so a palette tweak can't silently regress the
 faint captions below legibility.
 
+**A service-worker takeover reloads the page it claims** (`lib/swReload.js`). The SW
+updates aggressively (skipWaiting + claim) and prunes the shell cache to exactly the
+current build — correct, but a page that was ALREADY open (an installed PWA resumed
+from the switcher, iOS's favourite trick) would suddenly be a previous-generation page
+whose chunks exist in neither the pruned cache nor on the server: the "random" white
+screen after a deploy. So a page that had a controller reloads once when a new worker
+takes over — never mid-game (deferred to the next browse mount, a post-game moment)
+and never more than once (no reload loops).
+
 **Frog Game Station works offline.** The shelf, game list, and search are all built from one array of
 `{ id, name, core, label }` items — online that's the library API; offline it's the games
 you've **downloaded** (an on-device manifest). A pure mapping turns a manifest row into
