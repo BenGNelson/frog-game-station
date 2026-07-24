@@ -51,6 +51,7 @@ PLATFORM_IDS = {
 
 _TOKEN_URL = "https://id.twitch.tv/oauth2/token"
 _GAMES_URL = "https://api.igdb.com/v4/games"
+_TTB_URL = "https://api.igdb.com/v4/game_time_to_beats"
 _TIMEOUT = 15
 
 # The fields pulled for every candidate. `total_rating` blends critic + user;
@@ -322,9 +323,15 @@ def _get_token(settings, now: float | None = None):
 def _post_games(token: str, settings, body: str):
     """POST an APICalypse body to /games → the parsed list, or None on any
     network/HTTP/JSON error (transient — the caller retries next pass)."""
+    return _post_igdb(_GAMES_URL, token, settings, body)
+
+
+def _post_igdb(url: str, token: str, settings, body: str):
+    """POST an APICalypse body to any IGDB endpoint → the parsed list, or None on
+    any network/HTTP/JSON error (transient — the caller retries next pass)."""
     try:
         resp = requests.post(
-            _GAMES_URL,
+            url,
             headers={
                 "Client-ID": settings.igdb_client_id,
                 "Authorization": f"Bearer {token}",
@@ -339,6 +346,51 @@ def _post_games(token: str, settings, body: str):
         log.warning("igdb: query failed: %s", exc)
         return None
     return data if isinstance(data, list) else None
+
+
+# IGDB's time-to-beat figures are crowd-submitted, and the tail is garbage — a
+# cartridge RPG "beaten in 9,583 hours" is someone's console left running, not a
+# fact. Anything past this cap is treated as no data.
+_TTB_SANITY_CAP = 500 * 3600  # 500 hours
+
+
+def ttb_seconds(row: dict) -> int | None:
+    """The headline time-to-beat from one game_time_to_beats row (pure): the
+    'normally' figure, falling back to completionist then rushed — some games only
+    have one style reported. None when the row carries no usable (sane) number."""
+    for key in ("normally", "completely", "hastily"):
+        v = row.get(key)
+        if isinstance(v, (int, float)) and 0 < v <= _TTB_SANITY_CAP:
+            return int(v)
+    return None
+
+
+def fetch_time_to_beats(igdb_ids, settings) -> dict | None:
+    """{igdb game id → seconds-to-beat} for a batch of ids, from IGDB's separate
+    game_time_to_beats endpoint (one query for the whole batch). Ids absent from
+    the reply simply have no TTB data — the caller caches that as 'asked, none'.
+    None = unconfigured / unreachable (transient; retry next pass)."""
+    ids = sorted({int(i) for i in igdb_ids if i})
+    if not ids:
+        return {}
+    if not configured(settings):
+        return None
+    token = _get_token(settings)
+    if not token:
+        return None
+    body = (
+        "fields game_id,normally,completely,hastily;"
+        f" where game_id = ({','.join(str(i) for i in ids)}); limit {len(ids)};"
+    )
+    data = _post_igdb(_TTB_URL, token, settings, body)
+    if data is None:
+        return None
+    out = {}
+    for row in data:
+        gid, secs = row.get("game_id"), ttb_seconds(row)
+        if gid and secs:
+            out[int(gid)] = secs
+    return out
 
 
 def fetch_by_id(igdb_id: int, settings) -> dict | None:

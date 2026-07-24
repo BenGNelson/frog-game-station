@@ -122,9 +122,8 @@ Open items carry an inline tag; completed (`[x]`) items are left untagged — th
       **game modes**, **themes**, **alternative names** (now a match-scoring source —
       `candidate_score` takes the best of primary + alt names ×0.98, so a JP dump named
       after its regional title finally matches), and **rating_count** (votes behind the
-      score). Field list verified against the live IGDB API. *Time-to-beat deferred: it
-      lives on a separate IGDB endpoint (`game_time_to_beats`, one query per game) —
-      pick it up with the smart-rail work that would actually use it.*
+      score). Field list verified against the live IGDB API. *Time-to-beat: now
+      shipped separately (see below).*
 - [x] **Genre / franchise browse facets.** Shipped: a **BROWSE chips row** on every
       matched game page (zone `facets` — the series chip first, then each genre) → the
       full letter-railed list in collection dress with a Series/Genre kicker header.
@@ -144,6 +143,14 @@ Open items carry an inline tag; completed (`[x]`) items are left untagged — th
       stored score for AUTO matches (a manual pick is the user's word — no score),
       and the "Wrong game?" picker's subhead reads "The matcher was 87% sure — pick
       the right one…" so a shaky match announces itself.
+
+- [x] **Time-to-beat.** Shipped: the matcher backfills `ttb_normal` after each pass
+      from IGDB's separate `game_time_to_beats` endpoint — batched 25 ids per
+      (rate-limited) query, resumable, "asked, none" cached as 0 so nothing is
+      re-queried, hacks excluded (a hack's length is its own, not its base's), and a
+      **500-hour sanity cap** on the crowd-sourced figures (a real row claimed a
+      cartridge RPG takes 9,583 hours). Surfaces as a "To beat ≈ 42h" line in the
+      game page's facts grid.
 
 ### v2.0 — "The disc era" (NDS, N64, PS1, PSP)
 

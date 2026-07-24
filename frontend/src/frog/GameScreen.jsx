@@ -5,7 +5,7 @@ import {
 } from 'lucide-react'
 import { rematchOptions } from './rematch.js'
 import { coverUrl, saveStateShotUrl, igdbShotUrl } from '../lib/library.js'
-import { formatPlaytime } from '../lib/format.js'
+import { formatPlaytime, formatToBeat } from '../lib/format.js'
 import { useFocusTrap } from '../lib/useFocusTrap.js'
 import ConfirmDialog from './ConfirmDialog.jsx'
 import { FROG, systemStyle, reflection, scrim, SCRIM, focusRing, FOCUS_SCALE, FONT_DISPLAY } from './theme.js'
@@ -632,6 +632,7 @@ function About({ meta }) {
     meta.publisher && meta.publisher !== meta.developer && ['Publisher', meta.publisher],
     meta.release_year && ['Released', String(meta.release_year)],
     meta.genres?.length && ['Genres', meta.genres.join(', ')],
+    meta.ttb_normal && ['To beat', formatToBeat(meta.ttb_normal)],
   ].filter(Boolean)
   const long = (meta.summary || '').length > 260
   return (

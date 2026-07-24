@@ -39,6 +39,8 @@ log = logging.getLogger("frog.igdb-sync")
 # threshold now match — a re-match re-scores every auto row against the improved logic.
 _MATCH_VERSION = "5"
 _RATE_DELAY = 0.28  # seconds between IGDB calls (~4 req/s, IGDB's published cap)
+_TTB_BATCH = 25  # ids per game_time_to_beats query (one rate-limited call each)
+_TTB_MAX_BATCHES = 60  # per pass — enough for 1500 games; the rest next pass
 _MAX_FAILS = 5  # consecutive lookup failures that abort a pass (API down / bad creds)
 
 
@@ -173,6 +175,11 @@ class IgdbMatcher:
                 removed = set(known) - present
                 if removed:
                     db.delete_igdb_meta_many(removed)
+            # Time-to-beat rides a SEPARATE IGDB endpoint, so it's backfilled here —
+            # batched, rate-limited, and resumable — instead of doubling every match
+            # query. Only after a complete pass, so it never delays fresh matches.
+            if completed:
+                self._backfill_ttb()
             self._last_scanned = time.time()
             log.info(
                 "igdb-sync: pass done — %d looked up, %d total%s",
@@ -181,6 +188,25 @@ class IgdbMatcher:
         finally:
             self._running = False
         return self._processed
+
+    def _backfill_ttb(self) -> None:
+        """Fill ttb_normal for matched rows that haven't been asked about yet, a
+        batch per (rate-limited) query. Ids IGDB has no figure for are cached as 0
+        ('asked, none') so they're never re-queried; a transient failure leaves the
+        batch NULL for the next pass."""
+        for _ in range(_TTB_MAX_BATCHES):
+            if self._stop.is_set():
+                return
+            rows = db.matched_missing_ttb(_TTB_BATCH)
+            if not rows:
+                return
+            ttbs = igdb.fetch_time_to_beats([igdb_id for _, igdb_id in rows], settings)
+            if ttbs is None:
+                return  # unreachable — retry next pass
+            for gid, igdb_id in rows:
+                db.set_ttb(gid, ttbs.get(int(igdb_id), 0))
+            if self._stop.wait(_RATE_DELAY):
+                return
 
     def trigger_rescan(self) -> dict:
         """Kick a one-off matching pass now, in the background (the settings 're-scan'

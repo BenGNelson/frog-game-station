@@ -474,6 +474,10 @@ class GameMetaModel(BaseModel):
     rating_count: int | None = Field(
         default=None, description="How many ratings the blended score rests on"
     )
+    ttb_normal: int | None = Field(
+        default=None,
+        description="Seconds to beat (IGDB, 'normally' style). Absent for hacks — a hack's length is its own",
+    )
 
 
 @router.get("/library/games/meta", response_model=GameMetaModel)
@@ -519,6 +523,7 @@ def get_game_meta(id: str = Query(description="Game id from the section listing"
         game_modes=row.get("game_modes") or [],
         themes=row.get("themes") or [],
         rating_count=row.get("rating_count"),
+        ttb_normal=(row.get("ttb_normal") or None) if not is_hack else None,
     )
 
 

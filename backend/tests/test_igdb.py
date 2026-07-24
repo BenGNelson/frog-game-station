@@ -197,6 +197,47 @@ def test_candidate_score_uses_alternative_names():
     assert igdb.candidate_score("Tetris Attack", tie) == igdb.score("Tetris Attack", "Tetris Attack")
 
 
+def test_ttb_seconds_prefers_normally_then_falls_back():
+    assert igdb.ttb_seconds({"normally": 30000, "completely": 60000}) == 30000
+    assert igdb.ttb_seconds({"completely": 60000}) == 60000
+    assert igdb.ttb_seconds({"hastily": 9000}) == 9000
+    assert igdb.ttb_seconds({"normally": 0}) is None
+    assert igdb.ttb_seconds({}) is None
+
+
+def test_ttb_seconds_rejects_crowd_garbage():
+    # A real row from the wild: "beaten in 9,583 hours" is a console left running.
+    assert igdb.ttb_seconds({"normally": 9583 * 3600}) is None
+    # An absurd 'normally' falls through to a sane completionist figure.
+    assert igdb.ttb_seconds({"normally": 9999 * 3600, "completely": 90000}) == 90000
+
+
+def test_fetch_time_to_beats_batches_and_maps(monkeypatch):
+    seen = {}
+    monkeypatch.setattr(igdb, "configured", lambda s: True)
+    monkeypatch.setattr(igdb, "_get_token", lambda s: "tok")
+    def fake_post(url, token, settings, body):
+        seen["url"], seen["body"] = url, body
+        return [
+            {"game_id": 7, "normally": 28800},
+            {"game_id": 9, "completely": 90000},
+            {"game_id": 11},  # a row with no numbers → dropped
+        ]
+    monkeypatch.setattr(igdb, "_post_igdb", fake_post)
+    out = igdb.fetch_time_to_beats([9, 7, 7, None, 11], object())
+    assert out == {7: 28800, 9: 90000}
+    assert "game_time_to_beats" in seen["url"]
+    assert "where game_id = (7,9,11)" in seen["body"]  # deduped, sorted
+
+
+def test_fetch_time_to_beats_empty_and_unreachable(monkeypatch):
+    assert igdb.fetch_time_to_beats([], object()) == {}
+    monkeypatch.setattr(igdb, "configured", lambda s: True)
+    monkeypatch.setattr(igdb, "_get_token", lambda s: "tok")
+    monkeypatch.setattr(igdb, "_post_igdb", lambda *a: None)
+    assert igdb.fetch_time_to_beats([1], object()) is None
+
+
 def test_best_match_recalls_via_alt_name():
     candidates = [
         {"id": 1, "name": "Wrong Game Entirely"},

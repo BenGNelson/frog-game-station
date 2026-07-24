@@ -89,6 +89,8 @@ CREATE TABLE IF NOT EXISTS igdb_meta (
     alt_names      TEXT,              -- JSON array of regional/alternate titles (match
                                       -- recall + future search; never displayed)
     rating_count   INTEGER,           -- votes behind `rating` (confidence context)
+    ttb_normal     INTEGER,           -- seconds to beat (IGDB game_time_to_beats);
+                                      -- NULL = not asked yet, 0 = asked, IGDB has none
     updated_at     REAL NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_igdb_meta_igdb_id ON igdb_meta (igdb_id);
@@ -166,6 +168,9 @@ _MIGRATIONS = [
     "ALTER TABLE igdb_meta ADD COLUMN themes TEXT",
     "ALTER TABLE igdb_meta ADD COLUMN alt_names TEXT",
     "ALTER TABLE igdb_meta ADD COLUMN rating_count INTEGER",
+    # Time-to-beat (IGDB's separate game_time_to_beats endpoint) — backfilled lazily
+    # by the matcher after each pass, so no match-version bump is needed.
+    "ALTER TABLE igdb_meta ADD COLUMN ttb_normal INTEGER",
 ]
 
 
@@ -259,7 +264,7 @@ _IGDB_COLS = (
     "developer", "publisher", "genres", "cover_image_id", "screenshot_ids",
     "videos", "candidates", "confidence", "source", "match_version", "rom_mtime",
     "similar_games", "is_hack", "wiki_url", "franchise", "game_modes", "themes",
-    "alt_names", "rating_count", "updated_at",
+    "alt_names", "rating_count", "ttb_normal", "updated_at",
 )
 
 
@@ -373,6 +378,26 @@ def owned_base_by_igdb_id(igdb_id, exclude_game_id=None):
         if r["game_id"] != exclude_game_id:
             return r["game_id"]
     return None
+
+
+def matched_missing_ttb(limit=25):
+    """Matched, non-hack rows the TTB backfill hasn't asked about yet, as
+    [(game_id, igdb_id)]. Hacks are excluded on purpose: a hack borrows its base's
+    art, but its LENGTH is its own — showing the base's time-to-beat would be a lie."""
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT game_id, igdb_id FROM igdb_meta"
+            " WHERE matched = 1 AND is_hack = 0 AND igdb_id IS NOT NULL"
+            " AND ttb_normal IS NULL LIMIT ?",
+            (limit,),
+        ).fetchall()
+    return [(r["game_id"], r["igdb_id"]) for r in rows]
+
+
+def set_ttb(game_id, seconds):
+    """Record a game's time-to-beat (0 = asked, IGDB has no figure)."""
+    with get_conn() as conn:
+        conn.execute("UPDATE igdb_meta SET ttb_normal = ? WHERE game_id = ?", (int(seconds), game_id))
 
 
 def facets():

@@ -27,6 +27,21 @@ export function formatBytes(bytes) {
   }
 }
 
+// A time-to-beat (SECONDS, from IGDB) as an approximate figure — "≈ 45m",
+// "≈ 7.5h", "≈ 42h". Halves under ten hours (7.2 and 7.6 are different plans for
+// an evening), whole hours above (41 vs 42 is noise).
+export function formatToBeat(seconds) {
+  const s = Math.max(0, seconds || 0)
+  if (!s) return ''
+  if (s < 3600) return `≈ ${Math.max(1, Math.round(s / 60))}m`
+  const h = s / 3600
+  if (h < 10) {
+    const halves = Math.round(h * 2) / 2
+    return `≈ ${halves}h`
+  }
+  return `≈ ${Math.round(h)}h`
+}
+
 // A play-time total (milliseconds) as a compact "3h 20m" — used on the game page.
 // Coarse on purpose: whole minutes, and anything under a
 // minute reads as "<1m" rather than a jitter of seconds.

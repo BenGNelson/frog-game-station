@@ -298,6 +298,27 @@ def test_facets_empty_db_is_empty_maps(client):
     assert out == {"genres": {}, "franchises": {}}
 
 
+# --- time-to-beat ------------------------------------------------------------
+
+def test_ttb_backfill_accessors_and_meta_exposure(client, rom_dir):
+    db.upsert_igdb_meta("Tetris.gb", {"matched": 1, "igdb_id": 7, "name": "Tetris", "source": "auto"})
+    db.upsert_igdb_meta("Zelda.gbc", {"matched": 1, "igdb_id": 9, "name": "Zelda", "source": "auto", "is_hack": 1})
+    # Only the non-hack row is offered for backfill.
+    assert db.matched_missing_ttb() == [("Tetris.gb", 7)]
+    db.set_ttb("Tetris.gb", 28800)
+    assert db.matched_missing_ttb() == []  # asked → never re-queried
+    meta = client.get("/api/library/games/meta", params={"id": "Tetris.gb"}).json()
+    assert meta["ttb_normal"] == 28800
+
+
+def test_ttb_zero_means_asked_none_and_hides(client, rom_dir):
+    db.upsert_igdb_meta("Tetris.gb", {"matched": 1, "igdb_id": 7, "name": "Tetris", "source": "auto"})
+    db.set_ttb("Tetris.gb", 0)  # asked; IGDB has no figure
+    assert db.matched_missing_ttb() == []
+    meta = client.get("/api/library/games/meta", params={"id": "Tetris.gb"}).json()
+    assert meta["ttb_normal"] is None
+
+
 # --- match confidence on the candidates payload -----------------------------
 
 def test_candidates_carry_auto_match_confidence(client):

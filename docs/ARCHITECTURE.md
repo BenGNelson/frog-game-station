@@ -162,7 +162,11 @@ reachable from anywhere. The shape of them is the design:
     (match v5): franchise (first IGDB franchise, collections fallback), game modes,
     themes, alternative names — which also became a match-scoring source
     (`candidate_score`: best of primary + alt names ×0.98, so a dump named after a
-    regional title finally matches) — and the rating's vote count.
+    regional title finally matches) — and the rating's vote count. **Time-to-beat** rides a separate IGDB endpoint
+    (`game_time_to_beats`), so the matcher backfills it AFTER each completed pass —
+    batched, rate-limited, resumable; "asked, none" cached as 0; hacks excluded (a
+    hack's length is its own); crowd-garbage rejected by a 500-hour sanity cap — and
+    it surfaces as a "To beat ≈ 42h" fact on the game page.
   - **A game you've sunk time into wears it:** a quiet "Played 3h 20m · 5 sessions ·
     2 days ago" line under the actions, shown for rich and basic pages alike — total,
     session count, and last-played, all server-owned so every device agrees (see

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { formatAgo, formatBytes, formatPlaytime } from './format.js'
+import { formatAgo, formatBytes, formatPlaytime, formatToBeat } from './format.js'
 
 describe('formatAgo', () => {
   it('gives relative phrases', () => {
@@ -27,6 +27,20 @@ describe('formatBytes', () => {
     expect(formatBytes(null)).toBe('0 B')
     expect(formatBytes(undefined)).toBe('0 B')
     expect(formatBytes(-5)).toBe('0 B')
+  })
+})
+
+describe('formatToBeat', () => {
+  it('minutes under an hour, halves under ten hours, whole hours above', () => {
+    expect(formatToBeat(2700)).toBe('≈ 45m')
+    expect(formatToBeat(27000)).toBe('≈ 7.5h')
+    expect(formatToBeat(34900)).toBe('≈ 9.5h')
+    expect(formatToBeat(151200)).toBe('≈ 42h')
+  })
+
+  it('nothing for no figure', () => {
+    expect(formatToBeat(0)).toBe('')
+    expect(formatToBeat(null)).toBe('')
   })
 })
 
