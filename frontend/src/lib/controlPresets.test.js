@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
+  ANALOG_CORES,
   SCHEMES,
   DEFAULT_SCHEME,
   BINDABLE,
@@ -82,6 +83,37 @@ describe('L2/R2', () => {
     const map = resolveBindings({ scheme })
     expect(map[RETROPAD.L2]).toBe('LEFT_BOTTOM_SHOULDER')
     expect(map[RETROPAD.R2]).toBe('RIGHT_BOTTOM_SHOULDER')
+  })
+})
+
+describe('the N64 face exception (buildControls with core)', () => {
+  it('letters: the bottom button IS N64 A (RetroPad B), B-labelled does N64 B', () => {
+    const p1 = buildControls({ scheme: 'letters' }, 'n64')[0]
+    expect(p1[0].value2).toBe('BUTTON_1') // RetroPad B (N64 A) <- bottom / Xbox A
+    expect(p1[1].value2).toBe('BUTTON_2') // RetroPad Y (N64 B) <- right / Xbox B
+    expect(p1[8].value2).toBe('') // RetroPad A blanked — no double-fire
+    expect(p1[9].value2).toBe('') // RetroPad X blanked
+  })
+
+  it('positions: N64 B sits on the LEFT button, where a real N64 pad puts it', () => {
+    const p1 = buildControls({ scheme: 'positions' }, 'n64')[0]
+    expect(p1[0].value2).toBe('BUTTON_1')
+    expect(p1[1].value2).toBe('BUTTON_3')
+  })
+
+  it('custom rebinds still win over the N64 exception', () => {
+    const p1 = buildControls({ scheme: 'letters', custom: { 0: 'BUTTON_4' } }, 'n64')[0]
+    expect(p1[0].value2).toBe('BUTTON_4')
+  })
+
+  it('other cores are untouched by the exception', () => {
+    const p1 = buildControls({ scheme: 'letters' }, 'gba')[0]
+    expect(p1[8].value2).toBe('BUTTON_1') // RetroPad A keeps the letters mapping
+  })
+
+  it('n64 is an ANALOG core — the stick-as-dpad synthesis stands down for it', () => {
+    expect(ANALOG_CORES.has('n64')).toBe(true)
+    expect(ANALOG_CORES.has('gba')).toBe(false)
   })
 })
 

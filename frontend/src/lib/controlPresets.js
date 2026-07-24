@@ -84,6 +84,11 @@ export const SCHEMES = {
 // menus (where A selects) — so the same button means "yes" everywhere.
 export const DEFAULT_SCHEME = 'letters'
 
+// Cores whose stick is REAL analog. The app's stick-as-dpad synthesis (which gives
+// the 2D systems a live left stick) must stand down for these, or every nudge fires
+// analog AND a synthetic d-pad press — the "menu jumps eight spaces" bug.
+export const ANALOG_CORES = new Set(['n64'])
+
 // Everything that isn't a face button is the same either way.
 const SHARED = {
   [RETROPAD.SELECT]: 'SELECT',
@@ -165,8 +170,27 @@ export function resolveBindings({ scheme = DEFAULT_SCHEME, custom = {} } = {}) {
 
 // The shape EmulatorJS wants: { [player]: { [retropadIndex]: { value, value2 } } }.
 // Only player 1 is preset; the rest stay empty, as they are by default.
-export function buildControls(controls) {
+// The N64 exception. mupen64plus maps the N64's buttons onto RetroPad by SNES
+// position: N64 A is RetroPad B, N64 B is RetroPad Y (confirmed on hardware — a
+// letters-scheme pad had N64 A landing on the Xbox B button). So for the n64 core
+// the face map is rebuilt around what the buttons DO: the primary (N64 A) goes to
+// the bottom button both ways; N64 B goes to the button labelled B under `letters`
+// and to the left position under `positions` (where it sits on a real N64 pad).
+// RetroPad A/X are blanked — under mupen they're C-duplicates at best, and leaving
+// the scheme's rows in place would double-fire the same physical button.
+const N64_FACE = {
+  letters: { [RETROPAD.B]: 'BUTTON_1', [RETROPAD.Y]: 'BUTTON_2' },
+  positions: { [RETROPAD.B]: 'BUTTON_1', [RETROPAD.Y]: 'BUTTON_3' },
+}
+
+export function buildControls(controls, core) {
   const map = resolveBindings(controls)
+  if (ANALOG_CORES.has(core)) {
+    const face = N64_FACE[controls?.scheme] || N64_FACE[DEFAULT_SCHEME]
+    map[RETROPAD.A] = ''
+    map[RETROPAD.X] = ''
+    Object.assign(map, face, controls?.custom || {}) // custom rebinds still win
+  }
   const player = {}
   for (const [index, key] of Object.entries(KEYBOARD)) {
     player[index] = { value: key, value2: map[index] ?? '' }

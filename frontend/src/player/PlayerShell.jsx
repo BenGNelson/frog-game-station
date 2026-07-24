@@ -61,6 +61,7 @@ import {
   FF_RATIO_LEVELS,
   CONTROL_SKINS,
 } from '../lib/playerSettings.js'
+import { ANALOG_CORES } from '../lib/controlPresets.js'
 import { bindingForButton } from '../lib/gamepad.js'
 import { useGamepad } from '../lib/useGamepad.js'
 import { useWakeLock } from '../lib/useWakeLock.js'
@@ -317,6 +318,20 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
     // per /play?id=… route), so this iframe onLoad handler never needs to re-create — a
     // stale closure can't fire. Empty deps on purpose.
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // While a game is up, the surround should be BEZEL, not pond: iOS paints the
+  // home-indicator matte (and any viewport letterboxing) in the page theme-color,
+  // and the app's green-black (#0b1512) reads as a mis-matched strip against the
+  // game's true-black letterbox. Swap to black for the player's life; restore on
+  // the way out so the browser keeps its pond chrome.
+  useEffect(() => {
+    const meta = document.querySelector('meta[name="theme-color"]')
+    const prev = meta?.getAttribute('content')
+    meta?.setAttribute('content', '#000000')
+    return () => {
+      if (prev) meta?.setAttribute('content', prev)
+    }
   }, [])
 
   // The frog stays up for a beat after the game is ready.
@@ -1185,11 +1200,14 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
         )
     },
 
-    // The analog stick as a d-pad, in-game only. These systems have no analog
+    // The analog stick as a d-pad, in-game only. The 2D systems have no analog
     // input, so the engine's preset can't bind the stick — without this it'd be
-    // dead, and it's the first thing a thumb reaches for on an Xbox pad.
+    // dead, and it's the first thing a thumb reaches for on an Xbox pad. On an
+    // ANALOG core (N64) the stick is real and this must stand down, or a nudge
+    // fires analog AND a synthetic d-pad press — menus jump several rows at once.
     onStick: (dir, down) => {
       if (menuOpenRef.current) return
+      if (ANALOG_CORES.has(core)) return
       const index = { up: RETROPAD.UP, down: RETROPAD.DOWN, left: RETROPAD.LEFT, right: RETROPAD.RIGHT }[dir]
       if (index != null) press(emuRef.current, index, down)
     },

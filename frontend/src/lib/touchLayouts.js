@@ -256,8 +256,10 @@ const N64 = {
     shoulder('z', 'Z', RETROPAD.L2, 340, 25, 120),
     shoulder('r', 'R', RETROPAD.R, 820, 20),
     ...N64_C_LAND,
-    face('b', 'B', RETROPAD.B, 745, 364, 88),
-    face('a', 'A', RETROPAD.A, 870, 312, 96),
+    // N64 A is RetroPad B and N64 B is RetroPad Y under mupen64plus — the labels
+    // say what the buttons DO on the N64, not their RetroPad names.
+    face('b', 'B', RETROPAD.Y, 745, 364, 88),
+    face('a', 'A', RETROPAD.B, 870, 312, 96),
     pill('start', 'START', RETROPAD.START, 450, 405),
     uiBtn('menu', '☰', 'pauseMenu', 490, 15, 60),
     uiBtn('ff', '»', 'fastForward', 620, 15, 60),
@@ -273,8 +275,8 @@ const N64 = {
     cbtn('cleft', 'C◀', ANALOG.RX_MINUS, 320, 650, 60),
     cbtn('cright', 'C▶', ANALOG.RX_PLUS, 460, 650, 60),
     cbtn('cdown', 'C▼', ANALOG.RY_PLUS, 390, 720, 60),
-    face('a', 'A', RETROPAD.A, 430, 796, 80),
-    face('b', 'B', RETROPAD.B, 320, 816, 76),
+    face('a', 'A', RETROPAD.B, 430, 796, 80),
+    face('b', 'B', RETROPAD.Y, 320, 816, 76),
     dpad(20, 850, 140),
     pill('start', 'START', RETROPAD.START, 350, 920, 130),
   ]),

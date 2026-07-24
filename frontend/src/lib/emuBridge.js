@@ -51,8 +51,9 @@ export function playerConfig(core, controls, { coverUrl } = {}) {
     // Cheap for these 8/16-bit cores; it's what makes setRewind below do anything.
     defaultOptions: { 'save-state-location': 'browser', rewindEnabled: 'enabled' },
 
-    // A physical pad works out of the box (see controlPresets).
-    defaultControls: buildControls(controls),
+    // A physical pad works out of the box (see controlPresets). Core-aware: N64
+    // rebuilds the face around what the buttons DO (N64 A = RetroPad B).
+    defaultControls: buildControls(controls, core),
 
     // The engine's own bottom bar and settings screen, replaced by the HQ pause menu.
     buttons: EJS_BUTTONS_OFF,
