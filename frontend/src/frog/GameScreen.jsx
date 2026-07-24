@@ -42,6 +42,8 @@ export default function GameScreen({
   loadingSaves,
   similar = [],
   playMs,
+  plays,
+  lastPlayedMs,
   finished = false,
   tags = [],
   allTags = [],
@@ -225,7 +227,7 @@ export default function GameScreen({
             />
           )}
 
-          {playMs > 0 && <PlayedLine ms={playMs} />}
+          {playMs > 0 && <PlayedLine ms={playMs} plays={plays} lastMs={lastPlayedMs} />}
 
           {rich && <About meta={meta} />}
 
@@ -564,12 +566,20 @@ function RatingPill({ rating }) {
 
 // The summary + a compact facts grid.
 // A quiet "you've played this for a while" line — shown for any game with clocked
-// time, rich or basic, so a well-loved ROM hack wears its hours too.
-function PlayedLine({ ms }) {
+// time, rich or basic, so a well-loved ROM hack wears its hours too. The session
+// count and the last-played stamp (both server-owned, so they agree on every
+// device) ride along when known: "Played 3h 20m · 5 sessions · 2 days ago".
+function PlayedLine({ ms, plays, lastMs }) {
   return (
-    <p className="flex items-center gap-1.5 text-sm" style={{ color: FROG.soft }}>
+    <p className="flex flex-wrap items-center gap-1.5 text-sm" style={{ color: FROG.soft }}>
       <Play className="h-3.5 w-3.5" fill="currentColor" aria-hidden="true" />
       Played <span style={{ color: FROG.ink }}>{formatPlaytime(ms)}</span>
+      {plays > 1 && (
+        <span style={{ color: FROG.faint }}>{` · ${plays} sessions`}</span>
+      )}
+      {lastMs > 0 && (
+        <span style={{ color: FROG.faint }}>{` · ${agoLabel(lastMs).toLowerCase()}`}</span>
+      )}
     </p>
   )
 }

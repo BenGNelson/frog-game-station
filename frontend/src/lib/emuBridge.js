@@ -422,6 +422,26 @@ export function setFastForward(emu, on) {
   }
 }
 
+// Set the engine's audio volume (0..1). The engine's own slider lives in the hidden
+// bottom bar; its `setVolume` both applies the gain and keeps `emu.muted` truthful, so
+// prefer it — with a direct write to the WebAudio gains as the fallback for an engine
+// build where that bar (and the method it defines) never got created.
+export function setVolume(emu, v) {
+  try {
+    const vol = Math.max(0, Math.min(1, v))
+    emu.volume = vol
+    if (typeof emu.setVolume === 'function') emu.setVolume(vol)
+    else if (emu.Module?.AL?.currentCtx?.sources) {
+      emu.Module.AL.currentCtx.sources.forEach((s) => {
+        s.gain.gain.value = vol
+      })
+    }
+    return true
+  } catch {
+    return false
+  }
+}
+
 // --- the start screen ------------------------------------------------------
 
 // The engine draws the screen you see before a game boots, and it has to: the tap on

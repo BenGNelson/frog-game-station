@@ -1992,6 +1992,8 @@ export default function FrogBrowser() {
           loadingSaves={savesLoading}
           similar={similar}
           playMs={playStatsById.get(detailGame.id)?.play_ms}
+          plays={playStatsById.get(detailGame.id)?.plays}
+          lastPlayedMs={playStatsById.get(detailGame.id)?.updated_ms}
           finished={detailFinished}
           tags={detailTags}
           allTags={allTags}

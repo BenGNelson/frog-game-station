@@ -26,6 +26,7 @@ import {
   gateEngineGamepad,
   setPaused,
   setFastForward,
+  setVolume as applyEngineVolume,
   restart as restartGame,
 } from '../lib/emuBridge.js'
 import {
@@ -49,6 +50,7 @@ import {
   isChord,
   hotkeyMatches,
   sameHotkey,
+  clampVolume,
   CONTROL_SKINS,
 } from '../lib/playerSettings.js'
 import { bindingForButton } from '../lib/gamepad.js'
@@ -286,6 +288,9 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
       // stock player, which still works, rather than a half-wired one.
       if (!emu) return
       emuRef.current = emu
+      // The saved volume, applied the moment the engine exists (it boots at its own
+      // 0.5 default). Read from storage, not the closure — this handler mounts once.
+      applyEngineVolume(emu, clampVolume(readSettings(window.localStorage).volume))
       // The game is running: the start screen has done its job and must LEAVE. The
       // engine only ever removed its own Start button, so without this the box art
       // sits in the middle of the game, still bobbing.
@@ -485,6 +490,30 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
     setSettings(next)
     writeSettings(window.localStorage, next)
   }, [])
+
+  // Game audio. The saved level is the source of truth (settings.volume); changes
+  // persist AND drive the live engine at once. The last non-zero level is remembered
+  // so mute (A / tap on the row) is a true toggle rather than a one-way trip to 0.
+  const volume = clampVolume(settings.volume)
+  const lastAudibleRef = useRef(volume > 0 ? volume : clampVolume(undefined))
+  const changeVolume = useCallback(
+    (v) => {
+      const vol = clampVolume(v)
+      if (vol > 0) lastAudibleRef.current = vol
+      saveSettings({ ...readSettings(window.localStorage), volume: vol })
+      applyEngineVolume(emuRef.current, vol)
+    },
+    [saveSettings]
+  )
+  // ◀ ▶ on the volume row: tenths, snapped so float drift can't produce 43%.
+  const stepVolume = useCallback(
+    (dir) => changeVolume(Math.round((clampVolume(readSettings(window.localStorage).volume) + dir * 0.1) * 10) / 10),
+    [changeVolume]
+  )
+  const toggleMute = useCallback(
+    () => changeVolume(clampVolume(readSettings(window.localStorage).volume) === 0 ? lastAudibleRef.current : 0),
+    [changeVolume]
+  )
 
   const openControls = useCallback(() => {
     setControlsFocus(0)
@@ -724,6 +753,11 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
           dispatch('resume') // fast-forward is something you want to SEE
           break
         }
+        case 'volume':
+          // A / tap on the row toggles mute; the level itself is stepped with ◀ ▶
+          // (pad/keyboard) or the row's − + taps. Stays on the menu — you're tuning.
+          toggleMute()
+          break
         case 'controls':
           openControls()
           break
@@ -750,7 +784,7 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
           break
       }
     },
-    [fastForward, openShelf, goFullscreen, openControls, openWiki, openPokedex]
+    [fastForward, openShelf, goFullscreen, openControls, openWiki, openPokedex, toggleMute]
   )
 
   const openMenu = useCallback(() => {
@@ -818,7 +852,7 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state === 'PLAYING'])
 
-  const menuItems = pauseItems(fastForward, { canFullscreen, isPokemon })
+  const menuItems = pauseItems(fastForward, { canFullscreen, isPokemon, volume })
 
   const rows = controlRows(isPokemon)
 
@@ -1023,6 +1057,8 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
       }
       if (action === 'confirm') onMenuAction(menuItems[menuFocus].id)
       else if (action === 'back') dispatch('resume')
+      else if ((action === 'left' || action === 'right') && menuItems[menuFocus]?.adjust)
+        stepVolume(action === 'left' ? -1 : 1) // the volume row: ◀ ▶ step the level
       else
         setMenuFocus((i) =>
           moveInGrid({ count: menuItems.length, cols: 1, index: i }, action)
@@ -1330,6 +1366,8 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
           fastForward={fastForward}
           canFullscreen={canFullscreen}
           isPokemon={isPokemon}
+          volume={volume}
+          onVolume={stepVolume}
           focus={menuFocus}
           onFocus={setMenuFocus}
           onAction={onMenuAction}

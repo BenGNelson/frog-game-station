@@ -153,8 +153,10 @@ reachable from anywhere. The shape of them is the design:
     the meta response in IGDB's relevance order. So every tile is a game you can actually
     play — picking one opens its page (inheriting the current page's Back target, never a
     dead-ended `detail`). Empty (and the rail hidden) until the matcher has run at v2+.
-  - **A game you've sunk time into wears it:** a quiet "Played 3h 20m" line under the
-    actions, shown for rich and basic pages alike (see play-time below).
+  - **A game you've sunk time into wears it:** a quiet "Played 3h 20m · 5 sessions ·
+    2 days ago" line under the actions, shown for rich and basic pages alike — total,
+    session count, and last-played, all server-owned so every device agrees (see
+    play-time below).
 - **The frog holds its console.** Colour alone can't tell two similar handhelds apart, so
   a small drawn console badge is pinned to the mascot's corner wherever it stands in for
   the focused system (shelf, game list, game page).
@@ -334,7 +336,13 @@ colours), and the **button-legend glyphs** keep the real controller's face-butto
   only omit. Nav reuses `moveInGrid` at `cols: 1` (the section headers are cosmetic; the
   controller walks the flat item array so index ↔ action stays 1:1 across touch, keyboard,
   and pad). Save and Load collapsed into one **"Save / Load States"** row — both open the
-  same shelf, which lands on Save-new.
+  same shelf, which lands on Save-new. A **Volume** row sits right under Fast Forward —
+  the one adjustable row in the list: ◀ ▶ (pad/keyboard) or its − + taps step the level
+  in tenths, A / tap toggles mute (remembering the last audible level). The level is
+  applied live through `emuBridge.setVolume` (the engine's own hidden slider machinery,
+  with a direct WebAudio-gain fallback), persisted in the `frog.player` blob, and
+  re-applied the moment the engine boots — the `volume: 0.5` default matches the
+  engine's own historical default, so shipping the control changed nobody's loudness.
 
 ### Touch controls
 

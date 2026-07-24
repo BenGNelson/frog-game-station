@@ -71,11 +71,17 @@ Open items carry an inline tag; completed (`[x]`) items are left untagged — th
 - [x] **Favorites rail on the shelf.** Closed — already existed (the sweep misread
       this): `buildShelf` has always built a Favorites rail right after Jump back in.
       It's now fed by the roaming server list instead of localStorage.
-- [ ] **[P1] Volume control.** No volume/mute anywhere in the app — a real gap on a TV.
-      Pause-menu slider + mute through `emuBridge.js`; persist in `lib/playerSettings.js`.
-- [ ] **[P1] Surface play stats per game.** `plays` + last-played are tracked but never
-      shown. Grow the game-page play-time line: "played N times · last played X ago"
-      (extend `GET /library/games/play-stats`).
+- [x] **Volume control.** Shipped: a **Volume** row in the pause menu (right under Fast
+      Forward) — ◀ ▶ / the row's − + taps step the level in tenths, A / tap toggles
+      mute (remembering the last audible level). Applied live through
+      `emuBridge.setVolume` and persisted in the `frog.player` blob
+      (`lib/playerSettings.js` already carried the never-wired `volume: 0.5` default —
+      which is also the engine's own default, so nothing got suddenly louder). The
+      saved level is applied the moment the engine boots.
+- [x] **Surface play stats per game.** Shipped: the game-page play line grew the
+      server-owned session count and last-played stamp — "Played 3h 20m · 5 sessions ·
+      2 days ago" (the play-stats response's `plays`/`updated_ms`, added with the
+      roaming work).
 
 ### v1.3 — "Player power pack" (re-expose engine features)
 

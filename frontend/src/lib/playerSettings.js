@@ -19,6 +19,9 @@ export const DEFAULTS = {
   // bolder, someone who finds them intrusive over the game wants them fainter. The
   // default is one of the levels below so the control always shows a highlighted step.
   touchOpacity: 0.7,
+  // Game audio volume (0..1). 0.5 is the engine's own historical default — every
+  // session so far has played at this level, so the slider starts where the sound
+  // already was rather than suddenly doubling it.
   volume: 0.5,
   // Soft navigation blips in the browser. Off by default — sound is opt-in.
   navSfx: false,
@@ -143,6 +146,12 @@ export function resetControls(settings, padId) {
     pokedexHotkey: DEFAULTS.pokedexHotkey,
     ffHotkey: DEFAULTS.ffHotkey,
   }
+}
+
+// A stored volume back to a sane 0..1 number — a corrupt/legacy value must not
+// silence a game or blow an eardrum.
+export function clampVolume(v) {
+  return typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.min(1, v)) : DEFAULTS.volume
 }
 
 export function readSettings(storage) {

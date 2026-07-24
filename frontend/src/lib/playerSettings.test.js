@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   DEFAULTS,
   SETTINGS_KEY,
+  clampVolume,
   readSettings,
   writeSettings,
   migrateLegacyEjsKeys,
@@ -258,5 +259,21 @@ describe('app-shortcut hotkeys (bare button vs Menu-chord)', () => {
     expect(sameHotkey(chord, { button: 4, mod: 'menu' })).toBe(false)
     expect(sameHotkey(3, chord)).toBe(false) // bare A and Menu+A coexist
     expect(sameHotkey(null, null)).toBe(false)
+  })
+})
+
+describe('clampVolume', () => {
+  it('passes a sane level through and clamps the edges', () => {
+    expect(clampVolume(0.7)).toBe(0.7)
+    expect(clampVolume(0)).toBe(0)
+    expect(clampVolume(1)).toBe(1)
+    expect(clampVolume(-0.2)).toBe(0)
+    expect(clampVolume(1.4)).toBe(1)
+  })
+
+  it('falls back to the default for garbage (a corrupt blob must not mute or blast)', () => {
+    expect(clampVolume(undefined)).toBe(DEFAULTS.volume)
+    expect(clampVolume(NaN)).toBe(DEFAULTS.volume)
+    expect(clampVolume('loud')).toBe(DEFAULTS.volume)
   })
 })

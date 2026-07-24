@@ -40,4 +40,23 @@ describe('pauseItems', () => {
     expect(ids({ isPokemon: false })).not.toContain('pokedex')
     expect(ids({ isPokemon: true })).toContain('pokedex')
   })
+
+  it('carries a Volume row only when the shell passes a level', () => {
+    expect(ids({})).not.toContain('volume')
+    expect(ids({ volume: 0.5 })).toContain('volume')
+    expect(ids({ volume: 0 })).toContain('volume') // muted is still a level
+  })
+
+  it('the volume row is adjustable, sits in Play, and keeps the stable order', () => {
+    const items = pauseItems(false, { volume: 0.7 })
+    const vol = items.find((i) => i.id === 'volume')
+    expect(vol.adjust).toBe(true)
+    expect(vol.value).toBe(0.7)
+    expect(vol.section).toBe('play')
+    const list = items.map((i) => i.id)
+    expect(list[0]).toBe('resume')
+    expect(list[list.length - 1]).toBe('quit')
+    // Right after Fast Forward — the two play-feel controls sit together.
+    expect(list.indexOf('volume')).toBe(list.indexOf('fastForward') + 1)
+  })
 })

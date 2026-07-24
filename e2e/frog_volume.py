@@ -1,0 +1,109 @@
+"""Targeted check for the pause menu's Volume row, against a REAL booted core.
+
+Boots the library's first Game Boy ROM headlessly (autoplay + software-GL flags), opens
+the pause menu, and drives the volume row end to end: the 50% default, stepping with
+the arrows, mute/unmute (which must restore the last audible level), persistence
+across a full reload, and finally stepping back so the device profile ends at the
+default. Playwright profiles are throwaway, so nothing leaks between runs anyway —
+the restore is about exercising the down-step path.
+
+    BASE_URL=http://localhost:8585 python frog_volume.py
+"""
+import json
+import os
+import sys
+import urllib.parse
+import urllib.request
+from playwright.sync_api import sync_playwright
+
+BASE = os.environ.get("BASE_URL", "http://localhost:8585")
+errors = []
+
+
+def check(cond, msg):
+    print(("  ok   " if cond else "  FAIL ") + msg)
+    if not cond:
+        errors.append(msg)
+
+
+# Any small cartridge ROM boots fast; take the first Game Boy title the API lists.
+with urllib.request.urlopen(f"{BASE}/api/library/games") as r:
+    items = json.load(r)["items"]
+game = next((g for g in items if g["core"] == "gb"), items[0] if items else None)
+if not game:
+    print("no games in the library — nothing to boot")
+    sys.exit(1)
+URL = (
+    f"{BASE}/play?id={urllib.parse.quote(game['id'])}"
+    f"&core={game['core']}&name={urllib.parse.quote(game['name'])}"
+    f"&label={urllib.parse.quote(game.get('label') or '')}"
+)
+
+
+def boot(page, url):
+    """Load the player, tap the engine's Play (the real gesture), and open the pause
+    menu via the parent's overlay button (the Play tap moves focus into the iframe,
+    so parent-side keyboard events would be deaf until the menu takes focus)."""
+    page.goto(url, wait_until="networkidle")
+    for _ in range(30):
+        for f in page.frames:
+            if "emulator.html" in f.url:
+                btn = f.locator(".ejs_start_button")
+                if btn.count():
+                    try:
+                        btn.first.click(force=True)
+                    except Exception:
+                        pass
+        page.wait_for_timeout(1200)
+        menu_btn = page.locator('button[aria-label="Game menu"]')
+        if menu_btn.count():
+            try:
+                menu_btn.first.click(force=True)
+            except Exception:
+                pass
+        page.wait_for_timeout(400)
+        if page.locator('[role="dialog"][aria-label="Game menu"]').count():
+            page.wait_for_timeout(600)  # let the rows paint before reading
+            return True
+    return False
+
+
+def menu_text(page):
+    page.wait_for_timeout(150)
+    return page.locator('[role="dialog"][aria-label="Game menu"]').first.inner_text()
+
+
+with sync_playwright() as p:
+    # Headless needs autoplay allowed (the core starts audio on boot) and software GL.
+    b = p.chromium.launch(args=["--autoplay-policy=no-user-gesture-required", "--enable-unsafe-swiftshader"])
+    page = b.new_page()
+    check(boot(page, URL), f"the game boots to the pause menu ({game['name']})")
+    t = menu_text(page)
+    check("Volume" in t, "the Volume row renders")
+    check("50%" in t, "at the shipped 50% default")
+
+    for _ in range(3):
+        page.keyboard.press("ArrowDown")  # resume -> states -> fast-forward -> volume
+    page.keyboard.press("ArrowRight")
+    check("60%" in menu_text(page), "ArrowRight steps the level to 60%")
+
+    page.keyboard.press("Enter")
+    check("Mute" in menu_text(page), "Enter (A) mutes")
+    page.keyboard.press("Enter")
+    check("60%" in menu_text(page), "Enter again restores the last audible level")
+
+    check(boot(page, URL), "the player reloads")
+    check("60%" in menu_text(page), "the level survived the reload (persisted)")
+
+    for _ in range(3):
+        page.keyboard.press("ArrowDown")
+    page.keyboard.press("ArrowLeft")
+    check("50%" in menu_text(page), "ArrowLeft steps back to 50%")
+    b.close()
+
+if errors:
+    print("\nVOLUME CHECK FAILED:")
+    for e in errors:
+        print("  - " + e)
+    sys.exit(1)
+print("\nVOLUME CHECK PASSED")
