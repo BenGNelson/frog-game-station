@@ -68,6 +68,36 @@ export function hitTest(layout, x, y) {
   return null
 }
 
+// A stick's analog output for a touch: offset from the frame's centre, normalized
+// by its radius, clamped to the unit circle, with a small dead zone so a resting
+// thumb doesn't drift. Returns {x, y} in -1..1 (y positive = down, matching the
+// engine's LEFT_STICK_Y:+1 = down convention).
+export function stickVector(item, x, y) {
+  const f = item.frame
+  const r = Math.max(1, f.w / 2)
+  let nx = (x - (f.x + f.w / 2)) / r
+  let ny = (y - (f.y + f.h / 2)) / r
+  const mag = Math.hypot(nx, ny)
+  const dz = item.deadzone ?? 0.12
+  if (mag < dz) return { x: 0, y: 0 }
+  if (mag > 1) {
+    nx /= mag
+    ny /= mag
+  }
+  return { x: nx, y: ny }
+}
+
+// A stick's four axis values (0..1 each) for the engine's per-direction inputs.
+export function stickAxes(item, x, y) {
+  const v = stickVector(item, x, y)
+  return {
+    [item.axes.xPlus]: Math.max(0, v.x),
+    [item.axes.xMinus]: Math.max(0, -v.x),
+    [item.axes.yPlus]: Math.max(0, v.y),
+    [item.axes.yMinus]: Math.max(0, -v.y),
+  }
+}
+
 // Which directions a touch on the d-pad is pressing — one, or two for a diagonal.
 //
 // The d-pad is one item, not four buttons, and the corners deliberately produce
@@ -105,6 +135,7 @@ export function reduceTouches(prev, touches, layout, transform) {
   const owners = {}
   const pressed = new Set()
   const actions = new Set()
+  const analog = {} // axis index -> 0..1 deflection (sticks + analog buttons)
 
   for (const t of touches) {
     const { x, y } = toVirtual(t.clientX, t.clientY, transform)
@@ -112,7 +143,12 @@ export function reduceTouches(prev, touches, layout, transform) {
     const owned = prevId != null ? layout.items.find((i) => i.id === prevId) : null
 
     let item
-    if (!owned) {
+    if (owned?.type === 'stick') {
+      // A stick is FULLY sticky: the finger keeps it even outside its frame, so a
+      // thumb can sweep past the rim and hold full deflection — releasing only on
+      // lift. (Slide would drop the stick the moment the thumb left the circle.)
+      item = owned
+    } else if (!owned) {
       item = hitTest(layout, x, y)
     } else if (owned.slide) {
       // Slid onto another slide-able item? Take it. Otherwise stay put while the
@@ -130,6 +166,13 @@ export function reduceTouches(prev, touches, layout, transform) {
 
     if (item.type === 'dpad') {
       for (const dir of dpadZones(item, x, y)) pressed.add(item.inputs[dir])
+    } else if (item.type === 'stick') {
+      for (const [index, value] of Object.entries(stickAxes(item, x, y))) {
+        analog[index] = Math.max(analog[index] || 0, value)
+      }
+    } else if (item.analog != null) {
+      // An analog BUTTON (an N64 C-button): full deflection on its axis while held.
+      analog[item.analog] = 1
     } else if (item.input != null) {
       pressed.add(item.input)
     } else if (item.action) {
@@ -137,7 +180,7 @@ export function reduceTouches(prev, touches, layout, transform) {
     }
   }
 
-  return { owners, pressed, actions }
+  return { owners, pressed, actions, analog }
 }
 
 // What changed between two frames, as button-down / button-up events.
@@ -145,5 +188,19 @@ export function diffPressed(prev, next) {
   const events = []
   for (const index of next) if (!prev.has(index)) events.push({ index, down: true })
   for (const index of prev) if (!next.has(index)) events.push({ index, down: false })
+  return events
+}
+
+// What changed between two analog frames, as {index, value} events. Values are
+// quantized (1/64 steps) before comparing, so a resting thumb's micro-jitter
+// doesn't spam the engine every frame; a released axis emits an explicit 0.
+export function diffAnalog(prev = {}, next = {}) {
+  const q = (v) => Math.round((v || 0) * 64) / 64
+  const events = []
+  for (const index of new Set([...Object.keys(prev), ...Object.keys(next)])) {
+    const a = q(prev[index])
+    const b = q(next[index])
+    if (a !== b) events.push({ index: Number(index), value: b })
+  }
   return events
 }

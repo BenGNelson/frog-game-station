@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { fitTransform, toVirtual, hitRect, hitTest, dpadZones, reduceTouches, diffPressed } from './touchInput.js'
+import { fitTransform, toVirtual, hitRect, hitTest, dpadZones, reduceTouches, diffPressed, stickVector, stickAxes, diffAnalog } from './touchInput.js'
 import { layoutFor, CORES, ORIENTATIONS } from './touchLayouts.js'
 import { RETROPAD } from './retropad.js'
 
@@ -285,5 +285,79 @@ describe('layoutFor', () => {
         expect(it.frame.y + it.frame.h, `${core}/${it.id}`).toBeLessThanOrEqual(l.space.h)
       }
     }
+  })
+})
+
+describe('stickVector / stickAxes — the N64 analog stick', () => {
+  const item = {
+    type: 'stick',
+    id: 'stick',
+    frame: { x: 100, y: 100, w: 200, h: 200 }, // centre (200,200), radius 100
+    axes: { xPlus: 16, xMinus: 17, yPlus: 18, yMinus: 19 },
+  }
+
+  it('is zero at rest (dead zone) and full at the rim', () => {
+    expect(stickVector(item, 200, 200)).toEqual({ x: 0, y: 0 })
+    expect(stickVector(item, 205, 200)).toEqual({ x: 0, y: 0 }) // inside the dead zone
+    expect(stickVector(item, 300, 200).x).toBeCloseTo(1)
+    expect(stickVector(item, 200, 100).y).toBeCloseTo(-1)
+  })
+
+  it('clamps beyond the rim — a thumb swept past the circle holds full deflection', () => {
+    const v = stickVector(item, 500, 200)
+    expect(v.x).toBeCloseTo(1)
+    expect(v.y).toBeCloseTo(0)
+  })
+
+  it('splits into the four per-direction axis values the engine wants', () => {
+    const right = stickAxes(item, 300, 200)
+    expect(right[16]).toBeCloseTo(1) // xPlus
+    expect(right[17]).toBe(0) // xMinus
+    const upLeft = stickAxes(item, 130, 130)
+    expect(upLeft[17]).toBeGreaterThan(0.5) // left
+    expect(upLeft[19]).toBeGreaterThan(0.5) // up (y minus)
+    expect(upLeft[16]).toBe(0)
+  })
+})
+
+describe('diffAnalog', () => {
+
+  it('emits only real changes, quantized so micro-jitter stays silent', () => {
+    expect(diffAnalog({ 16: 0.5 }, { 16: 0.5 })).toEqual([])
+    expect(diffAnalog({ 16: 0.5 }, { 16: 0.503 })).toEqual([]) // < 1/64 step
+    expect(diffAnalog({ 16: 0.5 }, { 16: 0.75 })).toEqual([{ index: 16, value: 0.75 }])
+  })
+
+  it('a released axis emits an explicit zero — nothing stays latched', () => {
+    expect(diffAnalog({ 18: 1 }, {})).toEqual([{ index: 18, value: 0 }])
+  })
+})
+
+describe('reduceTouches with a stick', () => {
+  const layout = {
+    items: [
+      {
+        type: 'stick', id: 'stick',
+        frame: { x: 0, y: 0, w: 200, h: 200 },
+        axes: { xPlus: 16, xMinus: 17, yPlus: 18, yMinus: 19 },
+      },
+      { type: 'cbtn', id: 'cup', analog: 23, frame: { x: 300, y: 0, w: 60, h: 60 }, extendedEdges: { t: 8, r: 8, b: 8, l: 8 } },
+    ],
+  }
+  const t = { scale: 1, ox: 0, oy: 0 }
+
+  it('a finger on the stick produces axis values, and keeps the stick outside the rim', () => {
+    const s1 = reduceTouches({}, [{ id: 1, clientX: 180, clientY: 100 }], layout, t)
+    expect(s1.analog[16]).toBeGreaterThan(0.7)
+    // Swept far outside the frame: still owned, still fully deflected.
+    const s2 = reduceTouches(s1, [{ id: 1, clientX: 900, clientY: 100 }], layout, t)
+    expect(s2.owners[1]).toBe('stick')
+    expect(s2.analog[16]).toBeCloseTo(1)
+  })
+
+  it('an analog button holds its axis at full deflection while pressed', () => {
+    const s = reduceTouches({}, [{ id: 2, clientX: 320, clientY: 20 }], layout, t)
+    expect(s.analog[23]).toBe(1)
+    expect(s.pressed.size).toBe(0)
   })
 })

@@ -22,7 +22,7 @@
 //   inputs         a d-pad's four indices
 //   action         a UI action instead of a game button (the pause menu, FF)
 
-import { RETROPAD } from './retropad.js'
+import { RETROPAD, ANALOG } from './retropad.js'
 
 const LANDSCAPE = { w: 1000, h: 470 }
 // 520 wide, not 460. The space's WIDTH is what the clusters have to share, and on
@@ -36,6 +36,14 @@ const PORTRAIT = { w: 520, h: 1000 }
 // PlayerShell uses this to size the iframe, so the picture doesn't end up behind
 // the buttons.
 export const PORTRAIT_GAME_HEIGHT = '46%'
+// The DS stacks TWO screens, so its portrait game area is taller — and its lower
+// screen is a TOUCHSCREEN, so the control surface must sit strictly below the game
+// (see `region` on its layout) or taps meant for the game would be swallowed.
+const NDS_PORTRAIT_GAME_HEIGHT = '62%'
+
+export function portraitGameHeight(core) {
+  return core === 'nds' ? NDS_PORTRAIT_GAME_HEIGHT : PORTRAIT_GAME_HEIGHT
+}
 
 // Thumbs land low, so the bottom edge is the generous one.
 //
@@ -49,6 +57,32 @@ const EDGES = { t: 18, r: 18, b: 26, l: 18 }
 const FACE_EDGES = { t: 14, r: 14, b: 20, l: 14 }
 const DPAD_EDGES = { t: 24, r: 24, b: 34, l: 24 }
 const UI_EDGES = { t: 14, r: 14, b: 14, l: 14 }
+
+// The analog stick (N64): one circular region, the finger fully sticky (it keeps
+// the stick even outside the rim, for held full-deflections — see touchInput).
+const stick = (x, y, size) => ({
+  type: 'stick',
+  id: 'stick',
+  frame: { x, y, w: size, h: size },
+  extendedEdges: DPAD_EDGES,
+  deadzone: 0.12,
+  axes: { xPlus: ANALOG.LX_PLUS, xMinus: ANALOG.LX_MINUS, yPlus: ANALOG.LY_PLUS, yMinus: ANALOG.LY_MINUS },
+})
+
+// An N64 C-button: a small yellow button that holds a RIGHT-stick axis at full
+// deflection (mupen64plus maps the C cluster to the right stick).
+// Tight halos: the C diamond is a CLUSTER (like the d-pad's arms), so generous
+// face-button edges would make neighbours swallow each other.
+const CBTN_EDGES = { t: 8, r: 8, b: 8, l: 8 }
+const cbtn = (id, label, axis, x, y, size = 58) => ({
+  type: 'cbtn',
+  id,
+  label,
+  analog: axis,
+  frame: { x, y, w: size, h: size },
+  extendedEdges: CBTN_EDGES,
+  slide: true,
+})
 
 const dpad = (x, y, size) => ({
   type: 'dpad',
@@ -203,6 +237,78 @@ const SEGA_MD = {
   portrait: P([dpad(8, 620, 180), ...P_THREE, pill('start', 'START', RETROPAD.START, 200, 900, 130), ...P_UI()]),
 }
 
+// --- Nintendo 64 -------------------------------------------------------------
+// The stick is the primary control (where the d-pad usually sits, and bigger);
+// the d-pad shrinks into the top-left corner. Z is a THIRD shoulder next to L.
+// The C cluster is four analog buttons; A/B keep the two-button diagonal, lower.
+
+const N64_C_LAND = [
+  cbtn('cup', 'C▲', ANALOG.RY_MINUS, 842, 104),
+  cbtn('cleft', 'C◀', ANALOG.RX_MINUS, 774, 172),
+  cbtn('cright', 'C▶', ANALOG.RX_PLUS, 910, 172),
+  cbtn('cdown', 'C▼', ANALOG.RY_PLUS, 842, 240),
+]
+const N64 = {
+  landscape: L([
+    dpad(30, 25, 130),
+    stick(35, 205, 230),
+    shoulder('l', 'L', RETROPAD.L, 200, 25, 120),
+    shoulder('z', 'Z', RETROPAD.L2, 340, 25, 120),
+    shoulder('r', 'R', RETROPAD.R, 820, 20),
+    ...N64_C_LAND,
+    face('b', 'B', RETROPAD.B, 745, 364, 88),
+    face('a', 'A', RETROPAD.A, 870, 312, 96),
+    pill('start', 'START', RETROPAD.START, 450, 405),
+    uiBtn('menu', '☰', 'pauseMenu', 490, 15, 60),
+    uiBtn('ff', '»', 'fastForward', 620, 15, 60),
+  ]),
+  portrait: P([
+    shoulder('l', 'L', RETROPAD.L, 4, 472, 80),
+    shoulder('z', 'Z', RETROPAD.L2, 112, 472, 80),
+    uiBtn('menu', '☰', 'pauseMenu', 214, 470),
+    uiBtn('ff', '»', 'fastForward', 288, 470),
+    shoulder('r', 'R', RETROPAD.R, 420, 472, 90),
+    stick(10, 600, 210),
+    cbtn('cup', 'C▲', ANALOG.RY_MINUS, 390, 580, 60),
+    cbtn('cleft', 'C◀', ANALOG.RX_MINUS, 320, 650, 60),
+    cbtn('cright', 'C▶', ANALOG.RX_PLUS, 460, 650, 60),
+    cbtn('cdown', 'C▼', ANALOG.RY_PLUS, 390, 720, 60),
+    face('a', 'A', RETROPAD.A, 430, 796, 80),
+    face('b', 'B', RETROPAD.B, 320, 816, 76),
+    dpad(20, 850, 140),
+    pill('start', 'START', RETROPAD.START, 350, 920, 130),
+  ]),
+}
+
+// --- Nintendo DS -------------------------------------------------------------
+// Landscape: the SNES-shaped set works as-is (dpad + ABXY + shoulders), hugging
+// the edges so the stacked screens in the middle stay visible. Portrait is the
+// DS's natural grip: BOTH screens above (62% — see portraitGameHeight), and the
+// controls in their own strip BELOW the game (`region: 'below-game'`), which is
+// what leaves the lower touchscreen actually tappable — the engine converts
+// pointer events on the canvas to DS touch.
+const NDS_PORTRAIT_SPACE = { w: 520, h: 400 }
+const NDS = {
+  landscape: FOUR_BUTTON.landscape,
+  portrait: {
+    space: NDS_PORTRAIT_SPACE,
+    region: 'below-game',
+    items: [
+      dpad(8, 40, 170),
+      face('x', 'X', RETROPAD.X, 380, 0, 60),
+      face('y', 'Y', RETROPAD.Y, 300, 82, 60),
+      face('b', 'B', RETROPAD.B, 380, 164, 60),
+      face('a', 'A', RETROPAD.A, 460, 82, 60),
+      shoulder('l', 'L', RETROPAD.L, 10, 250, 130),
+      shoulder('r', 'R', RETROPAD.R, 380, 250, 130),
+      uiBtn('menu', '☰', 'pauseMenu', 210, 250, 56),
+      uiBtn('ff', '»', 'fastForward', 288, 250, 56),
+      pill('select', 'SELECT', RETROPAD.SELECT, 90, 340, 120),
+      pill('start', 'START', RETROPAD.START, 280, 340, 120),
+    ],
+  },
+}
+
 const LAYOUTS = {
   gb: TWO_BUTTON,
   nes: TWO_BUTTON,
@@ -211,6 +317,8 @@ const LAYOUTS = {
   gba: GBA,
   snes: FOUR_BUTTON,
   segaMD: SEGA_MD,
+  n64: N64,
+  nds: NDS,
 }
 
 // Falls back to the two-button layout for anything unknown: a d-pad, A, B and Start

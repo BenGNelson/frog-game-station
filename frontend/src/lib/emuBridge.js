@@ -319,6 +319,18 @@ export function press(emu, index, down, player = 0) {
   }
 }
 
+// Drive one analog axis input (the stick rows, 16-23) to a deflection in 0..1 —
+// the touch stick and C-buttons reach the core through this, scaled to the same
+// 0x7fff the engine's own gamepad path sends.
+export function analogInput(emu, index, value, player = 0) {
+  try {
+    emu.gameManager.simulateInput(player, index, Math.round(0x7fff * Math.max(0, Math.min(1, value))))
+    return true
+  } catch {
+    return false
+  }
+}
+
 // A momentary button press — used for the synthetic START we send when the
 // controller's Menu button is short-pressed (long-press opens our pause menu
 // instead, so START isn't bound on the pad at all).

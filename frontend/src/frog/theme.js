@@ -93,6 +93,23 @@ export const SYSTEMS = {
     belly: '#FAD1D0',
     device: 'sms',
   },
+  // The disc-era phase-1 machines. Gold for the N64 — the cartridge-and-C-button
+  // yellow, the one warm metal none of the first six wears — and a cool crystal
+  // cyan for the DS clamshell. Both picked to stay distinct across the 8-tile row.
+  'Nintendo 64': {
+    accent: '235, 168, 54',
+    skin: '#F0C36B',
+    shade: '#B8802E',
+    belly: '#F9E4B3',
+    device: 'n64',
+  },
+  'Nintendo DS': {
+    accent: '72, 199, 216',
+    skin: '#8FDDE6',
+    shade: '#3B98A6',
+    belly: '#CDF1F5',
+    device: 'nds',
+  },
 }
 
 const DEFAULT_SYSTEM = {
@@ -126,6 +143,8 @@ const CORE_SYSTEM = {
   segaMD: 'Sega Genesis',
   segaMS: 'Sega Master System',
   segaGG: 'Sega Game Gear',
+  nds: 'Nintendo DS',
+  n64: 'Nintendo 64',
 }
 
 export function systemForCore(core) {

@@ -31,7 +31,7 @@
 // There's no correct answer, only a preference — which is why it's a setting, and
 // why every button is remappable on top of it (see ControlsPanel).
 
-import { RETROPAD } from './retropad.js'
+import { RETROPAD, ANALOG } from './retropad.js'
 
 // The physical buttons, as EmulatorJS's GamepadHandler names them. A pad reporting
 // the browser's "standard" mapping — which an Xbox, DualSense, or 8BitDo pad all
@@ -94,13 +94,13 @@ const SHARED = {
   [RETROPAD.L]: 'LEFT_TOP_SHOULDER',
   [RETROPAD.R]: 'RIGHT_TOP_SHOULDER',
 
-  // L2/R2 get NO pad binding, on purpose. None of the supported systems has a real
-  // second shoulder row — the only core that reads these at all is mGBA, which parks
-  // "Turbo L/R" there, and EmulatorJS has no turbo-fire mechanism, so they could never
-  // do anything. Left unbound, the triggers become collision-free targets for app
-  // shortcuts (Fast-Forward on RT feels right), same as the stick-clicks.
-  [RETROPAD.L2]: '',
-  [RETROPAD.R2]: '',
+  // L2/R2 are REAL game buttons now: the N64's Z trigger is RetroPad L2 in
+  // mupen64plus, so the disc-era systems ended the era of "the triggers are free
+  // for app shortcuts". (An app shortcut CAN still sit on a trigger — the Controls
+  // screen surfaces the it-also-fires-in-game tradeoff, same as any game button;
+  // the collision-free slots remain the stick clicks and hold-Menu chords.)
+  [RETROPAD.L2]: 'LEFT_BOTTOM_SHOULDER',
+  [RETROPAD.R2]: 'RIGHT_BOTTOM_SHOULDER',
 
   // START gets NO pad binding, on purpose. The app owns the controller's Menu
   // button: a short press sends a synthetic START to the game, a long press opens
@@ -136,8 +136,25 @@ export const BINDABLE = [
   { index: RETROPAD.Y, name: 'Y' },
   { index: RETROPAD.L, name: 'L' },
   { index: RETROPAD.R, name: 'R' },
+  { index: RETROPAD.L2, name: 'L2 / Z' }, // the N64 Z trigger lives here
+  { index: RETROPAD.R2, name: 'R2' },
   { index: RETROPAD.SELECT, name: 'Select' },
 ]
+
+// The analog rows every player-1 preset carries: the pad's real sticks, wired to
+// the engine's axis inputs (each direction its own row, engine keyboard defaults
+// kept so desktop N64 is playable without a pad). mupen64plus maps the N64 stick
+// to the LEFT stick and the C-buttons to the RIGHT — exactly what these give.
+const ANALOG_ROWS = {
+  [ANALOG.LX_PLUS]: { value: 'h', value2: 'LEFT_STICK_X:+1' },
+  [ANALOG.LX_MINUS]: { value: 'f', value2: 'LEFT_STICK_X:-1' },
+  [ANALOG.LY_PLUS]: { value: 'g', value2: 'LEFT_STICK_Y:+1' },
+  [ANALOG.LY_MINUS]: { value: 't', value2: 'LEFT_STICK_Y:-1' },
+  [ANALOG.RX_PLUS]: { value: 'l', value2: 'RIGHT_STICK_X:+1' },
+  [ANALOG.RX_MINUS]: { value: 'j', value2: 'RIGHT_STICK_X:-1' },
+  [ANALOG.RY_PLUS]: { value: 'k', value2: 'RIGHT_STICK_Y:+1' },
+  [ANALOG.RY_MINUS]: { value: 'i', value2: 'RIGHT_STICK_Y:-1' },
+}
 
 // The final RetroPad -> physical-button map: the chosen scheme, with any buttons the
 // player has personally rebound layered on top.
@@ -153,6 +170,9 @@ export function buildControls(controls) {
   const player = {}
   for (const [index, key] of Object.entries(KEYBOARD)) {
     player[index] = { value: key, value2: map[index] ?? '' }
+  }
+  for (const [index, row] of Object.entries(ANALOG_ROWS)) {
+    player[index] = { ...row }
   }
   return { 0: player, 1: {}, 2: {}, 3: {} }
 }

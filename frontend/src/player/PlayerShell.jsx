@@ -30,6 +30,7 @@ import {
   setShader as applyEngineShader,
   setFFRatio as applyEngineFFRatio,
   setVolume as applyEngineVolume,
+  analogInput,
   restart as restartGame,
 } from '../lib/emuBridge.js'
 import {
@@ -79,7 +80,7 @@ import { resolveSpecies } from '../lib/pokedexApi.js'
 import ButtonLegend from './ButtonLegend.jsx'
 import RotatePrompt from './RotatePrompt.jsx'
 import TouchOverlay from './TouchOverlay.jsx'
-import { PORTRAIT_GAME_HEIGHT } from '../lib/touchLayouts.js'
+import { portraitGameHeight } from '../lib/touchLayouts.js'
 
 // How long the frog is up for, at minimum, and how long its exit takes. The exit
 // number must match .frog-boot[data-phase='done'] in frog.css — the animation plays,
@@ -928,6 +929,11 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
     press(emuRef.current, index, down)
   }, [])
 
+  // The touch stick / C-buttons: an axis deflection straight to the core.
+  const onTouchAnalog = useCallback((index, value) => {
+    analogInput(emuRef.current, index, value)
+  }, [])
+
   const onTouchAction = useCallback(
     (action) => {
       if (action === 'pauseMenu') openMenu()
@@ -1420,7 +1426,7 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
           src={playerSrc({ id, core, name, loadStateUrl })}
           onLoad={onFrameLoad}
           className="w-full border-0 bg-black"
-          style={{ height: portraitTouch ? PORTRAIT_GAME_HEIGHT : '100%' }}
+          style={{ height: portraitTouch ? portraitGameHeight(core) : '100%' }}
           allow="autoplay; fullscreen; gamepad"
           allowFullScreen
         />
@@ -1436,6 +1442,7 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
             fastForward={fastForward}
             onInput={onTouchInput}
             onAction={onTouchAction}
+            onAnalog={onTouchAnalog}
           />
         )}
 

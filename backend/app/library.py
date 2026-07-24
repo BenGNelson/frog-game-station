@@ -65,6 +65,17 @@ SECTIONS = [
             # Game Gear shares the Master System era + the genesis_plus_gx core;
             # essentially free to include alongside the Master System.
             ".gg": {"label": "Sega Game Gear", "core": "segaGG"},
+            # --- the disc era, phase 1: the 3D cartridge systems -------------
+            # Nintendo DS (melonDS, desmume fallback — both ship in the pinned
+            # engine). Big ROMs (up to 512 MB) and big save states, hence the
+            # per-extension state cap below.
+            ".nds": {"label": "Nintendo DS", "core": "nds", "max_state_mb": 64},
+            # Nintendo 64 (mupen64plus_next; the engine auto-falls-back to
+            # parallel-n64 on mobile Safari). All three dump byte-orders — the
+            # cores byte-swap internally. N64 save states run to ~67 MB.
+            ".z64": {"label": "Nintendo 64", "core": "n64", "max_state_mb": 128},
+            ".n64": {"label": "Nintendo 64", "core": "n64", "max_state_mb": 128},
+            ".v64": {"label": "Nintendo 64", "core": "n64", "max_state_mb": 128},
         },
     },
 ]
@@ -149,6 +160,10 @@ _THUMBNAIL_REPO_BY_EXT = {
     ".smd": "Sega_-_Mega_Drive_-_Genesis",
     ".sms": "Sega_-_Master_System_-_Mark_III",
     ".gg": "Sega_-_Game_Gear",
+    ".nds": "Nintendo_-_Nintendo_DS",
+    ".z64": "Nintendo_-_Nintendo_64",
+    ".n64": "Nintendo_-_Nintendo_64",
+    ".v64": "Nintendo_-_Nintendo_64",
 }
 # libretro replaces these characters in thumbnail filenames with '_'.
 _THUMB_ILLEGAL = set('&*/:`<>?\\|')
@@ -351,6 +366,14 @@ def custom_cover_path(covers_root, game_id):
         return None
     key = hashlib.sha1(game_id.encode()).hexdigest()
     return os.path.join(covers_root, "custom", key + ".webp")
+
+
+def max_state_bytes(section, item_id, default_mb=16):
+    """The save-state upload cap for one game, by its extension's `max_state_mb`
+    (a disc-era N64 state is ~67 MB; a Game Boy state is kilobytes — one flat cap
+    would either block the former or over-allow the latter)."""
+    meta = (section or {}).get("formats", {}).get(_ext(item_id or ""), {})
+    return int(meta.get("max_state_mb", default_mb)) * 1024 * 1024
 
 
 def save_state_files(saves_root, game_id, slot):

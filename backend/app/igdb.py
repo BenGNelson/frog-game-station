@@ -47,6 +47,8 @@ PLATFORM_IDS = {
     "Sega Genesis": 29,
     "Sega Master System": 64,
     "Sega Game Gear": 35,
+    "Nintendo DS": 20,
+    "Nintendo 64": 4,
 }
 
 _TOKEN_URL = "https://id.twitch.tv/oauth2/token"

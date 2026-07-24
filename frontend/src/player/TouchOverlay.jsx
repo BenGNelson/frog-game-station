@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { layoutFor } from '../lib/touchLayouts.js'
-import { fitTransform, reduceTouches, diffPressed } from '../lib/touchInput.js'
+import { layoutFor, portraitGameHeight } from '../lib/touchLayouts.js'
+import { fitTransform, reduceTouches, diffPressed, diffAnalog } from '../lib/touchInput.js'
 import { sectionAccent } from '../lib/library.js'
 import { glowFilter } from '../lib/glow.js'
 
@@ -17,7 +17,7 @@ const GAMES = sectionAccent('games')
 // PERFORMANCE RULE: press states are applied by toggling classes on refs, NEVER
 // with setState. A React re-render on every touchmove would make the controls feel
 // like mud, and touchmove fires at screen rate under a moving thumb.
-export default function TouchOverlay({ core, orientation, onInput, onAction, opacity = 0.7, fastForward = false }) {
+export default function TouchOverlay({ core, orientation, onInput, onAnalog, onAction, opacity = 0.7, fastForward = false }) {
   // Swaps the whole layout when the phone is turned. `layout` is the dep for both
   // effects below, so rotating rebuilds the touch pipeline and re-letterboxes.
   const layout = layoutFor(core, orientation)
@@ -32,8 +32,8 @@ export default function TouchOverlay({ core, orientation, onInput, onAction, opa
   // button under that finger then looks new again and re-fires, so fast-forward
   // chatters on and off; worse, the teardown releases whatever the other thumb was
   // holding, so the character stops walking the instant you tap ».
-  const handlers = useRef({ onInput, onAction })
-  handlers.current = { onInput, onAction }
+  const handlers = useRef({ onInput, onAnalog, onAction })
+  handlers.current = { onInput, onAnalog, onAction }
 
   const [transform, setTransform] = useState(() => ({ scale: 1, ox: 0, oy: 0 }))
   const transformRef = useRef(transform)
@@ -95,9 +95,11 @@ export default function TouchOverlay({ core, orientation, onInput, onAction, opa
 
     let owners = {}
     let pressed = new Set()
+    let analog = {} // axis index -> deflection (the stick + any analog buttons)
     let uiHeld = new Set() // action items (menu, fast-forward) currently under a finger
 
     const dpadItem = layout.items.find((i) => i.type === 'dpad')
+    const stickItem = layout.items.find((i) => i.type === 'stick')
 
     const paint = (ownedIds, pressed) => {
       // Only the buttons whose state actually changed get touched.
@@ -114,9 +116,21 @@ export default function TouchOverlay({ core, orientation, onInput, onAction, opa
       // actually holding, rather than the whole cross. Pressing Right should look
       // like pressing Right.
       const node = dpadItem && itemRefs.current[dpadItem.id]
-      if (!node) return
-      for (const [dir, index] of Object.entries(dpadItem.inputs)) {
-        node.classList.toggle(`hq-dir-${dir}`, pressed.has(index))
+      if (node) {
+        for (const [dir, index] of Object.entries(dpadItem.inputs)) {
+          node.classList.toggle(`hq-dir-${dir}`, pressed.has(index))
+        }
+      }
+
+      // The stick's knob follows the thumb — the deflection IS the feedback.
+      const stickNode = stickItem && itemRefs.current[stickItem.id]
+      const knob = stickNode?.querySelector('.hq-knob')
+      if (knob) {
+        const a = stickItem.axes
+        const dx = (analog[a.xPlus] || 0) - (analog[a.xMinus] || 0)
+        const dy = (analog[a.yPlus] || 0) - (analog[a.yMinus] || 0)
+        const r = (stickNode.clientWidth || 0) * 0.28
+        knob.style.transform = `translate(${dx * r}px, ${dy * r}px)`
       }
     }
 
@@ -161,8 +175,13 @@ export default function TouchOverlay({ core, orientation, onInput, onAction, opa
       }
       uiHeld = held
 
+      for (const { index, value } of diffAnalog(analog, next.analog)) {
+        handlers.current.onAnalog?.(index, value)
+      }
+
       owners = next.owners
       pressed = next.pressed
+      analog = next.analog
       paint(new Set(Object.values(next.owners)), next.pressed)
     }
 
@@ -183,6 +202,7 @@ export default function TouchOverlay({ core, orientation, onInput, onAction, opa
       el.removeEventListener('touchcancel', end)
       // Unmounting with a finger down would leave that button latched in the core.
       for (const index of pressed) handlers.current.onInput(index, false)
+      for (const index of Object.keys(analog)) handlers.current.onAnalog?.(Number(index), 0)
     }
   }, [layout])
 
@@ -208,8 +228,15 @@ export default function TouchOverlay({ core, orientation, onInput, onAction, opa
       // No safe-area padding here: the player wrapper already insets the whole
       // player, so this box is safe by the time we get it. Padding again would
       // inset twice and shrink every control.
-      className="absolute inset-0 z-10 touch-none select-none"
-      style={{ opacity }}
+      className="absolute inset-x-0 bottom-0 z-10 touch-none select-none"
+      style={{
+        opacity,
+        // A 'below-game' layout (the DS in portrait) owns ONLY the strip under the
+        // game — the game area above stays touchable, which is what lets taps
+        // reach the DS's real touchscreen through the iframe. Everything else
+        // keeps the full-screen surface.
+        top: layout.region === 'below-game' ? portraitGameHeight(core) : 0,
+      }}
     >
       {layout.items.map((item) => {
         const on = item.id === 'ff' && fastForward
@@ -230,7 +257,15 @@ export default function TouchOverlay({ core, orientation, onInput, onAction, opa
             }`}
             style={place(item.frame)}
           >
-            {item.type === 'dpad' ? <DpadArt /> : <span className={LABEL[item.type] || 'text-base'}>{item.label}</span>}
+            {item.type === 'dpad' ? (
+              <DpadArt />
+            ) : item.type === 'stick' ? (
+              // The analog stick: a well with a knob the paint loop translates to
+              // follow the thumb. Both circles; the knob carries the press glow.
+              <span className="hq-knob flex h-[52%] w-[52%] items-center justify-center rounded-full border-2 border-white/60 bg-black/60" />
+            ) : (
+              <span className={LABEL[item.type] || 'text-base'}>{item.label}</span>
+            )}
           </div>
         )
       })}
@@ -283,6 +318,8 @@ export default function TouchOverlay({ core, orientation, onInput, onAction, opa
 // button SHAPES, not just their labels, need to clear ~3:1 so a thumb can find them).
 const SHAPE = {
   button: 'rounded-full border-2 border-white/50 bg-black/45 backdrop-blur-[2px]',
+  stick: 'rounded-full border border-white/40 bg-black/30 backdrop-blur-[2px]',
+  cbtn: 'rounded-full border-2 border-yellow-300/60 bg-black/45 text-yellow-200 backdrop-blur-[2px]',
   pill: 'rounded-full border border-white/45 bg-black/45 text-[11px] tracking-wide backdrop-blur-[2px]',
   shoulder: 'rounded-xl border border-white/40 bg-black/45 backdrop-blur-[2px]',
   ui: 'rounded-lg border border-white/40 bg-black/55 text-sm backdrop-blur-[2px]',
@@ -293,6 +330,7 @@ const LABEL = {
   pill: 'text-[11px]',
   shoulder: 'text-sm',
   ui: 'text-sm',
+  cbtn: 'text-[13px] font-bold',
 }
 
 // The d-pad is drawn as a cross, but it's ONE hit region split into nine zones —

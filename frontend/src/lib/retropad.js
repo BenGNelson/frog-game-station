@@ -27,7 +27,22 @@ export const RETROPAD = {
   R3: 15,
 }
 
-// 0-15 are the digital buttons above. 16+ are analog axes and the engine's own
-// hotkeys (quick-save, fast-forward, rewind) — we never drive those from the app,
-// so a "release everything" flush only has to cover the digital range.
+// 0-15 are the digital buttons above. 16-23 are the analog axes (below); 24+ are
+// the engine's own hotkeys (quick-save, fast-forward, rewind). The app's
+// "release everything" flush only has to cover the digital range — analog axes
+// zero themselves on release events.
 export const DIGITAL_INPUTS = 16
+
+// The analog axes, as the engine numbers them (each direction is its own input;
+// value = deflection 0..0x7fff). The N64's stick and C-buttons, and any future
+// analog system, ride these.
+export const ANALOG = {
+  LX_PLUS: 16,
+  LX_MINUS: 17,
+  LY_PLUS: 18,
+  LY_MINUS: 19,
+  RX_PLUS: 20,
+  RX_MINUS: 21,
+  RY_PLUS: 22,
+  RY_MINUS: 23,
+}

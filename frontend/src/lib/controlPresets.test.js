@@ -76,13 +76,28 @@ describe('START', () => {
 })
 
 describe('L2/R2', () => {
-  it.each(Object.keys(SCHEMES))('are never bound to the pad (%s)', (scheme) => {
-    // No supported core has a real second shoulder row — mGBA parks unfireable
-    // "Turbo L/R" there — so leaving these unbound is what makes the triggers
-    // collision-free app-shortcut targets (Fast-Forward's natural home).
+  it.each(Object.keys(SCHEMES))('are real game buttons since the disc era (%s)', (scheme) => {
+    // The N64's Z trigger is RetroPad L2 in mupen64plus — the "triggers are free
+    // for app shortcuts" era ended when N64 joined the shelf.
     const map = resolveBindings({ scheme })
-    expect(map[RETROPAD.L2]).toBe('')
-    expect(map[RETROPAD.R2]).toBe('')
+    expect(map[RETROPAD.L2]).toBe('LEFT_BOTTOM_SHOULDER')
+    expect(map[RETROPAD.R2]).toBe('RIGHT_BOTTOM_SHOULDER')
+  })
+})
+
+describe('analog rows (the N64 stick + C-buttons)', () => {
+  it('player 1 carries all eight axis rows with the engine wiring', () => {
+    const p1 = buildControls({})[0]
+    expect(p1[16]).toEqual({ value: 'h', value2: 'LEFT_STICK_X:+1' })
+    expect(p1[19]).toEqual({ value: 't', value2: 'LEFT_STICK_Y:-1' })
+    expect(p1[20]).toEqual({ value: 'l', value2: 'RIGHT_STICK_X:+1' })
+    expect(p1[23]).toEqual({ value: 'i', value2: 'RIGHT_STICK_Y:-1' })
+  })
+
+  it('players 2-4 stay empty (unchanged)', () => {
+    const c = buildControls({})
+    expect(c[1]).toEqual({})
+    expect(c[3]).toEqual({})
   })
 })
 

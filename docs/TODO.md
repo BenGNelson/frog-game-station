@@ -158,11 +158,20 @@ The pinned engine already ships all four cores — this is config + input wiring
 engine change. Full design (formats, BIOS, guards, risks) lives with the milestone; the
 shape:
 
-- [ ] **[P3] Phase 1 — NDS + N64.** Formats `.nds` / `.z64`+`.n64`+`.v64`; IGDB ids +
-      thumbnail repos; per-extension save-state caps (N64 states ≫ the flat 16MB cap);
-      analog rows 16–23 in `controlPresets.js` (N64 stick + C-buttons, and bind L2/R2 —
-      N64's Z is RetroPad L2; app-shortcut chords move to L3/R3); new touch layouts incl.
-      a draggable analog stick; per-core portrait game height (DS stacks two screens).
+- [x] **Phase 1 — NDS + N64.** Shipped, verified by booting real ROMs headlessly
+      (Mario Kart 64, Ocarina of Time, Mario Kart DS, Pokémon Platinum — all render
+      frames). Backend: `.nds`/`.z64`/`.n64`/`.v64` formats, IGDB platform ids,
+      libretro thumbnail repos, per-extension save-state caps (N64 128 MB, DS 64 MB,
+      16 MB default). Frontend: both machines join the shelf (two rows of four now)
+      with drawn consoles (the N64 trident controller, the open DS clamshell) and
+      their own accents; offline downloads carry BOTH N64 cores (the engine picks
+      parallel_n64 on mobile Safari); analog rows 16–23 wired for every pad (N64
+      stick = left stick, C-cluster = right stick), L2/R2 became real game buttons
+      (Z lives on L2) and joined the rebind list; a touch **analog stick** control
+      type (fully-sticky finger, dead zone, knob follows the thumb) plus N64 and DS
+      touch layouts — the DS portrait overlay sits strictly BELOW the game (62%
+      screen height) so the DS touchscreen stays tappable. **melonDS direct-boots
+      without BIOS files** — the BIOS ask is cancelled.
 - [ ] **[P3] Phase 2 — PS1 via `.chd` + BIOS.** `.chd` only (one file per disc — no
       cue/bin/zip plumbing; `.bin` stays unmapped). New `GAMES_BIOS_DIR` read-only mount +
       allowlisted `GET /api/library/bios` → `EJS_biosUrl` param (one ENGINE_VERSION bump).

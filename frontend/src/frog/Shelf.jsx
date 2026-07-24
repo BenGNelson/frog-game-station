@@ -18,7 +18,7 @@ import Console from './Console.jsx'
 //
 //   1. You are almost always coming back to the SAME GAME. → "Jump back in" is rail
 //      zero, it's where focus lands, and it means most sessions never touch a letter.
-//   2. There are only six machines, and six fits on one screen. → the systems row
+//   2. The machines fit on one screen (two rows of four). → the systems row
 //      NEVER SCROLLS. No paging, no carousel, no hidden seventh tile. You can see
 //      your whole collection's shape in one look, which is the feeling a shelf of
 //      cartridges gives you and a scrolling grid never does.
@@ -323,12 +323,12 @@ export default function Shelf({ rails, focus, finishedIds, hackIds, onFocus, onP
             <Heading className="px-1">{rail.title}</Heading>
 
             {rail.kind === 'system' ? (
-              // Six across, never scrolling — the whole point of the shelf. Two rows
-              // of three when the screen is too narrow for six (a phone in portrait),
+              // Two rows of four, never scrolling — the whole point of the shelf
+              // (grew from one row of six when the disc era joined),
               // which still shows every machine at once.
               <div
                 ref={(el) => (railRefs.current[r] = el)}
-                className="grid grid-cols-3 gap-3 sm:grid-cols-6"
+                className="grid grid-cols-4 gap-3"
               >
                 {rail.items.map((sys, i) => (
                   <Floats key={sys.id} delay={i * 220}>

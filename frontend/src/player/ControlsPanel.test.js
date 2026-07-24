@@ -20,8 +20,9 @@ describe('controlRows', () => {
   it('walks schemes, then the bindable game buttons, then the shortcuts', () => {
     const rows = controlRows(false)
     expect(rows.slice(0, 2)).toEqual(['letters', 'positions'])
-    // The seven rebindable game buttons sit between the schemes and the shortcuts.
-    expect(rows.filter((r) => r.startsWith('bind:')).length).toBe(7)
+    // The nine rebindable game buttons (L2/R2 joined with the disc era) sit
+    // between the schemes and the shortcuts.
+    expect(rows.filter((r) => r.startsWith('bind:')).length).toBe(9)
     expect(rows.indexOf('bind:8')).toBeLessThan(rows.indexOf('wiki'))
   })
 

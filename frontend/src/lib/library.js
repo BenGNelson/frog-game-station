@@ -216,17 +216,28 @@ const LIBRETRO_CORE = {
   segaMD: 'genesis_plus_gx',
   segaMS: 'smsplus',
   segaGG: 'genesis_plus_gx',
+  nds: 'melonds',
+  n64: 'mupen64plus_next',
+}
+
+// N64 is the one system where the engine picks a DIFFERENT default per device
+// (mupen64plus_next everywhere, parallel_n64 on mobile Safari) — an offline
+// download must carry both or the game boots on the couch and not on the phone.
+const EXTRA_CORES = {
+  n64: ['parallel_n64'],
 }
 
 // The per-game offline URLs: the ROM + its core (both non-thread variants, since
 // iOS may pick either) + the core's report. The shared engine is separate.
 export function gameOfflineUrls(id, core) {
-  const lib = LIBRETRO_CORE[core] || core
+  const libs = [LIBRETRO_CORE[core] || core, ...(EXTRA_CORES[core] || [])]
   return [
     fileUrl('games', id),
-    `${EMULATORJS_DATA}cores/${lib}-wasm.data`,
-    `${EMULATORJS_DATA}cores/${lib}-legacy-wasm.data`,
-    `${EMULATORJS_DATA}cores/reports/${lib}.json`,
+    ...libs.flatMap((lib) => [
+      `${EMULATORJS_DATA}cores/${lib}-wasm.data`,
+      `${EMULATORJS_DATA}cores/${lib}-legacy-wasm.data`,
+      `${EMULATORJS_DATA}cores/reports/${lib}.json`,
+    ]),
   ]
 }
 

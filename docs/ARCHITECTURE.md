@@ -40,6 +40,18 @@ reachable from anywhere. The shape of them is the design:
   is also what tells Frog Game Station whether to lay itself out for a pad or a thumb. A faint version
   stamp sits in the corner (the app version, injected from `package.json` at build via a
   Vite `define` → `import.meta.env.VITE_APP_VERSION`) — a quiet portfolio signature.
+- **Eight machines** since the disc era's phase 1: the six 8/16-bit systems plus
+  **Nintendo 64** (mupen64plus_next; the engine auto-falls-back to parallel-n64 on
+  mobile Safari, so offline downloads carry both cores) and **Nintendo DS** (melonDS —
+  which direct-boots without BIOS files). The systems grid is two rows of four and
+  still never scrolls. N64 brought analog: the preset now emits the engine's axis rows
+  16–23 (left stick = the N64 stick, right stick = the C cluster) and binds L2/R2
+  (Z is RetroPad L2 — the "triggers are free for shortcuts" era ended); the touch
+  overlay grew a real **analog stick** control type (fully-sticky finger, dead zone,
+  the knob follows the thumb) and N64/DS layouts. The DS's portrait overlay sits
+  strictly BELOW the game (62% screen height, its own authoring space) so the DS's
+  actual touchscreen stays tappable — the engine converts canvas taps to DS touch.
+  Save-state caps are per-extension now (N64 128 MB, DS 64 MB, 16 MB default).
 - **The rails, in order: "Jump back in", Favorites, then one
   rail per collection, then Systems.** You are almost always coming back to the same game,
   so the rows that mean *most sessions never touch the alphabet* come first. **Both history

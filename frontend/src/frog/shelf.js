@@ -19,11 +19,15 @@ export const SYSTEM_ORDER = [
   'Super Nintendo',
   'Sega Genesis',
   'Sega Master System',
+  // The disc-era phase-1 machines, appended rather than interleaved: the first six
+  // keep their muscle-memory positions, and the row reads oldest-library-first.
+  'Nintendo 64',
+  'Nintendo DS',
 ]
 
-// Six systems, exactly as many as fit on one screen — the whole reason the shelf
-// doesn't scroll. A system with no games still gets its tile (dimmed): a gap in the
-// row would be more confusing than an empty shelf, and it tells you what Frog Game Station
+// Eight systems on a non-scrolling grid (two rows of four) — the shelf still never
+// scrolls for machines. A system with no games still gets its tile (dimmed): a gap in
+// the row would be more confusing than an empty shelf, and it tells you what Frog Game Station
 // *could* play if you dropped a ROM in.
 //
 // A label we've never seen (a new core added to the backend) lands at the end
@@ -93,7 +97,7 @@ export function buildShelf(items = [], recent = [], favorites = [], collections 
   return [...history, { id: 'systems', title: 'Systems', kind: 'system', items: systems }, ...discoverRail(items, history)]
 }
 
-// A first-run shelf has no history rails — just the six machines over a lot of empty pond.
+// A first-run shelf has no history rails — just the machines over a lot of empty pond.
 // Give it a "Surprise me" card below the systems: it fills that space and invites a random
 // pick. (The header shuffle button reaches random from anywhere too — this card is the
 // first-run affordance where the empty space is.) It retires the moment the shelf has any

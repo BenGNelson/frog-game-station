@@ -32,9 +32,13 @@ describe('buildSystems', () => {
 
   it('puts an unknown system at the end rather than dropping it', () => {
     // A new core added to the backend must not silently vanish from the shelf.
-    const systems = buildSystems([...LIBRARY, g('9', 'Some Game', 'Nintendo 64')])
-    expect(systems.at(-1)).toMatchObject({ label: 'Nintendo 64', count: 1 })
+    const systems = buildSystems([...LIBRARY, g('9', 'Some Game', 'Sony PlayStation')])
+    expect(systems.at(-1)).toMatchObject({ label: 'Sony PlayStation', count: 1 })
     expect(systems).toHaveLength(SYSTEM_ORDER.length + 1)
+  })
+
+  it('the disc-era machines are first-class systems, after the original six', () => {
+    expect(SYSTEM_ORDER.slice(6)).toEqual(['Nintendo 64', 'Nintendo DS'])
   })
 })
 

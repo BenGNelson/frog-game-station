@@ -149,6 +149,17 @@ describe('gameOfflineUrls', () => {
     expect(coreFile('segaGG')).toBe('genesis_plus_gx')
     // Master System defaults to smsplus, NOT genesis_plus_gx
     expect(coreFile('segaMS')).toBe('smsplus')
+    expect(coreFile('nds')).toBe('melonds')
+    expect(coreFile('n64')).toBe('mupen64plus_next')
+  })
+
+  it('N64 carries BOTH its cores — the engine picks parallel_n64 on mobile Safari', () => {
+    const urls = gameOfflineUrls('Mario64.z64', 'n64')
+    expect(urls).toContain('/emulatorjs/cores/mupen64plus_next-wasm.data')
+    expect(urls).toContain('/emulatorjs/cores/parallel_n64-wasm.data')
+    expect(urls).toContain('/emulatorjs/cores/reports/parallel_n64.json')
+    // …and the other systems still carry exactly one.
+    expect(gameOfflineUrls('X.nds', 'nds').filter((u) => u.endsWith('-wasm.data'))).toHaveLength(2) // wasm + legacy-wasm
   })
   it('includes the ROM, both wasm variants, and the core report', () => {
     const urls = gameOfflineUrls('Sonic.md', 'segaMD')

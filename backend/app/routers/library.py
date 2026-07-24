@@ -736,9 +736,12 @@ def create_save_state(
     if not state_path:
         return Response(status_code=400)
     # Read at most cap+1 bytes so an oversized upload is rejected without ever
-    # buffering the whole (possibly multi-GB) body.
-    data = state.file.read(_MAX_STATE_BYTES + 1)
-    if not data or len(data) > _MAX_STATE_BYTES:
+    # buffering the whole (possibly multi-GB) body. The cap is per-EXTENSION now
+    # (library.max_state_bytes): an N64 state runs ~67 MB where a Game Boy state is
+    # kilobytes — one flat number would block the former or over-allow the latter.
+    cap = library.max_state_bytes(library.get_section("games"), id)
+    data = state.file.read(cap + 1)
+    if not data or len(data) > cap:
         return Response(status_code=413)
     os.makedirs(os.path.dirname(state_path), exist_ok=True)
     with open(state_path, "wb") as fh:

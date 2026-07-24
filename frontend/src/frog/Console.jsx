@@ -1,6 +1,6 @@
 import { systemStyle } from './theme.js'
 
-// The six machines, drawn rather than scraped.
+// The machines, drawn rather than scraped.
 //
 // Every other front-end pulls the same console logos from the same database, which
 // is precisely why they all look the same. These are ours: one flat style, one light
@@ -133,6 +133,59 @@ const DEVICES = {
       <Dpad x="34" y="51" s="0.9" fill="#101216" />
       <circle cx="64" cy="51" r="6" fill="#C0392B" />
       <circle cx="78" cy="51" r="6" fill="#C0392B" />
+    </>
+  ),
+
+  // The N64 trident: three grips, the centre one carrying the analog stick — the
+  // controller you picture, drawn in the same rounded language. Face buttons keep
+  // their real colours (blue A, green B, the yellow C diamond, red stick cap).
+  n64: (s, sheen) => (
+    <>
+      {/* the body: a wide bar with three descending grips */}
+      <path
+        d="M14 38 Q14 28 26 28 H74 Q86 28 86 38 L90 58 Q92 70 82 72 Q74 74 70 64 L67 54 H60 L58 66 Q56 78 50 78 Q44 78 42 66 L40 54 H33 L30 64 Q26 74 18 72 Q8 70 10 58 Z"
+        fill="#4A4F58"
+      />
+      <path
+        d="M14 38 Q14 28 26 28 H74 Q86 28 86 38 L90 58 Q92 70 82 72 Q74 74 70 64 L67 54 H60 L58 66 Q56 78 50 78 Q44 78 42 66 L40 54 H33 L30 64 Q26 74 18 72 Q8 70 10 58 Z"
+        fill={`url(#${sheen})`}
+        opacity="0.35"
+      />
+      <Dpad x="26" y="40" s="0.8" fill="#101216" />
+      {/* the centre analog stick — grey well, red cap */}
+      <circle cx="50" cy="58" r="7" fill="#2B3038" />
+      <circle cx="50" cy="56" r="4" fill="#C0392B" />
+      {/* A (blue) + B (green), and the yellow C diamond */}
+      <circle cx="66" cy="44" r="4.5" fill="#3E6FD0" />
+      <circle cx="60" cy="38" r="4" fill="#3F9E58" />
+      <circle cx="78" cy="34" r="2.6" fill="#E8C24A" />
+      <circle cx="78" cy="44" r="2.6" fill="#E8C24A" />
+      <circle cx="73" cy="39" r="2.6" fill="#E8C24A" />
+      <circle cx="83" cy="39" r="2.6" fill="#E8C24A" />
+    </>
+  ),
+
+  // The DS, open: a handheld again, so the device is the icon — the clamshell with
+  // its two screens, the lower one flanked by the d-pad and buttons.
+  nds: (s, sheen) => (
+    <>
+      {/* top shell + screen */}
+      <rect x="22" y="8" width="56" height="38" rx="6" fill={s.skin} />
+      <rect x="22" y="8" width="56" height="38" rx="6" fill={`url(#${sheen})`} opacity="0.5" />
+      <rect x="30" y="14" width="40" height="26" rx="2" fill="#3A3F45" />
+      <rect x="33" y="17" width="34" height="20" rx="1.5" fill="#9BD7DE" />
+      {/* hinge */}
+      <rect x="26" y="46" width="48" height="4" rx="2" fill={s.shade} />
+      {/* bottom shell + touch screen, d-pad left, buttons right */}
+      <rect x="22" y="50" width="56" height="38" rx="6" fill={s.skin} />
+      <rect x="22" y="50" width="56" height="38" rx="6" fill={`url(#${sheen})`} opacity="0.5" />
+      <rect x="38" y="55" width="24" height="26" rx="2" fill="#3A3F45" />
+      <rect x="40" y="57" width="20" height="22" rx="1.5" fill="#B9E4E9" />
+      <Dpad x="30" y="68" s="0.65" fill="#2B3038" />
+      <circle cx="68" cy="64" r="2.6" fill="#2B3038" />
+      <circle cx="73" cy="69" r="2.6" fill="#2B3038" />
+      <circle cx="68" cy="74" r="2.6" fill="#2B3038" />
+      <circle cx="63" cy="69" r="2.6" fill="#2B3038" />
     </>
   ),
 }

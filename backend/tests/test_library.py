@@ -298,6 +298,28 @@ def test_facets_empty_db_is_empty_maps(client):
     assert out == {"genres": {}, "franchises": {}}
 
 
+# --- per-extension save-state caps -------------------------------------------
+
+def test_max_state_bytes_by_extension():
+    games = library.get_section("games")
+    assert library.max_state_bytes(games, "a.gb") == 16 * 1024 * 1024  # the default
+    assert library.max_state_bytes(games, "b.nds") == 64 * 1024 * 1024
+    assert library.max_state_bytes(games, "c.z64") == 128 * 1024 * 1024
+    assert library.max_state_bytes(games, "weird.xyz") == 16 * 1024 * 1024
+
+
+def test_disc_era_phase1_formats_and_maps():
+    from app import igdb
+    games = library.get_section("games")
+    assert games["formats"][".nds"]["core"] == "nds"
+    for ext in (".z64", ".n64", ".v64"):
+        assert games["formats"][ext]["core"] == "n64"
+        assert library.thumbnail_repo("g" + ext) == "Nintendo_-_Nintendo_64"
+    assert library.thumbnail_repo("g.nds") == "Nintendo_-_Nintendo_DS"
+    assert igdb.PLATFORM_IDS["Nintendo DS"] == 20
+    assert igdb.PLATFORM_IDS["Nintendo 64"] == 4
+
+
 # --- save-state pruning ------------------------------------------------------
 
 def test_prune_save_states_caps_unpinned_and_spares_pins(tmp_path):
