@@ -13,7 +13,10 @@ import { rematchOptions } from './rematch.js'
 import { readSettings, writeSettings, TOUCH_OPACITY_LEVELS, nearestOpacityLevel } from '../lib/playerSettings.js'
 import { isFavorite, toggleFavorite } from '../lib/favorites.js'
 import { setStateMeta } from '../lib/saveStates.js'
-import { ensureEmulatorEngine, cacheGameSram } from '../lib/offlineStore.js'
+import {
+  ensureEmulatorEngine, cacheGameSram, allEntries, getEstimate, shellBytes, gameSavesBytes,
+  summarizeStorage, auditStorage, removeDownload, clearGameSaves, downloadKey,
+} from '../lib/offlineStore.js'
 import { offlineGamesToItems } from './offline.js'
 import { getRecent, recordPlayed } from '../lib/recentGames.js'
 import {
@@ -43,6 +46,7 @@ import InstallNudge from './InstallNudge.jsx'
 import FinishToast from './FinishToast.jsx'
 import Search from './Search.jsx'
 import SettingsPanel from './Settings.jsx'
+import StoragePanel from './Storage.jsx'
 import GameScreen from './GameScreen.jsx'
 import GameList, { GameListHeader, CollectionListHeader } from './GameList.jsx'
 import './frog.css'
@@ -165,6 +169,13 @@ export default function FrogBrowser() {
   const [navSfx, setNavSfxState] = useState(() => readSettings(localStorage).navSfx)
   const [touchOpacity, setTouchOpacityState] = useState(() => readSettings(localStorage).touchOpacity)
   const [rescanBusy, setRescanBusy] = useState(false)
+  // Downloads & Storage — an overlay one level deeper (opened from Settings; B / ✕
+  // return there). `storageData` is the summarizeStorage view, re-gathered on open and
+  // after every removal; `storageAudit` is null | 'busy' | the auditStorage verdict.
+  const [storageFocus, setStorageFocus] = useState('verify')
+  const [storageData, setStorageData] = useState(null)
+  const [storageAudit, setStorageAudit] = useState(null)
+  const [storageRefresh, setStorageRefresh] = useState(0)
   // The IGDB matcher status — polled only while the settings screen is up (one cheap
   // fetch otherwise); useApi pauses when the tab is hidden.
   const igdbStatus = useApi(GAME_META_STATUS_PATH, screen === 'settings' ? 4000 : 0)
@@ -442,7 +453,7 @@ export default function FrogBrowser() {
     const persistScreen =
       screen === 'search'
         ? searchFrom
-        : screen === 'settings'
+        : screen === 'settings' || screen === 'storage' // storage opens from settings, so both resolve the same hop
           ? settingsFrom
           : screen === 'detail'
             ? detailFrom === 'search'
@@ -554,6 +565,73 @@ export default function FrogBrowser() {
     setScreen('settings')
   }, [screen])
   const closeSettings = useCallback(() => setScreen(settingsFrom), [settingsFrom])
+
+  // Downloads & Storage, one level under Settings. Opening re-measures from scratch —
+  // stale figures on a screen about "what's on this device" would defeat its point.
+  const openStorage = useCallback(() => {
+    setStorageData(null)
+    setStorageAudit(null)
+    setStorageFocus('verify')
+    setStorageRefresh((n) => n + 1)
+    setScreen('storage')
+  }, [])
+  const closeStorage = useCallback(() => {
+    setConfirm(null)
+    setScreen('settings')
+  }, [])
+  const storageVerify = async () => {
+    setStorageAudit('busy')
+    try {
+      setStorageAudit(await auditStorage())
+    } catch {
+      setStorageAudit(null)
+    }
+  }
+  // The guarded removals land here from the confirm gate. Removing the OPEN game's
+  // download routes through the dl hook so the game page's button resets with it;
+  // "remove all" clears every download, the shared engine, and the captured saves.
+  const storageConfirmYes = async () => {
+    const c = confirm
+    setConfirm(null)
+    if (!c) return
+    try {
+      if (c.kind === 'storageAll') {
+        for (const e of storageData?.items ?? []) await removeDownload(e.key)
+        await removeDownload(downloadKey('emulator', 'engine'))
+        await clearGameSaves()
+        if (detailGame) await dl.remove() // harmless if it wasn't downloaded; resets the button
+      } else if (c.kind === 'storageRemove') {
+        if (detailGame && c.key === downloadKey('games', detailGame.id)) await dl.remove()
+        else await removeDownload(c.key)
+      }
+    } finally {
+      setStorageAudit(null) // the verdict described a cache that just changed
+      setStorageRefresh((n) => n + 1)
+    }
+  }
+
+  // Gather the summary while the screen is up (and again after each removal). A failure
+  // (no Cache API in an odd embed) still resolves to an all-zero summary, never a spinner.
+  useEffect(() => {
+    if (screen !== 'storage') return
+    let alive = true
+    Promise.all([allEntries(), getEstimate(), shellBytes(), gameSavesBytes()])
+      .then(([entries, estimate, shell, saves]) => alive && setStorageData(summarizeStorage(entries, estimate, shell, saves)))
+      .catch(() => alive && setStorageData(summarizeStorage([], {}, 0, 0)))
+    return () => {
+      alive = false
+    }
+  }, [screen, storageRefresh])
+
+  // The storage screen's vertical focus order: each downloaded game, then the actions.
+  const storageRows = useMemo(
+    () => [...(storageData?.items ?? []).map((e) => e.key), 'verify', 'removeAll'],
+    [storageData]
+  )
+  // A removal can delete the row under the cursor — park it back on Verify.
+  useEffect(() => {
+    if (screen === 'storage' && !storageRows.includes(storageFocus)) setStorageFocus('verify')
+  }, [screen, storageRows, storageFocus])
   // Persist the player input-mode preference and reflect it in the toggle at once.
   const setInputMode = (m) => {
     writeSettings(localStorage, { inputMode: m })
@@ -1045,7 +1123,7 @@ export default function FrogBrowser() {
     // so it rides the app's existing "hold ☰ for the menu" gesture (the same one that
     // opens the pause menu in the player) — plus ',' on a keyboard.
     if (action === 'settingsToggle') {
-      screen === 'settings' ? closeSettings() : openSettings()
+      screen === 'settings' ? closeSettings() : screen === 'storage' ? closeStorage() : openSettings()
       return
     }
 
@@ -1142,10 +1220,11 @@ export default function FrogBrowser() {
       return
     }
 
-    // Settings: two focus rows, up/down between them. On the IGDB card A re-scans; on
-    // the input-mode row A and left/right cycle Auto → Touch → Pad. B closes.
+    // Settings: a vertical row per card, up/down between them. On the IGDB card A
+    // re-scans; on the segmented rows A / left-right cycle the value; on the storage
+    // card A steps into the Downloads & Storage screen. B closes.
     if (screen === 'settings') {
-      const rows = ['igdb', 'inputMode', 'sound', 'touch']
+      const rows = ['igdb', 'inputMode', 'sound', 'touch', 'storage']
       const idx = rows.indexOf(settingsFocus)
       const modes = ['auto', 'touch', 'pad']
       const cycleMode = (dir) =>
@@ -1175,7 +1254,8 @@ export default function FrogBrowser() {
           if (settingsFocus === 'igdb') doRescan()
           else if (settingsFocus === 'inputMode') cycleMode(1)
           else if (settingsFocus === 'sound') setNavSfx(!navSfx)
-          else stepOpacity(1, true)
+          else if (settingsFocus === 'touch') stepOpacity(1, true)
+          else openStorage()
           return
         case 'left':
           if (settingsFocus === 'inputMode') cycleMode(-1)
@@ -1187,6 +1267,42 @@ export default function FrogBrowser() {
           else if (settingsFocus === 'sound') setNavSfx(true)
           else if (settingsFocus === 'touch') stepOpacity(1)
           return
+        default:
+      }
+      return
+    }
+
+    // Downloads & Storage: a vertical list — each downloaded game, then Verify, then
+    // Remove all. A on a game asks first; B backs out to Settings. The confirm gate,
+    // when up, traps all input (same shape as the game page's).
+    if (screen === 'storage') {
+      if (confirm) {
+        if (action === 'confirm') storageConfirmYes()
+        else if (action === 'back') setConfirm(null)
+        return
+      }
+      const idx = Math.max(0, storageRows.indexOf(storageFocus))
+      switch (action) {
+        case 'back':
+          closeStorage()
+          return
+        case 'up':
+          setStorageFocus(storageRows[Math.max(0, idx - 1)])
+          return
+        case 'down':
+          setStorageFocus(storageRows[Math.min(storageRows.length - 1, idx + 1)])
+          return
+        case 'confirm': {
+          if (storageFocus === 'verify') storageVerify()
+          else if (storageFocus === 'removeAll') {
+            const d = storageData
+            if (d && (d.items.length || d.engineBytes || d.gameSavesBytes)) setConfirm({ kind: 'storageAll' })
+          } else {
+            const e = (storageData?.items ?? []).find((x) => x.key === storageFocus)
+            if (e) setConfirm({ kind: 'storageRemove', key: e.key, name: e.name })
+          }
+          return
+        }
         default:
       }
       return
@@ -1618,9 +1734,9 @@ export default function FrogBrowser() {
               FROG GAME STATION
               {/* The section is redundant with the screen itself, so it only rides along
                   where there's room — hidden on a phone so the name never truncates. */}
-              {(screen === 'search' || screen === 'settings') && (
+              {(screen === 'search' || screen === 'settings' || screen === 'storage') && (
                 <span className="hidden sm:inline">
-                  {screen === 'search' ? ' · SEARCH' : ' · SETTINGS'}
+                  {screen === 'search' ? ' · SEARCH' : screen === 'settings' ? ' · SETTINGS' : ' · STORAGE'}
                 </span>
               )}
             </span>
@@ -1674,7 +1790,7 @@ export default function FrogBrowser() {
           {/* Settings — a header entry point (there's no dedicated pad button for it,
               so the gear is how both thumb and cursor reach it). Hidden on the overlay
               screens that own the ✕. */}
-          {screen !== 'search' && screen !== 'detail' && screen !== 'settings' && (
+          {screen !== 'search' && screen !== 'detail' && screen !== 'settings' && screen !== 'storage' && (
             <button
               onClick={openSettings}
               className="rounded-full p-2"
@@ -1691,6 +1807,7 @@ export default function FrogBrowser() {
                 if (screen === 'search') closeSearch()
                 else if (screen === 'detail') closeDetail()
                 else if (screen === 'settings') closeSettings()
+                else if (screen === 'storage') closeStorage()
                 else if (screen === 'games') setScreen('shelf')
               }}
               className="rounded-full p-2"
@@ -1702,7 +1819,9 @@ export default function FrogBrowser() {
                     ? 'Back'
                     : screen === 'settings'
                       ? 'Close settings'
-                      : 'Back to the shelf'
+                      : screen === 'storage'
+                        ? 'Close storage'
+                        : 'Back to the shelf'
               }
             >
               <X className="h-5 w-5" aria-hidden="true" />
@@ -1761,6 +1880,20 @@ export default function FrogBrowser() {
           onNavSfx={setNavSfx}
           touchOpacity={touchOpacity}
           onTouchOpacity={setTouchOpacity}
+          onStorage={openStorage}
+        />
+      ) : screen === 'storage' ? (
+        <StoragePanel
+          data={storageData}
+          audit={storageAudit}
+          focus={storageFocus}
+          onFocus={setStorageFocus}
+          onRemove={(e) => setConfirm({ kind: 'storageRemove', key: e.key, name: e.name })}
+          onVerify={storageVerify}
+          onRemoveAll={() => setConfirm({ kind: 'storageAll' })}
+          confirm={confirm?.kind === 'storageRemove' || confirm?.kind === 'storageAll' ? confirm : null}
+          onConfirmYes={storageConfirmYes}
+          onConfirmNo={() => setConfirm(null)}
         />
       ) : screen === 'detail' && detailGame ? (
         <GameScreen
@@ -1952,6 +2085,17 @@ export default function FrogBrowser() {
                     { button: 'B', label: 'Close' },
                     { button: 'D-pad', label: 'Move' },
                   ]
+                : screen === 'storage'
+                  ? confirm
+                    ? [
+                        { button: 'A', label: 'Confirm' },
+                        { button: 'B', label: 'Cancel' },
+                      ]
+                    : [
+                        { button: 'A', label: storageFocus === 'verify' ? 'Verify' : 'Remove' },
+                        { button: 'B', label: 'Back' },
+                        { button: 'D-pad', label: 'Move' },
+                      ]
                 : screen === 'games'
                   ? [
                       { button: 'A', label: 'Open' },

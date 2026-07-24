@@ -46,11 +46,13 @@ Open items carry an inline tag; completed (`[x]`) items are left untagged — th
 
 ### v1.2 — "Surface the hidden" (quick wins; mostly wiring)
 
-- [ ] **[P1] Downloads & Storage screen.** The storage-accounting layer in
-      `lib/offlineStore.js` (`summarizeStorage`, `auditStorage`, `getEstimate`,
-      `clearGameSaves`…) is fully built and tested but has **no UI**. Add an overlay
-      (pattern: `frog/Settings.jsx`): all downloaded games with sizes, total usage vs the
-      browser storage estimate, verify + remove / remove-all.
+- [x] **Downloads & Storage screen.** Shipped: `frog/Storage.jsx`, opened from a new
+      Settings card — the UI over the already-built accounting layer in
+      `lib/offlineStore.js`. An "On this device" breakdown (games / engine / shell /
+      saves, reconciled against the browser's own usage figure, amber "Unaccounted" line
+      only when something escapes), every downloaded game listed with size + age and
+      removable behind the shared confirm gate, **Verify storage** (the manifest↔cache
+      audit), and **Remove all**. Fully controller-navigable with its own legend hints.
 - [ ] **[P1] Trailer on the game page.** `GameMetaModel.videos` (YouTube trailer ids) is
       fetched, stored, and returned — rendered nowhere. A "Trailer" action on
       `GameScreen.jsx` when present; embed in a lightbox (screenshot-lightbox pattern);

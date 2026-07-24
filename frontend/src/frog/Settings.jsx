@@ -1,22 +1,23 @@
-import { RefreshCw, KeyRound, Gamepad2, Volume2, Hand } from 'lucide-react'
+import { RefreshCw, KeyRound, Gamepad2, Volume2, Hand, HardDrive } from 'lucide-react'
 import { FROG, focusRing } from './theme.js'
 import { useRipple, Ripples } from './ripple.jsx'
 import { TOUCH_OPACITY_LEVELS, nearestOpacityLevel } from '../lib/playerSettings.js'
 
 // The settings screen.
 //
-// Two live controls and one honest statement of intent. Presentational: FrogBrowser
-// owns the focus row, the input-mode value, the re-scan trigger, and the polled IGDB
-// status — this draws them and reports taps back, the same contract every other screen
-// keeps. Two focus rows, top to bottom: the IGDB card (A re-scans) and the input mode
-// (A / left-right cycles). The theme card is a note, not a control.
+// Live controls, a door, and one honest statement of intent. Presentational:
+// FrogBrowser owns the focus row, every value, and the triggers — this draws them and
+// reports taps back, the same contract every other screen keeps. Focus rows, top to
+// bottom: the IGDB card (A re-scans), input mode, navigation sound, touch-control
+// opacity (A / left-right cycle each), and Downloads & storage (A steps into the
+// storage screen). The theme card is a note, not a control.
 const MODES = [
   { id: 'auto', label: 'Auto' },
   { id: 'touch', label: 'Touch' },
   { id: 'pad', label: 'Pad' },
 ]
 
-export default function Settings({ status, loading, focus, onFocus, onRescan, rescanBusy, inputMode, onInputMode, navSfx, onNavSfx, touchOpacity, onTouchOpacity }) {
+export default function Settings({ status, loading, focus, onFocus, onRescan, rescanBusy, inputMode, onInputMode, navSfx, onNavSfx, touchOpacity, onTouchOpacity, onStorage }) {
   const configured = !!status?.configured
   const running = !!status?.running
   const canRescan = configured && !running && !rescanBusy
@@ -134,6 +135,24 @@ export default function Settings({ status, loading, focus, onFocus, onRescan, re
               </Segment>
             ))}
           </Segmented>
+        </Card>
+
+        {/* --- Downloads & storage: the door to the storage manager screen. --- */}
+        <Card focused={focus === 'storage'} onFocus={() => onFocus('storage')}>
+          <Row icon={<HardDrive className="h-4 w-4" style={{ color: `rgb(${FROG.jade})` }} aria-hidden="true" />} title="Downloads & storage" />
+          <p className="mb-3 mt-2 text-sm leading-relaxed" style={{ color: FROG.faint }}>
+            What&rsquo;s stored on this device for offline play — see sizes, verify every
+            byte, and free space.
+          </p>
+          <button
+            type="button"
+            data-testid="frog-storage-open"
+            onClick={onStorage}
+            className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-colors"
+            style={{ background: `rgb(${FROG.jade})`, color: FROG.ground }}
+          >
+            Manage
+          </button>
         </Card>
 
         {/* --- Theme: a note, not a control (the single dark WATER identity is deliberate). --- */}

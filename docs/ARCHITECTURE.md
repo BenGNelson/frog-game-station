@@ -433,6 +433,21 @@ airplane mode fills in the full library by itself when the network returns. Laun
 downloaded game offline hands off to the player exactly as online — it boots from the
 cached ROM and engine.
 
+**Downloads & Storage** (`frog/Storage.jsx`, opened from Settings) is the UI over the
+offline store's accounting layer (`lib/offlineStore.js`). Three zones: an **"On this
+device" breakdown** that reconciles the browser's own `storage.estimate()` figure against
+what the manifest can explain (games / emulator engine / app shell / captured game saves,
+with an amber "Unaccounted" line only when ≥1 MB escapes — by construction it shouldn't,
+since `downloadJob` is the only writer of content bytes); the **downloaded-games list**,
+each row removable behind the shared confirm gate (removing the *open* game's download
+routes through the game page's `useDownload` hook so its button resets too); and
+**maintenance** — *Verify storage* runs `auditStorage()` (manifest ↔ real cache
+cross-check; strays and evicted files each get a count) and *Remove all* clears every
+download, the shared engine, and the captured saves (server-side saves untouched). It's a
+presentational panel on the same contract as Settings: FrogBrowser owns the focus row
+(`storageRows` — each item, then Verify, then Remove all), gathers the summary on open and
+after every removal, and traps controller input behind the confirm dialog while it's up.
+
 ### Controls — the pad, drawn
 
 The Controls screen (`player/ControlsPanel.jsx`) exists because the face buttons have **no

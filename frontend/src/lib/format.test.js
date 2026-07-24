@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { formatAgo, formatPlaytime } from './format.js'
+import { formatAgo, formatBytes, formatPlaytime } from './format.js'
 
 describe('formatAgo', () => {
   it('gives relative phrases', () => {
@@ -9,6 +9,24 @@ describe('formatAgo', () => {
     expect(formatAgo(now - 120)).toBe('2m ago')
     expect(formatAgo(now - 7200)).toBe('2h ago')
     expect(formatAgo(now - 3 * 86400)).toBe('3d ago')
+  })
+})
+
+describe('formatBytes', () => {
+  it('uses decimal units, one decimal under 10, whole above', () => {
+    expect(formatBytes(0)).toBe('0 B')
+    expect(formatBytes(482)).toBe('482 B')
+    expect(formatBytes(1400)).toBe('1.4 KB')
+    expect(formatBytes(524_288)).toBe('524 KB')
+    expect(formatBytes(1_400_000)).toBe('1.4 MB')
+    expect(formatBytes(84_000_000)).toBe('84 MB')
+    expect(formatBytes(12_000_000_000)).toBe('12 GB')
+  })
+
+  it('treats missing/negative input as zero (a fresh device has no bytes)', () => {
+    expect(formatBytes(null)).toBe('0 B')
+    expect(formatBytes(undefined)).toBe('0 B')
+    expect(formatBytes(-5)).toBe('0 B')
   })
 })
 
