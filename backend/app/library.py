@@ -17,6 +17,7 @@ import hashlib
 import json
 import os
 import re
+import time
 import urllib.parse
 
 
@@ -226,16 +227,37 @@ def pick_boxart(stem, names):
     return min(candidates, key=lambda n: (rank(n), len(n)))
 
 
+# The scan cache: (section key, resolved dir) → (fresh-until monotonic, items).
+# Every browse screen hits the listing and every hit was a full recursive walk +
+# a stat per ROM; the library changes rarely, so a short TTL absorbs the browse
+# chatter while a dropped-in ROM still appears within seconds. Entries hand out
+# COPIES — the section route stamps cover_v onto what it gets back, and a shared
+# cached dict would smear one request's stamps into the next.
+_scan_cache: dict = {}
+
+
+def invalidate_scan_cache():
+    """Drop every cached listing (tests; anything that must see disk right now)."""
+    _scan_cache.clear()
+
+
 def list_items(section, settings):
     """Recursively list a section's items. Each item's `id` is its path relative
     to the content dir (POSIX-style) — safe_path() maps it back with a traversal
     guard. Unknown extensions are ignored. Returns [] if the dir is unset/missing.
-    Items are sorted by (label, name) so the UI can group them stably."""
+    Items are sorted by (label, name) so the UI can group them stably. Cached for
+    settings.scan_cache_ttl seconds per (section, dir); 0 disables."""
     rom_dir = section_dir(section, settings)
     if not rom_dir or not os.path.isdir(rom_dir):
         return []
     formats = section["formats"]
     root = os.path.realpath(rom_dir)
+    ttl = getattr(settings, "scan_cache_ttl", 0) or 0
+    key = (section["key"], root)
+    if ttl > 0:
+        hit = _scan_cache.get(key)
+        if hit and time.monotonic() < hit[0]:
+            return [dict(it) for it in hit[1]]
     items = []
     for dirpath, _dirs, files in os.walk(root):
         for fn in files:
@@ -263,6 +285,9 @@ def list_items(section, settings):
                 }
             )
     items.sort(key=lambda it: ((it["label"] or "").lower(), sort_key(it["name"])))
+    if ttl > 0:
+        _scan_cache[key] = (time.monotonic() + ttl, items)
+        return [dict(it) for it in items]
     return items
 
 
@@ -336,6 +361,34 @@ def save_state_files(saves_root, game_id, slot):
         return None, None
     d = saves_game_dir(saves_root, game_id)
     return os.path.join(d, f"{slot}.state"), os.path.join(d, f"{slot}.png")
+
+
+# How many UNPINNED save states a game keeps. Snapshots accumulate silently (every
+# "Save new" is a new slot forever), and nobody returns to their fortieth-newest
+# quick-save — but a PINNED slot is a deliberate keepsake, so pins never count
+# against the cap and are never pruned.
+KEEP_UNPINNED_STATES = 20
+
+
+def prune_save_states(saves_root, game_id, keep=None):
+    """Delete a game's oldest UNPINNED save states beyond `keep` (default
+    KEEP_UNPINNED_STATES, read at call time), with their screenshots and sidecars.
+    Returns the pruned slot ids (newest kept)."""
+    if keep is None:
+        keep = KEEP_UNPINNED_STATES
+    states = list_save_states(saves_root, game_id)
+    unpinned = [s for s in states if not s["pinned"]]
+    doomed = sorted(unpinned, key=lambda s: -s["created_ms"])[keep:]
+    for s in doomed:
+        state_path, shot_path = save_state_files(saves_root, game_id, s["slot"])
+        meta_path = save_state_meta_file(saves_root, game_id, s["slot"])
+        for p in (state_path, shot_path, meta_path):
+            if p:
+                try:
+                    os.remove(p)
+                except OSError:
+                    pass
+    return [s["slot"] for s in doomed]
 
 
 def save_state_meta_file(saves_root, game_id, slot):

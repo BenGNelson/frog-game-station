@@ -719,7 +719,9 @@ prose.
 
 **Two save systems, both server-synced and backed up**, both under `/data/saves` (a
 writable volume) so they roam across devices and ride the off-site backup. Each game gets
-one folder, keyed by a hash of its id.
+one folder, keyed by a hash of its id. Snapshots are capped per game: every upload
+prunes UNPINNED slots beyond the newest 20 (pins are keepsakes — never counted, never
+pruned), so the collection can't grow without bound.
 
 - **In-game battery save (SRAM) — the everyday one.** The game's own "Save → Continue".
   The player polls the live SRAM as you play and POSTs it (overwriting one `.sav` per
@@ -727,7 +729,13 @@ one folder, keyed by a hash of its id.
   your spot anywhere. This is what a normal "open the game and keep playing" uses —
   **opening a game does not auto-load a save state** (that would snapshot-restore an older
   SRAM over it). An in-game save also marks the game last-played for the Jump-back-in
-  shelf.
+  shelf. Writes carry a **lineage guard**: each session tracks the `savedAt` its save
+  descends from (seeded on boot, refreshed via the 204's `X-Saved-At`), states it as
+  `base` on every upload, and the server 409s a write whose lineage meaningfully
+  predates the stored save — so a tab that slept for hours can't flush old SRAM over
+  progress made on another device. A LIVE session takes over once on conflict
+  (deliberate play wins); the on-the-way-out flush doesn't, and a 409'd outbox entry
+  is dropped rather than retried.
 - **Save states — explicit snapshots.** The engine fires a save-state event (state blob +
   screenshot) when you hit Save State in-game; the iframe POSTs it. A game's page lists its
   states (screenshot thumbnails), and **Resume** relaunches loading the chosen state's
@@ -956,7 +964,10 @@ Frog Game Station is a self-contained Docker Compose stack:
 
 - **backend** — the FastAPI app (uvicorn), API mounted at `/api` on internal port `8000`.
   ROMs are mounted **read-only** from `GAMES_ROM_DIR`; the `/data` named volume holds the
-  SQLite db (`frog.db`), the IGDB art cache, the covers cache, and saves.
+  SQLite db (`frog.db`), the IGDB art cache, the covers cache, and saves. Library
+  listings are cached for `SCAN_CACHE_TTL` seconds (default 20; 0 disables) so browse
+  chatter doesn't re-walk the ROM dir per request — the cache hands out copies, since
+  the section route stamps `cover_v` onto what it gets back.
 - **frontend** — a baked image: the Vite build served by **nginx**, published on
   `FRONTEND_PORT` (default `8585`). A restart policy makes it survive reboots.
 - **frontend-dev** — the only hot-reload surface, under a `dev` compose profile: the Vite

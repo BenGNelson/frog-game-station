@@ -194,12 +194,23 @@ shape:
 
 ### Rework (fold into whichever milestone touches them first)
 
-- [ ] **[P2] Library scan cache** — replace the per-request `os.walk` in `library.py`
-      with a cached index + mtime refresh (matters once disc-era file sizes arrive).
-- [ ] **[P2] SRAM stale-write guard** — server rejects an SRAM POST older than the stored
-      save unless forced; closes a real cross-device foot-gun.
-- [ ] **[P3] Save-state hygiene** — cap unpinned slots per game (keep newest N, pinned
-      exempt) instead of unbounded growth.
+- [x] **Library scan cache** — shipped: `list_items` reuses a walk for
+      `SCAN_CACHE_TTL` seconds (default 20; 0 disables) per (section, dir), handing
+      out COPIES so per-request `cover_v` stamping can't smear across requests. A
+      dropped-in ROM appears within the window; tests disable it globally
+      (`conftest`) and exercise it directly.
+- [x] **SRAM stale-write guard** — shipped as a **lineage check**: every session
+      tracks the `savedAt` its save descends from (seeded on boot, refreshed on each
+      accepted write via the 204's `X-Saved-At`); uploads state it as `base`, and the
+      server 409s a write whose lineage meaningfully predates the stored save (2s
+      slack). A LIVE session takes over once on conflict (`force` — the user is
+      playing this copy right now); the on-the-way-out flush does NOT, so a tab that
+      slept for hours can no longer clobber progress made on another device. A 409'd
+      outbox entry is dropped, not retried — newest wins, enforced where both saves
+      are visible.
+- [x] **Save-state hygiene** — shipped: each save-state upload prunes UNPINNED
+      slots beyond the newest 20 (`KEEP_UNPINNED_STATES`), screenshots + sidecars
+      included. Pins are keepsakes — never counted, never pruned.
 
 ---
 

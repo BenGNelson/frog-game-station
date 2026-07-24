@@ -180,11 +180,18 @@ describe('readServer', () => {
 })
 
 describe('uploadSram', () => {
-  it('clears the outbox on success', async () => {
+  const okResponse = (savedAt = 0) => ({
+    ok: true,
+    status: 204,
+    headers: { get: (k) => (k === 'x-saved-at' ? String(savedAt) : null) },
+  })
+
+  it('clears the outbox on success and hands back the server stamp (fresh lineage)', async () => {
     const storage = fakeStorage()
     addToOutbox(storage, GID)
-    const fetch = vi.fn(async () => ({ ok: true }))
-    expect(await uploadSram(GID, bytes(1), { fetch, storage })).toBe(true)
+    const fetch = vi.fn(async () => okResponse(5000))
+    const r = await uploadSram(GID, bytes(1), { fetch, storage })
+    expect(r).toEqual({ ok: true, conflict: false, savedAt: 5000 })
     expect(readOutbox(storage)).toEqual([])
   })
 
@@ -195,8 +202,34 @@ describe('uploadSram', () => {
     const fetch = vi.fn(async () => {
       throw new Error('offline')
     })
-    expect(await uploadSram(GID, bytes(1), { fetch, storage })).toBe(false)
+    const r = await uploadSram(GID, bytes(1), { fetch, storage })
+    expect(r.ok).toBe(false)
+    expect(r.conflict).toBe(false)
     expect(readOutbox(storage)).toEqual([GID])
+  })
+
+  it('states the lineage, and a 409 conflict is dropped from the outbox — not retried', async () => {
+    // The server said a NEWER save exists (made on another device). Retrying this
+    // one would just lose the race again — or worse, win it later.
+    const storage = fakeStorage()
+    addToOutbox(storage, GID)
+    const fetch = vi.fn(async (url, opts) => {
+      const sent = Object.fromEntries(opts.body.entries())
+      expect(sent.base).toBe('111')
+      return { ok: false, status: 409, headers: { get: () => '9999' } }
+    })
+    const r = await uploadSram(GID, bytes(1), { fetch, storage }, { base: 111 })
+    expect(r).toEqual({ ok: false, conflict: true, savedAt: 9999 })
+    expect(readOutbox(storage)).toEqual([]) // dropped, deliberately
+  })
+
+  it('force writes through (an active session taking over)', async () => {
+    const fetch = vi.fn(async (url, opts) => {
+      expect(Object.fromEntries(opts.body.entries()).force).toBe('true')
+      return okResponse(7000)
+    })
+    const r = await uploadSram(GID, bytes(1), { fetch, storage: fakeStorage() }, { force: true })
+    expect(r.ok).toBe(true)
   })
 })
 

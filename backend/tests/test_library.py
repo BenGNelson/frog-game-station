@@ -298,6 +298,115 @@ def test_facets_empty_db_is_empty_maps(client):
     assert out == {"genres": {}, "franchises": {}}
 
 
+# --- save-state pruning ------------------------------------------------------
+
+def test_prune_save_states_caps_unpinned_and_spares_pins(tmp_path):
+    root = str(tmp_path / "saves")
+    # 6 states, oldest first; pin the OLDEST (a keepsake) then cap at 3 unpinned.
+    for i in range(6):
+        sp, shp = library.save_state_files(root, "g.gb", str(1000 + i))
+        os.makedirs(os.path.dirname(sp), exist_ok=True)
+        open(sp, "wb").write(b"s")
+        open(shp, "wb").write(b"p")
+    import json as _json
+    meta = library.save_state_meta_file(root, "g.gb", "1000")
+    open(meta, "w").write(_json.dumps({"pinned": True}))
+    pruned = library.prune_save_states(root, "g.gb", keep=3)
+    assert sorted(pruned) == ["1001", "1002"]  # the two oldest UNPINNED go
+    left = {s["slot"] for s in library.list_save_states(root, "g.gb")}
+    assert left == {"1000", "1003", "1004", "1005"}  # pin + newest three
+    # The pruned slots' screenshots went with them.
+    for slot in ("1001", "1002"):
+        sp, shp = library.save_state_files(root, "g.gb", slot)
+        assert not os.path.exists(sp) and not os.path.exists(shp)
+
+
+def test_create_save_state_prunes_beyond_cap(client, rom_dir, tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "games_saves_dir", str(tmp_path / "saves"))
+    monkeypatch.setattr(library, "KEEP_UNPINNED_STATES", 2)
+    slots = []
+    for i in range(4):
+        r = client.post("/api/library/games/save-states",
+                        data={"id": "Tetris.gb"}, files={"state": ("s.state", bytes([i]))})
+        slots.append(r.json()["slot"])
+        import time as _t; _t.sleep(0.01)  # distinct ms slots
+    listed = client.get("/api/library/games/save-states", params={"id": "Tetris.gb"}).json()["states"]
+    assert [s["slot"] for s in listed] == [slots[3], slots[2]]  # newest two survive
+
+
+# --- the scan cache ----------------------------------------------------------
+
+def test_list_items_caches_within_ttl_and_hands_out_copies(rom_dir, monkeypatch):
+    monkeypatch.setattr(settings, "scan_cache_ttl", 60)
+    library.invalidate_scan_cache()
+    try:
+        first = library.list_items(GAMES, settings)
+        (rom_dir / "Late.gb").write_bytes(b"LATE")
+        # Within the TTL the walk is reused — the new ROM isn't seen yet…
+        cached = library.list_items(GAMES, settings)
+        assert [i["id"] for i in cached] == [i["id"] for i in first]
+        # …and the caller gets COPIES: stamping one request's items (cover_v) must
+        # never smear into the next request's view.
+        cached[0]["cover_v"] = 999
+        assert library.list_items(GAMES, settings)[0].get("cover_v", 0) != 999
+        # An expired/cleared cache sees the new ROM.
+        library.invalidate_scan_cache()
+        fresh = library.list_items(GAMES, settings)
+        assert "Late.gb" in [i["id"] for i in fresh]
+    finally:
+        library.invalidate_scan_cache()
+
+
+def test_list_items_ttl_zero_walks_fresh_every_time(rom_dir, monkeypatch):
+    monkeypatch.setattr(settings, "scan_cache_ttl", 0)
+    library.invalidate_scan_cache()
+    library.list_items(GAMES, settings)
+    (rom_dir / "Fresh.gb").write_bytes(b"F")
+    assert "Fresh.gb" in [i["id"] for i in library.list_items(GAMES, settings)]
+
+
+# --- SRAM stale-lineage guard ------------------------------------------------
+
+def _post_sram(client, gid, data, **fields):
+    return client.post("/api/library/games/sram",
+                       data={"id": gid, **fields}, files={"sram": ("s.sav", data)})
+
+
+def test_sram_stale_lineage_is_refused(client, rom_dir, tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "games_saves_dir", str(tmp_path / "saves"))
+    gid = "Tetris.gb"
+    r = _post_sram(client, gid, b"NEWER-DEVICE-SAVE")
+    assert r.status_code == 204
+    stored_ms = int(r.headers["x-saved-at"])
+    # A suspended tab wakes and flushes a save whose lineage predates the stored one.
+    stale = _post_sram(client, gid, b"HOURS-OLD", base=str(stored_ms - 60_000))
+    assert stale.status_code == 409
+    assert int(stale.headers["x-saved-at"]) == stored_ms  # told what won
+    assert client.get("/api/library/games/sram", params={"id": gid}).content == b"NEWER-DEVICE-SAVE"
+
+
+def test_sram_fresh_lineage_and_force_write_through(client, rom_dir, tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "games_saves_dir", str(tmp_path / "saves"))
+    gid = "Tetris.gb"
+    r = _post_sram(client, gid, b"v1")
+    stored_ms = int(r.headers["x-saved-at"])
+    # Same lineage (this device made the stored save) → accepted.
+    ok = _post_sram(client, gid, b"v2", base=str(stored_ms))
+    assert ok.status_code == 204
+    # An ACTIVE session takes over even a newer stored save, deliberately.
+    forced = _post_sram(client, gid, b"takeover", base="0", force="true")
+    assert forced.status_code == 204
+    assert client.get("/api/library/games/sram", params={"id": gid}).content == b"takeover"
+
+
+def test_sram_no_base_keeps_legacy_overwrite(client, rom_dir, tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "games_saves_dir", str(tmp_path / "saves"))
+    gid = "Tetris.gb"
+    _post_sram(client, gid, b"old-client-A")
+    r = _post_sram(client, gid, b"old-client-B")  # no base — pre-guard client
+    assert r.status_code == 204
+
+
 # --- time-to-beat ------------------------------------------------------------
 
 def test_ttb_backfill_accessors_and_meta_exposure(client, rom_dir):

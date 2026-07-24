@@ -36,6 +36,11 @@ class Settings(BaseSettings):
     # upload so a bad client can't fill the disk.
     games_saves_dir: str = "/data/saves"
 
+    # How long a library scan (the recursive ROM-dir walk) is reused before walking
+    # again. Browsing hits the listing on every screen; ROMs change rarely, and 0
+    # disables the cache entirely (every request walks fresh).
+    scan_cache_ttl: float = 20
+
     # --- IGDB (rich game metadata for the game screen) ---
     # IGDB is Twitch's games database; the API authenticates with Twitch OAuth.
     # Register a free app at https://dev.twitch.tv/console/apps to get a Client

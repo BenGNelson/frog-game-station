@@ -24,10 +24,16 @@ export function useGameSaves(emuRef, gameId, running) {
 
     let alive = true
 
-    // Seed once per game. Doing it twice would stomp progress made since.
+    // Seed once per game. Doing it twice would stomp progress made since. The seed's
+    // savedAt is this session's LINEAGE — every later upload states it, so the server
+    // can spot a stale tab flushing over another device's newer progress.
     if (!seededRef.current) {
       seededRef.current = true
-      seedSave(emu, gameId).catch(() => {})
+      seedSave(emu, gameId)
+        .then((r) => {
+          if (r?.savedAt) stateRef.current = { ...stateRef.current, baseMs: r.savedAt }
+        })
+        .catch(() => {})
     }
 
     const capture = async (force = false) => {

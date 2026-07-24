@@ -753,6 +753,9 @@ def create_save_state(
     games = library.get_section("games")
     core = games["formats"].get(os.path.splitext(id)[1].lower(), {}).get("core")
     db.set_game_progress(id, core)
+    # Keep the shelf honest-sized: unpinned snapshots beyond the newest N are pruned
+    # now, so the collection can't grow without bound. Pins are keepsakes — untouched.
+    library.prune_save_states(saves_root, id)
     return {"slot": slot, "created_ms": int(slot)}
 
 
@@ -807,16 +810,45 @@ def set_save_state_meta(body: SaveStateMetaBody):
 # captures the .sav and POSTs it here.
 
 
+# How much newer the stored SRAM must be than a write's lineage before the write is
+# refused — slack for client/server clock drift and mtime rounding.
+_SRAM_STALE_SLACK_MS = 2000
+
+
 @router.post("/library/games/sram")
 def put_sram(
     id: str = Form(description="Game id from the section listing"),
     sram: UploadFile = File(description="The game's .sav battery save"),
+    base: str | None = Form(
+        default=None,
+        description="Epoch-ms of the save this session STARTED from (its lineage). "
+        "When the stored save is meaningfully newer, the write is refused (409) — "
+        "the guard that stops a stale suspended tab from clobbering progress made "
+        "on another device. Omit for the legacy unconditional write.",
+    ),
+    force: bool = Form(
+        default=False,
+        description="Overwrite even a newer stored save — an ACTIVE session taking "
+        "over deliberately (the user is playing right now; their word wins).",
+    ),
 ):
     """Store/overwrite a game's in-game battery save (SRAM). Sync handler →
-    threadpool, so the write stays off the event loop."""
+    threadpool, so the write stays off the event loop. Returns the stored save's
+    new `X-Saved-At` (epoch ms) so the client can update its lineage."""
     path = library.sram_file(settings.games_saves_dir, id)
     if not path:
         return Response(status_code=400)
+    # The stale-lineage guard. Only when the client STATES its lineage — a
+    # fire-and-forget flush from a tab that was suspended for hours carries an old
+    # base and dies here; the newer save (made on another device meanwhile) lives.
+    if base is not None and not force and os.path.isfile(path):
+        try:
+            base_ms = int(base)
+        except ValueError:
+            base_ms = 0
+        stored_ms = int(os.path.getmtime(path) * 1000)
+        if stored_ms > base_ms + _SRAM_STALE_SLACK_MS:
+            return Response(status_code=409, headers={"X-Saved-At": str(stored_ms)})
     data = sram.file.read(_MAX_STATE_BYTES + 1)  # cap+1 — never buffer the whole body
     if not data or len(data) > _MAX_STATE_BYTES:
         return Response(status_code=413)
@@ -828,7 +860,7 @@ def put_sram(
     games = library.get_section("games")
     core = games["formats"].get(os.path.splitext(id)[1].lower(), {}).get("core") if games else None
     db.set_game_progress(id, core)
-    return Response(status_code=204)
+    return Response(status_code=204, headers={"X-Saved-At": str(int(os.path.getmtime(path) * 1000))})
 
 
 @router.get("/library/games/sram")

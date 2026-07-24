@@ -152,19 +152,35 @@ export async function readServer(gameId, d) {
 // being forgotten — the readers have had this for ages (progressOutbox); games
 // simply never got it, so a save made offline never reached the server, the backup,
 // or your other device.
-export async function uploadSram(gameId, bytes, d) {
+//
+// `base` states the save's LINEAGE (epoch-ms of the save this session started
+// from): when the server holds a meaningfully newer save, it refuses the write
+// (409) — that's the stale-suspended-tab guard. `force` overrides it (an active
+// session taking over deliberately). Returns { ok, conflict, savedAt }:
+//   ok       — the write landed; savedAt is the server's new stamp (fresh lineage)
+//   conflict — the server's save is newer than this one's lineage; savedAt is the
+//              winner's stamp. NOT outboxed: retrying a save the server already
+//              beat would just lose the race again (or worse, win it later).
+export async function uploadSram(gameId, bytes, d, { base, force } = {}) {
   const { fetch, storage } = io(d)
   try {
     const body = new FormData()
     body.append('id', gameId)
     body.append('sram', new Blob([bytes]), 'sram.bin')
+    if (base != null) body.append('base', String(base))
+    if (force) body.append('force', 'true')
     const res = await fetch(gameSramUrl(gameId), { method: 'POST', body, keepalive: bytes.length < 60_000 })
+    const savedAt = Number(res.headers?.get?.('x-saved-at')) || 0
+    if (res.status === 409) {
+      removeFromOutbox(storage, gameId)
+      return { ok: false, conflict: true, savedAt }
+    }
     if (!res.ok) throw new Error(String(res.status))
     removeFromOutbox(storage, gameId)
-    return true
+    return { ok: true, conflict: false, savedAt }
   } catch {
     addToOutbox(storage, gameId)
-    return false
+    return { ok: false, conflict: false, savedAt: 0 }
   }
 }
 
@@ -179,7 +195,10 @@ export async function flushOutbox(d) {
       removeFromOutbox(storage, gameId) // nothing left to send
       continue
     }
-    if (await uploadSram(gameId, local.bytes, d)) sent++
+    // The offline save's capture time is its best-known lineage: if another device
+    // saved meaningfully later, the server refuses and the entry is dropped —
+    // newest-wins, enforced where both saves can be seen.
+    if ((await uploadSram(gameId, local.bytes, d, { base: local.savedAt })).ok) sent++
   }
   return sent
 }
@@ -220,6 +239,8 @@ export async function seedSave(emu, gameId, d) {
   // would keep thinking its stale save is the truth.
   if (winner === 'remote') await writeLocal(gameId, chosen.bytes, chosen.savedAt, d)
 
+  // `savedAt` is this session's LINEAGE — captureSave states it on every upload so
+  // the server can spot a stale tab flushing over another device's newer progress.
   return { seeded: true, from: winner, savedAt: chosen.savedAt }
 }
 
@@ -243,10 +264,22 @@ export async function captureSave(emu, gameId, state = {}, d) {
   // to hear about every frame of a battle. `force` (on the way out) ignores it.
   const due = state.force || !state.uploadedAt || at - state.uploadedAt > 15_000
   if (due) {
-    const ok = await uploadSram(gameId, bytes, d)
-    return { hash, uploadedAt: ok ? at : state.uploadedAt }
+    // Every upload states this session's lineage (baseMs — where the seeded save
+    // came from, then each accepted write). A conflict means another device saved
+    // since: a LIVE session takes over once, deliberately (the user is playing THIS
+    // copy right now); the final on-the-way-out capture does not — a tab that slept
+    // for hours must not clobber the progress that superseded it.
+    let r = await uploadSram(gameId, bytes, d, { base: state.baseMs ?? at })
+    if (r.conflict && !state.force) {
+      r = await uploadSram(gameId, bytes, d, { force: true })
+    }
+    return {
+      hash,
+      uploadedAt: r.ok ? at : state.uploadedAt,
+      baseMs: r.savedAt || state.baseMs,
+    }
   }
 
   addToOutbox(storage, gameId) // changed but not sent yet — don't lose track of it
-  return { hash, uploadedAt: state.uploadedAt }
+  return { hash, uploadedAt: state.uploadedAt, baseMs: state.baseMs }
 }
