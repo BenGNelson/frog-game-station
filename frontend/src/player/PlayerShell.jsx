@@ -27,6 +27,7 @@ import {
   setPaused,
   setFastForward,
   setRewind,
+  setShader as applyEngineShader,
   setVolume as applyEngineVolume,
   restart as restartGame,
 } from '../lib/emuBridge.js'
@@ -52,6 +53,8 @@ import {
   hotkeyMatches,
   sameHotkey,
   clampVolume,
+  clampShader,
+  SHADER_LEVELS,
   CONTROL_SKINS,
 } from '../lib/playerSettings.js'
 import { bindingForButton } from '../lib/gamepad.js'
@@ -290,9 +293,13 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
       // stock player, which still works, rather than a half-wired one.
       if (!emu) return
       emuRef.current = emu
-      // The saved volume, applied the moment the engine exists (it boots at its own
-      // 0.5 default). Read from storage, not the closure — this handler mounts once.
-      applyEngineVolume(emu, clampVolume(readSettings(window.localStorage).volume))
+      // The saved volume and display filter, applied the moment the engine exists
+      // (it boots at its own defaults). Read from storage, not the closure — this
+      // handler mounts once.
+      const boot = readSettings(window.localStorage)
+      applyEngineVolume(emu, clampVolume(boot.volume))
+      const bootShader = clampShader(boot.shader)
+      if (bootShader !== 'disabled') applyEngineShader(emu, bootShader)
       // The game is running: the start screen has done its job and must LEAVE. The
       // engine only ever removed its own Start button, so without this the box art
       // sits in the middle of the game, still bobbing.
@@ -536,6 +543,58 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
     () => changeVolume(clampVolume(readSettings(window.localStorage).volume) === 0 ? lastAudibleRef.current : 0),
     [changeVolume]
   )
+
+  // The display filter — a curated shader step, cycled (◀ ▶ / A) with wrap so it
+  // always changes something. Persisted like the volume; applied live and at boot.
+  const shader = clampShader(settings.shader)
+  const stepFilter = useCallback(
+    (dir) => {
+      const ids = SHADER_LEVELS.map((s) => s.id)
+      const here = ids.indexOf(clampShader(readSettings(window.localStorage).shader))
+      const next = ids[(here + dir + ids.length) % ids.length]
+      saveSettings({ ...readSettings(window.localStorage), shader: next })
+      applyEngineShader(emuRef.current, next)
+    },
+    [saveSettings]
+  )
+
+  // A frame of the live game → the share sheet (phone) or a straight download. The
+  // pause menu's row reads back Saved / Nothing to capture for a beat.
+  const [shotStatus, setShotStatus] = useState(null)
+  const shotTimerRef = useRef(null)
+  const flashShot = useCallback((status) => {
+    setShotStatus(status)
+    clearTimeout(shotTimerRef.current)
+    shotTimerRef.current = setTimeout(() => setShotStatus(null), 2000)
+  }, [])
+  useEffect(() => () => clearTimeout(shotTimerRef.current), [])
+  const takeScreenshot = useCallback(async () => {
+    const blob = await captureShot(emuRef.current)
+    if (!blob) {
+      flashShot('failed') // pre-boot, or a frame the canvas couldn't give back
+      return
+    }
+    const stamp = new Date().toISOString().slice(0, 19).replace('T', ' ').replace(/:/g, '.')
+    const file = new File([blob], `${(name || 'game').replace(/[\\/:*?"<>|]+/g, '')} ${stamp}.png`, { type: 'image/png' })
+    // The share sheet is the phone's natural sink (Photos, a chat); a canceled sheet
+    // is a decision, not a failure — no download fallback behind it.
+    if (navigator.canShare?.({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file] })
+        flashShot('saved')
+      } catch {
+        setShotStatus(null)
+      }
+      return
+    }
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = file.name
+    a.click()
+    setTimeout(() => URL.revokeObjectURL(url), 4000)
+    flashShot('saved')
+  }, [name, flashShot])
 
   const openControls = useCallback(() => {
     setControlsFocus(0)
@@ -781,6 +840,12 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
           // (pad/keyboard) or the row's − + taps. Stays on the menu — you're tuning.
           toggleMute()
           break
+        case 'filter':
+          stepFilter(1) // A cycles the filter forward (the game shows through the scrim)
+          break
+        case 'screenshot':
+          takeScreenshot() // stays on the menu — the row reads back Saved
+          break
         case 'controls':
           openControls()
           break
@@ -807,7 +872,7 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
           break
       }
     },
-    [fastForward, rewinding, applyFF, applyRewind, openShelf, goFullscreen, openControls, openWiki, openPokedex, toggleMute]
+    [fastForward, rewinding, applyFF, applyRewind, openShelf, goFullscreen, openControls, openWiki, openPokedex, toggleMute, stepFilter, takeScreenshot]
   )
 
   const openMenu = useCallback(() => {
@@ -873,7 +938,9 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state === 'PLAYING'])
 
-  const menuItems = pauseItems(fastForward, { canFullscreen, isPokemon, volume, rewinding })
+  const shaderLabel = SHADER_LEVELS.find((s) => s.id === shader)?.label || 'Off'
+  const onMenuAdjust = (id, dir) => (id === 'volume' ? stepVolume(dir) : stepFilter(dir))
+  const menuItems = pauseItems(fastForward, { canFullscreen, isPokemon, volume, rewinding, shader: shaderLabel, shotStatus })
 
   const rows = controlRows(isPokemon)
 
@@ -1082,7 +1149,7 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
       if (action === 'confirm') onMenuAction(menuItems[menuFocus].id)
       else if (action === 'back') dispatch('resume')
       else if ((action === 'left' || action === 'right') && menuItems[menuFocus]?.adjust)
-        stepVolume(action === 'left' ? -1 : 1) // the volume row: ◀ ▶ step the level
+        onMenuAdjust(menuItems[menuFocus].id, action === 'left' ? -1 : 1) // adjustable rows: ◀ ▶ step
       else
         setMenuFocus((i) =>
           moveInGrid({ count: menuItems.length, cols: 1, index: i }, action)
@@ -1392,7 +1459,9 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
           canFullscreen={canFullscreen}
           isPokemon={isPokemon}
           volume={volume}
-          onVolume={stepVolume}
+          shader={shaderLabel}
+          shotStatus={shotStatus}
+          onAdjust={onMenuAdjust}
           focus={menuFocus}
           onFocus={setMenuFocus}
           onAction={onMenuAction}

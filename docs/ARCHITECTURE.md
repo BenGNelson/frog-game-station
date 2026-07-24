@@ -336,7 +336,12 @@ colours), and the **button-legend glyphs** keep the real controller's face-butto
   only omit. Nav reuses `moveInGrid` at `cols: 1` (the section headers are cosmetic; the
   controller walks the flat item array so index ↔ action stays 1:1 across touch, keyboard,
   and pad). Save and Load collapsed into one **"Save / Load States"** row — both open the
-  same shelf, which lands on Save-new. **Rewind** and **Fast Forward** sit together in
+  same shelf, which lands on Save-new. A **Save Screenshot** row sits with the
+  snapshots: the live canvas via the same `captureShot` path the save thumbnails trust
+  (preserveDrawingBuffer; blank frames rejected), then the phone's share sheet
+  (`navigator.share` — a canceled sheet is a decision, not a failure) or a `.png`
+  download on desk, with the row itself reading back "Screenshot saved" / "Nothing to
+  capture" for a beat. **Rewind** and **Fast Forward** sit together in
   Play — the two time toggles (each wears an On badge while live; picking either resumes,
   since running time is something you want to see). A **Volume** row sits right under them —
   the one adjustable row in the list: ◀ ▶ (pad/keyboard) or its − + taps step the level
@@ -345,6 +350,13 @@ colours), and the **button-legend glyphs** keep the real controller's face-butto
   with a direct WebAudio-gain fallback), persisted in the `frog.player` blob, and
   re-applied the moment the engine boots — the `volume: 0.5` default matches the
   engine's own historical default, so shipping the control changed nobody's loudness.
+  Under it, a **Filter** cycle row (◀ ▶ / A step it, with wrap): a curated shortlist of
+  the engine's bundled shaders — **Off / CRT / CRT curve / Smooth** (`SHADER_LEVELS`,
+  `lib/playerSettings.js`) rather than its fourteen-variant drawer — applied live
+  through `emuBridge.setShader` (the engine's own `shader` setting → `enableShader`
+  writes the `.glslp` into the core's FS) and persisted+re-applied at boot like the
+  volume. Aspect-ratio / integer-scale deliberately isn't here: EmulatorJS 4.2.3 has no
+  such setting to drive.
 
 ### Touch controls
 

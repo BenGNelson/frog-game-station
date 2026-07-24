@@ -3,6 +3,8 @@ import {
   DEFAULTS,
   SETTINGS_KEY,
   clampVolume,
+  clampShader,
+  SHADER_LEVELS,
   readSettings,
   writeSettings,
   migrateLegacyEjsKeys,
@@ -260,6 +262,22 @@ describe('app-shortcut hotkeys (bare button vs Menu-chord)', () => {
     expect(sameHotkey(chord, { button: 4, mod: 'menu' })).toBe(false)
     expect(sameHotkey(3, chord)).toBe(false) // bare A and Menu+A coexist
     expect(sameHotkey(null, null)).toBe(false)
+  })
+})
+
+describe('clampShader / SHADER_LEVELS', () => {
+  it('is a curated shortlist that starts at Off (the raw-pixels default)', () => {
+    expect(SHADER_LEVELS[0]).toEqual({ id: 'disabled', label: 'Off' })
+    expect(SHADER_LEVELS.length).toBeGreaterThan(2) // Off + at least a CRT and a smooth
+    expect(SHADER_LEVELS.map((s) => s.id)).toContain(DEFAULTS.shader)
+  })
+
+  it('passes a real step through and falls back to Off for garbage', () => {
+    expect(clampShader('crt-easymode.glslp')).toBe('crt-easymode.glslp')
+    expect(clampShader('disabled')).toBe('disabled')
+    expect(clampShader('crt-royale.glslp')).toBe('disabled') // not shipped -> Off
+    expect(clampShader(undefined)).toBe('disabled')
+    expect(clampShader(42)).toBe('disabled')
   })
 })
 

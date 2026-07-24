@@ -438,6 +438,18 @@ export function setRewind(emu, on) {
   }
 }
 
+// Apply a display filter — an engine shader key ('disabled' = raw pixels). Routed
+// through the engine's own setting so its enableShader plumbing (write the .glslp
+// into the core's FS, toggle the pass) does the work; safe to call live mid-game.
+export function setShader(emu, name) {
+  try {
+    emu.changeSettingOption('shader', name)
+    return true
+  } catch {
+    return false
+  }
+}
+
 // Set the engine's audio volume (0..1). The engine's own slider lives in the hidden
 // bottom bar; its `setVolume` both applies the gain and keeps `emu.muted` truthful, so
 // prefer it — with a direct write to the WebAudio gains as the fallback for an engine

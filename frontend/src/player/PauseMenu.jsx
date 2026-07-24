@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { Play, Save, FastForward, Rewind, Maximize, Gamepad2, RotateCcw, LogOut, BookOpen, BookMarked, ChevronRight, ChevronLeft, Volume2, VolumeX } from 'lucide-react'
+import { Play, Save, Camera, FastForward, Rewind, Maximize, Tv, Gamepad2, RotateCcw, LogOut, BookOpen, BookMarked, ChevronRight, ChevronLeft, Volume2, VolumeX } from 'lucide-react'
 import { moveInGrid } from '../lib/gridNav.js'
 import { FROG, scrim, SCRIM, focusRing } from '../frog/theme.js'
 import { radiantBackdrop } from '../lib/glow.js'
@@ -26,19 +26,34 @@ const SECTION_LABEL = { snapshots: 'Snapshots', play: 'Play', game: 'Game', setu
 // The menu's contents, exported so the controller can walk the same list the
 // touch/keyboard user sees — one source of truth for what's on screen and what
 // index each thing sits at.
-export function pauseItems(fastForward, { canFullscreen = true, isPokemon = false, volume, rewinding = false } = {}) {
+export function pauseItems(fastForward, { canFullscreen = true, isPokemon = false, volume, rewinding = false, shader, shotStatus = null } = {}) {
   return [
     { id: 'resume', label: 'Resume', Icon: Play, primary: true, section: 'top' },
     // Save and Load open the SAME shelf (it defaults focus to "Save new"), so they're
     // one row, not two — the shelf is where you both save and load.
     { id: 'states', label: 'Save / Load States', Icon: Save, chevron: true, section: 'snapshots' },
+    // A frame of the live game, straight to the share sheet (phone) or a download
+    // (desk). The row itself is the feedback: it reads Saved / Nothing to capture
+    // for a beat after the attempt.
+    {
+      id: 'screenshot',
+      label: shotStatus === 'saved' ? 'Screenshot saved' : shotStatus === 'failed' ? 'Nothing to capture' : 'Save Screenshot',
+      Icon: Camera,
+      active: shotStatus === 'saved',
+      section: 'snapshots',
+    },
     // The time controls, together: rewind ⟲, fast-forward ⟳, then the volume.
     { id: 'rewind', label: 'Rewind', Icon: Rewind, active: rewinding, section: 'play' },
     { id: 'fastForward', label: 'Fast Forward', Icon: FastForward, active: fastForward, section: 'play' },
     // Game audio. An adjustable row (◀ ▶ / the − + taps step it; A / tap toggles
     // mute), shown only when the shell passes a level — older callers just omit it.
     ...(typeof volume === 'number'
-      ? [{ id: 'volume', label: 'Volume', Icon: volume === 0 ? VolumeX : Volume2, adjust: true, value: volume, section: 'play' }]
+      ? [{ id: 'volume', label: 'Volume', Icon: volume === 0 ? VolumeX : Volume2, adjust: true, control: 'slider', value: volume, section: 'play' }]
+      : []),
+    // The display filter — a curated shader step (Off / CRT / …), cycled with ◀ ▶
+    // or A. `shader` is the current step's LABEL; the shell owns the ids.
+    ...(shader != null
+      ? [{ id: 'filter', label: 'Filter', Icon: Tv, adjust: true, control: 'cycle', value: shader, section: 'play' }]
       : []),
     // The top bar used to carry Fullscreen, and it's hidden while you play — so the menu
     // is where it lives now. Except on iPhone, which has no Fullscreen API at all: there
@@ -57,18 +72,18 @@ export function pauseItems(fastForward, { canFullscreen = true, isPokemon = fals
   ]
 }
 
-export default function PauseMenu({ open, name, fastForward, rewinding, canFullscreen, isPokemon, volume, onVolume, focus, onFocus, onAction, legend }) {
-  const items = pauseItems(fastForward, { canFullscreen, isPokemon, volume, rewinding })
+export default function PauseMenu({ open, name, fastForward, rewinding, canFullscreen, isPokemon, volume, shader, shotStatus, onAdjust, focus, onFocus, onAction, legend }) {
+  const items = pauseItems(fastForward, { canFullscreen, isPokemon, volume, rewinding, shader, shotStatus })
 
   // Keyboard parity with the controller — the same 1-column list walk drives both, so
   // desktop and pad can never diverge. cols:1 makes left/right no-ops and up/down step
   // one item (the orphan/centred-row branch in moveInGrid is inert at a single column)
-  // — EXCEPT on the volume row, where left/right step the level.
+  // — EXCEPT on the adjustable rows (volume, filter), where left/right step the value.
   const onKeyDown = (e) => {
     const dir = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' }[e.key]
     if ((dir === 'left' || dir === 'right') && items[focus]?.adjust) {
       e.preventDefault()
-      onVolume?.(dir === 'left' ? -1 : 1)
+      onAdjust?.(items[focus].id, dir === 'left' ? -1 : 1)
     } else if (dir) {
       e.preventDefault()
       onFocus(moveInGrid({ count: items.length, cols: 1, index: focus }, dir))
@@ -137,7 +152,7 @@ export default function PauseMenu({ open, name, fastForward, rewinding, canFulls
                     focused={i === focus}
                     onSelect={() => onAction(item.id)}
                     onHover={() => onFocus(i)}
-                    onAdjust={item.adjust ? onVolume : undefined}
+                    onAdjust={item.adjust ? (dir) => onAdjust?.(item.id, dir) : undefined}
                   />
                 </div>
               )
@@ -152,7 +167,7 @@ export default function PauseMenu({ open, name, fastForward, rewinding, canFulls
 }
 
 function MenuRow({ item, focused, onSelect, onHover, onAdjust }) {
-  const { Icon, label, primary, danger, active, chevron, adjust, value } = item
+  const { Icon, label, primary, danger, active, chevron, adjust, control, value } = item
   const ref = useRef(null)
 
   // Keep the focused row on screen when the D-pad walks off the visible area.
@@ -199,7 +214,7 @@ function MenuRow({ item, focused, onSelect, onHover, onAdjust }) {
       {chevron && !active && (
         <ChevronRight className="h-4 w-4 shrink-0" style={{ color: FROG.faint }} aria-hidden="true" />
       )}
-      {adjust && (
+      {adjust && control === 'slider' && (
         // The level control: − / + tap targets around a small track + percent. The taps
         // stop propagation so a thumb stepping the level never also fires the row's own
         // action (mute). The row itself announces the level for AT.
@@ -210,6 +225,16 @@ function MenuRow({ item, focused, onSelect, onHover, onAdjust }) {
           </span>
           <span className="w-9 text-right text-xs tabular-nums" style={{ color: FROG.soft }} aria-hidden="true">
             {value === 0 ? 'Mute' : `${Math.round(value * 100)}%`}
+          </span>
+          <AdjustTap side="up" onAdjust={onAdjust} />
+        </span>
+      )}
+      {adjust && control === 'cycle' && (
+        // A stepped choice: ‹ value › — same tap targets, the value is a word.
+        <span className="flex shrink-0 items-center gap-1" aria-label={`${label}: ${value}`}>
+          <AdjustTap side="down" onAdjust={onAdjust} />
+          <span className="min-w-[4.5rem] text-center text-xs font-medium" style={{ color: value === 'Off' ? FROG.soft : `rgb(${FROG.jade})` }} aria-hidden="true">
+            {value}
           </span>
           <AdjustTap side="up" onAdjust={onAdjust} />
         </span>

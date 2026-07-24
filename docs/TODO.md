@@ -92,11 +92,19 @@ Open items carry an inline tag; completed (`[x]`) items are left untagged — th
       pad), and `emuBridge.setRewind` holds the engine's rewind channel (input 28) down
       as a virtual button. Rewind and fast-forward are mutually exclusive — turning one
       on drops the other.
-- [ ] **[P2] Display options.** Pause-menu "Display" group: CRT/scanline shader toggle,
-      aspect-ratio / integer scale — driven through `emuBridge.js` settings (engine chrome
-      stays hidden).
-- [ ] **[P2] Screenshot capture.** The canvas is already readable (save-thumbnail patch);
-      add "Save screenshot" to the pause menu → download / share sheet on phone.
+- [x] **Display options.** Shipped as a **Filter** cycle row in the pause menu (after
+      Volume): a curated shader shortlist — Off / CRT (crt-easymode) / CRT curve
+      (crt-geom) / Smooth (bicubic) — from the engine's bundled `EJS_SHADERS`, applied
+      live via `emuBridge.setShader` and persisted+re-applied at boot. *Scope note:
+      aspect-ratio / integer-scale was dropped — EmulatorJS 4.2.3 simply has no such
+      setting (its graphics menu is shaders/FPS/VSync/rotation); revisit on an engine
+      bump.*
+- [x] **Screenshot capture.** Shipped: a **Save Screenshot** row in Snapshots — captures
+      the live canvas via the proven `captureShot` path (preserveDrawingBuffer, blank
+      frames rejected), then the share sheet on phone (`navigator.share` with the file;
+      a canceled sheet is a decision, not a failure) or a straight `.png` download on
+      desk. The row is its own feedback: "Screenshot saved" / "Nothing to capture" for
+      a beat.
 - [ ] **[P2] Fast-forward speed setting.** Expose the ratio (2×/3×/unlimited) on the
       Controls screen.
 - [ ] **[P3] Cheats (optional).** Engine has a cheat manager; minimal per-game cheat list,

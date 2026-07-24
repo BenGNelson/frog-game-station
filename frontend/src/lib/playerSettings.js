@@ -23,6 +23,9 @@ export const DEFAULTS = {
   // session so far has played at this level, so the slider starts where the sound
   // already was rather than suddenly doubling it.
   volume: 0.5,
+  // The display filter (a curated engine-shader step, see SHADER_LEVELS below).
+  // Off by default: raw pixels are the app's baseline look.
+  shader: 'disabled',
   // Soft navigation blips in the browser. Off by default — sound is opt-in.
   navSfx: false,
 
@@ -156,6 +159,22 @@ export function resetControls(settings, padId) {
 // silence a game or blow an eardrum.
 export function clampVolume(v) {
   return typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.min(1, v)) : DEFAULTS.volume
+}
+
+// The display filter's curated steps — a shortlist, not the engine's whole shader
+// drawer (fourteen variants of CRT is a menu, not a preference). Each id is an
+// engine shader key (EJS_SHADERS) except 'disabled', the raw-pixels default.
+export const SHADER_LEVELS = [
+  { id: 'disabled', label: 'Off' },
+  { id: 'crt-easymode.glslp', label: 'CRT' },
+  { id: 'crt-geom.glslp', label: 'CRT curve' },
+  { id: 'bicubic', label: 'Smooth' },
+]
+
+// A stored filter back to a real step — an unknown/legacy id falls back to Off
+// rather than handing the engine a shader it doesn't ship.
+export function clampShader(v) {
+  return SHADER_LEVELS.some((s) => s.id === v) ? v : DEFAULTS.shader
 }
 
 export function readSettings(storage) {

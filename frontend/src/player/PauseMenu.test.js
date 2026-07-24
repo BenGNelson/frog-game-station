@@ -50,6 +50,29 @@ describe('pauseItems', () => {
     expect(list.indexOf('rewind')).toBe(list.indexOf('fastForward') - 1)
   })
 
+  it('Save Screenshot lives in Snapshots, right after the states row', () => {
+    const list = ids({})
+    expect(list.indexOf('screenshot')).toBe(list.indexOf('states') + 1)
+    // The row is its own feedback: label reflects the last attempt for a beat.
+    const saved = pauseItems(false, { shotStatus: 'saved' }).find((i) => i.id === 'screenshot')
+    expect(saved.label).toBe('Screenshot saved')
+    expect(saved.active).toBe(true)
+    const failed = pauseItems(false, { shotStatus: 'failed' }).find((i) => i.id === 'screenshot')
+    expect(failed.label).toBe('Nothing to capture')
+  })
+
+  it('carries a Filter cycle row only when the shell passes a step label', () => {
+    expect(ids({})).not.toContain('filter')
+    const items = pauseItems(false, { shader: 'CRT', volume: 0.5 })
+    const f = items.find((i) => i.id === 'filter')
+    expect(f.adjust).toBe(true)
+    expect(f.control).toBe('cycle')
+    expect(f.value).toBe('CRT')
+    // In Play, right after the volume — tuning rows sit together.
+    const list = items.map((i) => i.id)
+    expect(list.indexOf('filter')).toBe(list.indexOf('volume') + 1)
+  })
+
   it('carries a Volume row only when the shell passes a level', () => {
     expect(ids({})).not.toContain('volume')
     expect(ids({ volume: 0.5 })).toContain('volume')

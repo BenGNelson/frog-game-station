@@ -4,6 +4,10 @@ Volume: the 50% default, stepping, mute/unmute, persistence across a reload.
 Rewind: the engine boots with rewindEnabled (the buffer is allocated at core start),
 the Rewind row toggles it (On badge), and rewind and Fast Forward are mutually
 exclusive — turning one on drops the other.
+Filter: the cycle row steps the curated shader list and the engine's own setting
+follows; Off restores raw pixels.
+Screenshot: the row captures the live canvas and (desktop path) hands back a real
+.png download.
 
 Boots the library's first Game Boy ROM headlessly (autoplay + software-GL flags), opens
 the pause menu, and drives the volume row end to end: the 50% default, stepping with
@@ -87,8 +91,8 @@ with sync_playwright() as p:
     check("Volume" in t, "the Volume row renders")
     check("50%" in t, "at the shipped 50% default")
 
-    for _ in range(4):
-        page.keyboard.press("ArrowDown")  # resume -> states -> rewind -> fast-forward -> volume
+    for _ in range(5):
+        page.keyboard.press("ArrowDown")  # resume -> states -> screenshot -> rewind -> fast-forward -> volume
     page.keyboard.press("ArrowRight")
     check("60%" in menu_text(page), "ArrowRight steps the level to 60%")
 
@@ -100,7 +104,7 @@ with sync_playwright() as p:
     check(boot(page, URL), "the player reloads")
     check("60%" in menu_text(page), "the level survived the reload (persisted)")
 
-    for _ in range(4):
+    for _ in range(5):
         page.keyboard.press("ArrowDown")
     page.keyboard.press("ArrowLeft")
     check("50%" in menu_text(page), "ArrowLeft steps back to 50%")
@@ -133,17 +137,45 @@ with sync_playwright() as p:
     on = lambda label: page.locator(f'button:has-text("{label}"):has-text("On")').count()
 
     reopen_menu()
-    toggle_row(2)  # resume -> states -> rewind
+    toggle_row(3)  # resume -> states -> screenshot -> rewind
     reopen_menu()
     check(on("Rewind") == 1, "toggling Rewind wears the On badge (time runs backwards)")
 
-    toggle_row(3)  # -> fast forward
+    toggle_row(4)  # -> fast forward
     reopen_menu()
     check(on("Fast Forward") == 1 and on("Rewind") == 0, "Fast Forward on drops Rewind (mutually exclusive)")
 
-    toggle_row(3)  # fast forward off again — leave the session as found
+    toggle_row(4)  # fast forward off again — leave the session as found
     reopen_menu()
     check(on("Fast Forward") == 0 and on("Rewind") == 0, "both toggles off again")
+
+    # --- display filter ----------------------------------------------------
+    def engine_shader():
+        for f in page.frames:
+            if "emulator.html" in f.url:
+                return f.evaluate("window.EJS_emulator && window.EJS_emulator.getSettingValue('shader')")
+        return None
+
+    for _ in range(6):
+        page.keyboard.press("ArrowDown")  # ... -> volume -> filter
+    page.keyboard.press("ArrowRight")
+    page.wait_for_timeout(400)
+    check("CRT" in menu_text(page), "the Filter row cycles to CRT")
+    check(engine_shader() == "crt-easymode.glslp", "and the engine's shader setting follows")
+    page.keyboard.press("ArrowLeft")
+    page.wait_for_timeout(400)
+    check(engine_shader() == "disabled", "cycling back restores raw pixels")
+
+    # --- screenshot --------------------------------------------------------
+    page.keyboard.press("Escape")  # close, reopen -> focus back on Resume
+    page.wait_for_timeout(400)
+    reopen_menu()
+    page.keyboard.press("ArrowDown")
+    page.keyboard.press("ArrowDown")  # states -> screenshot
+    with page.expect_download(timeout=8000) as dl:
+        page.keyboard.press("Enter")
+    check(dl.value.suggested_filename.endswith(".png"), "Save Screenshot hands back a .png download")
+    check("Screenshot saved" in menu_text(page), "and the row reads back Saved")
     b.close()
 
 if errors:
