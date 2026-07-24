@@ -49,7 +49,16 @@ export function playerConfig(core, controls, { coverUrl } = {}) {
     // rewindEnabled must be decided at BOOT (the core allocates its rewind buffer
     // when RetroArch starts), so it lives here rather than being toggled later.
     // Cheap for these 8/16-bit cores; it's what makes setRewind below do anything.
-    defaultOptions: { 'save-state-location': 'browser', rewindEnabled: 'enabled' },
+    defaultOptions: {
+      'save-state-location': 'browser',
+      rewindEnabled: 'enabled',
+      // N64 frames carry garbage lines at the bottom edge (VI overscan — a
+      // green-black strip on real GPUs; software renderers hide it, which is why
+      // it only showed on hardware). mupen64plus crops it natively.
+      ...(core === 'n64'
+        ? { 'mupen64plus-EnableOverscan': 'Enabled', 'mupen64plus-OverscanBottom': '12' }
+        : {}),
+    },
 
     // A physical pad works out of the box (see controlPresets). Core-aware: N64
     // rebuilds the face around what the buttons DO (N64 A = RetroPad B).

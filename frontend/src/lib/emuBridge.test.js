@@ -363,3 +363,28 @@ describe('clearStartScreen', () => {
     expect(clearStartScreen({ get contentDocument() { throw new Error('gone') } })).toBe(false)
   })
 })
+
+// --- the per-core boot config (disc era) ------------------------------------
+
+describe('playerConfig defaultOptions (per-core)', () => {
+  it('every core saves states to the browser and boots rewind-enabled', () => {
+    for (const core of ['gb', 'snes', 'n64', 'nds']) {
+      const opts = playerConfig(core, {}).defaultOptions
+      expect(opts['save-state-location']).toBe('browser')
+      expect(opts.rewindEnabled).toBe('enabled')
+    }
+  })
+
+  it('n64 crops the bottom overscan garbage; other cores are untouched', () => {
+    const n64 = playerConfig('n64', {}).defaultOptions
+    expect(n64['mupen64plus-OverscanBottom']).toBe('12')
+    expect(n64['mupen64plus-EnableOverscan']).toBe('Enabled')
+    expect(playerConfig('nds', {}).defaultOptions['mupen64plus-OverscanBottom']).toBeUndefined()
+  })
+
+  it('n64 rebuilds the face around what the buttons DO (N64 A = RetroPad B)', () => {
+    const rows = playerConfig('n64', { scheme: 'letters' }).defaultControls[0]
+    expect(rows[0].value2).toBe('BUTTON_1')
+    expect(rows[8].value2).toBe('')
+  })
+})
