@@ -397,10 +397,13 @@ export function gateEngineGamepad(emu, isGated) {
 
 // Re-map the controller on a RUNNING game. The engine reads `emu.controls` on every
 // button event, so a remap takes effect on the very next press — no reload, and you
-// can feel the change while you're still holding the pad.
-export function applyControls(emu, controls) {
+// can feel the change while you're still holding the pad. `core` matters: the N64
+// face exception lives in buildControls, and re-applying without it silently stomps
+// the boot config's corrected rows back to the scheme default (the exact bug that
+// put N64 A back on the wrong button after the settings-sync effect ran).
+export function applyControls(emu, controls, core) {
   try {
-    emu.controls = buildControls(controls)
+    emu.controls = buildControls(controls, core)
     return true
   } catch {
     return false

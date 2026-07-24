@@ -376,7 +376,7 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
   // press — you can feel the change while still holding the pad.
   useEffect(() => {
     if (!emuRef.current) return
-    applyControls(emuRef.current, controls)
+    applyControls(emuRef.current, controls, core)
     // Deps are the granular inputs `controls` is built from — not `controls` itself,
     // which is a fresh object every render and would re-apply the map on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
