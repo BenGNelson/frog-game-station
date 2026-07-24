@@ -40,7 +40,7 @@ reachable from anywhere. The shape of them is the design:
   is also what tells Frog Game Station whether to lay itself out for a pad or a thumb. A faint version
   stamp sits in the corner (the app version, injected from `package.json` at build via a
   Vite `define` → `import.meta.env.VITE_APP_VERSION`) — a quiet portfolio signature.
-- **Eight machines** since the disc era's phase 1: the six 8/16-bit systems plus
+- **Nine machines** since the disc era: the six 8/16-bit systems plus
   **Nintendo 64** (mupen64plus_next; the engine auto-falls-back to parallel-n64 on
   mobile Safari, so offline downloads carry both cores) and **Nintendo DS** (melonDS —
   which direct-boots without BIOS files). The systems grid is two rows of four and
@@ -51,7 +51,15 @@ reachable from anywhere. The shape of them is the design:
   the knob follows the thumb) and N64/DS layouts. The DS's portrait overlay sits
   strictly BELOW the game (62% screen height, its own authoring space) so the DS's
   actual touchscreen stays tappable — the engine converts canvas taps to DS touch.
-  Save-state caps are per-extension now (N64 128 MB, DS 64 MB, 16 MB default).
+  Save-state caps are per-extension now (N64 128 MB, DS/PS1 64 MB, 16 MB default).
+  **PlayStation plays `.chd` discs** (one file per disc, every track inside — `.bin`
+  stays unmapped) on pcsx_rearmed, booting on the core's built-in HLE BIOS; a real
+  scph dump in the optional read-only `GAMES_BIOS_DIR` is served by an ALLOWLISTED
+  `GET /library/bios` (filenames never come from the request), reported on the games
+  listing, and passed to the engine as `EJS_biosUrl` only when present. Disc-sized
+  ROMs skip the player's blob buffering: above 200 MB `emulator.html` hands the
+  engine the raw range-capable URL instead (the blob dance only ever existed as an
+  offline workaround, which huge discs don't use).
 - **The rails, in order: "Jump back in", Favorites, then one
   rail per collection, then Systems.** You are almost always coming back to the same game,
   so the rows that mean *most sessions never touch the alphabet* come first. **Both history

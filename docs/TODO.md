@@ -172,14 +172,24 @@ shape:
       touch layouts — the DS portrait overlay sits strictly BELOW the game (62%
       screen height) so the DS touchscreen stays tappable. **melonDS direct-boots
       without BIOS files** — the BIOS ask is cancelled.
-- [ ] **[P3] Phase 2 — PS1 via `.chd` + BIOS.** `.chd` only (one file per disc — no
-      cue/bin/zip plumbing; `.bin` stays unmapped). New `GAMES_BIOS_DIR` read-only mount +
-      allowlisted `GET /api/library/bios` → `EJS_biosUrl` param (one ENGINE_VERSION bump).
-      Multi-disc punt: one `.chd` per disc, but share the memory card across discs by
-      stripping a trailing "(Disc N)" from the SRAM key. Size-aware blob bypass in
-      `emulator.html` (>~200MB streams instead of loading whole-ROM into memory);
-      per-system offline-download policy. **Verify chd boots in the pinned pcsx_rearmed
-      day 1** (fallback: mednafen_psx_hw or an engine-pin bump).
+- [x] **Phase 2 — PS1 via `.chd` + BIOS.** Shipped. **The day-1 risk is retired: the
+      pinned pcsx_rearmed loads `.chd` directly** — Tekken 3 and Metal Gear Solid both
+      boot and render frames, ON THE CORE'S BUILT-IN HLE BIOS (no scph file needed to
+      play; a real `scph5501.bin` in `BIOS_DIR` still improves the fussier titles and
+      is picked up automatically). `.chd` → psx (label Sony PlayStation, 64 MB state
+      cap, IGDB id 7, Sony_-_PlayStation art repo). PlayStation joins the shelf (a 3×3
+      grid now) with a drawn original pad (true symbol colours) in □-magenta. BIOS
+      plumbing: `GAMES_BIOS_DIR` read-only mount → allowlisted `GET /api/library/bios`
+      (filenames never come from the request) → the games listing reports availability
+      → the launch passes `EJS_biosUrl` only when the file exists. The huge-ROM **blob
+      bypass** shipped in the same ENGINE_VERSION bump (10→11): above 200 MB the
+      engine streams the raw URL instead of buffering a disc into memory — Tekken 3
+      (459 MB) verified booting through the streaming path. Touch: a PSX layout with
+      the symbol buttons (△○✕□ on their RetroPad positions) and all four shoulders
+      (side-by-side row in landscape; L2/R2 ride the bottom pill row in portrait).
+      *Still punted, by design: multi-disc shared memory card (Chrono Cross/MGS are
+      Disc 1 only anyway) and per-system offline-download gating (a 450 MB download
+      is allowed everywhere for now — your call per game).*
 - [ ] **[P3] Phase 3 — PSP (optional; spike first).** ppsspp needs SharedArrayBuffer →
       COOP/COEP headers on the whole origin, which conflicts with YouTube trailer embeds.
       Couch-only if it ships at all; explicitly cuttable.

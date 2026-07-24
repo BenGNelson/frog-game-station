@@ -311,6 +311,50 @@ const NDS = {
   },
 }
 
+// --- PlayStation -------------------------------------------------------------
+// The SNES set plus the second shoulder row (L2/R2) and the symbol labels — the
+// engine maps RetroPad positionally, so ✕ is B (bottom), ○ is A (right), □ is Y
+// (left), △ is X (top). Portrait has no room for stacked shoulders, so L2/R2
+// ride the bottom pill row beside Select/Start.
+const PSX_FACE_L = [
+  face('square', '□', RETROPAD.Y, 700, 233, 84),
+  face('cross', '✕', RETROPAD.B, 808, 341, 84),
+  face('triangle', '△', RETROPAD.X, 808, 125, 84),
+  face('circle', '○', RETROPAD.A, 914, 233, 84),
+]
+const PSX_FACE_P = [
+  face('triangle', '△', RETROPAD.X, 356, 581, 66),
+  face('square', '□', RETROPAD.Y, 268, 669, 66),
+  face('cross', '✕', RETROPAD.B, 356, 757, 66),
+  face('circle', '○', RETROPAD.A, 444, 669, 66),
+]
+const PSX = {
+  landscape: L([
+    L_DPAD(),
+    ...PSX_FACE_L,
+    // One shoulder row, primary in the corner, secondary inboard — stacked rows
+    // can't keep the hit-halo rule against the d-pad and diamond.
+    shoulder('l1', 'L1', RETROPAD.L, 30, 20, 140),
+    shoulder('l2', 'L2', RETROPAD.L2, 190, 20, 140),
+    shoulder('r2', 'R2', RETROPAD.R2, 690, 20, 140),
+    shoulder('r1', 'R1', RETROPAD.R, 850, 20, 140),
+    ...L_PILLS(),
+    ...L_UI(),
+  ]),
+  portrait: P([
+    dpad(8, 620, 160),
+    ...PSX_FACE_P,
+    shoulder('l1', 'L1', RETROPAD.L, 10, 472, 145),
+    shoulder('r1', 'R1', RETROPAD.R, 365, 472, 145),
+    uiBtn('menu', '☰', 'pauseMenu', 190, 470),
+    uiBtn('ff', '»', 'fastForward', 275, 470),
+    pill('select', 'SEL', RETROPAD.SELECT, 6, 860, 110),
+    pill('start', 'START', RETROPAD.START, 138, 860, 110),
+    pill('l2', 'L2', RETROPAD.L2, 270, 860, 110),
+    pill('r2', 'R2', RETROPAD.R2, 402, 860, 110),
+  ]),
+}
+
 const LAYOUTS = {
   gb: TWO_BUTTON,
   nes: TWO_BUTTON,
@@ -321,6 +365,7 @@ const LAYOUTS = {
   segaMD: SEGA_MD,
   n64: N64,
   nds: NDS,
+  psx: PSX,
 }
 
 // Falls back to the two-button layout for anything unknown: a d-pad, A, B and Start

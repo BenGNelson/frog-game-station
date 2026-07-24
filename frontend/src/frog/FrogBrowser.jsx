@@ -111,6 +111,10 @@ export default function FrogBrowser() {
   }, [online])
   const { data, loading } = useApi(`/library/games${reloadNonce ? `?r=${reloadNonce}` : ''}`, 0)
   const apiItems = data?.items ?? []
+  // Which systems' BIOS files the server holds ({psx: true}) — decides whether a
+  // launch passes the BIOS URL or lets the core's HLE stand in. Memoized so the
+  // play() callback's identity only changes when the answer does.
+  const biosMap = useMemo(() => data?.bios ?? {}, [data])
 
   // The fallback when the API gives us nothing: the games you've DOWNLOADED (the
   // on-device manifest, via the shared hook the rest of the Library uses). `null`
@@ -611,16 +615,25 @@ export default function FrogBrowser() {
     (game, slot) => {
       if (!game) return
       recordPlayed(game)
+      // `size` rides along for the player's huge-ROM blob bypass; the BIOS URL is
+      // passed only when the server actually holds this system's file (else the
+      // core's built-in HLE BIOS stands in).
+      const bios =
+        game.core === 'psx' && biosMap.psx
+          ? `&bios=${encodeURIComponent('/api/library/bios?system=psx')}`
+          : ''
       const q = `id=${encodeURIComponent(game.id)}&core=${encodeURIComponent(game.core)}&name=${encodeURIComponent(
         game.name || ''
-      )}&label=${encodeURIComponent(game.label || '')}${game.cover_v ? `&coverv=${game.cover_v}` : ''}`
+      )}&label=${encodeURIComponent(game.label || '')}${game.cover_v ? `&coverv=${game.cover_v}` : ''}${
+        game.size ? `&size=${game.size}` : ''
+      }${bios}`
       // A `slot` launches into that snapshot; without one it's a plain boot on the
       // game's own in-game (battery) save. Play with no slot is deliberately the default
       // — restoring an older snapshot would roll the battery save back to whenever it
       // was taken, the exact way you lose an afternoon.
       navigate(`/play?${q}${slot ? `&slot=${encodeURIComponent(slot)}` : ''}`)
     },
-    [navigate]
+    [navigate, biosMap]
   )
 
   const openSystem = useCallback((label) => {

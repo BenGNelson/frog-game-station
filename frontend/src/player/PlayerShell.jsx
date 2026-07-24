@@ -143,7 +143,7 @@ function EngineMissing({ onBack }) {
 // up/down), so a held direction reads as a smooth scroll rather than a jump.
 const WIKI_SCROLL_STEP = 90
 
-export default function PlayerShell({ id, core, name, label, coverV, loadStateUrl }) {
+export default function PlayerShell({ id, core, name, label, coverV, loadStateUrl, size, biosUrl }) {
   const navigate = useNavigate()
 
   // The EmulatorJS engine isn't bundled in the repo (~300 MB). If the self-hosted
@@ -1441,7 +1441,7 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
         <iframe
           ref={frameRef}
           title={name}
-          src={playerSrc({ id, core, name, loadStateUrl })}
+          src={playerSrc({ id, core, name, loadStateUrl, size, biosUrl })}
           onLoad={onFrameLoad}
           className="w-full border-0 bg-black"
           style={{ height: portraitTouch ? portraitGameHeight(core) : '100%' }}

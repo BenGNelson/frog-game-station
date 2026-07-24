@@ -165,6 +165,31 @@ const DEVICES = {
     </>
   ),
 
+  // The original PlayStation pad: grey wings, the d-pad left, and the four symbol
+  // buttons in their true colours — △ green, ○ red, ✕ blue, □ pink.
+  psx: (s, sheen) => (
+    <>
+      <path
+        d="M10 46 Q10 32 26 32 H74 Q90 32 90 46 L93 60 Q95 72 84 74 Q74 76 70 66 L67 58 H33 L30 66 Q26 76 16 74 Q5 72 7 60 Z"
+        fill="#B9BDC6"
+      />
+      <path
+        d="M10 46 Q10 32 26 32 H74 Q90 32 90 46 L93 60 Q95 72 84 74 Q74 76 70 66 L67 58 H33 L30 66 Q26 76 16 74 Q5 72 7 60 Z"
+        fill={`url(#${sheen})`}
+        opacity="0.4"
+      />
+      <Dpad x="27" y="50" s="0.85" fill="#3B4149" />
+      {/* start/select slivers */}
+      <rect x="44" y="48" width="9" height="3" rx="1.5" fill="#3B4149" />
+      <rect x="47" y="55" width="9" height="3" rx="1.5" fill="#3B4149" transform="rotate(0)" />
+      {/* the symbol diamond */}
+      <circle cx="73" cy="41" r="4.4" fill="#4FD0A0" />
+      <circle cx="81" cy="49" r="4.4" fill="#F0607E" />
+      <circle cx="73" cy="57" r="4.4" fill="#7AA0E6" />
+      <circle cx="65" cy="49" r="4.4" fill="#E07AD0" />
+    </>
+  ),
+
   // The DS, open: a handheld again, so the device is the icon — the clamshell with
   // its two screens, the lower one flanked by the d-pad and buttons.
   nds: (s, sheen) => (

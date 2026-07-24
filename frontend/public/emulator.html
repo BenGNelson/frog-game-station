@@ -34,6 +34,8 @@
         var name = p.get('name');
         var gid = p.get('gid'); // game id, for uploading save states
         var loadstate = p.get('loadstate'); // optional: resume into a saved state
+        var bios = p.get('bios'); // optional: same-origin BIOS URL (PS1's scph dump)
+        var size = Number(p.get('size') || 0); // the ROM's byte size, for the blob bypass
         var data = p.get('data') || '/emulatorjs/';
         // Only allow a same-origin path or the official EmulatorJS CDN as the
         // engine source — never an arbitrary URL handed in via ?data=.
@@ -90,6 +92,9 @@
         if (cfg.hideSettings) window.EJS_hideSettings = cfg.hideSettings;
         if (cfg.defaultControls) window.EJS_defaultControls = cfg.defaultControls;
         if (cfg.disableLocalStorage) window.EJS_disableLocalStorage = true;
+        // A same-origin BIOS zip/dump (the backend's allowlisted endpoint). The
+        // engine downloads + mounts it before boot; absent = the core's own HLE.
+        if (bios && bios.charAt(0) === '/' && bios.charAt(1) !== '/') window.EJS_biosUrl = bios;
         // The start screen. The engine keeps its own Start button — that tap has to
         // land in this document or iOS never unlocks audio — but everything about how
         // it looks comes from the app.
@@ -171,6 +176,14 @@
             .then(function (b) { return URL.createObjectURL(b); })
             .catch(function () { return u; });
         }
+        // A disc-sized ROM (a 450 MB PS1 .chd) must NOT be buffered whole into a
+        // blob — that is how an iPad tab dies. Above the threshold the engine gets
+        // the raw URL and streams it instead; the blob dance only ever existed as
+        // an offline/service-worker workaround, which huge discs don't use anyway.
+        var BLOB_MAX = 200 * 1024 * 1024;
+        function romUrl(u) {
+          return size > BLOB_MAX ? Promise.resolve(u) : asBlobUrl(u);
+        }
         // Resume the MOST RECENT state: a locally-captured save (your latest,
         // including any made offline) if one exists, otherwise the download-time
         // save passed in via ?loadstate. Read straight from the saves cache (not
@@ -184,7 +197,7 @@
             .catch(function () { return null; });
         }
         Promise.all([
-          asBlobUrl(rom),
+          romUrl(rom),
           localSaveBlobUrl().then(function (local) { return local || asBlobUrl(loadstate); }),
         ]).then(function (r) {
           bootEngine(r[0] || rom, r[1]);

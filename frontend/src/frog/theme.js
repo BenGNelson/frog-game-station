@@ -110,6 +110,16 @@ export const SYSTEMS = {
     belly: '#CDF1F5',
     device: 'nds',
   },
+  // PlayStation: the grey console wears its □ magenta — the one symbol colour no
+  // other machine on the shelf claims (SMS holds red, jade holds green/✕-blue-ish
+  // territory is Genesis's).
+  'Sony PlayStation': {
+    accent: '224, 122, 208',
+    skin: '#E6A8DD',
+    shade: '#A9569E',
+    belly: '#F5D8F0',
+    device: 'psx',
+  },
 }
 
 const DEFAULT_SYSTEM = {
@@ -145,6 +155,7 @@ const CORE_SYSTEM = {
   segaGG: 'Sega Game Gear',
   nds: 'Nintendo DS',
   n64: 'Nintendo 64',
+  psx: 'Sony PlayStation',
 }
 
 export function systemForCore(core) {

@@ -298,6 +298,43 @@ def test_facets_empty_db_is_empty_maps(client):
     assert out == {"genres": {}, "franchises": {}}
 
 
+# --- BIOS serving -------------------------------------------------------------
+
+def test_bios_endpoint_serves_allowlisted_file_only(client, tmp_path, monkeypatch):
+    bios = tmp_path / "bios"
+    bios.mkdir()
+    (bios / "scph5501.bin").write_bytes(b"PSX-BIOS")
+    (bios / "evil.bin").write_bytes(b"nope")
+    monkeypatch.setattr(settings, "games_bios_dir", str(bios))
+    r = client.get("/api/library/bios", params={"system": "psx"})
+    assert r.status_code == 200 and r.content == b"PSX-BIOS"
+    # Unknown system / no traversal vector — the filename never comes from the request.
+    assert client.get("/api/library/bios", params={"system": "evil"}).status_code == 404
+
+
+def test_bios_endpoint_404_when_unprovided(client, monkeypatch):
+    monkeypatch.setattr(settings, "games_bios_dir", "")
+    assert client.get("/api/library/bios", params={"system": "psx"}).status_code == 404
+
+
+def test_section_listing_reports_bios_availability(client, rom_dir, tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "games_bios_dir", "")
+    assert client.get("/api/library/games").json()["bios"] == {}
+    bios = tmp_path / "bios"
+    bios.mkdir()
+    (bios / "scph5500.bin").write_bytes(b"JP")  # any allowlisted name counts
+    monkeypatch.setattr(settings, "games_bios_dir", str(bios))
+    assert client.get("/api/library/games").json()["bios"] == {"psx": True}
+
+
+def test_chd_format_maps_to_psx():
+    from app import igdb
+    games = library.get_section("games")
+    assert games["formats"][".chd"] == {"label": "Sony PlayStation", "core": "psx", "max_state_mb": 64}
+    assert library.thumbnail_repo("g.chd") == "Sony_-_PlayStation"
+    assert igdb.PLATFORM_IDS["Sony PlayStation"] == 7
+
+
 # --- per-extension save-state caps -------------------------------------------
 
 def test_max_state_bytes_by_extension():

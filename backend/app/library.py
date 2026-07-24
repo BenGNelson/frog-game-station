@@ -76,6 +76,11 @@ SECTIONS = [
             ".z64": {"label": "Nintendo 64", "core": "n64", "max_state_mb": 128},
             ".n64": {"label": "Nintendo 64", "core": "n64", "max_state_mb": 128},
             ".v64": {"label": "Nintendo 64", "core": "n64", "max_state_mb": 128},
+            # PlayStation — .chd ONLY, deliberately: one file per disc with every
+            # track (audio included) inside, which keeps .bin unmapped (still
+            # ambiguous) and needs no cue/zip plumbing. pcsx_rearmed; its HLE BIOS
+            # boots most games, a real scph BIOS (GAMES_BIOS_DIR) improves the rest.
+            ".chd": {"label": "Sony PlayStation", "core": "psx", "max_state_mb": 64},
         },
     },
 ]
@@ -161,6 +166,7 @@ _THUMBNAIL_REPO_BY_EXT = {
     ".sms": "Sega_-_Master_System_-_Mark_III",
     ".gg": "Sega_-_Game_Gear",
     ".nds": "Nintendo_-_Nintendo_DS",
+    ".chd": "Sony_-_PlayStation",
     ".z64": "Nintendo_-_Nintendo_64",
     ".n64": "Nintendo_-_Nintendo_64",
     ".v64": "Nintendo_-_Nintendo_64",

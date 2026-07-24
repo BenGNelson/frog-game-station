@@ -26,6 +26,10 @@ export default function Player() {
   // The game's user-set cover version, so the start-screen art busts its immutable
   // cache after a cover is set (and so the pause menu knows a custom cover exists).
   const coverV = params.get('coverv') || ''
+  // The ROM's byte size (for the player's huge-ROM blob bypass) and the BIOS URL
+  // (only present when the server holds the system's file — see FrogBrowser.play).
+  const size = params.get('size') || ''
+  const biosUrl = params.get('bios') || ''
 
   if (!id || !core) {
     return (
@@ -52,6 +56,8 @@ export default function Player() {
       name={name}
       label={label}
       coverV={coverV}
+      size={size}
+      biosUrl={biosUrl}
       loadStateUrl={slot ? saveStateUrl(id, slot) : undefined}
     />
   )

@@ -41,6 +41,10 @@ class Settings(BaseSettings):
     # disables the cache entirely (every request walks fresh).
     scan_cache_ttl: float = 20
 
+    # Optional BIOS dir (read-only mount). PS1 boots on pcsx_rearmed's built-in
+    # HLE BIOS without it; a real scph dump here improves compatibility.
+    games_bios_dir: str = ""
+
     # --- IGDB (rich game metadata for the game screen) ---
     # IGDB is Twitch's games database; the API authenticates with Twitch OAuth.
     # Register a free app at https://dev.twitch.tv/console/apps to get a Client

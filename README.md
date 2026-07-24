@@ -31,7 +31,7 @@ It has a hand-drawn **frog mascot** and a **WATER / jade dark theme** — a pond
 
 ## Features
 
-- **Eight systems** — Game Boy, Game Boy Color, Game Boy Advance, NES, Super Nintendo, Sega Genesis / Master System / Game Gear — and, from the 3D era, **Nintendo 64 and Nintendo DS** (analog stick and C-buttons on pad and touch; the DS's dual screens and touchscreen work, with the bottom screen tappable on a phone).
+- **Nine systems** — Game Boy, Game Boy Color, Game Boy Advance, NES, Super Nintendo, Sega Genesis / Master System / Game Gear — and, from the 3D era, **Nintendo 64, Nintendo DS, and PlayStation** (`.chd` discs). Analog stick and C-buttons on pad and touch; the DS's dual screens and touchscreen work with the bottom screen tappable on a phone; PS1 plays out of the box on the emulator's built-in BIOS, or drop in your own `scph5501.bin` for the fussier titles.
 - **Console-style, not a wall of boxes** — boot → shelf → per-system list → game page, search anywhere. The shelf opens on "Jump back in," so most sessions skip the alphabet; hit "Surprise me" for a random pick.
 - **Rich game pages** — a background matcher pulls IGDB art, screenshots, summary, genres, series, and rating, and suggests **similar titles you *actually own*.** Tap a genre or series chip to browse everything you own that wears it. A **Trailer** button plays the game's videos fullscreen in-app (privacy-friendly YouTube no-cookie embed; hidden offline). Unmatched ROMs still get a clean cover-and-title page — nothing looks broken.
 - **Collections** — sort your library into free-form rails that follow you from couch to phone. **Favorites and "Jump back in" roam too**: star a game on the TV and it's starred on your phone; play on one device and it's front-and-centre on the next.

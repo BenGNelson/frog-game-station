@@ -181,6 +181,8 @@ export function playerSrc(item, data = EMULATORJS_DATA) {
   q.set('gid', item.id) // game id, so the emulator can upload save states for it
   if (item.name) q.set('name', item.name) // EJS_gameName — avoids an "undefined" title
   if (item.loadStateUrl) q.set('loadstate', item.loadStateUrl) // resume into a saved state
+  if (item.size) q.set('size', String(item.size)) // the huge-ROM blob bypass threshold
+  if (item.biosUrl) q.set('bios', item.biosUrl) // same-origin BIOS (PS1 scph); absent = HLE
   return `/emulator.html?${q.toString()}`
 }
 
@@ -218,6 +220,7 @@ const LIBRETRO_CORE = {
   segaGG: 'genesis_plus_gx',
   nds: 'melonds',
   n64: 'mupen64plus_next',
+  psx: 'pcsx_rearmed',
 }
 
 // N64 is the one system where the engine picks a DIFFERENT default per device

@@ -25,6 +25,8 @@ services:
       # The ROM directory as seen INSIDE the container (bind-mounted below,
       # read-only). Your real host path is ROMS_DIR in .env.
       GAMES_ROM_DIR: /roms
+      # Optional BIOS dir (PS1 scph dump). Absent = the core's built-in HLE BIOS.
+      GAMES_BIOS_DIR: /bios
     ports:
       # Optional direct API access (curl/debug). The frontend reaches the backend
       # over the compose network, so this mapping isn't required for the app.
@@ -35,6 +37,9 @@ services:
       # Your ROM collection, read-only. Defaults to the repo's empty ./roms so a
       # clean clone boots (the app just shows its "no ROMs configured" state).
       - "${ROMS_DIR:-./roms}:/roms:ro"
+      # Optional BIOS files, read-only. Defaults to the (empty) ROM dir's parent
+      # convention; point BIOS_DIR at a folder holding scph5501.bin when you have it.
+      - "${BIOS_DIR:-./roms}:/bios:ro"
     restart: unless-stopped
     logging: *default-logging
 

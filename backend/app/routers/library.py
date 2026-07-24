@@ -69,6 +69,44 @@ class SectionModel(BaseModel):
     configured: bool
     count: int
     items: list[ItemModel]
+    bios: dict[str, bool] = Field(
+        default={}, description="Systems whose BIOS file is present (e.g. {'psx': true})"
+    )
+
+
+# The BIOS files a system may use, by preference order — an ALLOWLIST, which is
+# the traversal guard: the endpoint only ever serves these exact names.
+_BIOS_FILES = {
+    "psx": ["scph5501.bin", "scph5500.bin", "scph5502.bin", "scph1001.bin"],
+}
+
+
+def _bios_path(system: str):
+    root = settings.games_bios_dir
+    if not root or not os.path.isdir(root):
+        return None
+    for name in _BIOS_FILES.get(system, []):
+        path = os.path.join(root, name)
+        if os.path.isfile(path):
+            return path
+    return None
+
+
+def bios_available() -> dict:
+    """{system: True} for each system whose BIOS is present — rides the games
+    listing so the player can pass the BIOS URL only when it will resolve."""
+    return {sys: True for sys in _BIOS_FILES if _bios_path(sys)}
+
+
+@router.get("/library/bios")
+def get_bios(system: str = Query(description="System key, e.g. 'psx'")):
+    """Serve a system's BIOS dump from the (optional) read-only BIOS dir. The
+    filename comes from a fixed allowlist — never from the request — so this
+    can't traverse. 404 = not provided; the cores fall back to HLE."""
+    path = _bios_path(system)
+    if not path:
+        return Response(status_code=404)
+    return FileResponse(path, media_type="application/octet-stream")
 
 
 @router.get("/library", response_model=LibraryModel)
@@ -1196,4 +1234,5 @@ def get_section(section: str):
         "configured": configured,
         "count": len(items),
         "items": items,
+        "bios": bios_available(),
     }

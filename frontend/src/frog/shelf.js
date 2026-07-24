@@ -19,14 +19,15 @@ export const SYSTEM_ORDER = [
   'Super Nintendo',
   'Sega Genesis',
   'Sega Master System',
-  // The disc-era phase-1 machines, appended rather than interleaved: the first six
-  // keep their muscle-memory positions, and the row reads oldest-library-first.
+  // The disc-era machines, appended rather than interleaved: the first six keep
+  // their muscle-memory positions, and the row reads oldest-library-first.
   'Nintendo 64',
   'Nintendo DS',
+  'Sony PlayStation',
 ]
 
-// Eight systems on a non-scrolling grid (two rows of four) — the shelf still never
-// scrolls for machines. A system with no games still gets its tile (dimmed): a gap in
+// Nine systems on a non-scrolling grid (three rows of three) — the shelf still
+// never scrolls for machines. A system with no games still gets its tile (dimmed): a gap in
 // the row would be more confusing than an empty shelf, and it tells you what Frog Game Station
 // *could* play if you dropped a ROM in.
 //
