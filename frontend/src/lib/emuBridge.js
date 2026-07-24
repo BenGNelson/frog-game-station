@@ -438,6 +438,18 @@ export function setRewind(emu, on) {
   }
 }
 
+// Set how fast fast-forward runs — an engine ff-ratio value ('1.5'..'10.0' or
+// 'unlimited'). Safe to set while the turbo is off; it simply takes effect the next
+// time fast-forward engages (and live, if it's already running).
+export function setFFRatio(emu, ratio) {
+  try {
+    emu.changeSettingOption('ff-ratio', ratio)
+    return true
+  } catch {
+    return false
+  }
+}
+
 // Apply a display filter — an engine shader key ('disabled' = raw pixels). Routed
 // through the engine's own setting so its enableShader plumbing (write the .glslp
 // into the core's FS, toggle the pass) does the work; safe to call live mid-game.

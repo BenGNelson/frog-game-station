@@ -356,7 +356,10 @@ colours), and the **button-legend glyphs** keep the real controller's face-butto
   through `emuBridge.setShader` (the engine's own `shader` setting → `enableShader`
   writes the `.glslp` into the core's FS) and persisted+re-applied at boot like the
   volume. Aspect-ratio / integer-scale deliberately isn't here: EmulatorJS 4.2.3 has no
-  such setting to drive.
+  such setting to drive. An **FF Speed** cycle row sits directly under the Fast Forward
+  toggle — 1.5× / 2× / 3× / Max, a curated cut of the engine's `ff-ratio` (which offers
+  every half-step to 10×), defaulting to the engine's own 3× and driven live through
+  `emuBridge.setFFRatio`.
 
 ### Touch controls
 

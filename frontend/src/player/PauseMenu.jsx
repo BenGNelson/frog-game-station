@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { Play, Save, Camera, FastForward, Rewind, Maximize, Tv, Gamepad2, RotateCcw, LogOut, BookOpen, BookMarked, ChevronRight, ChevronLeft, Volume2, VolumeX } from 'lucide-react'
+import { Play, Save, Camera, FastForward, Rewind, Maximize, Tv, Gauge, Gamepad2, RotateCcw, LogOut, BookOpen, BookMarked, ChevronRight, ChevronLeft, Volume2, VolumeX } from 'lucide-react'
 import { moveInGrid } from '../lib/gridNav.js'
 import { FROG, scrim, SCRIM, focusRing } from '../frog/theme.js'
 import { radiantBackdrop } from '../lib/glow.js'
@@ -26,7 +26,7 @@ const SECTION_LABEL = { snapshots: 'Snapshots', play: 'Play', game: 'Game', setu
 // The menu's contents, exported so the controller can walk the same list the
 // touch/keyboard user sees — one source of truth for what's on screen and what
 // index each thing sits at.
-export function pauseItems(fastForward, { canFullscreen = true, isPokemon = false, volume, rewinding = false, shader, shotStatus = null } = {}) {
+export function pauseItems(fastForward, { canFullscreen = true, isPokemon = false, volume, rewinding = false, shader, ffRatio, shotStatus = null } = {}) {
   return [
     { id: 'resume', label: 'Resume', Icon: Play, primary: true, section: 'top' },
     // Save and Load open the SAME shelf (it defaults focus to "Save new"), so they're
@@ -45,6 +45,11 @@ export function pauseItems(fastForward, { canFullscreen = true, isPokemon = fals
     // The time controls, together: rewind ⟲, fast-forward ⟳, then the volume.
     { id: 'rewind', label: 'Rewind', Icon: Rewind, active: rewinding, section: 'play' },
     { id: 'fastForward', label: 'Fast Forward', Icon: FastForward, active: fastForward, section: 'play' },
+    // How fast the turbo runs — a cycle row directly under its toggle. `ffRatio` is
+    // the current step's LABEL; the shell owns the engine values.
+    ...(ffRatio != null
+      ? [{ id: 'ffRatio', label: 'FF Speed', Icon: Gauge, adjust: true, control: 'cycle', value: ffRatio, section: 'play' }]
+      : []),
     // Game audio. An adjustable row (◀ ▶ / the − + taps step it; A / tap toggles
     // mute), shown only when the shell passes a level — older callers just omit it.
     ...(typeof volume === 'number'
@@ -72,8 +77,8 @@ export function pauseItems(fastForward, { canFullscreen = true, isPokemon = fals
   ]
 }
 
-export default function PauseMenu({ open, name, fastForward, rewinding, canFullscreen, isPokemon, volume, shader, shotStatus, onAdjust, focus, onFocus, onAction, legend }) {
-  const items = pauseItems(fastForward, { canFullscreen, isPokemon, volume, rewinding, shader, shotStatus })
+export default function PauseMenu({ open, name, fastForward, rewinding, canFullscreen, isPokemon, volume, shader, ffRatio, shotStatus, onAdjust, focus, onFocus, onAction, legend }) {
+  const items = pauseItems(fastForward, { canFullscreen, isPokemon, volume, rewinding, shader, ffRatio, shotStatus })
 
   // Keyboard parity with the controller — the same 1-column list walk drives both, so
   // desktop and pad can never diverge. cols:1 makes left/right no-ops and up/down step
@@ -233,7 +238,7 @@ function MenuRow({ item, focused, onSelect, onHover, onAdjust }) {
         // A stepped choice: ‹ value › — same tap targets, the value is a word.
         <span className="flex shrink-0 items-center gap-1" aria-label={`${label}: ${value}`}>
           <AdjustTap side="down" onAdjust={onAdjust} />
-          <span className="min-w-[4.5rem] text-center text-xs font-medium" style={{ color: value === 'Off' ? FROG.soft : `rgb(${FROG.jade})` }} aria-hidden="true">
+          <span className="min-w-[4.5rem] text-center text-xs font-medium" style={{ color: ['Off', '3×'].includes(value) ? FROG.soft : `rgb(${FROG.jade})` }} aria-hidden="true">
             {value}
           </span>
           <AdjustTap side="up" onAdjust={onAdjust} />

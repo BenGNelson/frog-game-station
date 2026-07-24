@@ -73,6 +73,16 @@ describe('pauseItems', () => {
     expect(list.indexOf('filter')).toBe(list.indexOf('volume') + 1)
   })
 
+  it('FF Speed cycles right under the Fast Forward toggle', () => {
+    expect(ids({})).not.toContain('ffRatio')
+    const items = pauseItems(false, { ffRatio: '3×' })
+    const r = items.find((i) => i.id === 'ffRatio')
+    expect(r.adjust).toBe(true)
+    expect(r.control).toBe('cycle')
+    const list = items.map((i) => i.id)
+    expect(list.indexOf('ffRatio')).toBe(list.indexOf('fastForward') + 1)
+  })
+
   it('carries a Volume row only when the shell passes a level', () => {
     expect(ids({})).not.toContain('volume')
     expect(ids({ volume: 0.5 })).toContain('volume')

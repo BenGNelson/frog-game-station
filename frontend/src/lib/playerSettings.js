@@ -26,6 +26,9 @@ export const DEFAULTS = {
   // The display filter (a curated engine-shader step, see SHADER_LEVELS below).
   // Off by default: raw pixels are the app's baseline look.
   shader: 'disabled',
+  // Fast-forward speed (an engine ff-ratio step, see FF_RATIO_LEVELS below).
+  // '3.0' is the engine's own default — the turbo everyone has been using.
+  ffRatio: '3.0',
   // Soft navigation blips in the browser. Off by default — sound is opt-in.
   navSfx: false,
 
@@ -175,6 +178,20 @@ export const SHADER_LEVELS = [
 // rather than handing the engine a shader it doesn't ship.
 export function clampShader(v) {
   return SHADER_LEVELS.some((s) => s.id === v) ? v : DEFAULTS.shader
+}
+
+// Fast-forward speed steps — each id is an engine ff-ratio value. A shortlist again
+// (the engine offers every half-step to 10×, which is a dial, not a decision):
+// gentle, brisk, the classic 3× turbo, and uncapped.
+export const FF_RATIO_LEVELS = [
+  { id: '1.5', label: '1.5×' },
+  { id: '2.0', label: '2×' },
+  { id: '3.0', label: '3×' },
+  { id: 'unlimited', label: 'Max' },
+]
+
+export function clampFFRatio(v) {
+  return FF_RATIO_LEVELS.some((s) => s.id === v) ? v : DEFAULTS.ffRatio
 }
 
 export function readSettings(storage) {

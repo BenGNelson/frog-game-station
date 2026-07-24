@@ -5,7 +5,8 @@ Rewind: the engine boots with rewindEnabled (the buffer is allocated at core sta
 the Rewind row toggles it (On badge), and rewind and Fast Forward are mutually
 exclusive — turning one on drops the other.
 Filter: the cycle row steps the curated shader list and the engine's own setting
-follows; Off restores raw pixels.
+follows; Off restores raw pixels. FF Speed: same shape, driving the engine's
+ff-ratio.
 Screenshot: the row captures the live canvas and (desktop path) hands back a real
 .png download.
 
@@ -91,8 +92,8 @@ with sync_playwright() as p:
     check("Volume" in t, "the Volume row renders")
     check("50%" in t, "at the shipped 50% default")
 
-    for _ in range(5):
-        page.keyboard.press("ArrowDown")  # resume -> states -> screenshot -> rewind -> fast-forward -> volume
+    for _ in range(6):
+        page.keyboard.press("ArrowDown")  # resume -> states -> screenshot -> rewind -> ff -> ff speed -> volume
     page.keyboard.press("ArrowRight")
     check("60%" in menu_text(page), "ArrowRight steps the level to 60%")
 
@@ -104,7 +105,7 @@ with sync_playwright() as p:
     check(boot(page, URL), "the player reloads")
     check("60%" in menu_text(page), "the level survived the reload (persisted)")
 
-    for _ in range(5):
+    for _ in range(6):
         page.keyboard.press("ArrowDown")
     page.keyboard.press("ArrowLeft")
     check("50%" in menu_text(page), "ArrowLeft steps back to 50%")
@@ -156,7 +157,7 @@ with sync_playwright() as p:
                 return f.evaluate("window.EJS_emulator && window.EJS_emulator.getSettingValue('shader')")
         return None
 
-    for _ in range(6):
+    for _ in range(7):
         page.keyboard.press("ArrowDown")  # ... -> volume -> filter
     page.keyboard.press("ArrowRight")
     page.wait_for_timeout(400)
@@ -165,6 +166,26 @@ with sync_playwright() as p:
     page.keyboard.press("ArrowLeft")
     page.wait_for_timeout(400)
     check(engine_shader() == "disabled", "cycling back restores raw pixels")
+
+    # --- fast-forward speed ------------------------------------------------
+    def engine_ratio():
+        for f in page.frames:
+            if "emulator.html" in f.url:
+                return f.evaluate("window.EJS_emulator && window.EJS_emulator.getSettingValue('ff-ratio')")
+        return None
+
+    page.keyboard.press("Escape")
+    page.wait_for_timeout(400)
+    reopen_menu()
+    for _ in range(5):
+        page.keyboard.press("ArrowDown")  # ... -> fast-forward -> ff speed
+    page.keyboard.press("ArrowRight")  # 3x -> Max (the list wraps)
+    page.wait_for_timeout(400)
+    check("Max" in menu_text(page), "the FF Speed row cycles to Max")
+    check(engine_ratio() == "unlimited", "and the engine's ff-ratio follows")
+    page.keyboard.press("ArrowLeft")
+    page.wait_for_timeout(400)
+    check(engine_ratio() == "3.0", "cycling back restores the 3x default")
 
     # --- screenshot --------------------------------------------------------
     page.keyboard.press("Escape")  # close, reopen -> focus back on Resume

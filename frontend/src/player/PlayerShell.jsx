@@ -28,6 +28,7 @@ import {
   setFastForward,
   setRewind,
   setShader as applyEngineShader,
+  setFFRatio as applyEngineFFRatio,
   setVolume as applyEngineVolume,
   restart as restartGame,
 } from '../lib/emuBridge.js'
@@ -55,6 +56,8 @@ import {
   clampVolume,
   clampShader,
   SHADER_LEVELS,
+  clampFFRatio,
+  FF_RATIO_LEVELS,
   CONTROL_SKINS,
 } from '../lib/playerSettings.js'
 import { bindingForButton } from '../lib/gamepad.js'
@@ -300,6 +303,8 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
       applyEngineVolume(emu, clampVolume(boot.volume))
       const bootShader = clampShader(boot.shader)
       if (bootShader !== 'disabled') applyEngineShader(emu, bootShader)
+      const bootRatio = clampFFRatio(boot.ffRatio)
+      if (bootRatio !== '3.0') applyEngineFFRatio(emu, bootRatio) // 3.0 is the engine default
       // The game is running: the start screen has done its job and must LEAVE. The
       // engine only ever removed its own Start button, so without this the box art
       // sits in the middle of the game, still bobbing.
@@ -554,6 +559,19 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
       const next = ids[(here + dir + ids.length) % ids.length]
       saveSettings({ ...readSettings(window.localStorage), shader: next })
       applyEngineShader(emuRef.current, next)
+    },
+    [saveSettings]
+  )
+
+  // Fast-forward speed — the same curated-cycle shape as the filter.
+  const ffRatio = clampFFRatio(settings.ffRatio)
+  const stepFFRatio = useCallback(
+    (dir) => {
+      const ids = FF_RATIO_LEVELS.map((s) => s.id)
+      const here = ids.indexOf(clampFFRatio(readSettings(window.localStorage).ffRatio))
+      const next = ids[(here + dir + ids.length) % ids.length]
+      saveSettings({ ...readSettings(window.localStorage), ffRatio: next })
+      applyEngineFFRatio(emuRef.current, next)
     },
     [saveSettings]
   )
@@ -843,6 +861,9 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
         case 'filter':
           stepFilter(1) // A cycles the filter forward (the game shows through the scrim)
           break
+        case 'ffRatio':
+          stepFFRatio(1) // A cycles the turbo speed
+          break
         case 'screenshot':
           takeScreenshot() // stays on the menu — the row reads back Saved
           break
@@ -872,7 +893,7 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
           break
       }
     },
-    [fastForward, rewinding, applyFF, applyRewind, openShelf, goFullscreen, openControls, openWiki, openPokedex, toggleMute, stepFilter, takeScreenshot]
+    [fastForward, rewinding, applyFF, applyRewind, openShelf, goFullscreen, openControls, openWiki, openPokedex, toggleMute, stepFilter, stepFFRatio, takeScreenshot]
   )
 
   const openMenu = useCallback(() => {
@@ -939,8 +960,10 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
   }, [state === 'PLAYING'])
 
   const shaderLabel = SHADER_LEVELS.find((s) => s.id === shader)?.label || 'Off'
-  const onMenuAdjust = (id, dir) => (id === 'volume' ? stepVolume(dir) : stepFilter(dir))
-  const menuItems = pauseItems(fastForward, { canFullscreen, isPokemon, volume, rewinding, shader: shaderLabel, shotStatus })
+  const ffRatioLabel = FF_RATIO_LEVELS.find((s) => s.id === ffRatio)?.label || '3×'
+  const onMenuAdjust = (id, dir) =>
+    id === 'volume' ? stepVolume(dir) : id === 'ffRatio' ? stepFFRatio(dir) : stepFilter(dir)
+  const menuItems = pauseItems(fastForward, { canFullscreen, isPokemon, volume, rewinding, shader: shaderLabel, ffRatio: ffRatioLabel, shotStatus })
 
   const rows = controlRows(isPokemon)
 
@@ -1460,6 +1483,7 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
           isPokemon={isPokemon}
           volume={volume}
           shader={shaderLabel}
+          ffRatio={ffRatioLabel}
           shotStatus={shotStatus}
           onAdjust={onMenuAdjust}
           focus={menuFocus}

@@ -5,6 +5,8 @@ import {
   clampVolume,
   clampShader,
   SHADER_LEVELS,
+  clampFFRatio,
+  FF_RATIO_LEVELS,
   readSettings,
   writeSettings,
   migrateLegacyEjsKeys,
@@ -278,6 +280,20 @@ describe('clampShader / SHADER_LEVELS', () => {
     expect(clampShader('crt-royale.glslp')).toBe('disabled') // not shipped -> Off
     expect(clampShader(undefined)).toBe('disabled')
     expect(clampShader(42)).toBe('disabled')
+  })
+})
+
+describe('clampFFRatio / FF_RATIO_LEVELS', () => {
+  it('steps include the engine default 3.0 (which is also OUR default)', () => {
+    expect(FF_RATIO_LEVELS.map((s) => s.id)).toContain('3.0')
+    expect(DEFAULTS.ffRatio).toBe('3.0')
+  })
+
+  it('passes a real step through and falls back to 3.0 for garbage', () => {
+    expect(clampFFRatio('unlimited')).toBe('unlimited')
+    expect(clampFFRatio('1.5')).toBe('1.5')
+    expect(clampFFRatio('7.5')).toBe('3.0') // engine-valid but not a curated step
+    expect(clampFFRatio(undefined)).toBe('3.0')
   })
 })
 

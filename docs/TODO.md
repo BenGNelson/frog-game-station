@@ -105,10 +105,15 @@ Open items carry an inline tag; completed (`[x]`) items are left untagged — th
       a canceled sheet is a decision, not a failure) or a straight `.png` download on
       desk. The row is its own feedback: "Screenshot saved" / "Nothing to capture" for
       a beat.
-- [ ] **[P2] Fast-forward speed setting.** Expose the ratio (2×/3×/unlimited) on the
-      Controls screen.
-- [ ] **[P3] Cheats (optional).** Engine has a cheat manager; minimal per-game cheat list,
-      server-stored. Skip if it feels off-brand.
+- [x] **Fast-forward speed setting.** Shipped as an **FF Speed** cycle row directly under
+      the Fast Forward toggle (1.5× / 2× / 3× / Max — a curated shortlist of the engine's
+      `ff-ratio`, which offers every half-step to 10×). Defaults to the engine's own 3×,
+      applied live and persisted like the filter. *(Landed in the pause menu rather than
+      the Controls screen — the cycle-row pattern the volume/filter established is more
+      discoverable and one fewer screen.)*
+- [x] ~~**Cheats (optional).**~~ **Skipped for now** (decided 2026-07-24): the engine's
+      cheat manager exists if this is ever wanted, but it's off-brand for the station's
+      play-it-straight feel and nobody asked twice. Re-open only on real demand.
 
 ### v1.4 — "Library intelligence + deeper metadata"
 
@@ -147,6 +152,23 @@ shape:
 - [ ] **[P3] Phase 3 — PSP (optional; spike first).** ppsspp needs SharedArrayBuffer →
       COOP/COEP headers on the whole origin, which conflicts with YouTube trailer embeds.
       Couch-only if it ships at all; explicitly cuttable.
+
+### Process
+
+- [ ] **[P2] Decide the versioning rhyme-and-reason.** The tags so far (1.0.0 release,
+      1.1.0 theme pass, 1.2.0 surface-the-hidden, 1.3.0 power pack) imply a scheme but
+      nothing written says it. Proposal to react to, then promote into
+      `docs/ARCHITECTURE.md` once blessed:
+      - **MAJOR (X.0.0)** — the app changes what it IS, or compatibility breaks: a new
+        platform class (the disc era would be 2.0.0), an engine-pin bump that forces
+        every device to re-download, anything needing a data/save migration.
+      - **MINOR (x.X.0)** — a completed roadmap milestone, or any coherent set of new
+        user-visible features (what 1.1–1.3 actually were).
+      - **PATCH (x.x.X)** — fixes, docs, polish; nothing new a user can do. So far these
+        just ride the next minor — a patch release only matters if something broke in
+        the wild between milestones.
+      - **When:** bump + tag at milestone completion (the current practice), in a
+        `chore:` commit that names the milestone.
 
 ### Rework (fold into whichever milestone touches them first)
 
