@@ -42,9 +42,17 @@ reachable from anywhere. The shape of them is the design:
   Vite `define` → `import.meta.env.VITE_APP_VERSION`) — a quiet portfolio signature.
 - **The rails, in order: "Jump back in", Favorites, then one
   rail per collection, then Systems.** You are almost always coming back to the same game,
-  so the rows that mean *most sessions never touch the alphabet* come first. Favorites are
-  starred on a game's page (a client-side list, like recents); the **per-tag collection
-  rails** are server-owned (see Collections below), fetched fresh on every return
+  so the rows that mean *most sessions never touch the alphabet* come first. **Both history
+  rails roam across devices.** Jump back in is a three-source merge (`mergeRecents`,
+  `lib/recentGames.js`): this device's own launches (localStorage — immediate, and the
+  whole rail offline), the server's continue list (games with saves,
+  `GET /library/continue`), and the play-stats last-played stamps — newest timestamp per
+  game wins, so a couch session surfaces on the phone. Favorites are starred on a game's
+  page and stored server-side as the **reserved `_favorites` tag** in the collections
+  table (see Collections below); localStorage is the offline mirror (rewritten from the
+  server list whenever it loads — server wins when reachable), and each device pushes its
+  pre-roaming local stars up exactly once (`favoritesMigrated`). The **per-tag collection
+  rails** are server-owned too, fetched fresh on every return
   to the shelf. All are re-hydrated against the live library so a game that has left simply
   drops out, and each row disappears when empty. _(Play-time is still tracked server-side —
   it surfaces on the game page rather than as its own rail; **"Finished" likewise gets no
@@ -710,7 +718,9 @@ persistence.
 ### Play-time tracking
 
 A dedicated **`game_playtime`** table accumulates **`play_ms`** (and a session count) per game
-— the server-owned total behind the game page's play-time line. It is kept **separate from `game_progress`** on purpose: a `game_progress` row means
+— the server-owned total behind the game page's play-time line. The stats endpoint
+(`GET /library/games/play-stats`) returns `play_ms`, `plays`, and the last-played
+`updated_ms` per game — the stamp is one of the "Jump back in" merge's three sources. It is kept **separate from `game_progress`** on purpose: a `game_progress` row means
 "has a resumable save" (it drives Jump Back In, which resumes via SRAM), so merely playing a
 game for a few seconds must never fake a save there. Play-time is measured in the **parent**,
 for the same reason saves are: `usePlayTime` (a sibling to `useGameSaves`) clocks wall-time
@@ -731,10 +741,14 @@ a tag exists exactly as long as some game wears it. One `GET /library/games/coll
 returns everything as ids (`{ finished: [...], tags: { tag: [...] }, hacks: { id: baseName } }`
 — the hack map rides along here too; see "ROM hacks" below); the frontend
 re-hydrates against the live library like the other rails, and edits are optimistic (writes
-via `POST finished` / `POST tags` / `DELETE tags`). This is a deliberate step *toward* the
-backend: favorites and recents are still the last client-only (this-device) holdouts, but
-collections are the kind of state you curate on the couch and check on your phone, so they
-roam from day one. Creating a *new* tag is fully controller-drivable — the "new collection"
+via `POST finished` / `POST tags` / `DELETE tags`). **Favorites ride this exact machinery
+as the reserved `_favorites` tag** (`FAVORITES_TAG`, `lib/collections.js`) — zero backend
+change: the star toggle is an optimistic tag edit on the same dirty-tracked reconcile
+path, and every user-facing tag surface (shelf rails, the picker, a game's chips) lists
+tags via `visibleTags`/`tagsForGame` so the reserved name never shows — the star action IS
+its surface. With recents merged from server signals too (see the shelf rails above),
+nothing personal is device-local anymore beyond the offline mirrors.
+Creating a *new* tag is fully controller-drivable — the "new collection"
 row opens the on-screen text keyboard (see "The text keyboard" above) — alongside the native
 field a touch/hardware keyboard uses.
 

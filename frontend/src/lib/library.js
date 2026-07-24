@@ -130,6 +130,14 @@ export function fetchPlayStats() {
   return fetch(`${API_BASE}/library/games/play-stats`).then((r) => (r.ok ? r.json() : null))
 }
 
+// The server's "recently played" list (games with saves, newest first) — one of the
+// three sources the cross-device "Jump back in" rail merges (with this device's own
+// recents and the play-stats stamps). Null on failure, so offline just means "no
+// server contribution", never an emptied rail.
+export function fetchContinue() {
+  return fetch(`${API_BASE}/library/continue`).then((r) => (r.ok ? r.json() : null)).catch(() => null)
+}
+
 // Report a finished session's elapsed play-time so the backend can add it to the
 // game's running total. Fire-and-forget and built to survive the very unload that
 // usually triggers it (quitting a game): sendBeacon first, keepalive fetch as the

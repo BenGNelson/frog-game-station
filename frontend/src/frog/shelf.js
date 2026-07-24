@@ -6,6 +6,7 @@
 // at an iPad.
 
 import { letterOf, naturalCompare } from '../lib/library.js'
+import { visibleTags } from '../lib/collections.js'
 import { SYSTEMS } from './theme.js'
 
 // The order the consoles sit in. Chronological, which is also roughly the order
@@ -126,8 +127,9 @@ export const COLLECTION_LIST_MIN = 8
 // you drop into the rail rather than after D-padding past every game) that opens the whole
 // collection as a full list.
 export function tagRails(items = [], tags = {}) {
-  return Object.keys(tags || {})
-    .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()))
+  // visibleTags: the reserved favorites tag backs the Favorites rail above, so it
+  // must never ALSO appear as a "_favorites" collection rail.
+  return visibleTags(tags)
     .map((tag) => {
       const games = hydrate(items, tags[tag].map((id) => ({ id })))
       const items_ =

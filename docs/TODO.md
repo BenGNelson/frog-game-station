@@ -59,13 +59,18 @@ Open items carry an inline tag; completed (`[x]`) items are left untagged — th
       lightbox's contract (◀ ▶ switch videos, B/✕ close, input trapped, hero crossfade
       paused) around a 16:9 `www.youtube-nocookie.com` embed — the one named external
       frame source added to nginx's app-shell CSP.
-- [ ] **[P1] Cross-device recents & favorites.** `recentGames.js` ("for now") and
-      `favorites.js` are localStorage-only while saves/SRAM/playtime roam. Derive recents
-      from the server's existing progress/playtime data; store favorites as a reserved tag
-      in `game_tags` (endpoints already exist — zero schema change). localStorage stays as
-      the offline fallback.
-- [ ] **[P1] Favorites rail on the shelf.** The star action exists; favorites appear
-      nowhere. Same code path as collection rails.
+- [x] **Cross-device recents & favorites.** Shipped. **Jump back in** now merges three
+      sources (`mergeRecents`): this device's launches, the server's continue list
+      (games with saves), and the play-stats stamps (`updated_ms`/`plays` now ride the
+      play-stats response) — newest per game wins, so a couch session surfaces on the
+      phone. **Favorites roam as the reserved `_favorites` tag** in the existing
+      collections table (zero backend change): the star toggle is an optimistic
+      collection edit, every user-facing tag surface filters the reserved name
+      (`visibleTags`), localStorage stays as the offline mirror (server wins when
+      reachable), and each device pushes its pre-roaming local stars up exactly once.
+- [x] **Favorites rail on the shelf.** Closed — already existed (the sweep misread
+      this): `buildShelf` has always built a Favorites rail right after Jump back in.
+      It's now fed by the roaming server list instead of localStorage.
 - [ ] **[P1] Volume control.** No volume/mute anywhere in the app — a real gap on a TV.
       Pause-menu slider + mute through `emuBridge.js`; persist in `lib/playerSettings.js`.
 - [ ] **[P1] Surface play stats per game.** `plays` + last-played are tracked but never

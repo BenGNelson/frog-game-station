@@ -265,9 +265,16 @@ def test_play_stats_endpoint_returns_ids_and_totals_most_played_first(client, ro
                 json={"id": "Tetris.gb", "core": "gb", "ms": 30_000})
     client.post("/api/library/games/play-time",
                 json={"id": "Zelda.gbc", "core": "gbc", "ms": 120_000})
+    client.post("/api/library/games/play-time",
+                json={"id": "Zelda.gbc", "core": "gbc", "ms": 60_000})
     items = client.get("/api/library/games/play-stats").json()["items"]
     assert [i["id"] for i in items] == ["Zelda.gbc", "Tetris.gb"]  # most-played first
-    assert items[0] == {"id": "Zelda.gbc", "play_ms": 120_000}  # ids + totals only
+    top = items[0]
+    assert top["play_ms"] == 180_000
+    # The session count and last-played stamp ride along — the game page's stats
+    # line and the cross-device "Jump back in" merge both read them.
+    assert top["plays"] == 2
+    assert top["updated_ms"] > 0
 
 
 # --- collections: finished flag + tags -------------------------------------

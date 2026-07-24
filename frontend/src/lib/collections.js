@@ -37,6 +37,21 @@ export function deleteTag(id, tag) {
 // optimistic clean, and the backend all agree on one number instead of three loose 40s.
 export const TAG_MAXLEN = 40
 
+// Favorites ride the SAME tags table under this reserved name — zero backend change,
+// and a star roams exactly like any collection edit. The tag is internal chrome: every
+// user-facing tag surface (shelf rails, the picker, a game's chips) must list tags via
+// visibleTags/visibleTagsFor so it never shows. If a user literally types this name in
+// the picker, the games simply land in Favorites — invisible, harmless.
+export const FAVORITES_TAG = '_favorites'
+
+// The user-visible tag names from the grouped {tag: [ids]} map — everything except the
+// reserved favorites tag, in the picker's case-insensitive order.
+export function visibleTags(tags) {
+  return Object.keys(tags || {})
+    .filter((t) => t !== FAVORITES_TAG)
+    .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()))
+}
+
 // The same tag-cleaning the backend does (collapse whitespace, cap length), applied
 // client-side so an optimistic update matches what the server will store. The cap is by
 // CODE POINT (spread, not slice) to match Python's str slicing — otherwise an emoji /
@@ -47,11 +62,10 @@ export function cleanTag(tag) {
 }
 
 // The tags a single game wears, from the grouped {tag: [ids]} map — sorted like the
-// backend groups them (case-insensitive tag name).
+// backend groups them (case-insensitive tag name). The reserved favorites tag never
+// appears as a chip: the star action IS its surface.
 export function tagsForGame(tags, gameId) {
-  return Object.keys(tags || {})
-    .filter((t) => tags[t].includes(gameId))
-    .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()))
+  return visibleTags(tags).filter((t) => tags[t].includes(gameId))
 }
 
 // Reconcile a (possibly stale) server snapshot with the optimistic local state. The

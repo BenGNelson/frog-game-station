@@ -1,5 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { getFavorites, isFavorite, addFavorite, removeFavorite, toggleFavorite } from './favorites.js'
+import {
+  getFavorites, isFavorite, addFavorite, removeFavorite, toggleFavorite,
+  mirrorFavorites, favoritesMigrated, markFavoritesMigrated,
+} from './favorites.js'
 
 // A tiny in-memory localStorage stand-in.
 function fakeStorage(seed = {}) {
@@ -64,5 +67,38 @@ describe('favorites', () => {
   it('survives corrupt storage', () => {
     const bad = fakeStorage({ 'frog.favorites': 'not json' })
     expect(getFavorites(bad)).toEqual([])
+  })
+})
+
+describe('mirrorFavorites — the offline mirror of the server list', () => {
+  it('overwrites the store with the server-derived entries, launchable fields only', () => {
+    const s = fakeStorage()
+    addFavorite({ id: 'old', name: 'Old', core: 'gb' }, s) // pre-mirror local state
+    mirrorFavorites(
+      [{ id: 'a', name: 'A', core: 'gba', label: 'Game Boy Advance', extra: 'dropped' }],
+      s
+    )
+    expect(getFavorites(s)).toEqual([{ id: 'a', name: 'A', core: 'gba', label: 'Game Boy Advance' }])
+  })
+
+  it('an empty server list clears the mirror (server wins when reachable)', () => {
+    const s = fakeStorage()
+    addFavorite({ id: 'a', name: 'A' }, s)
+    mirrorFavorites([], s)
+    expect(getFavorites(s)).toEqual([])
+  })
+})
+
+describe('favorites migration flag — push local stars up exactly once per device', () => {
+  it('starts unmigrated, and marking flips it', () => {
+    const s = fakeStorage()
+    expect(favoritesMigrated(s)).toBe(false)
+    markFavoritesMigrated(s)
+    expect(favoritesMigrated(s)).toBe(true)
+  })
+
+  it('unreadable storage reads as migrated — never risk re-pushing stale stars', () => {
+    const broken = { getItem: () => { throw new Error('nope') } }
+    expect(favoritesMigrated(broken)).toBe(true)
   })
 })

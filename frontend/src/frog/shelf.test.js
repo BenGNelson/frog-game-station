@@ -116,6 +116,17 @@ describe('buildShelf', () => {
     // No 'finished' rail; tag rails in tag-name order; systems always last.
     expect(rails.map((r) => r.id)).toEqual(['tag:Sonic', 'tag:Zelda', 'systems'])
   })
+
+  it('the reserved favorites tag backs the Favorites rail, never a collection rail', () => {
+    // Favorites now roam as the reserved '_favorites' tag: it arrives inside
+    // collections.tags, but the shelf must show it only as the Favorites rail
+    // (built from the favorites markers), not as a '_favorites' tag rail too.
+    const rails = buildShelf(LIBRARY, [], [{ id: '3' }], {
+      finished: [],
+      tags: { _favorites: ['3'], Zelda: ['2'] },
+    })
+    expect(rails.map((r) => r.id)).toEqual(['favorites', 'tag:Zelda', 'systems'])
+  })
 })
 
 describe('discoverRail', () => {

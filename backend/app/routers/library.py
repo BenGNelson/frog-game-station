@@ -976,6 +976,8 @@ def record_play_time(body: PlayTimeBody):
 class PlayStatEntry(BaseModel):
     id: str
     play_ms: int
+    plays: int = 0
+    updated_ms: int = 0
 
 
 class PlayStatsModel(BaseModel):
@@ -985,10 +987,21 @@ class PlayStatsModel(BaseModel):
 @router.get("/library/games/play-stats", response_model=PlayStatsModel)
 def get_play_stats():
     """Per-game play-time, most-played first — the source for each game page's
-    play-time line. Ids + totals only: the frontend re-hydrates names
-    against the live library and drops games that have left, exactly like the rails,
-    so this needs no per-request filesystem listing at all."""
-    return {"items": [{"id": r["game_id"], "play_ms": r["play_ms"]} for r in db.list_play_stats()]}
+    play-time line, plus the session count and the last-played stamp (which also
+    feeds the cross-device "Jump back in" merge). Ids + numbers only: the frontend
+    re-hydrates names against the live library and drops games that have left,
+    exactly like the rails, so this needs no per-request filesystem listing at all."""
+    return {
+        "items": [
+            {
+                "id": r["game_id"],
+                "play_ms": r["play_ms"],
+                "plays": r["plays"],
+                "updated_ms": r["updated_ms"],
+            }
+            for r in db.list_play_stats()
+        ]
+    }
 
 
 # --- Collections: the "finished" flag + free-form tags ----------------------

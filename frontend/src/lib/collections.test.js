@@ -1,5 +1,17 @@
 import { describe, it, expect } from 'vitest'
-import { cleanTag, tagsForGame, mergeCollections } from './collections.js'
+import { cleanTag, tagsForGame, mergeCollections, visibleTags, FAVORITES_TAG } from './collections.js'
+
+describe('visibleTags — the reserved favorites tag is chrome, never a collection', () => {
+  it('lists user tags in case-insensitive order, omitting the reserved tag', () => {
+    const tags = { Zelda: ['a'], [FAVORITES_TAG]: ['a', 'b'], action: ['b'] }
+    expect(visibleTags(tags)).toEqual(['action', 'Zelda'])
+  })
+
+  it('tagsForGame never shows the reserved tag as a chip', () => {
+    const tags = { RPG: ['a'], [FAVORITES_TAG]: ['a'] }
+    expect(tagsForGame(tags, 'a')).toEqual(['RPG'])
+  })
+})
 
 describe('cleanTag', () => {
   it('collapses whitespace and trims', () => {

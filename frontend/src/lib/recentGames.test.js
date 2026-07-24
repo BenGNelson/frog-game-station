@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { getRecent, recordPlayed, removeRecent } from './recentGames.js'
+import { getRecent, recordPlayed, removeRecent, mergeRecents } from './recentGames.js'
 
 // A tiny in-memory stand-in for localStorage.
 function fakeStorage(initial = {}) {
@@ -46,6 +46,30 @@ describe('recordPlayed', () => {
   it('ignores an item with no id', () => {
     const s = fakeStorage()
     expect(recordPlayed({}, s)).toEqual([])
+  })
+})
+
+describe('mergeRecents', () => {
+  it('merges the three sources, newest timestamp per game winning', () => {
+    const local = [{ id: 'a', ts: 1000 }, { id: 'b', ts: 5000 }]
+    const serverContinue = [{ id: 'a', updated_ms: 9000 }, { id: 'c', updated_ms: 2000 }]
+    const playStats = [{ id: 'd', updated_ms: 7000, play_ms: 1 }, { id: 'b', updated_ms: 100, play_ms: 1 }]
+    const merged = mergeRecents(local, serverContinue, playStats)
+    expect(merged.map((g) => g.id)).toEqual(['a', 'd', 'b', 'c']) // 9000, 7000, 5000, 2000
+    expect(merged[0].ts).toBe(9000) // the server save beat the older local launch
+    expect(merged[2].ts).toBe(5000) // the local launch beat the older play-stamp
+  })
+
+  it('degrades to local recents when the server sources are missing (offline)', () => {
+    const local = [{ id: 'b', ts: 2000 }, { id: 'a', ts: 1000 }]
+    expect(mergeRecents(local, null, null).map((g) => g.id)).toEqual(['b', 'a'])
+  })
+
+  it('caps the merged rail and skips entries with no usable stamp', () => {
+    const local = Array.from({ length: 20 }, (_, i) => ({ id: `l${i}`, ts: 100 + i }))
+    const merged = mergeRecents(local, [{ id: 'nostamp' }], [])
+    expect(merged.length).toBe(12)
+    expect(merged.some((g) => g.id === 'nostamp')).toBe(false)
   })
 })
 

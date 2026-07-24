@@ -7,20 +7,21 @@ import { useDownloadedEntries } from '../lib/useDownloaded.js'
 import { useDownload } from '../lib/useDownload.js'
 import {
   systemGames, gameOfflineUrls, saveStatesUrl, gameMetaUrl, gameCandidatesUrl, gameMetaSearchUrl,
-  postGameMatch, GAME_META_STATUS_PATH, fetchPlayStats, postMetaRescan,
+  postGameMatch, GAME_META_STATUS_PATH, fetchPlayStats, postMetaRescan, fetchContinue,
 } from '../lib/library.js'
 import { rematchOptions } from './rematch.js'
 import { readSettings, writeSettings, TOUCH_OPACITY_LEVELS, nearestOpacityLevel } from '../lib/playerSettings.js'
-import { isFavorite, toggleFavorite } from '../lib/favorites.js'
+import { isFavorite, toggleFavorite, mirrorFavorites, favoritesMigrated, markFavoritesMigrated } from '../lib/favorites.js'
 import { setStateMeta } from '../lib/saveStates.js'
 import {
   ensureEmulatorEngine, cacheGameSram, allEntries, getEstimate, shellBytes, gameSavesBytes,
   summarizeStorage, auditStorage, removeDownload, clearGameSaves, downloadKey,
 } from '../lib/offlineStore.js'
 import { offlineGamesToItems } from './offline.js'
-import { getRecent, recordPlayed } from '../lib/recentGames.js'
+import { getRecent, recordPlayed, mergeRecents } from '../lib/recentGames.js'
 import {
   fetchCollections, postFinished, postTag, deleteTag, cleanTag, tagsForGame, mergeCollections, TAG_MAXLEN,
+  FAVORITES_TAG, visibleTags,
 } from '../lib/collections.js'
 import { getFavorites } from '../lib/favorites.js'
 import { getRecentSearches, recordSearch, removeRecentSearch } from '../lib/recentSearches.js'
@@ -201,7 +202,6 @@ export default function FrogBrowser() {
   const [detailFrom, setDetailFrom] = useState('shelf')
   const [detailFocus, setDetailFocus] = useState({ zone: 'actions', index: 0 })
   const [confirm, setConfirm] = useState(null)
-  const [favorited, setFavorited] = useState(false)
   const [saves, setSaves] = useState([])
   const [savesLoading, setSavesLoading] = useState(false)
   const [savesRefresh, setSavesRefresh] = useState(0)
@@ -297,15 +297,67 @@ export default function FrogBrowser() {
     }
   }, [])
   const finishedSet = useMemo(() => new Set(collections.finished), [collections.finished])
+
+  // The server's "recently played" (games with saves) — one of Jump back in's three
+  // sources. Re-fetched on the offline→online edge with the library (same nonce);
+  // failure just leaves [] and the rail falls back to this device's own recents.
+  const [serverContinue, setServerContinue] = useState([])
+  useEffect(() => {
+    let alive = true
+    fetchContinue().then((d) => alive && d && setServerContinue(d.items ?? []))
+    return () => {
+      alive = false
+    }
+  }, [reloadNonce])
+
+  // Favorites roam as the reserved collections tag. While the server list is loaded
+  // it is the truth; until then (or offline) the localStorage mirror stands in.
+  const favIds = collections.tags[FAVORITES_TAG] ?? []
+  const favMarkers = useMemo(
+    () => (collectionsLoaded ? favIds.map((id) => ({ id })) : getFavorites()),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [collectionsLoaded, collections.tags]
+  )
+  // Keep the offline mirror in step with the server — and, ONCE per device, push any
+  // pre-roaming local stars up first (the union migration). Pushing only once matters:
+  // doing it every load would let this device's stale mirror resurrect stars that were
+  // unstarred on another device.
+  useEffect(() => {
+    if (!collectionsLoaded) return
+    if (!favoritesMigrated()) {
+      markFavoritesMigrated()
+      const localOnly = getFavorites().filter((g) => !favIds.includes(g.id))
+      if (localOnly.length) {
+        for (const g of localOnly) postTag(g.id, FAVORITES_TAG)
+        setCollections((c) => ({
+          ...c,
+          tags: { ...c.tags, [FAVORITES_TAG]: [...localOnly.map((g) => g.id), ...(c.tags[FAVORITES_TAG] ?? [])] },
+        }))
+        return // mirror on the next pass, once the pushed stars are in state
+      }
+    }
+    // A failed library fetch would hydrate every favorite away — don't wipe the
+    // mirror over that; an actually-empty server list still clears it.
+    if (!items.length && favIds.length) return
+    mirrorFavorites(hydrate(items, favIds.map((id) => ({ id }))))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [collectionsLoaded, collections.tags, items])
   // The ROM-hack map (game_id → base game's name), for the "HACK" badges across the
   // browsing surfaces. Server-owned like the rest of collections, so a game marked a hack
   // on the couch reads as one on the phone.
   const hacks = collections.hacks || {}
   const hackSet = useMemo(() => new Set(Object.keys(hacks)), [hacks])
 
+  // Jump back in, cross-device: this device's launches merged with the server's
+  // continue list and play-stamps — newest wins, so a session on the couch surfaces
+  // here on the phone (and offline the local list carries the rail alone).
+  const recents = useMemo(
+    () => mergeRecents(getRecent(), serverContinue, playStatItems),
+    [serverContinue, playStatItems]
+  )
   const rails = useMemo(
-    () => buildShelf(items, getRecent(), getFavorites(), collections),
-    [items, collections]
+    () => buildShelf(items, recents, favMarkers, collections),
+    [items, recents, favMarkers, collections]
   )
   // The 'games' screen's list: a collection's members (naturally sorted, spanning
   // systems) when a tag is open, otherwise the focused system's games.
@@ -410,12 +462,19 @@ export default function FrogBrowser() {
   const canRematch = !!meta?.can_rematch
   // The open game's collection state, derived from the shared `collections`.
   const detailFinished = detailGame ? finishedSet.has(detailGame.id) : false
+  // Favorited, derived the same way (the reserved tag), so the star reflects a change
+  // made on another device the moment collections load; offline it reads the mirror.
+  const detailFavorited = detailGame
+    ? collectionsLoaded
+      ? favIds.includes(detailGame.id)
+      : isFavorite(detailGame.id)
+    : false
   const detailTags = useMemo(
     () => (detailGame ? tagsForGame(collections.tags, detailGame.id) : []),
     [collections.tags, detailGame]
   )
   const allTags = useMemo(
-    () => Object.keys(collections.tags).sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase())),
+    () => visibleTags(collections.tags), // the reserved favorites tag never reaches the picker
     [collections.tags]
   )
   // A hack whose base ROM you own gets a one-press "Based on <base>" hop (its own zone).
@@ -690,7 +749,6 @@ export default function FrogBrowser() {
     // frame with the last game's hero/summary/genres before its own meta lands.
     setMeta(null)
     metaGameRef.current = null
-    setFavorited(isFavorite(game.id))
     setScreen('detail')
   }
   const closeDetail = () => {
@@ -732,7 +790,14 @@ export default function FrogBrowser() {
     } else openDetail(item, 'shelf')
   }
 
-  const toggleFav = () => detailGame && setFavorited(toggleFavorite(detailGame).favorited)
+  // Star / unstar: the server tag is the roaming truth (optimistic, same dirty-tracked
+  // path as any collection edit), and the localStorage mirror is kept in step so an
+  // offline session still reads and flips the star.
+  const toggleFav = () => {
+    if (!detailGame) return
+    toggleFavorite(detailGame) // the offline mirror
+    toggleGameTag(FAVORITES_TAG) // the roaming truth (optimistic + POST/DELETE)
+  }
 
   // Hop from a hack to the base game it's based on. One place (the controller 'base' zone
   // and the mouse/touch prop both call it), inheriting this page's origin so Back returns
@@ -1922,7 +1987,7 @@ export default function FrogBrowser() {
           game={detailGame}
           meta={meta}
           native={native}
-          favorited={favorited}
+          favorited={detailFavorited}
           saves={saves}
           loadingSaves={savesLoading}
           similar={similar}
