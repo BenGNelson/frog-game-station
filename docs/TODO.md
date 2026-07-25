@@ -18,7 +18,7 @@ app-shortcut slots than the two free stick-clicks — plus the iOS keyboard auto
 **closed as won't-fix** (no clean web fix; the field is one tap away). Shipped work lives in the
 git history (`git log`); the sections below the Roadmap are **`[x]` — history**, not an open list.
 
-**The backlog is now re-seeded** (2026-07-23) from a full post-v1.1 sweep — an audit of the
+**The backlog is now re-seeded** (2026-07-23) from a full post-v0.2 sweep — an audit of the
 app's own unsurfaced capabilities, the EmulatorJS engine's switched-off features, and a
 comparison against other self-hosted frontends (RomM, Gaseous, RetroAssembly, desktop
 frontends). The result is the **Roadmap** section below: four milestones, each independently
@@ -42,9 +42,9 @@ Open items carry an inline tag; completed (`[x]`) items are left untagged — th
 
 ---
 
-## Roadmap — the post-v1.1 backlog
+## Roadmap — the post-v0.2 backlog
 
-### v1.2 — "Surface the hidden" (quick wins; mostly wiring)
+### v0.3 — "Surface the hidden" (quick wins; mostly wiring)
 
 - [x] **Downloads & Storage screen.** Shipped: `frog/Storage.jsx`, opened from a new
       Settings card — the UI over the already-built accounting layer in
@@ -83,7 +83,7 @@ Open items carry an inline tag; completed (`[x]`) items are left untagged — th
       2 days ago" (the play-stats response's `plays`/`updated_ms`, added with the
       roaming work).
 
-### v1.3 — "Player power pack" (re-expose engine features)
+### v0.4 — "Player power pack" (re-expose engine features)
 
 - [x] **Rewind.** Shipped: `rewindEnabled` rides the boot config (the core allocates its
       rewind buffer at start), a **Rewind** row joins the pause menu right before Fast
@@ -115,7 +115,7 @@ Open items carry an inline tag; completed (`[x]`) items are left untagged — th
       cheat manager exists if this is ever wanted, but it's off-brand for the station's
       play-it-straight feel and nobody asked twice. Re-open only on real demand.
 
-### v1.4 — "Library intelligence + deeper metadata"
+### v0.5 — "Library intelligence + deeper metadata"
 
 - [x] **Fetch more IGDB fields.** Shipped (match version 5 → the library auto
       re-enriches): **franchise** (first IGDB franchise, collections fallback),
@@ -152,7 +152,7 @@ Open items carry an inline tag; completed (`[x]`) items are left untagged — th
       cartridge RPG takes 9,583 hours). Surfaces as a "To beat ≈ 42h" line in the
       game page's facts grid.
 
-### v2.0 — "The disc era" (NDS, N64, PS1, PSP)
+### The disc era (NDS, N64, PS1, PSP) — shipped on main, first tagged in v0.6.0
 
 The pinned engine already ships all four cores — this is config + input wiring, not an
 engine change. Full design (formats, BIOS, guards, risks) lives with the milestone; the
@@ -246,7 +246,7 @@ shape:
       all three version surfaces together (`frontend/package.json`, the README badge,
       the FastAPI `version=`) and that every tag gets a GitHub Release.
 
-### v3.0 — "The native app" roadmap (IN FLIGHT, started 2026-07-24)
+### The native app roadmap — the road to 1.0 (IN FLIGHT, started 2026-07-24)
 
 The native-app milestone is underway. The browser is the ceiling, not the hardware:
 the disc-era WASM cores black-screen in real desktop browsers, so the desktop client
@@ -266,15 +266,18 @@ check a row when its exit criteria hold, and note carry-over under the row.
       About/attribution note in Settings (+ render tests); versioning policy promoted
       into `ARCHITECTURE.md`; future-systems tiers added as `NATIVE_APP_PLAN.md` §9.
       Pushed, CI green. Two latent-on-main e2e bugs surfaced and fixed along the way
-      (this was the first push since v1.1.0, so CI had never seen them): the storage
+      (this was the first push since v0.2.0, so CI had never seen them): the storage
       pad-path walk overshot once Pond stats sat below storage, and the volume suite
       could never pass in a clean-clone environment (no fetched engine) — it now skips
       there and runs in full locally.
-- [ ] **2. Legal scrub part 2 (v1.5.0).** Regenerate the five README screenshots from
-      a homebrew demo library; purge the old images from all git history
-      (`git filter-repo`) and force-push main + tags; re-point/create GitHub Releases
-      (v1.2.0–v1.4.0 missing); tag + release v1.5.0. Exit: no commercial art in tree
-      or history; Latest release current.
+- [x] **2. Legal scrub part 2 + the 0.x re-versioning (v0.6.0).** Shipped: the five
+      README screenshots regenerated from a homebrew demo library (covers styled after
+      console box templates deliberately kept out of frame); the old images purged from
+      all git history (`git filter-repo`) and history force-pushed; **the release
+      history renumbered to 0.x** — v1.0.0–v1.4.0 became v0.1.0–v0.5.0 (tags, commit
+      messages, and GitHub Releases; 1.0.0 is reserved until the app has truly earned
+      it) — and v0.6.0 tagged + released. Exit held: no commercial art in tree or
+      history; Latest release current.
 - [ ] **3. Native spike part 1 — libretro host on Linux** (branch `spike/native-core`,
       throwaway). dlopen mupen64plus_next from Rust, run frames headless, save-state
       round-trip; settle the crate choice. Exit: verdict recorded in
@@ -283,11 +286,11 @@ check a row when its exit criteria hold, and note carry-over under the row.
       60 fps with gamepad; CI matrix builds (mac/windows/ubuntu artifacts); N64 runs on
       the M4 from a CI artifact; video-compositing decision (§8.2). Exit: GO/NO-GO in
       `NATIVE_APP_PLAN.md`.
-- [ ] **5. Phase 1 — Tauri shell, Mode 1 (v2.0.0).** `frontend/src-tauri/`,
+- [ ] **5. Phase 1 — Tauri shell, Mode 1 (v0.7.0).** `frontend/src-tauri/`,
       `lib/playerBackend.js` (`isNative()`), `VITE_TARGET=desktop` build flag, backend
       CORS for the Tauri origins, `tauri-linux` CI job. Exit: full Frog UI in a native
       window against the self-hosted backend; web PWA regression-free.
-- [ ] **6. Phase 2a — NativePlayer + N64 (v2.1.0).** The Tauri command/event contract,
+- [ ] **6. Phase 2a — NativePlayer + N64 (v0.8.0).** The Tauri command/event contract,
       `player/NativePlayer.jsx` reusing the pause menu / save shelf / controls chrome,
       `scripts/fetch-native-cores.sh`; saves flow through the existing roaming
       endpoints. Exit: N64 plays natively on the M4, saves roam with the phone.
@@ -296,14 +299,14 @@ check a row when its exit criteria hold, and note carry-over under the row.
       natively.
 - [ ] **8. Phase 2c — cartridge cores.** Bundle the 2D-system cores so the desktop app
       is a complete client. Exit: all nine systems play natively.
-- [ ] **9. Phase 3 — feel/parity (v2.2.0).** Fast-forward, rewind, display filter,
+- [ ] **9. Phase 3 — feel/parity (v0.9.0).** Fast-forward, rewind, display filter,
       fullscreen, controller hotplug, per-core options, volume — parity with the web
       player's chrome.
 - [ ] **10. Phase 4a — first-run setup + runtime backend.** Native setup screen
       (remote server URL | local ROM folder); `API_BASE` becomes a runtime getter.
 - [ ] **11. Phase 4b — backend sidecar.** PyInstaller one-file FastAPI bundled as a
       Tauri sidecar → true standalone "run locally" mode.
-- [ ] **12. Phase 4c — distributable (v3.0.0).** Tag-triggered release workflow
+- [ ] **12. Phase 4c — distributable (1.0.0 candidate — the number is earned, called only when it is truly ready).** Tag-triggered release workflow
       building `.dmg`/`.msi`/AppImage, `docs/DESKTOP_SETUP.md` (signed + unsigned
       install paths; signing decision made here), README three-clients install matrix.
       Exit: fresh-machine install from a GitHub Release.

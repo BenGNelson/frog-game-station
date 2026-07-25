@@ -18,7 +18,7 @@
 
 All three read one library and share save progress: a game saved on the Mac shows up
 mid-progress on the iPhone, because they all talk to the same backend and the
-save/SRAM **roaming already exists** (built in the v1.2 work).
+save/SRAM **roaming already exists** (built in the v0.3 work).
 
 **The portfolio narrative:** a genuinely distributed personal platform — a documented,
 installable product with a self-hosted server, two installable PWAs, and a signed
@@ -257,7 +257,7 @@ Point `VITE_API_BASE` at the running backend for dev.
   the no-host-IDs / no-AI-refs rules apply to the Tauri code too.
 - **Two backends risk (Mode 2).** Prefer the FastAPI sidecar over a Rust rewrite to
   avoid duplicating library/metadata logic; accept the binary size.
-- **Scope.** This is a v3.0-scale, multi-session milestone. Phases 0–2 deliver the core
+- **Scope.** This is a 1.0-scale, multi-session milestone. Phases 0–2 deliver the core
   value (native disc-era play + roaming); 3–4 are polish and distributability.
 
 ## 8. Open decisions to settle before Phase 0
@@ -268,14 +268,15 @@ Point `VITE_API_BASE` at the running backend for dev.
    (lean, duplicated). Leaning sidecar.
 4. **Which cores to bundle first** beyond N64/DS/PS1 (add the cartridge cores so the
    desktop app is a full client? — yes, recommended, for a coherent single app).
-5. **Versioning:** does the desktop app share the repo version, or get its own track?
-   (Suggest: shared version, but the native app is what earns the **v3.0.0** major bump
-   under the versioning policy — "the app changes what it is.")
+5. **Versioning:** SETTLED — shared repo version, on the 0.x pre-1.0 scheme: the
+   native-app milestones ship as v0.7.0 → v0.9.0, and **1.0.0 is reserved** for when
+   the whole product is genuinely ready (at the earliest, the distributable
+   milestone), by explicit decision rather than automatically.
 
 ## 9. Beyond the launch systems — the future-systems roadmap
 
 Once the native libretro host exists, "add a system" mostly means "pin another core."
-Tiered by effort and demand on the host, to be taken up after the v3.0.0 milestone:
+Tiered by effort and demand on the host, to be taken up after the 1.0.0 milestone:
 
 - **Tier 1 — PSP (`ppsspp` core).** Mature core, light on the host (software or GL
   render), long deferred from the browser for performance — near-free natively. Do first.

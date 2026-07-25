@@ -300,7 +300,7 @@ frozen under `prefers-reduced-motion`):
 
 The full flourish inventory and its budget live in **docs/THEME.md** (the theme
 bible — tokens, type, radius/focus/scrim ladders, the pond-life layer, and the
-"adding a new surface" checklist). Notable since v1.0: press **ripples** on every
+"adding a new surface" checklist). Notable since v0.1: press **ripples** on every
 persistent control, **lily pads / bubbles / a night firefly / a rare dragonfly**,
 the shelf frog's **eye tracking**, and an idle **screensaver** (the frog hunts
 flies; any input wakes; never under reduced motion — `frog/Screensaver.jsx`, idle
@@ -1096,6 +1096,10 @@ The player and readers are **real routes**, not overlays, so the phone's back ge
   the article via its API, sanitize it, and render it same-origin. That's the only shape that
   is controller-navigable, skinnable, and cacheable, and it keeps the app's locked-down CSP
   intact (article images ride a same-origin, anti-open-proxy image proxy).
+- **Re-versioned to 0.x (2026-07).** The early 1.x tags overstated maturity for an app
+  still becoming itself, so during the screenshot history rewrite the released history
+  was renumbered — v1.0.0–v1.4.0 became v0.1.0–v0.5.0 (tags, messages, Releases) — and
+  1.0.0 was reserved for the moment the platform vision is genuinely complete.
 - **The Pokédex is structured data (PokeAPI), not scraped prose.** A Pokémon game's real
   mid-battle need is types/stats/evolutions, which prose serves badly. PokeAPI is free, static,
   and cache-friendly (its Fair-Use policy asks for local caching) and gives clean typed JSON, so
@@ -1117,6 +1121,11 @@ Semantic-ish, judged by what a user of the app experiences:
 - **PATCH (x.x.X)** — fixes, docs, polish; nothing new a user can do. These normally ride
   the next minor — a standalone patch release only matters if something broke in the wild
   between milestones.
+
+**Pre-1.0:** the project versions 0.x until the whole platform vision is genuinely
+complete. **1.0.0 is reserved** — it is called by explicit decision when the app is
+truly ready (at the earliest, the distributable desktop milestone), never reached by
+increment. Until then, completed milestones bump the minor within 0.x.
 
 **When and how:** bump + tag at milestone completion, in a `chore:` commit that names the
 milestone. The bump updates all three version surfaces together so they can't drift:
