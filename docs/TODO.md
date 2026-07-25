@@ -289,10 +289,14 @@ check a row when its exit criteria hold, and note carry-over under the row.
       own pinned cores** (never bring-your-own-emulator; per-system core-path
       override backlogged as a power-user someday; Dolphin/Tier-3 stays the one
       external exception). Verdicts recorded in `NATIVE_APP_PLAN.md` §5a/§3.2.
-- [ ] **4. Native spike part 2 — window/audio/input + Mac validation.** Real window at
-      60 fps with gamepad; CI matrix builds (mac/windows/ubuntu artifacts); N64 runs on
-      the M4 from a CI artifact; video-compositing decision (§8.2). Exit: GO/NO-GO in
-      `NATIVE_APP_PLAN.md`.
+- [ ] **4. Native spike part 2 — window/audio/input + Mac validation.** Code + CI
+      DONE: the windowed host runs the full `SET_HW_RENDER` contract and N64 renders
+      at 56.8/60 fps even on llvmpipe; the `native-spike.yml` matrix builds
+      macOS-arm64/Windows/Linux artifacts (Linux smoke green). **Remaining to close
+      the row: the M4 artifact run** (RUN.md checklist: gameplay speed, audio,
+      controller, F5/F7 states, 5-minute soak) and the §8.2 compositing verdict —
+      the webview-overlay test needs Tauri on the Mac, so it may fold into the
+      session-5 shell work. Then GO/NO-GO in `NATIVE_APP_PLAN.md`.
 - [ ] **5. Phase 1 — Tauri shell, Mode 1 (v0.7.0).** `frontend/src-tauri/`,
       `lib/playerBackend.js` (`isNative()`), `VITE_TARGET=desktop` build flag, backend
       CORS for the Tauri origins, `tauri-linux` CI job. Exit: full Frog UI in a native

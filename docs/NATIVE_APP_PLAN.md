@@ -214,6 +214,21 @@ native-only ones; the same `vite build` still produces the web PWA for the serve
   context is confirmed as THE part-2 work item. Note the Linux buildbot build
   self-identifies as "Mupen64Plus-Next 2.8-Vulkan": expect the HW-render negotiation
   to prefer Vulkan on Linux and OpenGL on macOS.
+- **part-2 spike findings (windowed host, verified under xvfb/llvmpipe on the server):**
+  the full `SET_HW_RENDER` contract works from Rust — host GL 3.3 core context via
+  winit+glutin, `get_proc_address`, an FBO render target, `context_reset` after load —
+  and **mupen64plus_next renders Mario Kart 64 at 56.8/60 fps on the SOFTWARE
+  rasterizer** (llvmpipe; a real GPU has headroom to spare). Two contract lessons that
+  cost a debugging session: (1) a frontend MUST implement the core-options protocol
+  (legacy `SET_VARIABLES`/`GET_VARIABLE` at minimum) — declining `GET_VARIABLE` sends
+  mupen down an untested fallback that `free()`s one of its own static strings and
+  aborts; (2) answer `GET_LOG_INTERFACE` — the variadic C target needs a tiny C shim
+  (stable Rust can't define C-variadics), and the core's own log is the only usable
+  diagnostic when something dies inside it. Software cores present by texture blit
+  (gambatte 59.8/59.7 fps windowed); audio is a ring buffer + resample into cpal with
+  a silent fallback when no device exists; input is gilrs + keyboard. CI:
+  `.github/workflows/native-spike.yml` (manual) builds macOS-arm64/Windows/Linux
+  artifacts and smoke-tests Linux headless+xvfb per run.
 - core supply: the buildbot's nightly channel serves ROLLING builds (`latest/`), so
   URL-pinning does not pin — the productionized `fetch-native-cores.sh` must archive
   known-good core builds (mirror the exact .so/.dylib/.dll somewhere we control, or
