@@ -278,10 +278,17 @@ check a row when its exit criteria hold, and note carry-over under the row.
       messages, and GitHub Releases; 1.0.0 is reserved until the app has truly earned
       it) — and v0.6.0 tagged + released. Exit held: no commercial art in tree or
       history; Latest release current.
-- [ ] **3. Native spike part 1 — libretro host on Linux** (branch `spike/native-core`,
-      throwaway). dlopen mupen64plus_next from Rust, run frames headless, save-state
-      round-trip; settle the crate choice. Exit: verdict recorded in
-      `NATIVE_APP_PLAN.md` §5a.
+- [x] **3. Native spike part 1 — libretro host on Linux** (branch `spike/native-core`).
+      Shipped: a hand-written-FFI + `libloading` host (wrapper crates rejected — all
+      stale or core-authoring-oriented) that dlopens gambatte, boots a real homebrew
+      ROM, **renders** (measured mean luminance, not assumed), runs ~120× real time
+      headless, and proves the save-state round trip deterministic (serialize →
+      diverge → unserialize → replay = bit-identical frame). `mupen64plus_next`
+      characterized: requests `SET_HW_RENDER` and cleanly refuses without a GL
+      context — part 2's work item, as planned. Also settled: **the app manages its
+      own pinned cores** (never bring-your-own-emulator; per-system core-path
+      override backlogged as a power-user someday; Dolphin/Tier-3 stays the one
+      external exception). Verdicts recorded in `NATIVE_APP_PLAN.md` §5a/§3.2.
 - [ ] **4. Native spike part 2 — window/audio/input + Mac validation.** Real window at
       60 fps with gamepad; CI matrix builds (mac/windows/ubuntu artifacts); N64 runs on
       the M4 from a CI artifact; video-compositing decision (§8.2). Exit: GO/NO-GO in
