@@ -3,11 +3,15 @@
 into docs/img/.
 
 RUN IT AGAINST A DEMO LIBRARY, NEVER YOUR REAL ONE — the shelf/list/search shots show
-game names and counts, so a personal collection would leak into the committed images. A
-throwaway stack pointed at a small folder of famous public titles keeps the shots clean:
+game names and counts, so a personal collection would leak into the committed images.
+USE FREELY-DISTRIBUTED HOMEBREW TITLES ONLY — commercial names pull commercial box art
+into the shots, and reproducing that art in the repo is exactly what the committed
+images must avoid. A throwaway stack pointed at a small folder of homebrew keeps the
+shots clean:
 
-    # 1. a demo ROM folder (empty files named No-Intro-style so covers match), e.g.
-    #    "Super Mario World (USA).sfc", "Sonic The Hedgehog (USA, Europe).md", ...
+    # 1. a demo ROM folder (empty files named No-Intro-style so the IGDB matcher and
+    #    any available thumbnails line up), e.g.
+    #    "Super Boss Gaiden (Japan, World).sfc", "Tobu Tobu Girl (World).gb", ...
     DEMO=/tmp/demo-roms   # ~30 files across .gb/.gbc/.gba/.sfc/.md/.sms
     # 2. a throwaway stack on its own network + volume (reuses the built images), with
     #    IGDB creds from .env so the game page gets real metadata:
@@ -38,13 +42,14 @@ BASE = os.environ.get("BASE_URL", "http://localhost:8685").rstrip("/")
 OUT = "/docs/img"
 os.makedirs(OUT, exist_ok=True)
 
-# Demo-library ids for the "Jump back in" rail (must exist in the demo folder).
+# Demo-library ids for the "Jump back in" rail (must exist in the demo folder;
+# homebrew only, and verify each matched in IGDB before shooting).
 RECENTS = [
-    "Super Mario World (USA).sfc",
-    "Legend of Zelda, The - A Link to the Past (USA).sfc",
-    "Sonic The Hedgehog (USA, Europe).md",
-    "Metroid Fusion (USA, Australia).gba",
-    "Chrono Trigger (USA).sfc",
+    "Super Boss Gaiden (Japan, World).sfc",
+    "Tobu Tobu Girl (World).gb",
+    "Cave Story MD (World).md",
+    "Anguna - Warrior of Neth (World).gba",
+    "Goodboy Galaxy (World) (Demo).gba",
 ]
 SEED = (
     "const now = Date.now();"
@@ -108,7 +113,7 @@ def main():
             if b.count():
                 b.first.click(timeout=3000, force=True)
                 mp.wait_for_timeout(1000)
-                mp.keyboard.type("mario", delay=90)
+                mp.keyboard.type("tobu", delay=90)
                 mp.wait_for_timeout(1400)
                 mp.screenshot(path=f"{OUT}/search-mobile.png"); print("search-mobile")
                 break

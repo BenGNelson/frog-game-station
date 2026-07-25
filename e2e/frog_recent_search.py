@@ -44,11 +44,11 @@ with sync_playwright() as p:
     )
 
     # Run a search that lands on a game — opening the result records the query.
-    for ch in "mari":
+    for ch in "supe":
         page.keyboard.press(ch)
     page.wait_for_selector('[data-testid="frog-search-row"]', timeout=5000)
     page.keyboard.press("PageDown")  # RB → into the results
-    page.keyboard.press("Enter")  # open the focused game's page (records "mari")
+    page.keyboard.press("Enter")  # open the focused game's page (records "supe")
     page.wait_for_selector('[data-testid="frog-detail"]', timeout=5000)
     check(True, "a search opened a game (query recorded)")
 
@@ -56,7 +56,7 @@ with sync_playwright() as p:
     # open, so it only reflects the recorded query after a fresh open. (Escape in search
     # peels back a character at a time and only closes once the query is empty, so clear
     # it first.)
-    page.keyboard.press("Escape")  # detail → back to search (query still "mari")
+    page.keyboard.press("Escape")  # detail → back to search (query still "supe")
     for _ in range(4):
         page.keyboard.press("Backspace")  # empty the query
     page.keyboard.press("Escape")  # now search → back to the shelf
@@ -67,7 +67,7 @@ with sync_playwright() as p:
     recents = page.locator('[data-testid="frog-recent-search"]')
     check(recents.count() >= 1, f"a recent search appears on the empty query ({recents.count()})")
     check(
-        "mari" in recents.first.inner_text().lower(),
+        "supe" in recents.first.inner_text().lower(),
         f"the recorded query is listed (got '{recents.first.inner_text().strip()[:40]}')",
     )
 

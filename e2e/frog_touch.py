@@ -80,12 +80,12 @@ with sync_playwright() as p:
     check(page.locator('[data-testid="frog-search"] [role="group"]').count() == 0, "the 6x6 grid is not shown on touch")
 
     # Type into the field → the list narrows, and a result actually matches.
-    page.fill('[data-testid="frog-search-input"]', "mario")
+    page.fill('[data-testid="frog-search-input"]', "super")
     page.wait_for_selector('[data-testid="frog-search-row"]', timeout=5000)
     rows = page.locator('[data-testid="frog-search-row"]')
     n = rows.count()
     check(n > 0, f"typing filters the results ({n})")
-    check("mario" in rows.first.inner_text().lower(), "a result contains the typed query")
+    check("super" in rows.first.inner_text().lower(), "a result contains the typed query")
 
     # Tap a result → its game page; Play there launches. Stop policing console errors
     # once we leave Frog for the emulator page.

@@ -60,18 +60,18 @@ with sync_playwright() as p:
     check(page.locator('[data-testid="frog-search-row"]').count() == 0, "no results before typing")
 
     # Type a partial word that spans systems — partial so dimming still discriminates
-    # (the letters after "mari" are a real subset, not "everything is a space").
-    for ch in "mari":
+    # (the letters after "supe" are a real subset, not "everything is a space").
+    for ch in "supe":
         page.keyboard.press(ch)
     page.wait_for_selector('[data-testid="frog-search-row"]', timeout=5000)
     rows = page.locator('[data-testid="frog-search-row"]')
     n = rows.count()
-    check(n > 0, f"typing 'mari' produces results ({n})")
+    check(n > 0, f"typing 'supe' produces results ({n})")
     first = rows.first.inner_text().lower()
-    check("mari" in first, f"a result actually contains the query (got '{first.strip()[:40]}')")
+    check("supe" in first, f"a result actually contains the query (got '{first.strip()[:40]}')")
 
-    # Predictive dimming discriminates: SOME keys dim (dead ends) but not all — 'O'
-    # (mari→mario) must stay live.
+    # Predictive dimming discriminates: SOME keys dim (dead ends) but not all — 'R'
+    # (supe→super) must stay live.
     dim = keys.evaluate_all("els => els.filter(e => Math.abs(parseFloat(getComputedStyle(e).opacity) - 0.35) < 0.01).length")
     check(0 < dim < 36, f"dead keys dim, but not the whole board ({dim}/36 dimmed)")
 
@@ -85,7 +85,7 @@ with sync_playwright() as p:
 
     # Re-type so we're back to a specific query, then RB (PageDown) is the express
     # lane from the keys into the results.
-    page.keyboard.press("i")
+    page.keyboard.press("e")
     page.keyboard.press("PageDown")
     focused = page.locator('[data-testid="frog-search-row"][data-focused]')
     check(focused.count() == 1, "RB jumps focus into the results list")
