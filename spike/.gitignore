@@ -2,3 +2,5 @@ cores/
 roms/
 target/
 spike_data/
+dist/
+dev.local
