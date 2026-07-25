@@ -299,6 +299,21 @@ check a row when its exit criteria hold, and note carry-over under the row.
       `NATIVE_APP_PLAN.md` §5a. Dev loop for real machines: `spike/dev.sh`
       (fetch CI artifact or local build → gitignored dist → run presets). The §8.2
       compositing verdict deliberately moves into row 5 (needs Tauri on a Mac).
+- [ ] **[P1] 4½. Capability gating — the mobile PWA only offers what it can run.**
+      Decided 2026-07-25: on touch devices (phone/iPad), **hide PlayStation and
+      Nintendo DS** — every PS1 disc and the marquee DS carts exceed the iOS
+      per-tab memory ceiling, so per-system gating beats per-game surprises. **N64
+      stays on mobile** (iOS Safari gets parallel_n64 and it genuinely works —
+      it's desktop browsers where N64 fails). Build it as ONE per-system
+      capability map (data in `lib/` — e.g. alongside `playerMode.js` /
+      `library.js` — consumed by the shelf rail, game lists, search, and the
+      roamed recents/favorites merge), not scattered conditionals — because the
+      third case arrives with the native app: desktop BROWSERS also black-screen
+      the disc era, so post-Phase-2 the web player on desktop should show
+      disc-era titles with a "plays in the desktop app" hand-off instead. The
+      native desktop app runs everything. Tests + docs (README features note,
+      ARCHITECTURE) ride along; the load-watchdog stays as the backstop for
+      direct /play URLs.
 - [ ] **5. Phase 1 — Tauri shell, Mode 1 (v0.7.0).** `frontend/src-tauri/`,
       `lib/playerBackend.js` (`isNative()`), `VITE_TARGET=desktop` build flag, backend
       CORS for the Tauri origins, `tauri-linux` CI job. Exit: full Frog UI in a native

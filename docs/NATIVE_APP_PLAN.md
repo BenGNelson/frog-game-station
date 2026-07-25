@@ -10,8 +10,12 @@
 
 **"One library, three faces" — a self-hosted platform, one backend, three clients:**
 
-- **Phone (iOS PWA)** — the pocket client. Cartridge systems, offline downloads,
-  install-to-home-screen. Already shipped; stays as-is. The *backup*.
+- **Phone (iOS PWA)** — the pocket client. Cartridge systems **+ N64** (the one
+  browser where it works), offline downloads, install-to-home-screen. Already
+  shipped. The *backup*. **Capability-gated (decided 2026-07-25):** PS1 and DS are
+  hidden on touch devices — the iOS memory ceiling makes them per-game roulette —
+  via a single per-system capability map that later also lets desktop *browsers*
+  hand the disc era off to the desktop app instead of black-screening.
 - **iPad (iOS PWA)** — the couch/touch client. Same PWA, bigger canvas.
 - **Desktop (native Tauri app)** — the *powerhouse*. Native emulator cores → full
   CPU/GPU → the 3D/disc systems the browser chokes on, plus everything the PWA does.
