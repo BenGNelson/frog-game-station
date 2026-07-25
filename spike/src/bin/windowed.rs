@@ -31,7 +31,7 @@ use libretro::*;
 use std::collections::VecDeque;
 use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_uint, c_void};
-use std::sync::atomic::{AtomicBool, AtomicI16, AtomicU32, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI16, AtomicU32, AtomicU64, AtomicUsize, Ordering};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 use winit::application::ApplicationHandler;
@@ -64,6 +64,8 @@ static VIDEO: Mutex<VideoState> = Mutex::new(VideoState {
 
 // Audio ring: interleaved stereo i16 at the core's sample rate.
 static AUDIO: Mutex<VecDeque<i16>> = Mutex::new(VecDeque::new());
+static AUDIO_IN: AtomicU64 = AtomicU64::new(0); // stereo frames delivered by the core
+static AUDIO_UNDERRUNS: AtomicU64 = AtomicU64::new(0);
 
 // Input snapshot the input_state callback reads (updated once per frame).
 static PAD_BITS: AtomicU32 = AtomicU32::new(0);
@@ -131,6 +133,12 @@ unsafe extern "C" fn environment(cmd: c_uint, data: *mut c_void) -> bool {
         }
         ENV_GET_LOG_INTERFACE => {
             (*(data as *mut LogCallback)).log = frog_spike_log;
+            true
+        }
+        ENV_GET_AUDIO_VIDEO_ENABLE => {
+            // bit 0 = video, bit 1 = audio. Declining this reads as "audio off"
+            // to some cores (mupen64plus_next went fully silent).
+            *(data as *mut i32) = 3;
             true
         }
         ENV_GET_PREFERRED_HW_RENDER => {
@@ -243,12 +251,14 @@ unsafe extern "C" fn video_refresh(data: *const c_void, width: c_uint, height: c
 }
 
 unsafe extern "C" fn audio_sample(l: i16, r: i16) {
+    AUDIO_IN.fetch_add(1, Ordering::Relaxed);
     let mut a = AUDIO.lock().unwrap();
     a.push_back(l);
     a.push_back(r);
 }
 
 unsafe extern "C" fn audio_sample_batch(data: *const i16, frames: usize) -> usize {
+    AUDIO_IN.fetch_add(frames as u64, Ordering::Relaxed);
     let s = std::slice::from_raw_parts(data, frames * 2);
     let mut a = AUDIO.lock().unwrap();
     a.extend(s.iter().copied());
@@ -480,12 +490,25 @@ impl App {
         let channels = config.channels() as usize;
         let ratio = core_rate / device_rate; // source frames consumed per output frame
         let mut src_pos: f64 = 0.0; // fractional index into the ring's first frame
+        // Jitter buffer: after an underrun, output silence until the ring refills to
+        // low-water (~40 ms of core-rate audio) — occasional quiet beats crackle.
+        let low_water = (core_rate * 0.04) as usize * 2;
+        let mut holding = true;
         let stream = device
             .build_output_stream(
                 &config.into(),
                 move |out: &mut [f32], _| {
                     let mut ring = AUDIO.lock().unwrap();
+                    if holding && ring.len() >= low_water {
+                        holding = false;
+                    }
                     for frame in out.chunks_mut(channels) {
+                        if holding {
+                            for c in frame.iter_mut() {
+                                *c = 0.0;
+                            }
+                            continue;
+                        }
                         // consume whole source frames the position has passed
                         while src_pos >= 1.0 && ring.len() >= 2 {
                             ring.pop_front();
@@ -493,7 +516,7 @@ impl App {
                             src_pos -= 1.0;
                         }
                         // linear interpolation between the ring's first two frames;
-                        // underrun -> silence (never repeat stale samples as noise)
+                        // underrun -> hold + silence (never repeat stale samples)
                         let (l, r) = if ring.len() >= 4 {
                             let f = src_pos as f32;
                             let l0 = ring[0] as f32;
@@ -502,6 +525,8 @@ impl App {
                             let r1 = ring[3] as f32;
                             (((l0 + (l1 - l0) * f) / 32768.0), ((r0 + (r1 - r0) * f) / 32768.0))
                         } else {
+                            AUDIO_UNDERRUNS.fetch_add(1, Ordering::Relaxed);
+                            holding = true;
                             (0.0, 0.0)
                         };
                         frame[0] = l;
@@ -831,7 +856,16 @@ impl ApplicationHandler for App {
                 if self.frames_run % 300 == 0 {
                     let lum = self.mean_luminance();
                     let hw = HW_ACTIVE.load(Ordering::Relaxed);
-                    eprintln!("  [probe] frame {} luminance {:.1} hw_path {}", self.frames_run, lum, hw);
+                    let ring = AUDIO.lock().unwrap().len();
+                    eprintln!(
+                        "  [probe] frame {} luminance {:.1} hw_path {} | audio in {} frames, ring {} , underruns {}",
+                        self.frames_run,
+                        lum,
+                        hw,
+                        AUDIO_IN.load(Ordering::Relaxed),
+                        ring,
+                        AUDIO_UNDERRUNS.load(Ordering::Relaxed)
+                    );
                 }
 
                 if let Some(limit) = self.autoexit {

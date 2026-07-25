@@ -17,6 +17,7 @@ pub const ENV_GET_VARIABLE_UPDATE: c_uint = 17;
 pub const ENV_GET_LOG_INTERFACE: c_uint = 27;
 pub const ENV_GET_SAVE_DIRECTORY: c_uint = 31;
 pub const ENV_SET_HW_RENDER: c_uint = 14;
+pub const ENV_GET_AUDIO_VIDEO_ENABLE: c_uint = 47;
 pub const ENV_GET_PREFERRED_HW_RENDER: c_uint = 56;
 pub const ENV_EXPERIMENTAL: c_uint = 0x10000;
 
