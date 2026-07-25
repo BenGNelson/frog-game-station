@@ -180,6 +180,22 @@ export default function Settings({ status, loading, focus, onFocus, onRescan, re
             theme, not a missing light mode.
           </p>
         </div>
+
+        {/* --- About: credit where the pond's water comes from. A note like the theme
+            card (not focusable — nothing to control), so the settings focus order is
+            untouched. --- */}
+        <div data-testid="frog-about" className="rounded-xl px-4 py-3" style={{ background: FROG.panel, opacity: 0.75 }}>
+          <p className="text-sm leading-relaxed" style={{ color: FROG.soft }}>
+            <span style={{ color: FROG.ink }}>About</span> — games play in the{' '}
+            <span style={{ color: FROG.ink }}>EmulatorJS</span> engine (GPL-3.0, fetched
+            separately). Metadata and art come from <span style={{ color: FROG.ink }}>IGDB</span>{' '}
+            and <span style={{ color: FROG.ink }}>libretro-thumbnails</span>; the in-game wiki
+            shows <span style={{ color: FROG.ink }}>community wiki</span> articles (CC BY-SA,
+            linked at the source); the Pokédex is powered by{' '}
+            <span style={{ color: FROG.ink }}>PokeAPI</span>. No games or BIOS files are
+            included — the library is your own.
+          </p>
+        </div>
       </div>
     </div>
   )

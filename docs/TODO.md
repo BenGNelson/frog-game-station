@@ -239,36 +239,72 @@ shape:
 
 ### Process
 
-- [ ] **[P2] Decide the versioning rhyme-and-reason.** The tags so far (1.0.0 release,
-      1.1.0 theme pass, 1.2.0 surface-the-hidden, 1.3.0 power pack) imply a scheme but
-      nothing written says it. Proposal to react to, then promote into
-      `docs/ARCHITECTURE.md` once blessed:
-      - **MAJOR (X.0.0)** — the app changes what it IS, or compatibility breaks: a new
-        platform class (the disc era would be 2.0.0), an engine-pin bump that forces
-        every device to re-download, anything needing a data/save migration.
-      - **MINOR (x.X.0)** — a completed roadmap milestone, or any coherent set of new
-        user-visible features (what 1.1–1.3 actually were).
-      - **PATCH (x.x.X)** — fixes, docs, polish; nothing new a user can do. So far these
-        just ride the next minor — a patch release only matters if something broke in
-        the wild between milestones.
-      - **When:** bump + tag at milestone completion (the current practice), in a
-        `chore:` commit that names the milestone.
+- [x] **Versioning rhyme-and-reason — decided and written down.** The MAJOR/MINOR/PATCH
+      scheme (major = the app changes what it is / compatibility breaks; minor = a
+      completed milestone or coherent feature set; patch = fixes-only) is now documented
+      in `docs/ARCHITECTURE.md` → **Versioning**, including the rule that a bump updates
+      all three version surfaces together (`frontend/package.json`, the README badge,
+      the FastAPI `version=`) and that every tag gets a GitHub Release.
 
-### v3.0 — "The native app" (Ben's idea, endorsed — the real fix for disc-era)
+### v3.0 — "The native app" roadmap (IN FLIGHT, started 2026-07-24)
 
-- [ ] **[P2] Native Mac/Windows launcher running NATIVE emulator cores.** The browser
-      is the ceiling, not the hardware (an M4 emulates PS2 natively at full speed; the
-      WASM cores black-screen). Build a **Tauri** app whose frontend is the EXISTING
-      Frog React UI (hosted unchanged) and whose "Play" hands the ROM to a **native**
-      core (libretro/RetroArch built native, or standalone DuckStation/melonDS/mupen) —
-      full CPU/GPU, no browser memory/WebGL/WASM limits. Reuses the FastAPI backend and
-      the save-state/SRAM roaming already built (native saves on the Mac sync to the iOS
-      PWA and back — one backend, two clients). **Do NOT just Electron/Tauri-wrap the web
-      app as-is** — Tauri-on-Mac is WebKit (= the failing Safari), Electron is Chromium
-      (= no gain over Chrome); the win is native cores, not an app shell. Additive, not a
-      rewrite; a multi-session milestone. Platform split becomes: browser/PWA = cartridge
-      systems + iOS (backup); native app = 3D/disc systems + desktop power. Full detail:
-      memory `frog-disc-era-browser-compat.md`.
+The native-app milestone is underway. The browser is the ceiling, not the hardware:
+the disc-era WASM cores black-screen in real desktop browsers, so the desktop client
+becomes a **Tauri** app hosting the existing Frog React UI unchanged, with "Play"
+handing the ROM to a **native libretro core** (dlopen'd, never linked; cores fetched by
+script, never committed; BIOS never bundled). Reuses the FastAPI backend and the
+save-state/SRAM roaming already built — one library, three faces (desktop powerhouse,
+phone/iPad backup). Full scope + architecture: `docs/NATIVE_APP_PLAN.md`.
+
+**This checklist is the progress tracker.** Work top to bottom, one row per sitting;
+check a row when its exit criteria hold, and note carry-over under the row.
+
+- [ ] **1. Legal scrub part 1 — fixtures + docs.** Rename the commercially-named e2e
+      fixture stubs to homebrew titles (+ the coupled e2e search queries); README
+      overhaul (real prerequisites, PWA install section, ROM/BIOS legality note,
+      trademark notice, MIT-vs-engine-license clarification, attribution); in-app
+      attribution in Settings; versioning policy promoted into `ARCHITECTURE.md`;
+      future-systems tiers added as `NATIVE_APP_PLAN.md` §9. Exit: pushed, CI green.
+- [ ] **2. Legal scrub part 2 (v1.5.0).** Regenerate the five README screenshots from
+      a homebrew demo library; purge the old images from all git history
+      (`git filter-repo`) and force-push main + tags; re-point/create GitHub Releases
+      (v1.2.0–v1.4.0 missing); tag + release v1.5.0. Exit: no commercial art in tree
+      or history; Latest release current.
+- [ ] **3. Native spike part 1 — libretro host on Linux** (branch `spike/native-core`,
+      throwaway). dlopen mupen64plus_next from Rust, run frames headless, save-state
+      round-trip; settle the crate choice. Exit: verdict recorded in
+      `NATIVE_APP_PLAN.md` §5a.
+- [ ] **4. Native spike part 2 — window/audio/input + Mac validation.** Real window at
+      60 fps with gamepad; CI matrix builds (mac/windows/ubuntu artifacts); N64 runs on
+      the M4 from a CI artifact; video-compositing decision (§8.2). Exit: GO/NO-GO in
+      `NATIVE_APP_PLAN.md`.
+- [ ] **5. Phase 1 — Tauri shell, Mode 1 (v2.0.0).** `frontend/src-tauri/`,
+      `lib/playerBackend.js` (`isNative()`), `VITE_TARGET=desktop` build flag, backend
+      CORS for the Tauri origins, `tauri-linux` CI job. Exit: full Frog UI in a native
+      window against the self-hosted backend; web PWA regression-free.
+- [ ] **6. Phase 2a — NativePlayer + N64 (v2.1.0).** The Tauri command/event contract,
+      `player/NativePlayer.jsx` reusing the pause menu / save shelf / controls chrome,
+      `scripts/fetch-native-cores.sh`; saves flow through the existing roaming
+      endpoints. Exit: N64 plays natively on the M4, saves roam with the phone.
+- [ ] **7. Phase 2b — DS + PS1.** melonDS (touch + dual-screen layout), PCSX-ReARMed
+      (.chd; user BIOS honored, HLE otherwise). Exit: the known browser failures play
+      natively.
+- [ ] **8. Phase 2c — cartridge cores.** Bundle the 2D-system cores so the desktop app
+      is a complete client. Exit: all nine systems play natively.
+- [ ] **9. Phase 3 — feel/parity (v2.2.0).** Fast-forward, rewind, display filter,
+      fullscreen, controller hotplug, per-core options, volume — parity with the web
+      player's chrome.
+- [ ] **10. Phase 4a — first-run setup + runtime backend.** Native setup screen
+      (remote server URL | local ROM folder); `API_BASE` becomes a runtime getter.
+- [ ] **11. Phase 4b — backend sidecar.** PyInstaller one-file FastAPI bundled as a
+      Tauri sidecar → true standalone "run locally" mode.
+- [ ] **12. Phase 4c — distributable (v3.0.0).** Tag-triggered release workflow
+      building `.dmg`/`.msi`/AppImage, `docs/DESKTOP_SETUP.md` (signed + unsigned
+      install paths; signing decision made here), README three-clients install matrix.
+      Exit: fresh-machine install from a GitHub Release.
+
+After row 12, the future-systems tiers in `NATIVE_APP_PLAN.md` §9 (PSP → Dreamcast +
+Saturn → GameCube/Wii → PS2) become the new backlog.
 
 ### Rework (fold into whichever milestone touches them first)
 

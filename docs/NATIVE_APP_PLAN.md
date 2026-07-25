@@ -271,3 +271,24 @@ Point `VITE_API_BASE` at the running backend for dev.
 5. **Versioning:** does the desktop app share the repo version, or get its own track?
    (Suggest: shared version, but the native app is what earns the **v3.0.0** major bump
    under the versioning policy — "the app changes what it is.")
+
+## 9. Beyond the launch systems — the future-systems roadmap
+
+Once the native libretro host exists, "add a system" mostly means "pin another core."
+Tiered by effort and demand on the host, to be taken up after the v3.0.0 milestone:
+
+- **Tier 1 — PSP (`ppsspp` core).** Mature core, light on the host (software or GL
+  render), long deferred from the browser for performance — near-free natively. Do first.
+- **Tier 2 — Dreamcast (`flycast`) + Saturn (`beetle-saturn`).** Solid libretro citizens;
+  flycast wants the GL hardware-render path the N64 work already built. Fills out the
+  disc era. Saturn note: BIOS strongly recommended (user-provided, same rule as ever).
+- **Tier 3 — GameCube / Wii (Dolphin).** Best experienced as standalone Dolphin; the
+  libretro core is poorly maintained. Likely needs the one deliberate exception to the
+  embedded-core rule: a "launch via external emulator" path (configured, not bundled),
+  with saves staying local to Dolphin. Decide then whether that trade is worth it.
+- **Tier 4 — PS2 (`LRPS2` / PCSX2).** Heaviest core, needs a real (user-provided) BIOS
+  — no HLE — and the most from the host's GL/Vulkan plumbing. Last.
+
+Same rules at every tier: cores fetched by pinned script, dlopen'd, never committed;
+BIOS never bundled; saves roam through the same backend endpoints wherever the core
+supports serialization.

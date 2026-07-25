@@ -1102,3 +1102,24 @@ The player and readers are **real routes**, not overlays, so the phone's back ge
   we render a native Pokédex and leave Bulbapedia (deep-linked) for the prose. Same
   mounted-persistent, controller-navigable panel shape as the wiki reader; sprites ride a proxy
   scoped to only the PokeAPI sprites host+path.
+
+---
+
+## Versioning
+
+Semantic-ish, judged by what a user of the app experiences:
+
+- **MAJOR (X.0.0)** — the app changes what it IS, or compatibility breaks: a new platform
+  class (the disc era was this scale; the native desktop app is the next), an engine-pin
+  bump that forces every device to re-download, anything needing a data/save migration.
+- **MINOR (x.X.0)** — a completed roadmap milestone, or any coherent set of new
+  user-visible features.
+- **PATCH (x.x.X)** — fixes, docs, polish; nothing new a user can do. These normally ride
+  the next minor — a standalone patch release only matters if something broke in the wild
+  between milestones.
+
+**When and how:** bump + tag at milestone completion, in a `chore:` commit that names the
+milestone. The bump updates all three version surfaces together so they can't drift:
+`frontend/package.json` (`version`), the README version badge, and the FastAPI
+`version=` in `backend/app/main.py`. Tag annotated (`git tag -a vX.Y.Z`), and publish a
+GitHub Release for every tag so "Latest" stays current.

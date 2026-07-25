@@ -84,8 +84,10 @@ a thumb, with an on-screen keyboard for search and touch controls in-game.
 
 ## Quick start
 
+**Prerequisites:** [Docker with Compose v2](https://docs.docker.com/get-docker/) (`docker compose`, not `docker-compose`) and **7-Zip** (`p7zip-full` on Debian/Ubuntu, `p7zip` via Homebrew) for the engine fetch. That's it — no host Node or Python; everything else runs in containers.
+
 ```bash
-git clone <your-fork-url> frog-game-station
+git clone https://github.com/BenGNelson/frog-game-station.git
 cd frog-game-station
 
 # 1. Configure
@@ -94,10 +96,10 @@ cp .env.example .env
 #      - point ROMS_DIR at your ROM folder (mounted read-only)
 #      - optionally add IGDB (Twitch) credentials for rich metadata
 
-# 2. Fetch the EmulatorJS engine (~300MB, not committed)
+# 2. Fetch the EmulatorJS engine (~300 MB download — grab a coffee)
 scripts/fetch-emulatorjs.sh
 
-# 3. Run it
+# 3. Build and run (the first build compiles the frontend — expect a few minutes)
 docker compose up -d
 ```
 
@@ -105,7 +107,7 @@ Then open <http://localhost:8585> (or whatever you set `FRONTEND_PORT` to). On a
 install with no games yet, the shelf shows a quiet first-run screen that nudges you toward
 the one or two things to set (`ROMS_DIR`, and IGDB credentials for cover art).
 
-The EmulatorJS engine is **not** committed to the repo (it's large and pinned to v4.2.3). `scripts/fetch-emulatorjs.sh` downloads it into `frontend/public/emulatorjs/` (gitignored); alternatively the player can be pointed at the public CDN.
+The EmulatorJS engine is **not** committed to the repo (it's large, separately licensed, and pinned to v4.2.3). `scripts/fetch-emulatorjs.sh` downloads it into `frontend/public/emulatorjs/` (gitignored); alternatively the player can be pointed at the public CDN.
 
 IGDB is optional. Without credentials, Frog Game Station runs fine — every game just shows the basic cover-and-title page. To enable rich metadata, register a free Twitch application and set `IGDB_CLIENT_ID` / `IGDB_CLIENT_SECRET` in `.env`.
 
@@ -116,11 +118,19 @@ All configuration lives in `.env` (copy it from `.env.example`; it is never comm
 | Variable | Default | Purpose |
 |---|---|---|
 | `FRONTEND_PORT` | `8585` | Host port the nginx frontend is published on. |
+| `API_PORT` | `8586` | Host port the backend API is published on. |
+| `DEV_PORT` | `5174` | Host port of the hot-reload dev server (`--profile dev`). |
 | `ROMS_DIR` | `./roms` | Path to your ROM folder. Mounted **read-only** into the backend. |
+| `BIOS_DIR` | *(unset)* | Optional folder of console BIOS dumps (read-only). Unset = the emulator's built-in HLE BIOS. |
+| `SCAN_CACHE_TTL` | `20` | Seconds a library scan is reused before re-walking the ROM folder (`0` disables). |
 | `IGDB_CLIENT_ID` | *(empty)* | Twitch app client ID for IGDB metadata. Empty = metadata dormant. |
 | `IGDB_CLIENT_SECRET` | *(empty)* | Twitch app client secret. Secret — never commit. |
 | `IGDB_SYNC_ENABLED` | `true` | Whether the background IGDB matcher runs (no-op without credentials). |
-| `IGDB_SYNC_INTERVAL` | `3600` | Seconds between matcher passes. |
+| `IGDB_SYNC_INTERVAL` | `86400` | Seconds between matcher passes. |
+| `WIKI_ENABLED` | `true` | The in-game wiki reader (walkthroughs / franchise wikis over the paused game). |
+| `WIKI_PROXY_ALLOW_HOSTS` | *(empty)* | Extra wiki hosts the reader may proxy, beyond the built-in list. |
+| `WIKI_CACHE_TTL` | `86400` | Seconds wiki pages are cached server-side. |
+| `POKEDEX_ENABLED` | `true` | The in-game Pokédex companion (PokeAPI-backed). |
 
 The API is mounted at `/api` (backend internal port `8000`). The named `/data` volume holds the SQLite database, WebP art caches, and per-game saves — details in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
@@ -140,7 +150,21 @@ The API is mounted at `/api` (backend internal port `8000`). The named `/data` v
 
 The frontend degrades gracefully when the backend is absent, so a lot of UI iteration can happen with just the dev server.
 
-To run Frog Game Station as its **own installable PWA** (its own home-screen icon and offline scope), serve it at its own HTTPS origin — see [`docs/DEPLOY.md`](docs/DEPLOY.md).
+## Install it as an app (PWA)
+
+Frog Game Station is an installable PWA: on your home screen it opens fullscreen (no
+browser chrome) and downloaded games play offline.
+
+1. **Serve it over HTTPS at its own hostname.** Browsers only install PWAs from a
+   secure origin — plain LAN HTTP won't offer it. The easiest paths are a
+   [Tailscale](https://tailscale.com) HTTPS route or a reverse proxy (Caddy/nginx)
+   with a certificate; the step-by-step runbook is [`docs/DEPLOY.md`](docs/DEPLOY.md).
+2. **Open that HTTPS URL on the device and install:**
+   - **iPhone / iPad (Safari):** Share button → **Add to Home Screen** → Add.
+   - **Android (Chrome):** tap the **Install** prompt, or ⋮ menu → **Add to home screen**.
+   - **Desktop (Chrome/Edge):** click the install icon at the right end of the address bar.
+3. Launch it from the icon — the app also offers a gentle one-time install nudge on
+   phones, so step 2 mostly happens by itself.
 
 ## Testing
 
@@ -176,13 +200,39 @@ frog-game-station/
 
 ## Built on
 
-- **[EmulatorJS](https://emulatorjs.org)** — the in-browser emulation engine that runs the games.
-- **[IGDB](https://www.igdb.com)** — the games database behind the rich metadata.
+- **[EmulatorJS](https://emulatorjs.org)** — the in-browser emulation engine that runs the games (GPL-3.0; its bundled libretro cores carry their own per-core licenses).
+- **[IGDB](https://www.igdb.com)** — the games database behind the rich metadata (accessed with your own API credentials).
+- **[libretro-thumbnails](https://github.com/libretro-thumbnails/libretro-thumbnails)** — the community box-art collection covers are matched from.
+- **MediaWiki-based community wikis** — the in-game wiki reader displays article content from community wikis (Bulbapedia, Fandom, and others), which is licensed by those communities under Creative Commons terms (typically CC BY-SA) and always linked back to its source.
+- **[PokeAPI](https://pokeapi.co)** — the data behind the in-game Pokédex companion.
 
 Console art is drawn in-app; no official hardware logos or wordmarks are used.
 
+## ROMs, BIOS & legality
+
+- **No games are included, linked, or downloaded by this project.** Frog Game Station
+  is a front-end for a ROM folder *you* provide. Only play backups of games you
+  legally own, and check the law where you live — downloading games you don't own is
+  copyright infringement in most places.
+- **No console BIOS files are included or fetched.** Systems that can use one (e.g.
+  PlayStation) run on the emulator's built-in high-level BIOS by default; if you drop
+  in a real BIOS dump, it must come from your own console.
+- **No emulators are distributed by this repository.** The EmulatorJS engine (and the
+  emulator cores inside it) is fetched separately from its own project at install
+  time, pinned by version, and never committed here.
+- **Trademarks:** Frog Game Station is not affiliated with, endorsed by, or sponsored
+  by Nintendo, Sega, Sony, or any other console manufacturer or game publisher.
+  Console and game names appear only to describe compatibility; all trademarks are
+  the property of their respective owners.
+
 ## License
 
-MIT.
+The code in this repository is **MIT** ([LICENSE](LICENSE)).
+
+That covers this project's own code only. The separately-downloaded EmulatorJS engine
+is **GPL-3.0**, and the libretro emulator cores it bundles each carry their own
+licenses (several are non-commercial). They are not part of this repository, are
+never linked into the app (the engine runs in an isolated frame), and their licenses
+are not changed by this project's MIT license.
 
 <sub><em>AI-assisted build.</em></sub>
