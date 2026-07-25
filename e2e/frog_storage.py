@@ -71,7 +71,12 @@ with sync_playwright() as p:
     page.wait_for_selector('[data-testid="frog-settings"]', timeout=5000)
     check(page.locator('[data-testid="frog-storage"]').count() == 0, "Escape returns to settings")
 
-    # And in by keyboard: the storage row is the last settings row; Enter opens it.
+    # And in by keyboard. Settings keeps the cursor where it was (the storage row,
+    # after the mouse opened it), so clamp to the top first, then walk down to the
+    # storage row — it sits before Pond stats, so a blind walk-to-the-end would
+    # overshoot.
+    for _ in range(6):  # clamp the cursor at the first row (igdb)
+        page.keyboard.press("ArrowUp")
     for _ in range(4):  # igdb -> inputMode -> sound -> touch -> storage
         page.keyboard.press("ArrowDown")
     page.keyboard.press("Enter")
