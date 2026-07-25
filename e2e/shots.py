@@ -47,8 +47,8 @@ os.makedirs(OUT, exist_ok=True)
 RECENTS = [
     "Super Boss Gaiden (Japan, World).sfc",
     "Tobu Tobu Girl (World).gb",
-    "Cave Story MD (World).md",
-    "Anguna - Warrior of Neth (World).gba",
+    "Petris (World).gbc",
+    "Deadeus (World).gb",
     "Goodboy Galaxy (World) (Demo).gba",
 ]
 SEED = (
