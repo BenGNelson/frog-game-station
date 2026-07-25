@@ -29,6 +29,11 @@ esac
 for core in gambatte mupen64plus_next; do
   echo "fetching ${core} (${TARGET})..."
   curl -fsSLO "${BASE}/${core}_libretro.${EXT}.zip"
-  unzip -o -q "${core}_libretro.${EXT}.zip" && rm "${core}_libretro.${EXT}.zip"
+  if command -v unzip >/dev/null; then
+    unzip -o -q "${core}_libretro.${EXT}.zip"
+  else
+    tar -xf "${core}_libretro.${EXT}.zip" # bsdtar (mac/windows) reads zip
+  fi
+  rm "${core}_libretro.${EXT}.zip"
 done
 ls -la
