@@ -76,6 +76,9 @@ static PAD_AY: AtomicI16 = AtomicI16::new(0);
 // fallback (mupen64plus_next frees one of its own statics and aborts) — a frontend
 // MUST answer the options it was given.
 static OPTIONS: Mutex<Vec<(String, usize)>> = Mutex::new(Vec::new()); // key -> leaked c-str ptr
+// SPIKE_OPT="key=value;key=value" overrides a core option's default (value must be
+// one of the option's listed values — the registration log prints them all).
+static OVERRIDES: Mutex<Vec<(String, String)>> = Mutex::new(Vec::new());
 
 // HW-render handshake.
 struct HwInfo {
@@ -137,6 +140,7 @@ unsafe extern "C" fn environment(cmd: c_uint, data: *mut c_void) -> bool {
         ENV_SET_VARIABLES => {
             let mut vars = data as *const RetroVariable;
             let mut opts = OPTIONS.lock().unwrap();
+            let overrides = OVERRIDES.lock().unwrap();
             while !(*vars).key.is_null() {
                 let key = CStr::from_ptr((*vars).key).to_string_lossy().into_owned();
                 let desc = CStr::from_ptr((*vars).value).to_string_lossy();
@@ -146,11 +150,17 @@ unsafe extern "C" fn environment(cmd: c_uint, data: *mut c_void) -> bool {
                     .map(|(_, opts)| opts.split('|').next().unwrap_or(""))
                     .unwrap_or("")
                     .to_string();
-                let leaked = CString::new(default).unwrap().into_raw() as usize;
+                let chosen = overrides
+                    .iter()
+                    .find(|(k, _)| *k == key)
+                    .map(|(_, v)| v.clone())
+                    .unwrap_or(default);
+                eprintln!("  [opt] {key} = {chosen}   ({desc})");
+                let leaked = CString::new(chosen).unwrap().into_raw() as usize;
                 opts.push((key, leaked));
                 vars = vars.add(1);
             }
-            eprintln!("  [opts] core registered {} options (defaults kept)", opts.len());
+            eprintln!("  [opts] core registered {} options", opts.len());
             true
         }
         ENV_GET_VARIABLE => {
@@ -452,6 +462,10 @@ impl App {
 
     fn start_audio(&mut self) {
         use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+        if std::env::var("SPIKE_MUTE").is_ok() {
+            println!("  audio: muted (SPIKE_MUTE)");
+            return;
+        }
         let core_rate = self.av.as_ref().map(|a| a.timing.sample_rate).unwrap_or(44100.0);
         let host = cpal::default_host();
         let Some(device) = host.default_output_device() else {
@@ -464,41 +478,37 @@ impl App {
         };
         let device_rate = config.sample_rate().0 as f64;
         let channels = config.channels() as usize;
-        let ratio = core_rate / device_rate;
-        let mut src_pos: f64 = 0.0;
+        let ratio = core_rate / device_rate; // source frames consumed per output frame
+        let mut src_pos: f64 = 0.0; // fractional index into the ring's first frame
         let stream = device
             .build_output_stream(
                 &config.into(),
                 move |out: &mut [f32], _| {
                     let mut ring = AUDIO.lock().unwrap();
                     for frame in out.chunks_mut(channels) {
-                        src_pos += ratio;
-                        while src_pos >= 1.0 && ring.len() > 2 {
-                            // advance one source frame per whole step
-                            if src_pos >= 2.0 {
-                                ring.pop_front();
-                                ring.pop_front();
-                                src_pos -= 1.0;
-                                continue;
-                            }
-                            break;
+                        // consume whole source frames the position has passed
+                        while src_pos >= 1.0 && ring.len() >= 2 {
+                            ring.pop_front();
+                            ring.pop_front();
+                            src_pos -= 1.0;
                         }
-                        let (l, r) = if ring.len() >= 2 {
-                            let l = ring[0] as f32 / 32768.0;
-                            let r = ring[1] as f32 / 32768.0;
-                            if src_pos >= 1.0 {
-                                ring.pop_front();
-                                ring.pop_front();
-                                src_pos -= 1.0;
-                            }
-                            (l, r)
+                        // linear interpolation between the ring's first two frames;
+                        // underrun -> silence (never repeat stale samples as noise)
+                        let (l, r) = if ring.len() >= 4 {
+                            let f = src_pos as f32;
+                            let l0 = ring[0] as f32;
+                            let r0 = ring[1] as f32;
+                            let l1 = ring[2] as f32;
+                            let r1 = ring[3] as f32;
+                            (((l0 + (l1 - l0) * f) / 32768.0), ((r0 + (r1 - r0) * f) / 32768.0))
                         } else {
                             (0.0, 0.0)
                         };
                         frame[0] = l;
-                        if channels > 1 {
-                            frame[1] = r;
+                        for c in frame.iter_mut().skip(1) {
+                            *c = r;
                         }
+                        src_pos += ratio;
                     }
                 },
                 |e| eprintln!("  audio error: {e}"),
@@ -818,6 +828,12 @@ impl ApplicationHandler for App {
                     eprintln!("  [trace] present #{} done", self.frames_run);
                 }
 
+                if self.frames_run % 300 == 0 {
+                    let lum = self.mean_luminance();
+                    let hw = HW_ACTIVE.load(Ordering::Relaxed);
+                    eprintln!("  [probe] frame {} luminance {:.1} hw_path {}", self.frames_run, lum, hw);
+                }
+
                 if let Some(limit) = self.autoexit {
                     if self.frames_run >= limit {
                         let wall = self.started.elapsed().as_secs_f64();
@@ -861,6 +877,17 @@ fn main() {
         std::process::exit(2);
     }
     std::fs::create_dir_all("spike_data").ok();
+
+    // Overrides must exist before the core registers its options (retro_init).
+    if let Ok(raw) = std::env::var("SPIKE_OPT") {
+        let mut ov = OVERRIDES.lock().unwrap();
+        for pair in raw.split(';') {
+            if let Some((k, v)) = pair.split_once('=') {
+                ov.push((k.trim().to_string(), v.trim().to_string()));
+            }
+        }
+        eprintln!("  [opts] {} override(s) from SPIKE_OPT", ov.len());
+    }
 
     let core = Core::load(&args[1]).expect("dlopen + symbol resolution failed");
     unsafe {
