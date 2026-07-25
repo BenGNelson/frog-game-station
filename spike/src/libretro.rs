@@ -12,11 +12,78 @@ pub const ENV_GET_CAN_DUPE: c_uint = 3;
 pub const ENV_GET_SYSTEM_DIRECTORY: c_uint = 9;
 pub const ENV_SET_PIXEL_FORMAT: c_uint = 10;
 pub const ENV_GET_VARIABLE: c_uint = 15;
+pub const ENV_SET_VARIABLES: c_uint = 16;
 pub const ENV_GET_VARIABLE_UPDATE: c_uint = 17;
 pub const ENV_GET_LOG_INTERFACE: c_uint = 27;
 pub const ENV_GET_SAVE_DIRECTORY: c_uint = 31;
 pub const ENV_SET_HW_RENDER: c_uint = 14;
+pub const ENV_GET_PREFERRED_HW_RENDER: c_uint = 56;
 pub const ENV_EXPERIMENTAL: c_uint = 0x10000;
+
+// retro_hw_context_type
+pub const HW_CONTEXT_OPENGL: c_uint = 1;
+pub const HW_CONTEXT_OPENGL_CORE: c_uint = 3;
+
+// RETRO_DEVICE_*
+pub const DEVICE_JOYPAD: c_uint = 1;
+pub const DEVICE_ANALOG: c_uint = 5;
+
+// RETRO_DEVICE_ID_JOYPAD_*
+pub const JOYPAD_B: c_uint = 0;
+pub const JOYPAD_Y: c_uint = 1;
+pub const JOYPAD_SELECT: c_uint = 2;
+pub const JOYPAD_START: c_uint = 3;
+pub const JOYPAD_UP: c_uint = 4;
+pub const JOYPAD_DOWN: c_uint = 5;
+pub const JOYPAD_LEFT: c_uint = 6;
+pub const JOYPAD_RIGHT: c_uint = 7;
+pub const JOYPAD_A: c_uint = 8;
+pub const JOYPAD_X: c_uint = 9;
+pub const JOYPAD_L: c_uint = 10;
+pub const JOYPAD_R: c_uint = 11;
+pub const JOYPAD_L2: c_uint = 12;
+pub const JOYPAD_R2: c_uint = 13;
+
+// RETRO_DEVICE_INDEX_ANALOG_* / RETRO_DEVICE_ID_ANALOG_*
+pub const ANALOG_LEFT: c_uint = 0;
+pub const ANALOG_X: c_uint = 0;
+pub const ANALOG_Y: c_uint = 1;
+
+/// retro_variable — the legacy core-options handshake: SET_VARIABLES hands the
+/// frontend an array of {key, "Description; default|opt|..."}; GET_VARIABLE asks
+/// for the current value of one key (pointer must stay valid frontend-side).
+#[repr(C)]
+pub struct RetroVariable {
+    pub key: *const c_char,
+    pub value: *const c_char,
+}
+
+/// Signals a hardware-rendered frame in the video_refresh callback.
+pub const HW_FRAME_BUFFER_VALID: *const c_void = usize::MAX as *const c_void;
+
+pub type HwContextResetFn = unsafe extern "C" fn();
+pub type HwGetCurrentFramebufferFn = unsafe extern "C" fn() -> usize;
+pub type HwGetProcAddressFn = unsafe extern "C" fn(sym: *const c_char) -> *const c_void;
+
+/// retro_hw_render_callback — the contract for cores that render with the host's GL
+/// context (mupen64plus_next et al). The core fills most fields in SET_HW_RENDER;
+/// the host fills `get_current_framebuffer` + `get_proc_address` and calls
+/// `context_reset` once the context exists.
+#[repr(C)]
+pub struct HwRenderCallback {
+    pub context_type: c_uint,
+    pub context_reset: Option<HwContextResetFn>,
+    pub get_current_framebuffer: Option<HwGetCurrentFramebufferFn>,
+    pub get_proc_address: Option<HwGetProcAddressFn>,
+    pub depth: bool,
+    pub stencil: bool,
+    pub bottom_left_origin: bool,
+    pub version_major: c_uint,
+    pub version_minor: c_uint,
+    pub cache_context: bool,
+    pub context_destroy: Option<HwContextResetFn>,
+    pub debug_context: bool,
+}
 
 // retro_pixel_format
 pub const PIXFMT_0RGB1555: c_uint = 0;
