@@ -229,6 +229,21 @@ native-only ones; the same `vite build` still produces the web PWA for the serve
   a silent fallback when no device exists; input is gilrs + keyboard. CI:
   `.github/workflows/native-spike.yml` (manual) builds macOS-arm64/Windows/Linux
   artifacts and smoke-tests Linux headless+xvfb per run.
+- **REAL-HARDWARE VERDICT (Apple Silicon M4, 2026-07-25): GO.** All spike criteria
+  met on the machine that matters: N64 (Mario Kart 64) plays at speed with clean
+  audio, save states round-trip, controller/keyboard input works, and GB/GBC/GBA all
+  run via gambatte/mgba. Two platform findings shape the production host:
+  (1) **GLideN64 renders nothing on Apple's (deprecated) OpenGL** — measured at the
+  source (the core's FBO reads luminance 0.0), not a present bug, matching the same
+  core family's WASM failure in desktop Safari. **The Mac N64 path is therefore
+  angrylion+cxd4 (software RDP) today** — full speed on the M4 and even on the
+  server's CPU — with **paraLLEl-RDP via Vulkan/MoltenVK as the post-1.0 quality
+  upgrade** (requires hosting a Vulkan HW-render context; do not fight Apple GL).
+  (2) **Audio contract:** answer `GET_AUDIO_VIDEO_ENABLE` (env 47, = video|audio) —
+  declining it mutes mupen entirely — and feed the device through a jitter buffer
+  (hold + ~40 ms refill on underrun); with those, all systems sound clean.
+  Remaining §8.2 item (webview-over-native-surface compositing) deliberately folds
+  into the Phase-1 Tauri shell work, which needs Tauri on the Mac anyway.
 - core supply: the buildbot's nightly channel serves ROLLING builds (`latest/`), so
   URL-pinning does not pin — the productionized `fetch-native-cores.sh` must archive
   known-good core builds (mirror the exact .so/.dylib/.dll somewhere we control, or

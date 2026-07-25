@@ -289,14 +289,16 @@ check a row when its exit criteria hold, and note carry-over under the row.
       own pinned cores** (never bring-your-own-emulator; per-system core-path
       override backlogged as a power-user someday; Dolphin/Tier-3 stays the one
       external exception). Verdicts recorded in `NATIVE_APP_PLAN.md` §5a/§3.2.
-- [ ] **4. Native spike part 2 — window/audio/input + Mac validation.** Code + CI
-      DONE: the windowed host runs the full `SET_HW_RENDER` contract and N64 renders
-      at 56.8/60 fps even on llvmpipe; the `native-spike.yml` matrix builds
-      macOS-arm64/Windows/Linux artifacts (Linux smoke green). **Remaining to close
-      the row: the M4 artifact run** (RUN.md checklist: gameplay speed, audio,
-      controller, F5/F7 states, 5-minute soak) and the §8.2 compositing verdict —
-      the webview-overlay test needs Tauri on the Mac, so it may fold into the
-      session-5 shell work. Then GO/NO-GO in `NATIVE_APP_PLAN.md`.
+- [x] **4. Native spike part 2 — window/audio/input + Mac validation: GO.** The
+      windowed host runs the full `SET_HW_RENDER` contract (N64 at 56.8/60 fps even
+      on llvmpipe); `native-spike.yml` builds macOS-arm64/Windows/Linux artifacts;
+      and the M4 runs validated the lot: N64 at speed with clean audio via
+      **angrylion+cxd4** (GLideN64 provably renders nothing on Apple's deprecated
+      GL — paraLLEl-RDP via MoltenVK is the post-1.0 quality path), GB/GBC/GBA all
+      good. Audio contract lessons (env 47, jitter buffer) recorded in
+      `NATIVE_APP_PLAN.md` §5a. Dev loop for real machines: `spike/dev.sh`
+      (fetch CI artifact or local build → gitignored dist → run presets). The §8.2
+      compositing verdict deliberately moves into row 5 (needs Tauri on a Mac).
 - [ ] **5. Phase 1 — Tauri shell, Mode 1 (v0.7.0).** `frontend/src-tauri/`,
       `lib/playerBackend.js` (`isNative()`), `VITE_TARGET=desktop` build flag, backend
       CORS for the Tauri origins, `tauri-linux` CI job. Exit: full Frog UI in a native
