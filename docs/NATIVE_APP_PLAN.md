@@ -102,6 +102,18 @@ the RetroArch licensing model — so the app itself isn't forced GPL). Start wit
 three browsers-can't-do cores (N64/DS/PS1) since that's the whole point; add the
 cartridge cores so the desktop app is a complete client, not a disc-only tool.
 
+**Direction (settled 2026-07-25): the app manages its own cores — users never attach
+an emulator.** App-managed pinned cores are simultaneously the easiest setup for
+someone else (install → play, zero emulator hunting) and the only design that keeps
+saves/controls/roaming inside Frog Game Station — "bring your own emulator" would be
+worse on both axes. Two consequences, not blockers: (1) a per-system **custom core
+path** override is a cheap future power-user setting (a dylib path swap — backlog it,
+don't build it); (2) GameCube/Wii (roadmap Tier 3) stays the one deliberate
+external-emulator exception, because Dolphin is best standalone. Whether installers
+BUNDLE the cores or the app fetches them on first run (smaller installer, and the
+project never redistributes GPL binaries — the same posture as the web engine) is a
+Phase-4 packaging decision; lean first-run fetch.
+
 ### 3.3 Where the backend runs (the distributability question)
 The desktop app needs a backend. Two modes, shipped in order:
 
@@ -188,12 +200,24 @@ native-only ones; the same `vite build` still produces the web PWA for the serve
 
 ## 5a. Implementation specifics (so Phase 0 can start cold)
 
-**Rust crates to reach for (spike, confirm, pin):**
-- libretro host: **`rust-libretro`** (leading candidate — a Rust libretro frontend
-  framework) or `libretro-rs`; if both are too raw, bind the C libretro API directly
-  with `libloading` (dlopen) — the API is small (~20 functions: `retro_init`,
-  `retro_load_game`, `retro_run`, `retro_serialize`/`unserialize` for save states,
-  the audio/video/input callbacks).
+**Rust crates — SETTLED by the part-1 spike (see `spike/` on `spike/native-core`):**
+- libretro host: **hand-written minimal FFI over `libloading`** (dlopen). The wrapper
+  crates were evaluated and rejected: `rust-libretro` (2023) and `libretro-rs` (2021)
+  are core-AUTHORING abstractions, and `libretro-sys` is raw bindings frozen in 2018 —
+  the ABI is stable and the slice a frontend needs (~18 symbols, a handful of env
+  commands) is smaller than any wrapper. Spike findings, measured on the server:
+  gambatte dlopens, boots a real ROM, renders (mean-luminance check), runs ~120×
+  real time headless, and serialize→diverge→unserialize→replay reproduces a
+  bit-identical frame (deterministic with constant input — the exact property the
+  rewind ring and roaming saves lean on). `mupen64plus_next` requests
+  `SET_HW_RENDER` (env cmd 14) and cleanly refuses to load when declined — the GL
+  context is confirmed as THE part-2 work item. Note the Linux buildbot build
+  self-identifies as "Mupen64Plus-Next 2.8-Vulkan": expect the HW-render negotiation
+  to prefer Vulkan on Linux and OpenGL on macOS.
+- core supply: the buildbot's nightly channel serves ROLLING builds (`latest/`), so
+  URL-pinning does not pin — the productionized `fetch-native-cores.sh` must archive
+  known-good core builds (mirror the exact .so/.dylib/.dll somewhere we control, or
+  vendor a lockfile of buildbot date-stamped URLs + checksums).
 - gamepad input: **`gilrs`** (cross-platform, hot-plug).
 - windowing/GL if not using Tauri's window directly: `wgpu` or `glow`; but prefer
   compositing into Tauri's own window (see below).
