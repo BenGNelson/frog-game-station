@@ -196,7 +196,24 @@ shape:
 
 ### Known issues (backlogged)
 
-- [ ] **[P2] Large ROMs (disc images + big DS carts) can't load on iOS Safari.**
+- [ ] **[P1] Disc-era (N64/DS/PS1) playback is browser-broken — TWO distinct problems.**
+      Full investigation + compatibility matrix + hypotheses in memory
+      `frog-disc-era-browser-compat.md` (start there). In brief:
+      - **Desktop Mac browsers (M4, RAM to spare) black-screen the big cores at the
+        engine start screen** — Safari AND Firefox, ALL PS1 and DS ROMs, and N64 too.
+        NOT a memory problem (it's a core/WebGL/WASM compat failure); works headless
+        (software GL). Load-bearing clue: **N64 works on iOS Safari but not Mac Safari**
+        — the engine serves parallel_n64 to mobile and mupen64plus_next to desktop, so
+        hypothesis #1 is "mupen64plus_next fails on desktop macOS WebGL; force
+        parallel_n64 everywhere and re-test." Need the browser console error (Firefox
+        Cmd+Opt+K) to confirm. **Strategic call: stop fighting per-browser WASM limits
+        — the native desktop app (below) is the real home for these systems.**
+      - **iOS memory ceiling** for ROMs ≥~300 MB (all PS1, big DS carts): the tab dies
+        loading the ROM into the WASM heap. **Shipped mitigations (426f259):** a 75 s
+        load watchdog (honest failure instead of infinite hang) + a game-page large-ROM
+        heads-up on touch devices (`LARGE_ROM_BYTES` = 300 MB). Not solvable in-browser.
+
+- [ ] **[P2] (superseded framing) Large ROMs can't load on iOS Safari.**
       Confirmed on the iPad: a 459 MB PS1 `.chd` and a 512 MB DS `.nds` both die —
       the tab hits WebKit's per-tab memory ceiling loading the ROM into the WASM heap
       (the transient double-copy during load ~doubles it). Both boot fine on desktop
@@ -236,6 +253,22 @@ shape:
         the wild between milestones.
       - **When:** bump + tag at milestone completion (the current practice), in a
         `chore:` commit that names the milestone.
+
+### v3.0 — "The native app" (Ben's idea, endorsed — the real fix for disc-era)
+
+- [ ] **[P2] Native Mac/Windows launcher running NATIVE emulator cores.** The browser
+      is the ceiling, not the hardware (an M4 emulates PS2 natively at full speed; the
+      WASM cores black-screen). Build a **Tauri** app whose frontend is the EXISTING
+      Frog React UI (hosted unchanged) and whose "Play" hands the ROM to a **native**
+      core (libretro/RetroArch built native, or standalone DuckStation/melonDS/mupen) —
+      full CPU/GPU, no browser memory/WebGL/WASM limits. Reuses the FastAPI backend and
+      the save-state/SRAM roaming already built (native saves on the Mac sync to the iOS
+      PWA and back — one backend, two clients). **Do NOT just Electron/Tauri-wrap the web
+      app as-is** — Tauri-on-Mac is WebKit (= the failing Safari), Electron is Chromium
+      (= no gain over Chrome); the win is native cores, not an app shell. Additive, not a
+      rewrite; a multi-session milestone. Platform split becomes: browser/PWA = cartridge
+      systems + iOS (backup); native app = 3D/disc systems + desktop power. Full detail:
+      memory `frog-disc-era-browser-compat.md`.
 
 ### Rework (fold into whichever milestone touches them first)
 
