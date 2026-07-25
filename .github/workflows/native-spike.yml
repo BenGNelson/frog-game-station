@@ -1,0 +1,85 @@
+# Builds the native-core spike for real machines and smoke-tests it on Linux.
+# Manual only (workflow_dispatch) — run it against the spike branch and download
+# the platform artifact to test on actual hardware (see spike/RUN.md).
+name: Native spike
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            target: mac-arm64
+            artifact: native-spike-macos
+          - os: windows-latest
+            target: windows
+            artifact: native-spike-windows
+          - os: ubuntu-latest
+            target: linux
+            artifact: native-spike-linux
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Linux build dependencies
+        if: matrix.target == 'linux'
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev
+
+      - name: Build
+        run: cargo build --release --manifest-path spike/Cargo.toml
+
+      - name: Fetch cores
+        shell: bash
+        run: bash spike/fetch-core.sh ${{ matrix.target }}
+
+      - name: Stage artifact
+        shell: bash
+        run: |
+          mkdir -p native-spike/cores
+          cp spike/cores/* native-spike/cores/
+          cp spike/RUN.md native-spike/
+          if [ "${{ matrix.target }}" = "windows" ]; then
+            cp spike/target/release/windowed.exe spike/target/release/frog-native-spike.exe native-spike/
+          else
+            cp spike/target/release/windowed spike/target/release/frog-native-spike native-spike/
+          fi
+          tar czf ${{ matrix.artifact }}.tar.gz native-spike
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}.tar.gz
+          retention-days: 14
+
+  linux-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Dependencies
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev xvfb libxkbcommon-x11-0
+
+      - name: Build
+        run: cargo build --release --manifest-path spike/Cargo.toml
+
+      - name: Fetch core + a freely-distributed homebrew ROM
+        run: |
+          bash spike/fetch-core.sh linux
+          mkdir -p spike/roms
+          curl -fsSL -o spike/roms/ucity.gbc "https://github.com/AntonioND/ucity/releases/download/v1.3/ucity.gbc"
+
+      - name: Headless lifecycle + determinism check
+        working-directory: spike
+        run: ./target/release/frog-native-spike cores/gambatte_libretro.so roms/ucity.gbc 600 180
+
+      - name: Windowed render + pacing check (xvfb)
+        working-directory: spike
+        run: SPIKE_AUTOEXIT=600 xvfb-run -a -s "-screen 0 1280x800x24" ./target/release/windowed cores/gambatte_libretro.so roms/ucity.gbc
