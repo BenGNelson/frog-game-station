@@ -25,6 +25,14 @@ installable product with a self-hosted server, two installable PWAs, and a signe
 native desktop app, all sharing a design system, a metadata pipeline, and live save
 sync. That's a systems-design story worth telling even if nobody clicks download.
 
+## 1a. For the next session — start here
+
+Read this whole file, then the repo's working-context file (the gitignored one at the
+repo root) + `docs/ARCHITECTURE.md`. Then do **Phase 0** (§5) — a throwaway spike
+proving native cores work before committing.
+Recommendations are firm below; the numbered "open decisions" (§8) are for confirming,
+not re-opening. The reuse map (§2) is the whole argument: only the player forks.
+
 ## 2. The core insight: the emulation backend is the ONLY seam
 
 Almost nothing forks. The reusability map:
@@ -177,6 +185,53 @@ native-only ones; the same `vite build` still produces the web PWA for the serve
   local backend (FastAPI sidecar), auto-update, code signing/notarization, GitHub
   Actions building `.dmg`/`.msi` on tag, a Release with installers, and
   `DESKTOP_SETUP.md`. This is the "act like people will download it" polish.
+
+## 5a. Implementation specifics (so Phase 0 can start cold)
+
+**Rust crates to reach for (spike, confirm, pin):**
+- libretro host: **`rust-libretro`** (leading candidate — a Rust libretro frontend
+  framework) or `libretro-rs`; if both are too raw, bind the C libretro API directly
+  with `libloading` (dlopen) — the API is small (~20 functions: `retro_init`,
+  `retro_load_game`, `retro_run`, `retro_serialize`/`unserialize` for save states,
+  the audio/video/input callbacks).
+- gamepad input: **`gilrs`** (cross-platform, hot-plug).
+- windowing/GL if not using Tauri's window directly: `wgpu` or `glow`; but prefer
+  compositing into Tauri's own window (see below).
+- audio: `cpal`, fed from the core's audio callback.
+- the FastAPI sidecar (Mode 2): Tauri's sidecar mechanism + a PyInstaller one-file build
+  of `backend/`.
+
+**Video compositing — THE Phase-0 decision (§8.2):** the native core produces frames;
+the Tauri UI is a webview. Two ways to show frames:
+- **(a) Native child window / GL surface** the webview sits beside or over (webview =
+  transparent chrome, native surface = the game). Cleanest performance; the pause menu
+  etc. render in the transparent webview on top. Most likely the right answer.
+- **(b) Render-to-texture → hand frames to the webview** (e.g. as a stream to a
+  `<canvas>`). Simpler compositing, worse latency/throughput. Only if (a) fights the OS.
+Decide by trying (a) first in the spike.
+
+**Save-state / SRAM native integration (Phase 2) — reuse the roaming exactly:**
+- The core exposes `retro_serialize`/`retro_unserialize` (states) and its SRAM buffer.
+- On save: the Rust side hands bytes to the frontend (Tauri event) OR POSTs directly to
+  the SAME endpoints the web player uses — `POST /api/library/games/save-states` and
+  `POST /api/library/games/sram` (with the `base` lineage param — see the SRAM
+  stale-write guard in ARCHITECTURE). Roaming with the phone then works with zero new
+  backend.
+- On launch: `GET /api/library/games/sram?id=` seeds the core, exactly like the web
+  player's `seedSave` (newest-wins by `X-Saved-At`).
+
+**Dev workflow (Tauri):** `npm create tauri-app` conventions; `cargo tauri dev` runs the
+Rust shell + the Vite dev server together; `cargo tauri build` produces installers.
+Point `VITE_API_BASE` at the running backend for dev.
+
+**Files that change / get created, by phase:**
+- Phase 1 (shell): create `frontend/src-tauri/` (Rust + `tauri.conf.json`), add
+  `frontend/src/lib/playerBackend.js` (`isNative()`), a `VITE_TARGET=desktop` build flag
+  that strips the service worker + install nudge. No player change yet.
+- Phase 2 (native player): `frontend/src/player/NativePlayer.jsx` (reuses the existing
+  pause menu / save shelf / controls components; swaps the iframe for a native surface +
+  Tauri `invoke` calls), and `src-tauri/src/emu/` (the libretro host). Keep
+  `PlayerShell.jsx`/`emulator.html` as the untouched **WebPlayer**.
 
 ## 6. Build & distribution
 
