@@ -1,0 +1,6 @@
+# Per-system ROM paths for spike/dev.sh — copy to spike/dev.local (gitignored)
+# and point each at a backup you own. Real machine paths never land in git.
+ROM_GB=/path/to/your-rom-folder/GameBoy/YourGame.gb
+ROM_GBC=/path/to/your-rom-folder/GameBoyColor/YourGame.gbc
+ROM_GBA=/path/to/your-rom-folder/GameBoyAdvance/YourGame.gba
+ROM_N64=/path/to/your-rom-folder/Nintendo64/YourGame.z64

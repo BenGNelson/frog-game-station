@@ -8,12 +8,14 @@
 #   spike/dev.sh build                # local cargo build instead (needs rustup)
 #   spike/dev.sh n64 [rom]            # run N64, default renderer (GLideN64)
 #   spike/dev.sh n64-soft [rom]       # run N64, software RDP (angrylion+cxd4)
-#   spike/dev.sh gb [rom]             # run Game Boy/Color (gambatte)
+#   spike/dev.sh gb|gbc [rom]         # run Game Boy / Color (gambatte)
+#   spike/dev.sh gba [rom]            # run Game Boy Advance (mgba)
 #   spike/dev.sh run <core> <rom>     # run anything explicitly
 #
 # The first ROM path you pass is remembered per-system in the gitignored
-# spike/dev.local, so later runs are just `spike/dev.sh n64`. SPIKE_* env vars
-# (SPIKE_MUTE, SPIKE_OPT, SPIKE_AUTOEXIT) pass straight through.
+# spike/dev.local, so later runs are just `spike/dev.sh n64` — or pre-seed every
+# system at once by copying dev.local.example to dev.local and filling in your
+# paths. SPIKE_* env vars (SPIKE_MUTE, SPIKE_OPT, SPIKE_AUTOEXIT) pass through.
 set -euo pipefail
 SELF="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
 cd "$(dirname "$0")"
@@ -57,11 +59,13 @@ case "$cmd" in
     cp "target/release/$BIN" "$DIST/"
     echo "installed local build to spike/$DIST"
     ;;
-  n64|n64-soft|gb|run)
+  n64|n64-soft|gb|gbc|gba|run)
     [ -x "$DIST/$BIN" ] || { echo "nothing installed yet — run: spike/dev.sh fetch (or build)" >&2; exit 1; }
     case "$cmd" in
       n64|n64-soft) CORE="cores/mupen64plus_next_libretro.$EXT"; KEY=ROM_N64 ;;
       gb)           CORE="cores/gambatte_libretro.$EXT"; KEY=ROM_GB ;;
+      gbc)          CORE="cores/gambatte_libretro.$EXT"; KEY=ROM_GBC ;;
+      gba)          CORE="cores/mgba_libretro.$EXT"; KEY=ROM_GBA ;;
       run)          CORE="${1:?usage: dev.sh run <core> <rom>}"; shift; KEY=ROM_LAST ;;
     esac
     ROM="${1:-$(recall $KEY)}"

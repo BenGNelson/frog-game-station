@@ -26,7 +26,7 @@ case "$TARGET" in
   *) echo "unknown target $TARGET" >&2; exit 2 ;;
 esac
 
-for core in gambatte mupen64plus_next; do
+for core in gambatte mgba mupen64plus_next; do
   echo "fetching ${core} (${TARGET})..."
   curl -fsSLO "${BASE}/${core}_libretro.${EXT}.zip"
   if command -v unzip >/dev/null; then

@@ -4,7 +4,7 @@ The artifact contains two binaries and the matching platform's libretro cores:
 
 - `windowed` — the real test: native window, GL, audio, gamepad/keyboard
 - `headless` (`frog-native-spike`) — the no-window lifecycle/determinism check
-- `cores/` — `gambatte` (Game Boy/Color) and `mupen64plus_next` (N64)
+- `cores/` — `gambatte` (Game Boy/Color), `mgba` (Game Boy Advance), and `mupen64plus_next` (N64)
 
 Bring your own ROM (a backup of a cartridge you own). Nothing here downloads games.
 
