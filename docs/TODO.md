@@ -259,12 +259,17 @@ phone/iPad backup). Full scope + architecture: `docs/NATIVE_APP_PLAN.md`.
 **This checklist is the progress tracker.** Work top to bottom, one row per sitting;
 check a row when its exit criteria hold, and note carry-over under the row.
 
-- [ ] **1. Legal scrub part 1 — fixtures + docs.** Rename the commercially-named e2e
-      fixture stubs to homebrew titles (+ the coupled e2e search queries); README
+- [x] **1. Legal scrub part 1 — fixtures + docs.** Shipped: e2e fixture stubs renamed
+      to homebrew titles (+ the coupled search queries now type `supe`/`super`); README
       overhaul (real prerequisites, PWA install section, ROM/BIOS legality note,
       trademark notice, MIT-vs-engine-license clarification, attribution); in-app
-      attribution in Settings; versioning policy promoted into `ARCHITECTURE.md`;
-      future-systems tiers added as `NATIVE_APP_PLAN.md` §9. Exit: pushed, CI green.
+      About/attribution note in Settings (+ render tests); versioning policy promoted
+      into `ARCHITECTURE.md`; future-systems tiers added as `NATIVE_APP_PLAN.md` §9.
+      Pushed, CI green. Two latent-on-main e2e bugs surfaced and fixed along the way
+      (this was the first push since v1.1.0, so CI had never seen them): the storage
+      pad-path walk overshot once Pond stats sat below storage, and the volume suite
+      could never pass in a clean-clone environment (no fetched engine) — it now skips
+      there and runs in full locally.
 - [ ] **2. Legal scrub part 2 (v1.5.0).** Regenerate the five README screenshots from
       a homebrew demo library; purge the old images from all git history
       (`git filter-repo`) and force-push main + tags; re-point/create GitHub Releases
