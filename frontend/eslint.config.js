@@ -29,6 +29,11 @@ export default [
     files: ['src/sw.js'],
     languageOptions: { globals: { ...globals.serviceworker } },
   },
+  // Build-time config runs under Node (reads process.env / node:fs), not the browser.
+  {
+    files: ['vite.config.js', 'eslint.config.js'],
+    languageOptions: { globals: { ...globals.node } },
+  },
   // Vitest test files: test globals + node.
   {
     files: ['**/*.test.{js,jsx}'],

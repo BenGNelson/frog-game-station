@@ -92,9 +92,18 @@
         if (cfg.hideSettings) window.EJS_hideSettings = cfg.hideSettings;
         if (cfg.defaultControls) window.EJS_defaultControls = cfg.defaultControls;
         if (cfg.disableLocalStorage) window.EJS_disableLocalStorage = true;
-        // A same-origin BIOS zip/dump (the backend's allowlisted endpoint). The
-        // engine downloads + mounts it before boot; absent = the core's own HLE.
-        if (bios && bios.charAt(0) === '/' && bios.charAt(1) !== '/') window.EJS_biosUrl = bios;
+        // The BIOS zip/dump (the backend's allowlisted endpoint). Accept a
+        // same-origin path, or an absolute URL on the SAME origin the ROM streams
+        // from (the desktop shell serves this page from the app bundle while the
+        // API lives on the self-hosted server, so both params are absolute there).
+        // Anything else is dropped and the core's own HLE stands in.
+        var biosOk = bios && bios.charAt(0) === '/' && bios.charAt(1) !== '/';
+        if (bios && !biosOk && rom) {
+          try {
+            biosOk = new URL(bios, location.href).origin === new URL(rom, location.href).origin;
+          } catch (e) {}
+        }
+        if (biosOk) window.EJS_biosUrl = bios;
         // The start screen. The engine keeps its own Start button — that tap has to
         // land in this document or iOS never unlocks audio — but everything about how
         // it looks comes from the app.

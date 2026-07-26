@@ -8,6 +8,12 @@ import { VitePWA } from 'vite-plugin-pwa'
 // boot screen's stamp stays in lockstep with the release rather than a hardcoded copy.
 const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'))
 
+// The desktop (Tauri) build: same app, native window, no PWA machinery. The
+// service worker is stripped by omitting the plugin entirely — registration is
+// plugin-injected, so there is no in-source call site to gate. The app reads the
+// same flag at runtime via lib/playerBackend.js `isNative()`.
+const desktop = process.env.VITE_TARGET === 'desktop'
+
 // Dev server config. In development the browser loads this Vite server, which
 // hot-reloads on save. Calls to /api are proxied to the backend container so
 // the whole app behaves as one origin (no CORS, same URLs as production).
@@ -17,13 +23,15 @@ export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
-    // Turns the production build into an installable PWA. We use the
+    // Turns the production build into an installable PWA — web builds only; the
+    // desktop (Tauri) build drops the whole plugin, and with it the service
+    // worker + registration + manifest. We use the
     // `injectManifest` strategy with our OWN service worker (src/sw.js) instead
     // of the auto-generated one, so the caching behavior is exactly what we say
     // it is — the foundation of the offline feature (precache the shell + serve
     // explicit downloads cache-first; never cache anything else implicitly). The
     // plugin injects the precache manifest at `self.__WB_MANIFEST` in our SW.
-    VitePWA({
+    ...(desktop ? [] : [VitePWA({
       strategies: 'injectManifest',
       srcDir: 'src',
       filename: 'sw.js',
@@ -59,7 +67,7 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,woff2}'],
         globIgnores: ['**/emulatorjs/**', 'emulator.html'],
       },
-    }),
+    })]),
   ],
   server: {
     host: true, // listen on 0.0.0.0 so the port is reachable from outside the container

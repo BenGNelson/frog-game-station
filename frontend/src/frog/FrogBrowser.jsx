@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { X, Search as SearchIcon, Plane, Settings as SettingsIcon, Shuffle } from 'lucide-react'
-import { useApi } from '../lib/useApi.js'
+import { useApi, API_BASE } from '../lib/useApi.js'
+import { isNative } from '../lib/playerBackend.js'
 import { useOnline } from '../lib/online.jsx'
 import { useDownloadedEntries } from '../lib/useDownloaded.js'
 import { useDownload } from '../lib/useDownload.js'
@@ -483,7 +484,11 @@ export default function FrogBrowser() {
   // no button. Empty ⇒ the action and its focus slot simply don't exist.
   const trailerVideos = online && meta?.matched ? meta.videos ?? [] : []
   // The actions row's last index: Play / Favorite / Download / Finished, + Trailer.
-  const actionsMax = trailerVideos.length ? 4 : 3
+  // Desktop builds hide Download (no service worker means a download could never be
+  // served back — see lib/playerBackend.js), so every later index shifts down one;
+  // GameScreen computes the same shift from the same build flag.
+  const dlShift = isNative() ? 1 : 0
+  const actionsMax = (trailerVideos.length ? 4 : 3) - dlShift
   // "More like this": IGDB's similar-game ids for the open game, re-hydrated against
   // the live library (same pattern as the shelf's recents/favorites) so a tile is
   // always a real, playable game with the library's own name — and games that have
@@ -620,7 +625,7 @@ export default function FrogBrowser() {
       // core's built-in HLE BIOS stands in).
       const bios =
         game.core === 'psx' && biosMap.psx
-          ? `&bios=${encodeURIComponent('/api/library/bios?system=psx')}`
+          ? `&bios=${encodeURIComponent(`${API_BASE}/library/bios?system=psx`)}`
           : ''
       const q = `id=${encodeURIComponent(game.id)}&core=${encodeURIComponent(game.core)}&name=${encodeURIComponent(
         game.name || ''
@@ -1512,8 +1517,8 @@ export default function FrogBrowser() {
           } else if (f.zone === 'actions') {
             if (f.index === 0) play(detailGame)
             else if (f.index === 1) toggleFav()
-            else if (f.index === 2) startOrRemoveDownload()
-            else if (f.index === 3) toggleFinished()
+            else if (!isNative() && f.index === 2) startOrRemoveDownload()
+            else if (f.index === 3 - dlShift) toggleFinished()
             else if (trailerVideos.length) setTrailer(0)
           } else if (f.zone === 'tags') {
             setTagPicker({ index: native ? 0 : -1 })
@@ -1878,11 +1883,12 @@ export default function FrogBrowser() {
         </>
       )}
 
-      {/* "Install me" — only on the shelf, and only on the touch path (where the legend
+      {/* "Install me" — only on the shelf, only on the touch path (where the legend
           is hidden, so there's no bar to overlap, and where installing unlocks the
-          full-screen/offline home-screen app). Renders null unless the browser actually
-          offers install and it hasn't been dismissed. */}
-      {screen === 'shelf' && native && <InstallNudge />}
+          full-screen/offline home-screen app), and never in the desktop app (it IS
+          installed). Renders null unless the browser actually offers install and it
+          hasn't been dismissed. */}
+      {screen === 'shelf' && native && !isNative() && <InstallNudge />}
 
       {/* One-shot "you finished a game" celebration — fires from the game page, but lives
           at the root so it rides above whatever's on screen and survives the page's zones. */}

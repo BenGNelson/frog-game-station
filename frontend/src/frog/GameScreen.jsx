@@ -5,6 +5,7 @@ import {
 } from 'lucide-react'
 import { rematchOptions } from './rematch.js'
 import { coverUrl, saveStateShotUrl, igdbShotUrl, LARGE_ROM_BYTES } from '../lib/library.js'
+import { isNative } from '../lib/playerBackend.js'
 import { formatPlaytime, formatToBeat } from '../lib/format.js'
 import { mediaMatches } from '../lib/useMediaQuery.js'
 import { useFocusTrap } from '../lib/useFocusTrap.js'
@@ -108,6 +109,10 @@ export default function GameScreen({
   const shots = rich ? meta.screenshot_ids ?? [] : []
   const isHack = !!meta?.is_hack
 
+  // Desktop builds drop the Download button, so Finished/Trailer sit one index
+  // earlier — must mirror FrogBrowser's dlShift or focus and dispatch disagree.
+  const dlShift = isNative() ? 1 : 0
+
   const actions = (
     <div className="flex flex-wrap items-center gap-2">
       <Button
@@ -134,35 +139,43 @@ export default function GameScreen({
         <Star className="h-5 w-5" fill={favorited ? 'currentColor' : 'none'} aria-hidden="true" />
       </ActionButton>
 
-      <ActionButton
-        focused={on('actions', 2)}
-        onFocus={() => onFocus('actions', 2)}
-        onClick={onDownload}
-        accent={FROG.jade}
-        active={download.state === 'done'}
-        busy={download.state === 'downloading'}
-        label={<DownloadLabel download={download} />}
-        testid="frog-detail-dl"
-      >
-        <DownloadIcon state={download.state} />
-      </ActionButton>
+      {/* Download — web only. The desktop build has no service worker, and the worker
+          is the only thing that can serve a download back (lib/playerBackend.js); the
+          later indices shift down one to keep the D-pad walk gapless (FrogBrowser
+          computes the same shift for dispatch). */}
+      {!isNative() && (
+        <>
+          <ActionButton
+            focused={on('actions', 2)}
+            onFocus={() => onFocus('actions', 2)}
+            onClick={onDownload}
+            accent={FROG.jade}
+            active={download.state === 'done'}
+            busy={download.state === 'downloading'}
+            label={<DownloadLabel download={download} />}
+            testid="frog-detail-dl"
+          >
+            <DownloadIcon state={download.state} />
+          </ActionButton>
 
-      {/* The download button's visual label (a %/Offline/Retry) is silent to a screen
-          reader, so mirror the async state into a polite live region. Coarse on purpose —
-          start + terminal, not every percent — so it informs without chattering. */}
-      <span className="sr-only" aria-live="polite">
-        {download.state === 'downloading'
-          ? 'Downloading…'
-          : download.state === 'done'
-            ? 'Download complete — available offline.'
-            : download.state === 'error'
-              ? 'Download failed — select Retry.'
-              : ''}
-      </span>
+          {/* The download button's visual label (a %/Offline/Retry) is silent to a screen
+              reader, so mirror the async state into a polite live region. Coarse on purpose —
+              start + terminal, not every percent — so it informs without chattering. */}
+          <span className="sr-only" aria-live="polite">
+            {download.state === 'downloading'
+              ? 'Downloading…'
+              : download.state === 'done'
+                ? 'Download complete — available offline.'
+                : download.state === 'error'
+                  ? 'Download failed — select Retry.'
+                  : ''}
+          </span>
+        </>
+      )}
 
       <ActionButton
-        focused={on('actions', 3)}
-        onFocus={() => onFocus('actions', 3)}
+        focused={on('actions', 3 - dlShift)}
+        onFocus={() => onFocus('actions', 3 - dlShift)}
         onClick={onToggleFinished}
         accent={FROG.jade}
         active={finished}
@@ -176,8 +189,8 @@ export default function GameScreen({
           an empty list offline; a button to a player that can't load is a lie). */}
       {videos.length > 0 && (
         <ActionButton
-          focused={on('actions', 4)}
-          onFocus={() => onFocus('actions', 4)}
+          focused={on('actions', 4 - dlShift)}
+          onFocus={() => onFocus('actions', 4 - dlShift)}
           onClick={onOpenTrailer}
           accent={FROG.jade}
           label="Trailer"
