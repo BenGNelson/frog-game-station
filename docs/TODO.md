@@ -304,6 +304,15 @@ check a row when its exit criteria hold, and note carry-over under the row.
 - [ ] **7. Phase 2b — DS + PS1.** melonDS (touch + dual-screen layout), PCSX-ReARMed
       (.chd; user BIOS honored, HLE otherwise). Exit: the known browser failures play
       natively.
+- [ ] **7b. Retire DS + PS1 from the web player.** Per the platform-responsibility split
+      (ARCHITECTURE Decision log; `NATIVE_APP_PLAN.md` §1): DS/PS1 black-screen in real
+      browsers, so once row 7 makes them play natively, stop offering play-in-browser
+      for `.nds`/`.chd` — library, metadata, covers, and saves stay (the desktop app
+      plays them; saves keep roaming). Sources of truth to touch:
+      `backend/app/library.py` `SECTIONS["games"]["formats"]` and the mirror
+      `LIBRETRO_CORE` map in `frontend/src/lib/library.js`; update the README "Nine
+      systems" prose and the ARCHITECTURE player section in the same change. Sequenced
+      deliberately AFTER row 7 — never remove a system before its replacement exists.
 - [ ] **8. Phase 2c — cartridge cores.** Bundle the 2D-system cores so the desktop app
       is a complete client. Exit: all nine systems play natively.
 - [ ] **9. Phase 3 — feel/parity (v0.9.0).** Fast-forward, rewind, display filter,

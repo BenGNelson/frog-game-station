@@ -20,6 +20,18 @@ All three read one library and share save progress: a game saved on the Mac show
 mid-progress on the iPhone, because they all talk to the same backend and the
 save/SRAM **roaming already exists** (built in the v0.3 work).
 
+**Platform responsibilities (the rule — see the ARCHITECTURE Decision log entry):**
+
+- **PWA owns:** the cartridge systems (GB/GBC/GBA/NES/SNES/Genesis/SMS/GG) **plus N64**,
+  which is proven to run acceptably in iOS Safari.
+- **Desktop owns:** the disc-era 3D systems authoritatively. **DS and PS1 black-screen
+  in real browsers** (WASM-core limitation, no workaround found), so they retire from
+  the web player once the native player plays them (roadmap row 7b in `docs/TODO.md`) —
+  removal only *after* the replacement exists. All heavier systems (§9 tiers) are
+  native-only from day one. The desktop app also plays everything the PWA plays.
+- **Changing the split** requires a new ARCHITECTURE Decision-log entry plus an update
+  here, together — never ad hoc.
+
 **The portfolio narrative:** a genuinely distributed personal platform — a documented,
 installable product with a self-hosted server, two installable PWAs, and a signed
 native desktop app, all sharing a design system, a metadata pipeline, and live save
@@ -313,6 +325,10 @@ Tiered by effort and demand on the host, to be taken up after the 1.0.0 mileston
   with saves staying local to Dolphin. Decide then whether that trade is worth it.
 - **Tier 4 — PS2 (`LRPS2` / PCSX2).** Heaviest core, needs a real (user-provided) BIOS
   — no HLE — and the most from the host's GL/Vulkan plumbing. Last.
+- **Out of scope — original Xbox.** No usable libretro core exists; the only credible
+  emulator (xemu) is standalone-only, which would make Xbox a *second* external-emulator
+  exception. Reconsider only if the Tier-3 Dolphin external-launch path ships and proves
+  that trade worth repeating — until then, Xbox is deliberately not on the roadmap.
 
 Same rules at every tier: cores fetched by pinned script, dlopen'd, never committed;
 BIOS never bundled; saves roam through the same backend endpoints wherever the core
