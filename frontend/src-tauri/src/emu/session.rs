@@ -1,0 +1,879 @@
+// The emulation session: one game, one thread, one GL surface.
+//
+// The thread owns everything volatile — the dlopen'd core, the GL context
+// (created and current HERE, never on main; the probe proved CGL is happy
+// off-main), the pacing accumulator, gilrs, the cpal stream — and speaks to
+// the outside world through exactly two channels: EmuCmd in (mpsc from the
+// Tauri commands), events out (app.emit). The main thread's only jobs are
+// AppKit: slide the GL NSView under the webview before the thread starts,
+// pull it out after the thread joins.
+//
+// Contracts preserved verbatim from the validated spike:
+//  - pacing: the core's own fps, accumulator (`next += period`), 250ms stall
+//    resync, vsync OFF (manual pacing), fast-forward = unpaced batch
+//  - HW render: FBO complete → HW_FBO.store → context_reset, in that order,
+//    after the GL context and during/after retro_load_game
+//  - teardown: context_destroy → unload_game → deinit, then the NSView
+//  - GET_VARIABLE answered for every registered option, from leaked CStrings
+
+use super::{audio, input, libretro::*, options};
+use glow::HasContext;
+use serde::Serialize;
+use std::ffi::{CStr, CString};
+use std::os::raw::{c_char, c_uint, c_void};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::mpsc::{Receiver, Sender};
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
+use tauri::Emitter;
+
+// ---------- state shared with the C callbacks (emu-thread only) ----------
+
+struct VideoState {
+    pixel_format: c_uint,
+    frames: u64,
+    hw_frame: bool,
+    dirty: bool,
+    width: u32,
+    height: u32,
+    last_frame: Vec<u8>,
+}
+
+static VIDEO: Mutex<VideoState> = Mutex::new(VideoState {
+    pixel_format: PIXFMT_0RGB1555,
+    frames: 0,
+    hw_frame: false,
+    dirty: false,
+    width: 0,
+    height: 0,
+    last_frame: Vec::new(),
+});
+
+struct HwInfo {
+    context_reset: HwContextResetFn,
+    context_destroy: Option<HwContextResetFn>,
+    depth: bool,
+    stencil: bool,
+    bottom_left: bool,
+}
+static HW: Mutex<Option<HwInfo>> = Mutex::new(None);
+static HW_FBO: AtomicUsize = AtomicUsize::new(0);
+static HW_ACTIVE: AtomicBool = AtomicBool::new(false);
+
+// The system/save dir handed to the core (leaked once; absolute app-data path
+// set per session before retro_init — the spike's CWD-relative "spike_data"
+// would break under an .app bundle).
+static DATA_DIR_PTR: AtomicUsize = AtomicUsize::new(0);
+
+thread_local! {
+    // get_proc_address target. Emu-thread only: GL init and every retro_run
+    // happen here, so the core can never ask from anywhere else.
+    static GL_DISPLAY: std::cell::RefCell<Option<glutin::display::Display>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+#[repr(C)]
+struct LogCallback {
+    log: unsafe extern "C" fn(),
+}
+extern "C" {
+    fn frog_spike_log(); // emu/log_shim.c — the C-variadic retro_log target
+}
+
+// ---------- libretro callbacks ----------
+
+unsafe extern "C" fn environment(cmd: c_uint, data: *mut c_void) -> bool {
+    match cmd {
+        ENV_GET_CAN_DUPE => {
+            *(data as *mut bool) = true;
+            true
+        }
+        ENV_SET_PIXEL_FORMAT => {
+            VIDEO.lock().unwrap().pixel_format = *(data as *const c_uint);
+            true
+        }
+        ENV_GET_SYSTEM_DIRECTORY | ENV_GET_SAVE_DIRECTORY => {
+            let ptr = DATA_DIR_PTR.load(Ordering::Relaxed);
+            if ptr == 0 {
+                return false;
+            }
+            *(data as *mut *const c_char) = ptr as *const c_char;
+            true
+        }
+        ENV_GET_LOG_INTERFACE => {
+            (*(data as *mut LogCallback)).log = frog_spike_log;
+            true
+        }
+        ENV_GET_AUDIO_VIDEO_ENABLE => {
+            // bit 0 = video, bit 1 = audio; declining reads as "audio off" to
+            // some cores (mupen64plus_next went fully silent).
+            *(data as *mut i32) = 3;
+            true
+        }
+        ENV_GET_PREFERRED_HW_RENDER => {
+            *(data as *mut c_uint) = HW_CONTEXT_OPENGL_CORE;
+            true
+        }
+        ENV_SET_VARIABLES => {
+            let mut vars = data as *const RetroVariable;
+            let mut opts = options::OPTIONS.lock().unwrap();
+            let overrides = options::OVERRIDES.lock().unwrap();
+            while !(*vars).key.is_null() {
+                let key = CStr::from_ptr((*vars).key).to_string_lossy().into_owned();
+                let desc = CStr::from_ptr((*vars).value).to_string_lossy();
+                let default = desc
+                    .split_once("; ")
+                    .map(|(_, o)| o.split('|').next().unwrap_or(""))
+                    .unwrap_or("")
+                    .to_string();
+                let chosen = overrides
+                    .iter()
+                    .find(|(k, _)| *k == key)
+                    .map(|(_, v)| v.clone())
+                    .unwrap_or(default);
+                let leaked = CString::new(chosen).unwrap().into_raw() as usize;
+                opts.push((key, leaked));
+                vars = vars.add(1);
+            }
+            true
+        }
+        ENV_GET_VARIABLE => {
+            let var = &mut *(data as *mut RetroVariable);
+            let key = CStr::from_ptr(var.key).to_string_lossy();
+            let opts = options::OPTIONS.lock().unwrap();
+            match opts.iter().find(|(k, _)| *k == key) {
+                Some((_, ptr)) => {
+                    var.value = *ptr as *const c_char;
+                    true
+                }
+                None => false,
+            }
+        }
+        ENV_GET_VARIABLE_UPDATE => {
+            *(data as *mut bool) = false;
+            true
+        }
+        ENV_SET_HW_RENDER => {
+            let cb = &mut *(data as *mut HwRenderCallback);
+            if cb.context_type != HW_CONTEXT_OPENGL && cb.context_type != HW_CONTEXT_OPENGL_CORE {
+                return false;
+            }
+            cb.get_current_framebuffer = Some(get_current_framebuffer);
+            cb.get_proc_address = Some(get_proc_address);
+            *HW.lock().unwrap() = Some(HwInfo {
+                context_reset: cb.context_reset.expect("core must provide context_reset"),
+                context_destroy: cb.context_destroy,
+                depth: cb.depth,
+                stencil: cb.stencil,
+                bottom_left: cb.bottom_left_origin,
+            });
+            true
+        }
+        _ => false,
+    }
+}
+
+unsafe extern "C" fn get_current_framebuffer() -> usize {
+    HW_FBO.load(Ordering::Relaxed)
+}
+
+unsafe extern "C" fn get_proc_address(sym: *const c_char) -> *const c_void {
+    GL_DISPLAY.with(|d| match d.borrow().as_ref() {
+        Some(display) => {
+            use glutin::display::GlDisplay;
+            display.get_proc_address(CStr::from_ptr(sym)) as *const c_void
+        }
+        None => std::ptr::null(),
+    })
+}
+
+unsafe extern "C" fn video_refresh(data: *const c_void, width: c_uint, height: c_uint, pitch: usize) {
+    let mut v = VIDEO.lock().unwrap();
+    v.frames += 1;
+    v.width = width;
+    v.height = height;
+    if data == HW_FRAME_BUFFER_VALID {
+        v.hw_frame = true;
+        return;
+    }
+    if data.is_null() {
+        return; // dupe — previous frame still valid
+    }
+    let bpp = if v.pixel_format == PIXFMT_XRGB8888 { 4 } else { 2 };
+    let row_bytes = width as usize * bpp;
+    v.last_frame.clear();
+    for y in 0..height as usize {
+        let row = std::slice::from_raw_parts((data as *const u8).add(y * pitch), row_bytes);
+        v.last_frame.extend_from_slice(row);
+    }
+    v.hw_frame = false;
+    v.dirty = true;
+}
+
+// ---------- the public surface ----------
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AvInfoJs {
+    pub width: u32,
+    pub height: u32,
+    pub max_width: u32,
+    pub max_height: u32,
+    pub fps: f64,
+    pub sample_rate: f64,
+    pub aspect: f32,
+}
+
+pub enum EmuCmd {
+    SetPaused(bool),
+    Reset,
+    SaveState(Sender<Result<Vec<u8>, String>>),
+    LoadState(Vec<u8>, Sender<Result<(), String>>),
+    GetSram(Sender<Result<Vec<u8>, String>>),
+    LoadSram(Vec<u8>, Sender<Result<(), String>>),
+    Screenshot(Sender<Result<Vec<u8>, String>>),
+    SetFastForward { on: bool, ratio: String },
+    Resize(u32, u32),
+    Stop,
+}
+
+pub struct SessionHandle {
+    pub tx: Sender<EmuCmd>,
+    pub join: Option<std::thread::JoinHandle<()>>,
+    pub ns_view: usize,
+}
+
+pub struct StartParams {
+    pub core_path: String,
+    pub rom_path: String,
+    pub rom_bytes: Vec<u8>,
+    pub system: String,
+    pub data_dir: String,
+    pub ns_view: usize,
+    pub width: u32,
+    pub height: u32,
+}
+
+/// Spawn the emu thread. Resolves through `boot_tx` once the core is running
+/// (or refuses); the thread then serves commands until Stop / channel close.
+pub fn spawn(
+    app: tauri::AppHandle,
+    params: StartParams,
+    boot_tx: Sender<Result<AvInfoJs, String>>,
+) -> SessionHandle {
+    let (tx, rx) = std::sync::mpsc::channel::<EmuCmd>();
+    let ns_view = params.ns_view;
+    let join = std::thread::Builder::new()
+        .name("frog-emu".into())
+        .spawn(move || run_session(app, params, rx, boot_tx))
+        .expect("spawn emu thread");
+    SessionHandle { tx, join: Some(join), ns_view }
+}
+
+// ---------- the thread body ----------
+
+struct Gl {
+    context: glutin::context::PossiblyCurrentContext,
+    surface: glutin::surface::Surface<glutin::surface::WindowSurface>,
+    gl: glow::Context,
+    sw_texture: glow::Texture,
+    sw_fbo: glow::Framebuffer,
+    hw_fbo: Option<glow::Framebuffer>,
+    win_w: u32,
+    win_h: u32,
+}
+
+fn init_gl(ns_view: usize, width: u32, height: u32) -> Result<Gl, String> {
+    use glutin::config::ConfigTemplateBuilder;
+    use glutin::context::{ContextApi, ContextAttributesBuilder, Version};
+    use glutin::display::{Display, DisplayApiPreference, GlDisplay};
+    use glutin::prelude::{GlSurface, NotCurrentGlContext};
+    use glutin::surface::{SurfaceAttributesBuilder, SwapInterval, WindowSurface};
+    use raw_window_handle::{AppKitDisplayHandle, AppKitWindowHandle, RawDisplayHandle, RawWindowHandle};
+    use std::num::NonZeroU32;
+
+    unsafe {
+        #[cfg(target_os = "macos")]
+        let (raw_display, api) = (
+            RawDisplayHandle::AppKit(AppKitDisplayHandle::new()),
+            DisplayApiPreference::Cgl,
+        );
+        #[cfg(not(target_os = "macos"))]
+        compile_error!("the native player's GL path is macOS-only until Phase 4 targets more platforms");
+
+        let display = Display::new(raw_display, api).map_err(|e| format!("gl display: {e}"))?;
+        let config = display
+            .find_configs(ConfigTemplateBuilder::new().with_depth_size(24).with_stencil_size(8).build())
+            .map_err(|e| format!("gl configs: {e}"))?
+            .next()
+            .ok_or("no GL config")?;
+        let rwh = RawWindowHandle::AppKit(AppKitWindowHandle::new(
+            std::ptr::NonNull::new(ns_view as *mut _).ok_or("null ns_view")?,
+        ));
+        let surface = display
+            .create_window_surface(
+                &config,
+                &SurfaceAttributesBuilder::<WindowSurface>::new().build(
+                    rwh,
+                    NonZeroU32::new(width.max(1)).unwrap(),
+                    NonZeroU32::new(height.max(1)).unwrap(),
+                ),
+            )
+            .map_err(|e| format!("gl surface: {e}"))?;
+        let context = display
+            .create_context(
+                &config,
+                &ContextAttributesBuilder::new()
+                    .with_context_api(ContextApi::OpenGl(Some(Version::new(3, 3))))
+                    .build(Some(rwh)),
+            )
+            .map_err(|e| format!("gl context: {e}"))?
+            .make_current(&surface)
+            .map_err(|e| format!("make_current: {e}"))?;
+        surface.set_swap_interval(&context, SwapInterval::DontWait).ok(); // manual pacing
+
+        let gl = glow::Context::from_loader_function(|s| {
+            display.get_proc_address(&CString::new(s).unwrap()) as *const _
+        });
+        eprintln!(
+            "[emu] gl {:?} on {:?}",
+            gl.get_parameter_string(glow::VERSION),
+            gl.get_parameter_string(glow::RENDERER)
+        );
+        GL_DISPLAY.with(|d| *d.borrow_mut() = Some(display));
+
+        let sw_texture = gl.create_texture().map_err(|e| e.to_string())?;
+        let sw_fbo = gl.create_framebuffer().map_err(|e| e.to_string())?;
+        Ok(Gl { context, surface, gl, sw_texture, sw_fbo, hw_fbo: None, win_w: width, win_h: height })
+    }
+}
+
+fn run_session(
+    app: tauri::AppHandle,
+    params: StartParams,
+    rx: Receiver<EmuCmd>,
+    boot_tx: Sender<Result<AvInfoJs, String>>,
+) {
+    // Fresh session: reset every static a previous game may have written.
+    *VIDEO.lock().unwrap() = VideoState {
+        pixel_format: PIXFMT_0RGB1555,
+        frames: 0,
+        hw_frame: false,
+        dirty: false,
+        width: 0,
+        height: 0,
+        last_frame: Vec::new(),
+    };
+    *HW.lock().unwrap() = None;
+    HW_FBO.store(0, Ordering::Relaxed);
+    HW_ACTIVE.store(false, Ordering::Relaxed);
+    input::set_gated(false);
+    input::PAD_BITS.store(0, Ordering::Relaxed);
+
+    // The core's system/save dir: an absolute app-data path (leaked once per
+    // process — sessions share it; the string never changes).
+    if DATA_DIR_PTR.load(Ordering::Relaxed) == 0 {
+        std::fs::create_dir_all(&params.data_dir).ok();
+        let leaked = CString::new(params.data_dir.clone()).unwrap().into_raw();
+        DATA_DIR_PTR.store(leaked as usize, Ordering::Relaxed);
+    }
+
+    let fail = |msg: String, boot_tx: &Sender<Result<AvInfoJs, String>>| {
+        let _ = boot_tx.send(Err(msg.clone()));
+        let _ = app.emit("native:error", serde_json::json!({ "message": msg }));
+    };
+
+    // GL first: SET_HW_RENDER arrives during retro_load_game and needs a
+    // context to exist.
+    let mut gl = match init_gl(params.ns_view, params.width, params.height) {
+        Ok(g) => g,
+        Err(e) => return fail(e, &boot_tx),
+    };
+
+    options::arm(&params.system);
+    let core = match Core::load(&params.core_path) {
+        Ok(c) => c,
+        Err(e) => return fail(format!("core load: {e}"), &boot_tx),
+    };
+    unsafe {
+        if (core.api_version)() != API_VERSION {
+            return fail("libretro API version mismatch".into(), &boot_tx);
+        }
+        (core.set_environment)(environment);
+        (core.set_video_refresh)(video_refresh);
+        (core.set_audio_sample)(audio::audio_sample);
+        (core.set_audio_sample_batch)(audio::audio_sample_batch);
+        (core.set_input_poll)(input::input_poll);
+        (core.set_input_state)(input::input_state);
+        (core.init)();
+    }
+
+    let path_c = CString::new(params.rom_path.as_str()).unwrap();
+    let mut info = unsafe { std::mem::zeroed::<SystemInfo>() };
+    unsafe { (core.get_system_info)(&mut info) };
+    let game = GameInfo {
+        path: path_c.as_ptr(),
+        data: if info.need_fullpath {
+            std::ptr::null()
+        } else {
+            params.rom_bytes.as_ptr() as *const c_void
+        },
+        size: params.rom_bytes.len(),
+        meta: std::ptr::null(),
+    };
+    if !unsafe { (core.load_game)(&game) } {
+        unsafe { (core.deinit)() };
+        return fail("the core refused the ROM".into(), &boot_tx);
+    }
+
+    let mut av = unsafe { std::mem::zeroed::<SystemAvInfo>() };
+    unsafe { (core.get_system_av_info)(&mut av) };
+
+    // HW path: the core's render target, then context_reset — order matters.
+    if HW.lock().unwrap().is_some() {
+        let (max_w, max_h) = (av.geometry.max_width.max(640), av.geometry.max_height.max(480));
+        unsafe {
+            let fbo = gl.gl.create_framebuffer().unwrap();
+            let color = gl.gl.create_texture().unwrap();
+            gl.gl.bind_texture(glow::TEXTURE_2D, Some(color));
+            gl.gl.tex_image_2d(
+                glow::TEXTURE_2D, 0, glow::RGBA8 as i32, max_w as i32, max_h as i32,
+                0, glow::RGBA, glow::UNSIGNED_BYTE, None,
+            );
+            gl.gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MIN_FILTER, glow::NEAREST as i32);
+            gl.gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MAG_FILTER, glow::NEAREST as i32);
+            gl.gl.bind_framebuffer(glow::FRAMEBUFFER, Some(fbo));
+            gl.gl.framebuffer_texture_2d(glow::FRAMEBUFFER, glow::COLOR_ATTACHMENT0, glow::TEXTURE_2D, Some(color), 0);
+            {
+                let hw = HW.lock().unwrap();
+                let hw = hw.as_ref().unwrap();
+                if hw.depth || hw.stencil {
+                    let rb = gl.gl.create_renderbuffer().unwrap();
+                    gl.gl.bind_renderbuffer(glow::RENDERBUFFER, Some(rb));
+                    gl.gl.renderbuffer_storage(glow::RENDERBUFFER, glow::DEPTH24_STENCIL8, max_w as i32, max_h as i32);
+                    gl.gl.framebuffer_renderbuffer(
+                        glow::FRAMEBUFFER,
+                        if hw.stencil { glow::DEPTH_STENCIL_ATTACHMENT } else { glow::DEPTH_ATTACHMENT },
+                        glow::RENDERBUFFER,
+                        Some(rb),
+                    );
+                }
+            }
+            let status = gl.gl.check_framebuffer_status(glow::FRAMEBUFFER);
+            if status != glow::FRAMEBUFFER_COMPLETE {
+                (core.unload_game)();
+                (core.deinit)();
+                return fail(format!("core FBO incomplete: 0x{status:x}"), &boot_tx);
+            }
+            gl.gl.bind_framebuffer(glow::FRAMEBUFFER, None);
+            gl.hw_fbo = Some(fbo);
+            HW_FBO.store(fbo.0.get() as usize, Ordering::Relaxed);
+            HW_ACTIVE.store(true, Ordering::Relaxed);
+        }
+        let reset = HW.lock().unwrap().as_ref().unwrap().context_reset;
+        unsafe { reset() };
+    }
+
+    let _audio_stream = audio::start(av.timing.sample_rate);
+    let mut gilrs = gilrs::Gilrs::new().ok();
+
+    let av_js = AvInfoJs {
+        width: av.geometry.base_width,
+        height: av.geometry.base_height,
+        max_width: av.geometry.max_width,
+        max_height: av.geometry.max_height,
+        fps: av.timing.fps,
+        sample_rate: av.timing.sample_rate,
+        aspect: av.geometry.aspect_ratio,
+    };
+    if boot_tx.send(Ok(av_js.clone())).is_err() {
+        // Caller gave up (timeout) — tear down rather than run a zombie.
+        teardown(&core);
+        return;
+    }
+    let _ = app.emit("native:booted", &av_js);
+    let _ = app.emit("native:state", serde_json::json!({ "state": "running" }));
+
+    // ---------- the loop ----------
+    let frame_period = |fps: f64, ratio: &str| -> Duration {
+        let base = 1.0 / fps.max(1.0);
+        match ratio.parse::<f64>() {
+            Ok(r) if r > 1.0 => Duration::from_secs_f64(base / r),
+            _ => Duration::from_secs_f64(base),
+        }
+    };
+    let mut paused = false;
+    let mut ff_on = false;
+    let mut ff_ratio = String::from("3.0");
+    let mut next_frame = Instant::now();
+    let mut frames_run: u64 = 0;
+    let mut last_stats = Instant::now();
+    let mut stats_frames: u64 = 0;
+    let mut last_sram_hash: u64 = 0;
+    let mut stopping = false;
+
+    while !stopping {
+        // Paused: block on the channel — a paused game costs zero CPU.
+        let first = if paused {
+            match rx.recv() {
+                Ok(c) => Some(c),
+                Err(_) => break,
+            }
+        } else {
+            match rx.try_recv() {
+                Ok(c) => Some(c),
+                Err(std::sync::mpsc::TryRecvError::Empty) => None,
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => break,
+            }
+        };
+        let mut pending = first;
+        while let Some(cmd) = pending.take() {
+            match cmd {
+                EmuCmd::SetPaused(p) => {
+                    paused = p;
+                    if !p {
+                        next_frame = Instant::now();
+                    }
+                    let _ = app.emit(
+                        "native:state",
+                        serde_json::json!({ "state": if p { "paused" } else { "running" } }),
+                    );
+                }
+                EmuCmd::Reset => unsafe { (core.reset)() },
+                EmuCmd::SaveState(reply) => {
+                    let out = unsafe {
+                        let size = (core.serialize_size)();
+                        let mut buf = vec![0u8; size];
+                        if size > 0 && (core.serialize)(buf.as_mut_ptr() as *mut c_void, size) {
+                            Ok(buf)
+                        } else {
+                            Err("the core returned an empty save state".into())
+                        }
+                    };
+                    let _ = reply.send(out);
+                }
+                EmuCmd::LoadState(bytes, reply) => {
+                    let ok = unsafe { (core.unserialize)(bytes.as_ptr() as *const c_void, bytes.len()) };
+                    let _ = reply.send(if ok { Ok(()) } else { Err("state load failed".into()) });
+                }
+                EmuCmd::GetSram(reply) => {
+                    let _ = reply.send(Ok(read_sram(&core)));
+                }
+                EmuCmd::LoadSram(bytes, reply) => {
+                    let out = unsafe {
+                        let size = (core.get_memory_size)(MEMORY_SAVE_RAM);
+                        let data = (core.get_memory_data)(MEMORY_SAVE_RAM);
+                        if data.is_null() || size == 0 {
+                            Err("the core exposes no SRAM".into())
+                        } else {
+                            let n = bytes.len().min(size);
+                            std::ptr::copy_nonoverlapping(bytes.as_ptr(), data as *mut u8, n);
+                            Ok(())
+                        }
+                    };
+                    last_sram_hash = fnv1a(&read_sram(&core));
+                    let _ = reply.send(out);
+                }
+                EmuCmd::Screenshot(reply) => {
+                    let _ = reply.send(screenshot(&gl));
+                }
+                EmuCmd::SetFastForward { on, ratio } => {
+                    ff_on = on;
+                    ff_ratio = ratio;
+                    next_frame = Instant::now();
+                }
+                EmuCmd::Resize(w, h) => {
+                    use glutin::prelude::GlSurface;
+                    gl.win_w = w.max(1);
+                    gl.win_h = h.max(1);
+                    gl.surface.resize(
+                        &gl.context,
+                        std::num::NonZeroU32::new(gl.win_w).unwrap(),
+                        std::num::NonZeroU32::new(gl.win_h).unwrap(),
+                    );
+                }
+                EmuCmd::Stop => {
+                    stopping = true;
+                }
+            }
+            pending = rx.try_recv().ok();
+        }
+        if stopping || paused {
+            continue;
+        }
+
+        if let Some(g) = gilrs.as_mut() {
+            input::poll(g);
+        }
+
+        // Pace to the core's fps; 'unlimited' fast-forward runs an unpaced batch.
+        if ff_on && ff_ratio == "unlimited" {
+            for _ in 0..4 {
+                unsafe { (core.run)() };
+                frames_run += 1;
+                stats_frames += 1;
+            }
+            next_frame = Instant::now();
+        } else {
+            let period = frame_period(av.timing.fps, if ff_on { &ff_ratio } else { "1" });
+            let now = Instant::now();
+            if now < next_frame {
+                std::thread::sleep(next_frame - now);
+            }
+            unsafe { (core.run)() };
+            frames_run += 1;
+            stats_frames += 1;
+            next_frame += period;
+            if Instant::now() > next_frame + Duration::from_millis(250) {
+                next_frame = Instant::now(); // resync after a stall
+            }
+        }
+
+        present(&mut gl, &av);
+
+        // SRAM watch: cheap hash every 60 frames; a change pings the webview,
+        // which pulls the bytes and runs the roaming pipeline.
+        if frames_run % 60 == 0 {
+            let h = fnv1a(&read_sram(&core));
+            if h != last_sram_hash {
+                last_sram_hash = h;
+                let _ = app.emit("native:sram-changed", serde_json::json!({}));
+            }
+        }
+        if last_stats.elapsed() >= Duration::from_secs(1) {
+            let fps = stats_frames as f64 / last_stats.elapsed().as_secs_f64();
+            last_stats = Instant::now();
+            stats_frames = 0;
+            let _ = app.emit(
+                "native:stats",
+                serde_json::json!({
+                    "fps": fps,
+                    "ring": audio::RING.lock().unwrap().len(),
+                    "underruns": audio::UNDERRUNS.load(Ordering::Relaxed),
+                    "hw": HW_ACTIVE.load(Ordering::Relaxed),
+                }),
+            );
+        }
+    }
+
+    teardown(&core);
+    let _ = app.emit("native:state", serde_json::json!({ "state": "stopped" }));
+}
+
+fn teardown(core: &Core) {
+    unsafe {
+        if let Some(hw) = HW.lock().unwrap().as_ref() {
+            if let Some(destroy) = hw.context_destroy {
+                destroy();
+            }
+        }
+        (core.unload_game)();
+        (core.deinit)();
+    }
+}
+
+fn read_sram(core: &Core) -> Vec<u8> {
+    unsafe {
+        let size = (core.get_memory_size)(MEMORY_SAVE_RAM);
+        let data = (core.get_memory_data)(MEMORY_SAVE_RAM);
+        if data.is_null() || size == 0 {
+            return Vec::new();
+        }
+        std::slice::from_raw_parts(data as *const u8, size).to_vec()
+    }
+}
+
+pub fn fnv1a(bytes: &[u8]) -> u64 {
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    for b in bytes {
+        h ^= *b as u64;
+        h = h.wrapping_mul(0x1_0000_01b3);
+    }
+    h
+}
+
+/// Aspect-fit the frame into the window — the same letterbox the web player's
+/// full-bleed layout produces, so chrome overlays sit identically on both.
+pub fn letterbox(win_w: i32, win_h: i32, fw: i32, fh: i32, aspect: f32) -> (i32, i32, i32, i32) {
+    let aspect = if aspect > 0.0 { aspect } else { fw as f32 / fh.max(1) as f32 };
+    let wa = win_w as f32 / win_h.max(1) as f32;
+    let (dw, dh) = if wa > aspect {
+        ((win_h as f32 * aspect) as i32, win_h)
+    } else {
+        (win_w, (win_w as f32 / aspect) as i32)
+    };
+    ((win_w - dw) / 2, (win_h - dh) / 2, dw, dh)
+}
+
+fn present(gl: &mut Gl, av: &SystemAvInfo) {
+    let (win_w, win_h) = (gl.win_w.max(1) as i32, gl.win_h.max(1) as i32);
+    let mut v = VIDEO.lock().unwrap();
+    let (fw, fh) = (v.width.max(1) as i32, v.height.max(1) as i32);
+
+    unsafe {
+        gl.gl.bind_framebuffer(glow::DRAW_FRAMEBUFFER, None);
+        gl.gl.viewport(0, 0, win_w, win_h);
+        gl.gl.clear_color(0.0, 0.0, 0.0, 1.0);
+        gl.gl.clear(glow::COLOR_BUFFER_BIT);
+
+        let (dx, dy, dw, dh) = letterbox(win_w, win_h, fw, fh, av.geometry.aspect_ratio);
+
+        let (read_fbo, flip) = if v.hw_frame {
+            let bottom_left = HW.lock().unwrap().as_ref().map(|h| h.bottom_left).unwrap_or(true);
+            (gl.hw_fbo, !bottom_left)
+        } else {
+            if v.dirty {
+                gl.gl.bind_texture(glow::TEXTURE_2D, Some(gl.sw_texture));
+                let (internal, format, ty): (i32, u32, u32) = match v.pixel_format {
+                    PIXFMT_XRGB8888 => (glow::RGBA8 as i32, glow::BGRA, glow::UNSIGNED_INT_8_8_8_8_REV),
+                    PIXFMT_RGB565 => (glow::RGB8 as i32, glow::RGB, glow::UNSIGNED_SHORT_5_6_5),
+                    _ => (glow::RGBA8 as i32, glow::BGRA, glow::UNSIGNED_SHORT_1_5_5_5_REV),
+                };
+                gl.gl.pixel_store_i32(glow::UNPACK_ALIGNMENT, 1);
+                gl.gl.tex_image_2d(glow::TEXTURE_2D, 0, internal, fw, fh, 0, format, ty, Some(&v.last_frame));
+                gl.gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MIN_FILTER, glow::NEAREST as i32);
+                gl.gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MAG_FILTER, glow::NEAREST as i32);
+                gl.gl.bind_framebuffer(glow::FRAMEBUFFER, Some(gl.sw_fbo));
+                gl.gl.framebuffer_texture_2d(glow::FRAMEBUFFER, glow::COLOR_ATTACHMENT0, glow::TEXTURE_2D, Some(gl.sw_texture), 0);
+                gl.gl.bind_framebuffer(glow::FRAMEBUFFER, None);
+                v.dirty = false;
+            }
+            (Some(gl.sw_fbo), true) // texture row 0 = image top → flip on blit
+        };
+
+        if let Some(fbo) = read_fbo {
+            gl.gl.bind_framebuffer(glow::READ_FRAMEBUFFER, Some(fbo));
+            let (sy0, sy1) = if flip { (fh, 0) } else { (0, fh) };
+            gl.gl.blit_framebuffer(0, sy0, fw, sy1, dx, dy, dx + dw, dy + dh, glow::COLOR_BUFFER_BIT, glow::NEAREST);
+            gl.gl.bind_framebuffer(glow::READ_FRAMEBUFFER, None);
+        }
+    }
+    drop(v);
+    use glutin::prelude::GlSurface;
+    gl.surface.swap_buffers(&gl.context).ok();
+}
+
+/// The live frame as PNG bytes — save-state thumbnails, Save Screenshot, and
+/// set-as-cover all ride this. HW path reads the core's FBO; software path
+/// decodes the packed frame. Rows are flipped as needed so the PNG is upright.
+fn screenshot(gl: &Gl) -> Result<Vec<u8>, String> {
+    let v = VIDEO.lock().unwrap();
+    let (w, h) = (v.width.max(1) as usize, v.height.max(1) as usize);
+    let mut rgba = vec![0u8; w * h * 4];
+
+    if v.hw_frame {
+        let Some(fbo) = gl.hw_fbo else { return Err("no HW frame".into()) };
+        unsafe {
+            gl.gl.bind_framebuffer(glow::READ_FRAMEBUFFER, Some(fbo));
+            gl.gl.read_pixels(
+                0, 0, w as i32, h as i32, glow::RGBA, glow::UNSIGNED_BYTE,
+                glow::PixelPackData::Slice(&mut rgba),
+            );
+            gl.gl.bind_framebuffer(glow::READ_FRAMEBUFFER, None);
+        }
+        let bottom_left = HW.lock().unwrap().as_ref().map(|i| i.bottom_left).unwrap_or(true);
+        if bottom_left {
+            flip_rows(&mut rgba, w, h);
+        }
+    } else {
+        if v.last_frame.is_empty() {
+            return Err("no frame yet".into());
+        }
+        match v.pixel_format {
+            PIXFMT_XRGB8888 => {
+                for (i, px) in v.last_frame.chunks_exact(4).take(w * h).enumerate() {
+                    // XRGB little-endian in memory: B G R X
+                    rgba[i * 4] = px[2];
+                    rgba[i * 4 + 1] = px[1];
+                    rgba[i * 4 + 2] = px[0];
+                    rgba[i * 4 + 3] = 255;
+                }
+            }
+            PIXFMT_RGB565 => {
+                for (i, px) in v.last_frame.chunks_exact(2).take(w * h).enumerate() {
+                    let raw = u16::from_le_bytes([px[0], px[1]]);
+                    rgba[i * 4] = (((raw >> 11) & 0x1f) << 3) as u8;
+                    rgba[i * 4 + 1] = (((raw >> 5) & 0x3f) << 2) as u8;
+                    rgba[i * 4 + 2] = ((raw & 0x1f) << 3) as u8;
+                    rgba[i * 4 + 3] = 255;
+                }
+            }
+            _ => {
+                for (i, px) in v.last_frame.chunks_exact(2).take(w * h).enumerate() {
+                    let raw = u16::from_le_bytes([px[0], px[1]]);
+                    rgba[i * 4] = (((raw >> 10) & 0x1f) << 3) as u8;
+                    rgba[i * 4 + 1] = (((raw >> 5) & 0x1f) << 3) as u8;
+                    rgba[i * 4 + 2] = ((raw & 0x1f) << 3) as u8;
+                    rgba[i * 4 + 3] = 255;
+                }
+            }
+        }
+    }
+    drop(v);
+
+    let mut out = Vec::new();
+    {
+        let mut enc = png::Encoder::new(&mut out, w as u32, h as u32);
+        enc.set_color(png::ColorType::Rgba);
+        enc.set_depth(png::BitDepth::Eight);
+        let mut writer = enc.write_header().map_err(|e| e.to_string())?;
+        writer.write_image_data(&rgba).map_err(|e| e.to_string())?;
+    }
+    Ok(out)
+}
+
+fn flip_rows(buf: &mut [u8], w: usize, h: usize) {
+    let stride = w * 4;
+    for y in 0..h / 2 {
+        let (top, bottom) = buf.split_at_mut((h - 1 - y) * stride);
+        top[y * stride..y * stride + stride].swap_with_slice(&mut bottom[..stride]);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn letterbox_pillars_a_wide_window_and_bars_a_tall_one() {
+        // 4:3 frame in a 16:9 window → pillarboxed, full height.
+        let (dx, dy, dw, dh) = letterbox(1920, 1080, 640, 480, 4.0 / 3.0);
+        assert_eq!(dh, 1080);
+        assert_eq!(dw, 1440);
+        assert_eq!(dx, 240);
+        assert_eq!(dy, 0);
+        // Same frame in a portrait window → letterboxed, full width.
+        let (dx, dy, dw, dh) = letterbox(800, 1200, 640, 480, 4.0 / 3.0);
+        assert_eq!(dw, 800);
+        assert_eq!(dh, 600);
+        assert_eq!(dx, 0);
+        assert_eq!(dy, 300);
+    }
+
+    #[test]
+    fn letterbox_falls_back_to_frame_aspect_when_core_reports_none() {
+        let (_, _, dw, dh) = letterbox(1000, 1000, 320, 240, 0.0);
+        assert_eq!((dw, dh), (1000, 750));
+    }
+
+    #[test]
+    fn fnv_hash_detects_change_and_stability() {
+        let a = fnv1a(b"hello");
+        assert_eq!(a, fnv1a(b"hello"));
+        assert_ne!(a, fnv1a(b"hellp"));
+        assert_ne!(fnv1a(b""), 0);
+    }
+
+    #[test]
+    fn flip_rows_inverts_vertically() {
+        // 1x3 image, rows R,G,B → B,G,R
+        let mut buf = vec![
+            255, 0, 0, 255, //
+            0, 255, 0, 255, //
+            0, 0, 255, 255,
+        ];
+        flip_rows(&mut buf, 1, 3);
+        assert_eq!(&buf[0..4], &[0, 0, 255, 255]);
+        assert_eq!(&buf[8..12], &[255, 0, 0, 255]);
+    }
+}
