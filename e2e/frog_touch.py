@@ -59,6 +59,15 @@ with sync_playwright() as p:
     page.wait_for_selector('[data-testid="frog-shelf"]', timeout=5000)
     check(True, "boot dismisses to the shelf by tap (no ghost-click drill-in)")
 
+    # Capability gating: a phone is never OFFERED the disc systems it can't run —
+    # no PlayStation or DS tile, not even dimmed — while N64 stays (iOS is the one
+    # browser where it genuinely works). lib/systemCapabilities.js is the map.
+    page.wait_for_selector('[data-testid="frog-system"]', timeout=5000)
+    tiles = " ".join(page.locator('[data-testid="frog-system"]').all_inner_texts())
+    check("PlayStation" not in tiles, "no PlayStation tile on a phone")
+    check("Nintendo DS" not in tiles, "no Nintendo DS tile on a phone")
+    check("Nintendo 64" in tiles, "the Nintendo 64 tile stays on a phone")
+
     # Tap a console tile → its game list (drill-in by thumb, no controller).
     page.wait_for_selector('[data-testid="frog-system"]:not([disabled])', timeout=5000)
     page.locator('[data-testid="frog-system"]:not([disabled])').first.tap()

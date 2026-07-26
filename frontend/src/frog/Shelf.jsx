@@ -323,9 +323,10 @@ export default function Shelf({ rails, focus, finishedIds, hackIds, onFocus, onP
             <Heading className="px-1">{rail.title}</Heading>
 
             {rail.kind === 'system' ? (
-              // A 3×3 grid, never scrolling — the whole point of the shelf
-              // (grew from one row of six as the disc era joined),
-              // which still shows every machine at once.
+              // A 3-wide grid, never scrolling — the whole point of the shelf
+              // (grew from one row of six as the disc era joined), showing every
+              // machine this device offers at once (touch devices don't get the
+              // disc-era tiles at all — see buildSystems).
               <div
                 ref={(el) => (railRefs.current[r] = el)}
                 className="grid grid-cols-3 gap-3"

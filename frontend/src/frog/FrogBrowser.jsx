@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { X, Search as SearchIcon, Plane, Settings as SettingsIcon, Shuffle } from 'lucide-react'
 import { useApi, API_BASE } from '../lib/useApi.js'
 import { isNative } from '../lib/playerBackend.js'
+import { deviceClass, playableHere, systemOffered } from '../lib/systemCapabilities.js'
 import { useOnline } from '../lib/online.jsx'
 import { useDownloadedEntries } from '../lib/useDownloaded.js'
 import { useDownload } from '../lib/useDownload.js'
@@ -130,10 +131,20 @@ export default function FrogBrowser() {
   // downloaded set, both stable between polls) so `items` keeps a stable reference —
   // otherwise a fresh array every render churns every `items`-keyed memo below and
   // yanks the game list's scroll/focus.
-  const items = useMemo(() => {
+  const allItems = useMemo(() => {
     const api = data?.items ?? []
     return api.length ? api : offlineItems ?? []
   }, [data, offlineItems])
+  // What this device is OFFERED — the one filter behind every browse surface
+  // (rails, lists, search, similar, shuffle all derive from `items`). On touch
+  // the disc-era systems drop out entirely (lib/systemCapabilities.js); the full
+  // library stays in `allItems` for the surfaces that describe the COLLECTION
+  // rather than offer a game (the favorites mirror, the pond stats).
+  const deviceCaps = useMemo(() => deviceClass(), [])
+  const items = useMemo(
+    () => (deviceCaps === 'touch' ? allItems.filter((g) => playableHere(g.core, deviceCaps)) : allItems),
+    [allItems, deviceCaps]
+  )
   // Skeleton only while we truly have nothing to show and a source might still land.
   // Keyed on `items` (not the API alone) so a reconnect refetch keeps the offline
   // shelf up rather than flashing a skeleton over it.
@@ -143,8 +154,15 @@ export default function FrogBrowser() {
   const offline = !online && !apiItems.length
 
   // 'boot' → 'shelf' ⇄ 'games'; 'search'/'detail'/'settings' are transient overlays.
-  const [screen, setScreen] = useState(place.booted ? place.screen : 'boot')
-  const [system, setSystem] = useState(place.system)
+  // A remembered place can point at a system this device doesn't offer (the gate is
+  // per-device — lib/systemCapabilities.js); restoring it would strand the games
+  // screen on an empty list with no rail tile to escape through, so it falls back
+  // to the shelf instead.
+  const placeSystemGated = place.system && !systemOffered(place.system, deviceCaps)
+  const [screen, setScreen] = useState(
+    place.booted ? (place.screen === 'games' && placeSystemGated ? 'shelf' : place.screen) : 'boot'
+  )
+  const [system, setSystem] = useState(placeSystemGated ? null : place.system)
   // The 'games' screen shows one system's games OR one collection's — never both. Which
   // it is comes down to whether a collection tag is set (openSystem / openCollection each
   // clear the other), so the screen, the header, and the list styling all fork on this.
@@ -366,11 +384,13 @@ export default function FrogBrowser() {
       }
     }
     // A failed library fetch would hydrate every favorite away — don't wipe the
-    // mirror over that; an actually-empty server list still clears it.
-    if (!items.length && favIds.length) return
-    mirrorFavorites(hydrate(items, favIds.map((id) => ({ id }))))
+    // mirror over that; an actually-empty server list still clears it. Mirrors
+    // the UNFILTERED library on purpose: a phone must not prune the disc-era
+    // stars it merely doesn't offer out of its own offline favorites mirror.
+    if (!allItems.length && favIds.length) return
+    mirrorFavorites(hydrate(allItems, favIds.map((id) => ({ id }))))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [collectionsLoaded, collections.tags, items])
+  }, [collectionsLoaded, collections.tags, allItems])
   // The ROM-hack map (game_id → base game's name), for the "HACK" badges across the
   // browsing surfaces. Server-owned like the rest of collections, so a game marked a hack
   // on the couch reads as one on the phone.
@@ -389,9 +409,12 @@ export default function FrogBrowser() {
     [items, recents, favMarkers, collections]
   )
   // Pond stats, derived only while the screen is up — every source is already here.
+  // Over the UNFILTERED library: the pond describes the collection, and the totals
+  // should read the same on every device (and match the server's matched-count in
+  // Settings) even where the disc era isn't offered.
   const stats = useMemo(
-    () => (screen === 'stats' ? buildStats(items, playStatItems, collections, facets) : null),
-    [screen, items, playStatItems, collections, facets]
+    () => (screen === 'stats' ? buildStats(allItems, playStatItems, collections, facets) : null),
+    [screen, allItems, playStatItems, collections, facets]
   )
   // The 'games' screen's list: a collection's members (naturally sorted, spanning
   // systems) when a tag is open, otherwise the focused system's games.

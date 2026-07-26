@@ -8,6 +8,7 @@
 import { letterOf, naturalCompare } from '../lib/library.js'
 import { visibleTags } from '../lib/collections.js'
 import { SYSTEMS } from './theme.js'
+import { deviceClass, systemOffered } from '../lib/systemCapabilities.js'
 
 // The order the consoles sit in. Chronological, which is also roughly the order
 // they're most-to-least likely to be reached for, and it means the row never
@@ -26,18 +27,26 @@ export const SYSTEM_ORDER = [
   'Sony PlayStation',
 ]
 
-// Nine systems on a non-scrolling grid (three rows of three) — the shelf still
-// never scrolls for machines. A system with no games still gets its tile (dimmed): a gap in
-// the row would be more confusing than an empty shelf, and it tells you what Frog Game Station
-// *could* play if you dropped a ROM in.
+// The systems, on a non-scrolling grid — the shelf never scrolls for machines.
+// A system with no games still gets its tile (dimmed): a gap in the row would be
+// more confusing than an empty shelf, and it tells you what Frog Game Station
+// *could* play if you dropped a ROM in. But a system this DEVICE can't run at
+// all (phone/iPad: the disc era — see lib/systemCapabilities.js) doesn't get a
+// tile, dimmed or otherwise: offering it would be a lie, and this rail is the
+// one surface the items filter can't reach, because it enumerates SYSTEM_ORDER
+// rather than deriving from the (already-filtered) items.
 //
 // A label we've never seen (a new core added to the backend) lands at the end
 // rather than vanishing.
-export function buildSystems(items = []) {
+export function buildSystems(items = [], cls = deviceClass()) {
   const counts = new Map()
   for (const g of items) counts.set(g.label, (counts.get(g.label) || 0) + 1)
 
-  const known = SYSTEM_ORDER.map((label) => ({ id: label, label, count: counts.get(label) || 0 }))
+  const known = SYSTEM_ORDER.filter((label) => systemOffered(label, cls)).map((label) => ({
+    id: label,
+    label,
+    count: counts.get(label) || 0,
+  }))
   const extra = [...counts.keys()]
     .filter((label) => !SYSTEMS[label])
     .sort()

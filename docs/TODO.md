@@ -305,21 +305,21 @@ check a row when its exit criteria hold, and note carry-over under the row.
       webview-over-surface proof rides with the row-5 Tauri work. Carry-over:
       (1) per-OS default core options belong to the NativePlayer (Phase 2a);
       (2) gamepad hot-test pending a physical controller (keyboard path verified).
-- [ ] **[P1] 4½. Capability gating — the mobile PWA only offers what it can run.**
-      Decided 2026-07-25: on touch devices (phone/iPad), **hide PlayStation and
-      Nintendo DS** — every PS1 disc and the marquee DS carts exceed the iOS
-      per-tab memory ceiling, so per-system gating beats per-game surprises. **N64
-      stays on mobile** (iOS Safari gets parallel_n64 and it genuinely works —
-      it's desktop browsers where N64 fails). Build it as ONE per-system
-      capability map (data in `lib/` — e.g. alongside `playerMode.js` /
-      `library.js` — consumed by the shelf rail, game lists, search, and the
-      roamed recents/favorites merge), not scattered conditionals — because the
-      third case arrives with the native app: desktop BROWSERS also black-screen
-      the disc era, so post-Phase-2 the web player on desktop should show
-      disc-era titles with a "plays in the desktop app" hand-off instead. The
-      native desktop app runs everything. Tests + docs (README features note,
-      ARCHITECTURE) ride along; the load-watchdog stays as the backstop for
-      direct /play URLs.
+- [x] **[P1] 4½. Capability gating — the mobile PWA only offers what it can run.**
+      Shipped: `lib/systemCapabilities.js` — a device class (`touch`/`web`/`native`)
+      plus ONE gated-systems table (psx + nds on touch; N64 stays; native plays
+      everything) — applied at the single choke point where the games array enters
+      `FrogBrowser` state (covers rails, lists, search, similar, shuffle, the roamed
+      recents/favorites hydration) plus the one seam that enumerates instead of
+      deriving (`buildSystems`: no disc-era tiles on touch, not even dimmed), with a
+      remembered-place guard so a roamed tab can't restore into a gated system's
+      empty list. Deliberately UNfiltered: the favorites mirror and pond stats (they
+      describe the collection, not the offer); the storage screen still lists any
+      previously-downloaded gated game (it's on disk and removable — that's honest).
+      GameScreen's ad-hoc coarse-pointer check consolidated into the map. Docs:
+      README features note + ARCHITECTURE decision log. Carry-over: the desktop
+      *browser* "plays in the desktop app" hand-off state lands post-Phase-2 as an
+      extension of the same map.
 - [x] **5. Phase 1 — Tauri shell, Mode 1 (v0.7.0).** Shipped: `frontend/src-tauri/`
       (Tauri v2, deliberately empty shell), `lib/playerBackend.js` `isNative()` driven
       by `--mode desktop` + the committed `.env.desktop` (machine's backend URL in the

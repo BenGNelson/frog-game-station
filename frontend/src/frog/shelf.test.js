@@ -30,6 +30,23 @@ describe('buildSystems', () => {
     expect(byLabel['Sega Genesis']).toBe(1)
   })
 
+  it('touch shelves drop the disc-era tiles entirely — not even dimmed', () => {
+    // Capability gating (lib/systemCapabilities.js): a phone/iPad can't run PS1
+    // or DS, so offering the tile — even empty-dimmed — would be a lie. N64
+    // stays: iOS is the one browser where it works.
+    const labels = buildSystems(LIBRARY, 'touch').map((s) => s.label)
+    expect(labels).not.toContain('Sony PlayStation')
+    expect(labels).not.toContain('Nintendo DS')
+    expect(labels).toContain('Nintendo 64')
+    expect(labels).toHaveLength(SYSTEM_ORDER.length - 2)
+  })
+
+  it('web and native shelves keep every tile', () => {
+    for (const cls of ['web', 'native']) {
+      expect(buildSystems(LIBRARY, cls).map((s) => s.label)).toEqual(SYSTEM_ORDER)
+    }
+  })
+
   it('puts an unknown system at the end rather than dropping it', () => {
     // A new core added to the backend must not silently vanish from the shelf.
     const systems = buildSystems([...LIBRARY, g('9', 'Some Game', 'Sega Saturn')])

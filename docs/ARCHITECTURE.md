@@ -1115,6 +1115,21 @@ The player and readers are **real routes**, not overlays, so the phone's back ge
   scope entirely — no usable libretro core exists. The split is a rule, not a habit:
   changing which client owns a system takes a new entry in this log plus a matching
   `NATIVE_APP_PLAN.md` update, made together, never ad hoc.
+- **The mobile PWA only offers what it can run — one capability map, not scattered
+  conditionals (2026-07).** Every PlayStation disc and the marquee DS carts exceed the
+  iOS per-tab memory ceiling, so per-system gating beats per-game roulette: on touch
+  devices those systems are not offered at all — no shelf tile (not even dimmed), no
+  list/search/rail entries. N64 stays; iOS is the one browser where it genuinely works.
+  The mechanism is `lib/systemCapabilities.js`: a device class (`touch` / `web` /
+  `native`) plus one gated-systems table, applied at the single point the games array
+  enters `FrogBrowser` state — every browse surface derives from it — with exactly one
+  extra seam (`buildSystems`, because the shelf's system rail enumerates rather than
+  derives). Deliberate exceptions read from the UNFILTERED library: the favorites
+  mirror (a phone must not prune stars it merely doesn't offer) and the pond stats
+  (they describe the collection, identically on every device). The desktop *browser*
+  keeps offer-plus-watchdog for now; post-native-player it gets a "plays in the desktop
+  app" hand-off as an extension of the same map. Direct `/play` URLs stay backstopped
+  by the player's load watchdog.
 - **The desktop shell is the same frontend behind a build flag, not a fork (2026-07).**
   Phase 1 of the native app (`frontend/src-tauri/`, v0.7.0) wraps the *existing* React
   app in a Tauri v2 window pointed at the self-hosted backend over HTTP; play still uses

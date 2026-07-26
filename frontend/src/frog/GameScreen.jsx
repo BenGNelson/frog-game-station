@@ -7,7 +7,7 @@ import { rematchOptions } from './rematch.js'
 import { coverUrl, saveStateShotUrl, igdbShotUrl, LARGE_ROM_BYTES } from '../lib/library.js'
 import { isNative } from '../lib/playerBackend.js'
 import { formatPlaytime, formatToBeat } from '../lib/format.js'
-import { mediaMatches } from '../lib/useMediaQuery.js'
+import { deviceClass } from '../lib/systemCapabilities.js'
 import { useFocusTrap } from '../lib/useFocusTrap.js'
 import ConfirmDialog from './ConfirmDialog.jsx'
 import { FROG, systemStyle, reflection, scrim, SCRIM, focusRing, FOCUS_SCALE, FONT_DISPLAY } from './theme.js'
@@ -245,7 +245,7 @@ export default function GameScreen({
 
           {playMs > 0 && <PlayedLine ms={playMs} plays={plays} lastMs={lastPlayedMs} />}
 
-          {game.size >= LARGE_ROM_BYTES && mediaMatches('(pointer: coarse)') && (
+          {game.size >= LARGE_ROM_BYTES && deviceClass() === 'touch' && (
             <p className="flex items-start gap-1.5 text-xs leading-relaxed" style={{ color: `rgb(${FROG.amber})` }}>
               <TriangleAlert className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden="true" />
               <span>Large game — it may be too big for this device’s browser to load. Plays best on a computer or TV.</span>
