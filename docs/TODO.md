@@ -292,13 +292,19 @@ check a row when its exit criteria hold, and note carry-over under the row.
 - [x] **4. Native spike part 2 — window/audio/input + Mac validation: GO.** The
       windowed host runs the full `SET_HW_RENDER` contract (N64 at 56.8/60 fps even
       on llvmpipe); `native-spike.yml` builds macOS-arm64/Windows/Linux artifacts;
-      and the M4 runs validated the lot: N64 at speed with clean audio via
-      **angrylion+cxd4** (GLideN64 provably renders nothing on Apple's deprecated
-      GL — paraLLEl-RDP via MoltenVK is the post-1.0 quality path), GB/GBC/GBA all
-      good. Audio contract lessons (env 47, jitter buffer) recorded in
+      and the M4 runs validated the lot from a CI artifact: GBA 59.8/59.7 fps, N64
+      at target speed with clean audio via **angrylion+cxd4** (GLideN64 paces at
+      60.1 fps but renders nothing usable on Apple's deprecated GL — FB emulation
+      presents black, FBEmulation=False leaves frame trails; **paraLLEl-RDP via
+      MoltenVK is the post-1.0 quality path**), GB/GBC/GBA all good, GL 4.1 core
+      context, save states + fast-forward exercised by hand, 5-minute soak held.
+      Audio contract lessons (env 47, jitter buffer) recorded in
       `NATIVE_APP_PLAN.md` §5a. Dev loop for real machines: `spike/dev.sh`
-      (fetch CI artifact or local build → gitignored dist → run presets). The §8.2
-      compositing verdict deliberately moves into row 5 (needs Tauri on a Mac).
+      (fetch CI artifact or local build → gitignored dist → run presets).
+      Video-compositing direction recorded in §8.2 (native GL surface); the
+      webview-over-surface proof rides with the row-5 Tauri work. Carry-over:
+      (1) per-OS default core options belong to the NativePlayer (Phase 2a);
+      (2) gamepad hot-test pending a physical controller (keyboard path verified).
 - [ ] **[P1] 4½. Capability gating — the mobile PWA only offers what it can run.**
       Decided 2026-07-25: on touch devices (phone/iPad), **hide PlayStation and
       Nintendo DS** — every PS1 disc and the marquee DS carts exceed the iOS
@@ -325,6 +331,15 @@ check a row when its exit criteria hold, and note carry-over under the row.
 - [ ] **7. Phase 2b — DS + PS1.** melonDS (touch + dual-screen layout), PCSX-ReARMed
       (.chd; user BIOS honored, HLE otherwise). Exit: the known browser failures play
       natively.
+- [ ] **7b. Retire DS + PS1 from the web player.** Per the platform-responsibility split
+      (ARCHITECTURE Decision log; `NATIVE_APP_PLAN.md` §1): DS/PS1 black-screen in real
+      browsers, so once row 7 makes them play natively, stop offering play-in-browser
+      for `.nds`/`.chd` — library, metadata, covers, and saves stay (the desktop app
+      plays them; saves keep roaming). Sources of truth to touch:
+      `backend/app/library.py` `SECTIONS["games"]["formats"]` and the mirror
+      `LIBRETRO_CORE` map in `frontend/src/lib/library.js`; update the README "Nine
+      systems" prose and the ARCHITECTURE player section in the same change. Sequenced
+      deliberately AFTER row 7 — never remove a system before its replacement exists.
 - [ ] **8. Phase 2c — cartridge cores.** Bundle the 2D-system cores so the desktop app
       is a complete client. Exit: all nine systems play natively.
 - [ ] **9. Phase 3 — feel/parity (v0.9.0).** Fast-forward, rewind, display filter,

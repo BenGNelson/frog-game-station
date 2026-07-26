@@ -1106,6 +1106,15 @@ The player and readers are **real routes**, not overlays, so the phone's back ge
   we render a native Pokédex and leave Bulbapedia (deep-linked) for the prose. Same
   mounted-persistent, controller-navigable panel shape as the wiki reader; sprites ride a proxy
   scoped to only the PokeAPI sprites host+path.
+- **Each client owns a system tier (2026-07).** The PWA (phone/iPad) owns the cartridge
+  systems plus N64 — the systems proven to run well in iOS Safari. The native desktop app
+  is the authoritative home for the disc-era 3D systems: DS and PS1 black-screen in real
+  browsers (a WASM-core limitation with no found workaround), so they *retire from the web
+  player* once the native player covers them, and everything heavier (the future-systems
+  tiers in `NATIVE_APP_PLAN.md` §9) is native-only from the start. Original Xbox is out of
+  scope entirely — no usable libretro core exists. The split is a rule, not a habit:
+  changing which client owns a system takes a new entry in this log plus a matching
+  `NATIVE_APP_PLAN.md` update, made together, never ad hoc.
 
 ---
 

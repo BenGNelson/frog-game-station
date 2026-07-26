@@ -24,6 +24,18 @@ All three read one library and share save progress: a game saved on the Mac show
 mid-progress on the iPhone, because they all talk to the same backend and the
 save/SRAM **roaming already exists** (built in the v0.3 work).
 
+**Platform responsibilities (the rule — see the ARCHITECTURE Decision log entry):**
+
+- **PWA owns:** the cartridge systems (GB/GBC/GBA/NES/SNES/Genesis/SMS/GG) **plus N64**,
+  which is proven to run acceptably in iOS Safari.
+- **Desktop owns:** the disc-era 3D systems authoritatively. **DS and PS1 black-screen
+  in real browsers** (WASM-core limitation, no workaround found), so they retire from
+  the web player once the native player plays them (roadmap row 7b in `docs/TODO.md`) —
+  removal only *after* the replacement exists. All heavier systems (§9 tiers) are
+  native-only from day one. The desktop app also plays everything the PWA plays.
+- **Changing the split** requires a new ARCHITECTURE Decision-log entry plus an update
+  here, together — never ad hoc.
+
 **The portfolio narrative:** a genuinely distributed personal platform — a documented,
 installable product with a self-hosted server, two installable PWAs, and a signed
 native desktop app, all sharing a design system, a metadata pipeline, and live save
@@ -234,15 +246,23 @@ native-only ones; the same `vite build` still produces the web PWA for the serve
   `.github/workflows/native-spike.yml` (manual) builds macOS-arm64/Windows/Linux
   artifacts and smoke-tests Linux headless+xvfb per run.
 - **REAL-HARDWARE VERDICT (Apple Silicon M4, 2026-07-25): GO.** All spike criteria
-  met on the machine that matters: N64 (Mario Kart 64) plays at speed with clean
-  audio, save states round-trip, controller/keyboard input works, and GB/GBC/GBA all
-  run via gambatte/mgba. Two platform findings shape the production host:
-  (1) **GLideN64 renders nothing on Apple's (deprecated) OpenGL** — measured at the
-  source (the core's FBO reads luminance 0.0), not a present bug, matching the same
-  core family's WASM failure in desktop Safari. **The Mac N64 path is therefore
-  angrylion+cxd4 (software RDP) today** — full speed on the M4 and even on the
-  server's CPU — with **paraLLEl-RDP via Vulkan/MoltenVK as the post-1.0 quality
-  upgrade** (requires hosting a Vulkan HW-render context; do not fight Apple GL).
+  met on the machine that matters, from an unsigned CI artifact: GBA (mgba) 59.8 fps
+  vs 59.7 target; N64 (Mario Kart 64) at target speed with clean audio; the GL
+  context negotiates as 4.1 core; save states round-trip; fast-forward works;
+  keyboard input works (gamepad hot-test pending a physical pad); 5-minute soak
+  held. Two platform findings shape the production host:
+  (1) **GLideN64 renders nothing usable on Apple's (deprecated) OpenGL** — with FB
+  emulation on it paces at 60.1 fps but presents black (the driver flags the core's
+  float-sampler texture "unloadable" and substitutes a zero texture; luminance 0.0
+  measured at the source, matching the same core family's WASM failure in desktop
+  Safari), and `EnableFBEmulation=False` renders but accumulates frame trails —
+  N64 games clear the screen *through* the emulated framebuffer, so FB emulation is
+  not optional; depth-copy/color-copy/threaded-renderer variants don't help.
+  **The Mac N64 path is therefore angrylion+cxd4 (software RDP) today** — a locked
+  60 fps on the M4 and full speed even on the server's CPU — with **paraLLEl-RDP
+  via Vulkan/MoltenVK as the post-1.0 quality upgrade** (requires hosting a Vulkan
+  HW-render context; do not fight Apple GL). Phase-2 lesson (same family as the
+  GET_VARIABLE one): the NativePlayer owns **per-OS default core options**.
   (2) **Audio contract:** answer `GET_AUDIO_VIDEO_ENABLE` (env 47, = video|audio) —
   declining it mutes mupen entirely — and feed the device through a jitter buffer
   (hold + ~40 ms refill on underrun); with those, all systems sound clean.
@@ -320,8 +340,12 @@ Point `VITE_API_BASE` at the running backend for dev.
 
 ## 8. Open decisions to settle before Phase 0
 1. **Core host:** confirm approach (A) dlopen libretro, and which Rust crate to spike.
-2. **Video path:** how the native surface composits with the Tauri webview (native
-   child window vs. render-to-texture handed to the webview). Decide in Phase 0.
+2. **Video path:** direction SETTLED (Mac validation, 2026-07-25) — **(a) a native GL
+   surface.** The spike presents core output in a native window at a locked 60 fps on
+   the M4, software and HW-render paths both proven. The remaining proof — layering
+   the Tauri webview over that surface as transparent chrome — rides with the Phase-1
+   shell work; (b) render-to-texture stays the fallback only if webview compositing
+   fights the OS.
 3. **Mode 2 backend:** FastAPI sidecar (max reuse, bigger binary) vs. Rust rewrite
    (lean, duplicated). Leaning sidecar.
 4. **Which cores to bundle first** beyond N64/DS/PS1 (add the cartridge cores so the
@@ -347,6 +371,10 @@ Tiered by effort and demand on the host, to be taken up after the 1.0.0 mileston
   with saves staying local to Dolphin. Decide then whether that trade is worth it.
 - **Tier 4 — PS2 (`LRPS2` / PCSX2).** Heaviest core, needs a real (user-provided) BIOS
   — no HLE — and the most from the host's GL/Vulkan plumbing. Last.
+- **Out of scope — original Xbox.** No usable libretro core exists; the only credible
+  emulator (xemu) is standalone-only, which would make Xbox a *second* external-emulator
+  exception. Reconsider only if the Tier-3 Dolphin external-launch path ships and proves
+  that trade worth repeating — until then, Xbox is deliberately not on the roadmap.
 
 Same rules at every tier: cores fetched by pinned script, dlopen'd, never committed;
 BIOS never bundled; saves roam through the same backend endpoints wherever the core
