@@ -73,7 +73,9 @@ async function isBlank(blob) {
 // { slot: null, offline: true } when only the local copy landed.
 export async function saveState(emu, gameId, d) {
   const { fetch: f, caches: c } = deps(d)
-  const state = emu?.gameManager?.getState?.()
+  // `await` is a no-op for the web engine's synchronous Uint8Array and the
+  // whole bridge for the native adapter's invoke-backed one.
+  const state = await emu?.gameManager?.getState?.()
   if (!state || !state.length) throw new Error('the emulator returned an empty save state')
 
   const blob = new Blob([state])
