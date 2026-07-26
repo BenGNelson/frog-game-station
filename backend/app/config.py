@@ -87,10 +87,13 @@ class Settings(BaseSettings):
     db_path: str = "/data/frog.db"
 
     # Comma-separated browser origins allowed to call the API cross-origin (CORS).
-    # The SPA is served same-origin behind nginx, so it needs NOTHING here; leave
-    # empty to deny all cross-origin browser access (the secure default). Only add
-    # an origin if some other browser app must reach the API directly.
-    cors_allow_origins: str = ""
+    # The SPA is served same-origin behind nginx and needs nothing here. The default
+    # is the desktop app's fixed webview origins (tauri: on macOS/Linux, the
+    # tauri.localhost pseudo-host on Windows WebView2) — safe to allow always,
+    # because no web browser can ever present a tauri origin, so this opens nothing
+    # to actual websites. Override to "" to deny all cross-origin access, or add
+    # origins if another browser app must reach the API directly.
+    cors_allow_origins: str = "tauri://localhost,http://tauri.localhost"
 
     model_config = SettingsConfigDict(
         # In local (non-Docker) dev, also read a .env file sitting next to the repo.

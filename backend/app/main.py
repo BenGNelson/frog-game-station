@@ -55,9 +55,10 @@ app = FastAPI(
 )
 
 # CORS. The SPA is served same-origin (nginx proxies /api), so it triggers no
-# preflight and needs no allowed origin — an empty CORS_ALLOW_ORIGINS therefore
-# denies all *cross-origin* browser access without affecting the app. Add origins
-# only for a separate browser client.
+# preflight and needs no allowed origin. The desktop app is the one real
+# cross-origin client — its webview calls from a fixed tauri origin no website
+# can spoof, so those are the default allow-list (see config.py). Setting
+# CORS_ALLOW_ORIGINS="" denies all cross-origin browser access.
 _cors_origins = [o.strip() for o in (settings.cors_allow_origins or "").split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
