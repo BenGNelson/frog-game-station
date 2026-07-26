@@ -1,0 +1,13 @@
+# Pinned native libretro cores — the desktop app's emulator engines.
+# One line per artifact:  <core>  <platform>  <url>  <sha256-of-the-zip>
+#
+# The buildbot's nightly channel only serves ROLLING builds (latest/), so the
+# URL cannot pin — THE HASH IS THE PIN. fetch-native-cores.sh verifies every
+# download against its line here and fails loudly on a mismatch; when that
+# happens, either restore the archived copy it kept from the last good fetch
+# (cores/.archive/) or re-verify the new build by hand and update this line
+# deliberately. Productionization (Phase 4): mirror the verified artifacts to
+# a host we control and swap these URLs for the mirror's.
+#
+# Verified 2026-07-26 on the M4 (the Mac-validation build family).
+mupen64plus_next  mac-arm64  https://buildbot.libretro.com/nightly/apple/osx/arm64/latest/mupen64plus_next_libretro.dylib.zip  c4a7ac61450fdbe366f1a07516aec4d7359eb25b4eb26412025c78287a290436
