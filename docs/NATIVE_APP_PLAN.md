@@ -230,6 +230,20 @@ native-only ones; the same `vite build` still produces the web PWA for the serve
   URL-pinning does not pin — the productionized `fetch-native-cores.sh` must archive
   known-good core builds (mirror the exact .so/.dylib/.dll somewhere we control, or
   vendor a lockfile of buildbot date-stamped URLs + checksums).
+- **Mac validation — VERDICT: GO (measured on the M4, 2026-07-25).** The part-2
+  windowed host runs real games at target speed from an unsigned CI artifact: GBA
+  (mgba, software blit) 59.8 fps vs 59.7 target; N64 60.1 fps vs 60.0 target on BOTH
+  RDP paths; the GL context negotiates as 4.1 core; audio streams clean through the
+  jitter buffer (zero underruns after warmup); save states and fast-forward exercised
+  by hand. One real platform bug found: **GLideN64 with FB emulation renders black on
+  macOS GL** — the driver reports an incomplete ("unloadable") float-sampler texture
+  and substitutes a zero texture. `EnableFBEmulation=False` renders but accumulates
+  frame trails (N64 games clear the screen *through* the emulated framebuffer, so FB
+  emulation is not optional); depth-copy/color-copy/threaded-renderer variants don't
+  help. Until the FBO chain is debugged against a known-good macOS GL frontend,
+  **angrylion + cxd4 (software RDP) is the macOS N64 default** — pixel-exact and a
+  locked 60 fps on Apple silicon. Lesson for Phase 2 (same family as the GET_VARIABLE
+  one): the NativePlayer owns **per-OS default core options**.
 - gamepad input: **`gilrs`** (cross-platform, hot-plug).
 - windowing/GL if not using Tauri's window directly: `wgpu` or `glow`; but prefer
   compositing into Tauri's own window (see below).
@@ -298,8 +312,11 @@ Point `VITE_API_BASE` at the running backend for dev.
 
 ## 8. Open decisions to settle before Phase 0
 1. **Core host:** confirm approach (A) dlopen libretro, and which Rust crate to spike.
-2. **Video path:** how the native surface composits with the Tauri webview (native
-   child window vs. render-to-texture handed to the webview). Decide in Phase 0.
+2. **Video path:** SETTLED (Mac validation, 2026-07-25) — **(a) a native GL surface.**
+   The spike presents core output in a native window at a locked 60 fps on the M4,
+   software and HW-render paths both proven. Phase 1 layers the Tauri webview over
+   this surface as transparent chrome; (b) render-to-texture stays the fallback only
+   if webview compositing fights the OS.
 3. **Mode 2 backend:** FastAPI sidecar (max reuse, bigger binary) vs. Rust rewrite
    (lean, duplicated). Leaning sidecar.
 4. **Which cores to bundle first** beyond N64/DS/PS1 (add the cartridge cores so the

@@ -289,10 +289,16 @@ check a row when its exit criteria hold, and note carry-over under the row.
       own pinned cores** (never bring-your-own-emulator; per-system core-path
       override backlogged as a power-user someday; Dolphin/Tier-3 stays the one
       external exception). Verdicts recorded in `NATIVE_APP_PLAN.md` §5a/§3.2.
-- [ ] **4. Native spike part 2 — window/audio/input + Mac validation.** Real window at
-      60 fps with gamepad; CI matrix builds (mac/windows/ubuntu artifacts); N64 runs on
-      the M4 from a CI artifact; video-compositing decision (§8.2). Exit: GO/NO-GO in
-      `NATIVE_APP_PLAN.md`.
+- [x] **4. Native spike part 2 — window/audio/input + Mac validation.** Shipped: the
+      windowed host validated on the M4 from a CI artifact — GBA 59.8/59.7 fps, N64
+      60.1/60.0 fps on both RDP paths, GL 4.1 core context, audio clean through the
+      jitter buffer, save states + fast-forward exercised by hand, 5-minute soak held.
+      Video-compositing decision SETTLED: native GL surface (§8.2). **GO** recorded in
+      `NATIVE_APP_PLAN.md` §5a. Carry-over: (1) GLideN64 FB emulation renders black on
+      macOS GL, and FBEmulation=False leaves frame trails — not viable; angrylion
+      software RDP is the macOS N64 default until the FBO chain is debugged (Phase 2a,
+      alongside per-OS default core options in the NativePlayer). (2) Gamepad hot-test
+      still pending a physical controller on the Mac (keyboard path verified).
 - [ ] **5. Phase 1 — Tauri shell, Mode 1 (v0.7.0).** `frontend/src-tauri/`,
       `lib/playerBackend.js` (`isNative()`), `VITE_TARGET=desktop` build flag, backend
       CORS for the Tauri origins, `tauri-linux` CI job. Exit: full Frog UI in a native

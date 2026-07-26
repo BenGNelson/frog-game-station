@@ -65,6 +65,13 @@ case "$cmd" in
     [ -f "$ROM" ] || { echo "ROM not found: $ROM" >&2; exit 2; }
     if [ "$cmd" = n64-soft ]; then
       export SPIKE_OPT="${SPIKE_OPT:-mupen64plus-rdp-plugin=angrylion;mupen64plus-rsp-plugin=cxd4}"
+    elif [ "$cmd" = n64 ] && [ "$PLAT" = macos ]; then
+      # Known issue (2026-07): GLideN64 with FB emulation renders black on macOS
+      # GL (4.1 core), and FBEmulation=False renders but accumulates frame trails.
+      # Until the HW path is fixed, use n64-soft (angrylion) on macOS — accurate
+      # and full-speed on Apple silicon.
+      echo "note: on macOS the n64 preset (GLideN64) currently black-screens;" >&2
+      echo "      use   dev.sh n64-soft <rom>   (software RDP, full speed) instead." >&2
     fi
     echo "running: $BIN $CORE"
     echo "         rom: $ROM"
