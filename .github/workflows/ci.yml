@@ -56,3 +56,40 @@ jobs:
       - name: Container logs on failure
         if: failure()
         run: docker compose logs --no-color --tail 200
+
+  # The desktop shell must keep compiling: the SW-stripped desktop frontend build
+  # (beforeBuildCommand runs `vite build --mode desktop`) + the Tauri Rust crate,
+  # together. Build-only on purpose — no bundle, no EmulatorJS engine, no
+  # installers (those are the Phase-4 release pipeline); this is the compile gate
+  # that catches a broken seam before it lands.
+  tauri-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: frontend/src-tauri
+
+      # Tauri v2's Linux webview + bundler system deps.
+      - name: Webview dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file \
+            libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+
+      - name: Build the desktop shell (no bundle)
+        run: npm run tauri build -- --no-bundle
+        working-directory: frontend
