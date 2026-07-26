@@ -237,6 +237,16 @@ shape:
       then bisect between iOS PWA letterbox chrome (manifest background_color is the
       pond green `#0b1512` — a suspect if it's the iPad) vs in-frame rendering.
 
+- [ ] **[P2] Sega Master System crashed mid-play on the iPhone (reported 2026-07-26).**
+      Sonic (SMS) crashed after about a minute of play on the iPhone PWA; the same
+      session played a GBA and an N64 game fine, so it's system-specific, not the
+      player. First diagnostic pass: reproduce with the iPhone tethered to Safari's
+      Web Inspector for the console/crash line; check whether the SMS core OOMs or
+      throws; try the same ROM on the iPad and in desktop Safari to size the blast
+      radius. If it's the core, the levers are core options or pointing SMS at a
+      different engine core. Worth actually fixing (unlike the disc era): the
+      cartridge tier is the PWA's home turf per the platform-responsibility split.
+
 ### Process
 
 - [x] **Versioning rhyme-and-reason — decided and written down.** The MAJOR/MINOR/PATCH
@@ -497,6 +507,36 @@ Saturn → GameCube/Wii → PS2) become the new backlog.
 ---
 
 ## Quality & polish
+
+- [ ] **Mouse-first sweep — the desktop app must be fully drivable by mouse alone
+      (requested 2026-07-26).** The couch UI was built pad-first with the mouse mostly
+      along for the ride (hover moves focus, click activates); now that the desktop
+      app is a real face, a mouse user will live in these screens. Sweep every surface
+      and fix what's awkward: hover-focus consistency across shelf / rails / lists /
+      search / game page; wheel scrolling on the long vertical lists AND the
+      horizontal rails; a click path to everything the pad can reach (the letter
+      rail, pause-menu rows and their ◀ ▶ steppers, the save shelf, wiki/Pokédex
+      panels); no hover-only affordance without a click equivalent; stray text
+      selection/drag suppressed where it fights the UI; and search should accept
+      typed input directly when a hardware keyboard is present instead of walking
+      the 6×6 grid. Rides naturally with roadmap row 9 (Phase 3 feel/parity), but
+      it applies equally to the web app in a desktop browser.
+
+- [ ] **The systems block should navigate as a grid, not a rail (requested
+      2026-07-26).** The shelf's Systems block renders as a 3-wide grid, but the
+      D-pad models it as one flat rail: down enters it, then only left/right walk
+      the tiles — reaching the bottom row means stepping across everything before
+      it. Up/down should move between the grid's visual rows (left/right stay
+      within a row), with the edges keeping today's rail semantics: up from the
+      top row exits to the previous rail, down from the bottom row exits onward,
+      and a column with no tile below it (the last row is short) clamps to the
+      nearest tile rather than dead-ending. Implementation thought: keep the
+      render as-is and teach the nav model (`lib/gridNav.js` `moveInRails`) that
+      the systems rail is row-chunked (rows of 3) — the existing column memory
+      then does the right thing crossing rows. Test alongside in `gridNav`'s
+      suite; the row count now varies by device class (7 tiles on touch, 9 on
+      pad/desktop — `lib/systemCapabilities.js`), so chunk from the rail's actual
+      length, never a constant.
 
 - [x] **Remove the "Most played" home rail.** It got in the way on the shelf. Dropped the
       `mostPlayed` rail from `buildShelf` (`frontend/src/frog/shelf.js`) and the now-dead
