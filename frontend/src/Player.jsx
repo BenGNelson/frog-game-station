@@ -1,7 +1,19 @@
+import { lazy, Suspense } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { saveStateUrl } from './lib/library.js'
 import PlayerShell from './player/PlayerShell.jsx'
 import { FROG } from './frog/theme.js'
+
+// Which player fronts /play: the EmulatorJS shell on the web, the native-core
+// player in the desktop app. Written as the raw build-time constant rather than
+// the isNative() helper, and as a lazy() dynamic import rather than a static one,
+// both on purpose: Vite substitutes import.meta.env.VITE_TARGET at transform time,
+// so the bundler sees a constant conditional and never emits the dead branch's
+// chunk — the web bundle ships none of the native player's code OR its stage CSS.
+// (A static import would defeat that: its stylesheet import is a side effect, so
+// the module survives tree-shaking even with its exports unused.)
+const NativePlayer =
+  import.meta.env.VITE_TARGET === 'desktop' ? lazy(() => import('./player/NativePlayer.jsx')) : null
 
 // The /play route. A real route (not a modal) so the phone's back
 // gesture exits the game, and so unmounting tears the engine down completely.
@@ -49,16 +61,26 @@ export default function Player() {
     )
   }
 
-  return (
-    <PlayerShell
-      id={id}
-      core={core}
-      name={name}
-      label={label}
-      coverV={coverV}
-      size={size}
-      biosUrl={biosUrl}
-      loadStateUrl={slot ? saveStateUrl(id, slot) : undefined}
-    />
-  )
+  const shellProps = {
+    id,
+    core,
+    name,
+    label,
+    coverV,
+    size,
+    biosUrl,
+    loadStateUrl: slot ? saveStateUrl(id, slot) : undefined,
+  }
+
+  // The suspense gap is desktop-only and sub-second (a local chunk); the player
+  // paints its own boot frog the moment it lands, so the fallback stays empty.
+  if (NativePlayer) {
+    return (
+      <Suspense fallback={null}>
+        <NativePlayer {...shellProps} />
+      </Suspense>
+    )
+  }
+
+  return <PlayerShell {...shellProps} />
 }
