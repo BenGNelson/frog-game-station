@@ -1115,6 +1115,24 @@ The player and readers are **real routes**, not overlays, so the phone's back ge
   scope entirely — no usable libretro core exists. The split is a rule, not a habit:
   changing which client owns a system takes a new entry in this log plus a matching
   `NATIVE_APP_PLAN.md` update, made together, never ad hoc.
+- **The desktop shell is the same frontend behind a build flag, not a fork (2026-07).**
+  Phase 1 of the native app (`frontend/src-tauri/`, v0.7.0) wraps the *existing* React
+  app in a Tauri v2 window pointed at the self-hosted backend over HTTP; play still uses
+  the in-webview EmulatorJS player until the native player lands. The seam is ONE
+  build-time flag — `lib/playerBackend.js` `isNative()`, driven by `--mode desktop` and
+  the committed `.env.desktop` — chosen over runtime `window.__TAURI__` sniffing because
+  the desktop app is a separate artifact anyway, a constant is deterministic under test,
+  and dead branches tree-shake out. What the flag changes: the `VitePWA` plugin is
+  omitted (no service worker, registration, or manifest — an installed app has nothing
+  to install), and the Download affordance is hidden because offline downloads are
+  *served* by the service worker (`src/sw.js` is the only reader of the `hq-offline`
+  cache) — without it they'd record bytes and never play them back. Game-save caches
+  keep working (read directly, not via the worker). Two deliberate deferrals: the Tauri
+  CSP stays `null` (a committed policy cannot name the env-configured backend origin —
+  the no-host-identifiers rule; hardening lands with the Phase-4 release pipeline), and
+  the backend's CORS default now allows the desktop webview's fixed `tauri:` origins,
+  which no website can present, so the desktop app works against a stock server with
+  zero config.
 
 ---
 

@@ -6,6 +6,7 @@
 #
 # Requires 7z (p7zip) to extract the release archive:
 #   sudo apt-get install -y p7zip-full      # Debian/Ubuntu
+#   brew install p7zip                      # macOS
 #
 # ALTERNATIVE (no download): skip self-hosting and load the engine from the
 # official pinned CDN instead — set EMULATORJS_DATA in frontend/src/lib/library.js
@@ -20,7 +21,8 @@ URL="https://github.com/EmulatorJS/EmulatorJS/releases/download/v${VERSION}/${VE
 SEVENZIP="$(command -v 7z || command -v 7za || true)"
 if [ -z "$SEVENZIP" ]; then
   echo "error: 7z not found — needed to extract the EmulatorJS release." >&2
-  echo "  Install it:  sudo apt-get install -y p7zip-full" >&2
+  echo "  Install it:  sudo apt-get install -y p7zip-full   # Debian/Ubuntu" >&2
+  echo "               brew install p7zip                    # macOS" >&2
   echo "  (Or use the pinned CDN instead — see the header of this script.)" >&2
   exit 1
 fi

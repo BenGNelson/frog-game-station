@@ -198,10 +198,20 @@ native-only ones; the same `vite build` still produces the web PWA for the serve
   loading ONE libretro core (mupen64plus_next), running ONE ROM (Mario Kart 64),
   rendering to the window, reading a gamepad. No Frog UI. Proves the hard part works on
   Mac + Windows before committing. *If (A) proves too heavy here, fall back to (C).*
-- **Phase 1 — the desktop shell (Mode 1).** Tauri wraps the existing frontend,
-  `VITE_API_BASE` → the self-hosted backend. Browsing/metadata/collections/saves all
-  work immediately in a native window. Play still uses the web player (nothing native
-  yet) — so it's "the PWA as a desktop app," proving the reuse + the seam.
+- **Phase 1 — the desktop shell (Mode 1). SHIPPED (v0.7.0, 2026-07-26).** Tauri v2
+  wraps the existing frontend (`frontend/src-tauri/`), `VITE_API_BASE` → the
+  self-hosted backend. Browsing/metadata/collections/saves all work immediately in a
+  native window; play still uses the web player — "the PWA as a desktop app," proving
+  the reuse + the seam. How it landed: the seam is `lib/playerBackend.js` `isNative()`
+  driven by Vite's `--mode desktop` (committed `.env.desktop` carries the flag, the
+  gitignored `.env.desktop.local` carries each machine's backend URL); the desktop
+  build omits the `VitePWA` plugin (no SW) and hides the Download affordance (the SW
+  is the only thing that can serve one back); backend CORS default-allows the fixed
+  tauri webview origins; a `tauri-linux` CI job keeps the crate + stripped frontend
+  compiling. Deferred on purpose: Tauri CSP is `null` until the Phase-4 release
+  pipeline (a committed CSP can't name the env-configured backend origin), and the
+  §8.2 webview-over-native-surface compositing proof moves to the START of Phase 2a —
+  it needs the native player's GL surface to exist before it can be tested.
 - **Phase 2 — the native player.** Wire `NativePlayer` to the Phase-0 core host. Start
   N64, then DS, then PS1. Save states + SRAM POST to the same API → **roaming with the
   phone works**. The Frog pause menu / save shelf / controls screen drive the native
@@ -266,8 +276,9 @@ native-only ones; the same `vite build` still produces the web PWA for the serve
   (2) **Audio contract:** answer `GET_AUDIO_VIDEO_ENABLE` (env 47, = video|audio) —
   declining it mutes mupen entirely — and feed the device through a jitter buffer
   (hold + ~40 ms refill on underrun); with those, all systems sound clean.
-  Remaining §8.2 item (webview-over-native-surface compositing) deliberately folds
-  into the Phase-1 Tauri shell work, which needs Tauri on the Mac anyway.
+  Remaining §8.2 item (webview-over-native-surface compositing) is the FIRST work
+  item of Phase 2a — it needed Tauri on the Mac (Phase 1 delivered that) and a
+  native GL surface to layer under the webview (Phase 2a builds that).
 - core supply: the buildbot's nightly channel serves ROLLING builds (`latest/`), so
   URL-pinning does not pin — the productionized `fetch-native-cores.sh` must archive
   known-good core builds (mirror the exact .so/.dylib/.dll somewhere we control, or
@@ -343,9 +354,9 @@ Point `VITE_API_BASE` at the running backend for dev.
 2. **Video path:** direction SETTLED (Mac validation, 2026-07-25) — **(a) a native GL
    surface.** The spike presents core output in a native window at a locked 60 fps on
    the M4, software and HW-render paths both proven. The remaining proof — layering
-   the Tauri webview over that surface as transparent chrome — rides with the Phase-1
-   shell work; (b) render-to-texture stays the fallback only if webview compositing
-   fights the OS.
+   the Tauri webview over that surface as transparent chrome — is the first work item
+   of Phase 2a (it needs the native player's GL surface to exist); (b)
+   render-to-texture stays the fallback only if webview compositing fights the OS.
 3. **Mode 2 backend:** FastAPI sidecar (max reuse, bigger binary) vs. Rust rewrite
    (lean, duplicated). Leaning sidecar.
 4. **Which cores to bundle first** beyond N64/DS/PS1 (add the cartridge cores so the

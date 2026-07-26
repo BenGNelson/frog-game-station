@@ -320,10 +320,18 @@ check a row when its exit criteria hold, and note carry-over under the row.
       native desktop app runs everything. Tests + docs (README features note,
       ARCHITECTURE) ride along; the load-watchdog stays as the backstop for
       direct /play URLs.
-- [ ] **5. Phase 1 — Tauri shell, Mode 1 (v0.7.0).** `frontend/src-tauri/`,
-      `lib/playerBackend.js` (`isNative()`), `VITE_TARGET=desktop` build flag, backend
-      CORS for the Tauri origins, `tauri-linux` CI job. Exit: full Frog UI in a native
-      window against the self-hosted backend; web PWA regression-free.
+- [x] **5. Phase 1 — Tauri shell, Mode 1 (v0.7.0).** Shipped: `frontend/src-tauri/`
+      (Tauri v2, deliberately empty shell), `lib/playerBackend.js` `isNative()` driven
+      by `--mode desktop` + the committed `.env.desktop` (machine's backend URL in the
+      gitignored `.env.desktop.local`), the desktop build drops the VitePWA plugin
+      (no SW) and the Download affordance (SW is the only reader that can serve one
+      back), backend CORS default-allows the tauri webview origins, `tauri-linux` CI
+      compile gate. Exit held: full Frog UI in a native window against both a local
+      backend and the deployed server; web suites + smoke pass untouched. Carry-over:
+      (1) §8.2 webview-over-surface compositing proof = FIRST item of Phase 2a;
+      (2) Tauri CSP stays null until the Phase-4 release pipeline; (3) `tauri dev`
+      serves from the Vite origin — add it to the backend's CORS while developing
+      (README notes it).
 - [ ] **6. Phase 2a — NativePlayer + N64 (v0.8.0).** The Tauri command/event contract,
       `player/NativePlayer.jsx` reusing the pause menu / save shelf / controls chrome,
       `scripts/fetch-native-cores.sh`; saves flow through the existing roaming

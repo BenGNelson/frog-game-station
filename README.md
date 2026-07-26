@@ -166,6 +166,32 @@ browser chrome) and downloaded games play offline.
 3. Launch it from the icon — the app also offers a gentle one-time install nudge on
    phones, so step 2 mostly happens by itself.
 
+## Desktop app (beta)
+
+The same frontend also runs as a native desktop window (Tauri), pointed at your
+self-hosted backend — the first step of the native desktop app (which will
+eventually play the disc-era systems browsers can't). For now it's the full
+browsing/playing UI in a real window; gameplay still uses the built-in web player.
+
+Requirements: [Node](https://nodejs.org), [Rust](https://rustup.rs), and the
+EmulatorJS engine fetched (`scripts/fetch-emulatorjs.sh`).
+
+```bash
+cd frontend
+npm ci
+# point the app at your backend (this file is gitignored — real URLs never land in git)
+echo 'VITE_API_BASE=http://your-server:8585/api' > .env.desktop.local
+npm run tauri dev              # dev loop: native window + hot reload
+npm run tauri build            # a real .app / installer bundle
+```
+
+The desktop build strips the PWA machinery (no service worker, no install nudge,
+no offline-download button — the app is already installed and local). The backend
+allows the desktop app's webview origins out of the box; see `CORS_ALLOW_ORIGINS`
+in `.env.example` to restrict that. One dev-loop wrinkle: `tauri dev` serves the
+UI from Vite (`http://localhost:5173`), so add that origin to the backend's
+`CORS_ALLOW_ORIGINS` while developing — the built app needs nothing.
+
 ## Testing
 
 ```bash
