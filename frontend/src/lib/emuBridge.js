@@ -13,6 +13,7 @@
 
 import { buildControls, EJS_BUTTONS_OFF, EJS_HIDE_SETTINGS } from './controlPresets.js'
 import { sectionAccent } from './library.js'
+import { isNative } from './playerBackend.js'
 import { RETROPAD, DIGITAL_INPUTS } from './retropad.js'
 
 // Re-exported so callers can reach the engine and its button indices from one
@@ -524,6 +525,18 @@ const START_STYLE_ID = 'hq-start-screen'
 // The frog deliberately does NOT live in this document: the engine resizes the iframe
 // when the game starts (the touch controls take half the screen), and anything centred
 // inside a box that changes size moves when it changes size.
+// The start cue's copy, split by build. On the web, "TAP TO PLAY" — a tap is the
+// one thing that works everywhere, and on iOS a pad literally can't start a game
+// with sound, so promising "PRESS A" there would be a lie (pressing A on iOS
+// bounces the cue instead — flashStartCue — which reads as "no — tap"). The
+// desktop app has no touchscreen, so its cue names what actually works there:
+// the pad's A, or the mouse (Enter/Space work too — a keydown is a real gesture,
+// so audio unlocks the same way). Exported for tests: styleStartScreen itself
+// needs a real player document, which this suite deliberately fakes.
+export function startCueText() {
+  return isNative() ? 'PRESS A OR CLICK TO PLAY' : 'TAP TO PLAY'
+}
+
 export function styleStartScreen(frame, { coverUrl, name, onStart, accent, ground } = {}) {
   let doc
   try {
@@ -729,13 +742,10 @@ export function styleStartScreen(frame, { coverUrl, name, onStart, accent, groun
     host.insertBefore(column, button)
     column.appendChild(button)
 
-    // How to start it, in Frog Game Station's jade. "TAP TO PLAY" because a tap is the one thing
-    // that works everywhere — on iOS a pad literally can't start a game with sound, so
-    // promising "PRESS A" there was a lie. Pressing A on iOS bounces this cue instead
-    // (flashStartCue), which reads as "no — tap".
+    // How to start it, in Frog Game Station's jade (copy from startCueText).
     const cue = doc.createElement('p')
     cue.className = 'hq-start-cue'
-    cue.textContent = 'TAP TO PLAY'
+    cue.textContent = startCueText()
     column.appendChild(cue)
 
     // The whole-screen tap target. A real tap on it clicks the engine's Start button

@@ -1,6 +1,7 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import {
   clearStartScreen,
+  startCueText,
   RETROPAD,
   DIGITAL_INPUTS,
   playerConfig,
@@ -325,6 +326,19 @@ describe('gateEngineGamepad', () => {
 
   it('does not throw when there is no gamepad handler', () => {
     expect(() => gateEngineGamepad({}, () => false)()).not.toThrow()
+  })
+})
+
+describe('startCueText', () => {
+  afterEach(() => vi.unstubAllEnvs())
+
+  it('tells web players to tap — the one gesture that works on every device', () => {
+    expect(startCueText()).toBe('TAP TO PLAY')
+  })
+
+  it('tells desktop players about the pad and the mouse (no touchscreen to tap)', () => {
+    vi.stubEnv('VITE_TARGET', 'desktop')
+    expect(startCueText()).toBe('PRESS A OR CLICK TO PLAY')
   })
 })
 
