@@ -1,0 +1,20 @@
+# The desktop shell (Mode 1): a Tauri v2 window around the built frontend. The
+# product version lives in ../package.json (tauri.conf.json points there); this
+# crate's own version is never surfaced.
+[package]
+name = "frog-game-station-desktop"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[lib]
+name = "frog_game_station_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

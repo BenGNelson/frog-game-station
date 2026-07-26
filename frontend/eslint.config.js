@@ -6,7 +6,7 @@ import reactHooks from 'eslint-plugin-react-hooks'
 // style/unused noise is a warning so `npm run lint` stays green while still
 // surfacing cleanup opportunities.
 export default [
-  { ignores: ['dist/**', 'dev-dist/**', 'node_modules/**', 'public/emulatorjs/**'] },
+  { ignores: ['dist/**', 'dev-dist/**', 'node_modules/**', 'public/emulatorjs/**', 'src-tauri/**'] },
   js.configs.recommended,
   {
     files: ['**/*.{js,jsx}'],

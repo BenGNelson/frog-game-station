@@ -30,3 +30,8 @@ e2e/screenshots/
 # --- Editor / OS noise ---
 .DS_Store
 *.swp
+
+# Desktop shell (Tauri) — build artifacts + per-machine env
+frontend/src-tauri/target/
+frontend/src-tauri/gen/
+frontend/.env.desktop.local

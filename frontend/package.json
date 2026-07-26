@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:desktop": "vite build --mode desktop",
+    "tauri": "tauri",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -20,6 +22,7 @@
   "devDependencies": {
     "@eslint/js": "^9.0.0",
     "@tailwindcss/vite": "^4.0.0",
+    "@tauri-apps/cli": "^2.11.4",
     "@vitejs/plugin-react": "^4.3.1",
     "eslint": "^9.0.0",
     "eslint-plugin-react-hooks": "^5.0.0",

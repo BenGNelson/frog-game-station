@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "The main window's base capability — core APIs only; no plugins yet.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

@@ -8,16 +8,19 @@ import { VitePWA } from 'vite-plugin-pwa'
 // boot screen's stamp stays in lockstep with the release rather than a hardcoded copy.
 const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'))
 
-// The desktop (Tauri) build: same app, native window, no PWA machinery. The
-// service worker is stripped by omitting the plugin entirely — registration is
-// plugin-injected, so there is no in-source call site to gate. The app reads the
-// same flag at runtime via lib/playerBackend.js `isNative()`.
-const desktop = process.env.VITE_TARGET === 'desktop'
-
 // Dev server config. In development the browser loads this Vite server, which
 // hot-reloads on save. Calls to /api are proxied to the backend container so
 // the whole app behaves as one origin (no CORS, same URLs as production).
-export default defineConfig({
+export default defineConfig(({ mode }) => {
+  // The desktop (Tauri) build: same app, native window, no PWA machinery —
+  // selected with `--mode desktop` (the committed .env.desktop sets VITE_TARGET
+  // so lib/playerBackend.js `isNative()` agrees at runtime; the gitignored
+  // .env.desktop.local holds the machine's real VITE_API_BASE). The service
+  // worker is stripped by omitting the plugin entirely — registration is
+  // plugin-injected, so there is no in-source call site to gate.
+  const desktop = mode === 'desktop'
+
+  return {
   // Replaced literally at build; consumed by the boot screen's version stamp.
   define: { 'import.meta.env.VITE_APP_VERSION': JSON.stringify(pkg.version) },
   plugins: [
@@ -82,4 +85,5 @@ export default defineConfig({
       '/api': { target: 'http://backend:8000', changeOrigin: true },
     },
   },
+  }
 })
