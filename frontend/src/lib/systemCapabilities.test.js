@@ -64,6 +64,8 @@ describe('playableHere — what this device can actually run', () => {
     expect(unplayableReason('n64', 'web')).toBeNull()
     expect(unplayableReason('psx', 'touch')).toMatch(/memory/)
     expect(unplayableReason('psx', 'web')).toMatch(/desktop app/)
+    expect(unplayableReason('nds', 'web')).toMatch(/desktop app/)
+    expect(unplayableReason('nds', 'native')).toBeNull()
   })
 })
 

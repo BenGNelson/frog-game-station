@@ -121,14 +121,19 @@ export default function GameScreen({
 
   const actions = (
     <div className="flex flex-wrap items-center gap-2">
+      {/* Deliberately NOT `disabled`: browsers stop dispatching mouse events to
+          disabled controls, which would drop this out of the hover-to-focus walk
+          every other action is in — the cursor would skip the one button that
+          needs explaining. It reads as quiet instead of solid, says where the
+          game does play, and the amber line below gives the reason. */}
       <Button
-        variant="solid"
+        variant={cantPlay ? 'quiet' : 'solid'}
         size="lg"
         data-testid="frog-detail-play"
         focused={on('actions', 0)}
         onMouseMove={() => onFocus('actions', 0)}
         onClick={cantPlay ? undefined : onPlay}
-        disabled={!!cantPlay}
+        aria-disabled={cantPlay ? true : undefined}
         className="flex items-center gap-2"
       >
         <Play className="h-5 w-5" fill="currentColor" aria-hidden="true" />

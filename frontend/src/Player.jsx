@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { saveStateUrl } from './lib/library.js'
+import { unplayableReason } from './lib/systemCapabilities.js'
 import PlayerShell from './player/PlayerShell.jsx'
 import { FROG } from './frog/theme.js'
 
@@ -42,6 +43,29 @@ export default function Player() {
   // (only present when the server holds the system's file — see FrogBrowser.play).
   const size = params.get('size') || ''
   const biosUrl = params.get('bios') || ''
+
+  // The last door to the black screen: a bookmarked, reloaded, or Back-buttoned
+  // /play URL for a system this device can't run. The game page already says
+  // "Plays on desktop", but nothing before this stopped the URL itself.
+  const cantPlay = id && core ? unplayableReason(core) : null
+  if (cantPlay) {
+    return (
+      <div
+        className="flex min-h-screen flex-col items-center justify-center gap-3 p-6 text-center"
+        style={{ background: FROG.ground, color: FROG.soft }}
+      >
+        <p style={{ color: FROG.ink }}>{name} plays in the desktop app.</p>
+        <p className="max-w-sm text-sm leading-relaxed">{cantPlay}</p>
+        <button
+          onClick={() => navigate('/frog')}
+          className="underline"
+          style={{ color: `rgb(${FROG.jade})` }}
+        >
+          Back to Games
+        </button>
+      </div>
+    )
+  }
 
   if (!id || !core) {
     return (

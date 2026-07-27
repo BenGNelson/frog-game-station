@@ -277,15 +277,17 @@ pub unsafe extern "C" fn input_state(port: c_uint, device: c_uint, index: c_uint
             ANALOG_Y => PAD_RY.load(Ordering::Relaxed),
             _ => 0,
         },
-        // The stylus. Only pointer 0 exists (one mouse, one finger); COUNT
-        // answers 1 while it's down so a core can poll how many are touching.
+        // The stylus. Only pointer 0 exists (one mouse, one finger). COUNT has
+        // to live INSIDE this arm: cores query it at index 0, and a separate
+        // guarded arm below could never be reached from there — which read as
+        // "no pointers are touching" to any core that checks COUNT first.
         DEVICE_POINTER if index == 0 => match id {
             POINTER_X => POINTER_X_POS.load(Ordering::Relaxed),
             POINTER_Y => POINTER_Y_POS.load(Ordering::Relaxed),
             POINTER_PRESSED => POINTER_DOWN.load(Ordering::Relaxed) as i16,
+            POINTER_COUNT => POINTER_DOWN.load(Ordering::Relaxed) as i16,
             _ => 0,
         },
-        DEVICE_POINTER if id == POINTER_COUNT => POINTER_DOWN.load(Ordering::Relaxed) as i16,
         _ => 0,
     }
 }
@@ -353,6 +355,8 @@ mod tests {
             assert_eq!(input_state(0, DEVICE_POINTER, 0, POINTER_X), 0);
             assert_eq!(input_state(0, DEVICE_POINTER, 0, POINTER_Y), 0);
             assert_eq!(input_state(0, DEVICE_POINTER, 0, POINTER_PRESSED), 1);
+            // Cores ask for COUNT at index 0 — it must answer there.
+            assert_eq!(input_state(0, DEVICE_POINTER, 0, POINTER_COUNT), 1);
         }
         pointer(0.0, 1.0, true); // bottom-left corner
         unsafe {
@@ -362,6 +366,7 @@ mod tests {
         pointer(0.5, 0.5, false);
         unsafe {
             assert_eq!(input_state(0, DEVICE_POINTER, 0, POINTER_PRESSED), 0);
+            assert_eq!(input_state(0, DEVICE_POINTER, 0, POINTER_COUNT), 0);
         }
     }
 

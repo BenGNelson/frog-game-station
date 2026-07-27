@@ -73,6 +73,10 @@ static GEN: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 // generation scheme exists to prevent — once wedged, launches refuse honestly
 // until the app restarts.
 static WEDGED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+// Set by stop_game BEFORE it queues behind the launch lock, so a quit during a
+// long ROM download aborts the fetch instead of waiting out a disc the player
+// has already walked away from.
+static FETCH_CANCEL: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 const JOIN_TIMEOUT: Duration = Duration::from_secs(10);
 
 #[tauri::command]
@@ -112,10 +116,17 @@ pub async fn load_game(
 
     let rom_url = args.rom_url.clone();
     let game_id = args.game_id.clone();
+    FETCH_CANCEL.store(false, std::sync::atomic::Ordering::Relaxed);
     let fetch_app = app.clone();
     let rom_path = tauri::async_runtime::spawn_blocking(move || {
         rom::fetch(&rom_url, &cache_dir, &game_id, |received, total| {
-            let _ = fetch_app.emit("native:fetch", serde_json::json!({ "received": received, "total": total }));
+            if total > 0 {
+                let _ = fetch_app.emit(
+                    "native:fetch",
+                    serde_json::json!({ "received": received, "total": total }),
+                );
+            }
+            !FETCH_CANCEL.load(std::sync::atomic::Ordering::Relaxed)
         })
     })
     .await
@@ -234,6 +245,9 @@ pub async fn stop_game(
     state: tauri::State<'_, EmuState>,
     generation: Option<u64>,
 ) -> Result<(), String> {
+    // Tell any in-flight ROM download to give up BEFORE queueing for the lock —
+    // otherwise quitting mid-download waits out the whole disc.
+    FETCH_CANCEL.store(true, std::sync::atomic::Ordering::Relaxed);
     // Same lock as load_game: a stop that races a launch must fully finish
     // (thread dead, stage removed) before the next boot touches the statics.
     let _serial = state.load_lock.lock().await;

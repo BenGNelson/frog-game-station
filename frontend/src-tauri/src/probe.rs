@@ -30,8 +30,15 @@ pub fn maybe_nav(app: &mut tauri::App) {
         // without a hand on the mouse. Enter is the player's own start key, so
         // this drives the real path rather than a back door.
         if std::env::var("FROG_AUTOSTART").ok().as_deref() == Some("1") {
-            std::thread::sleep(std::time::Duration::from_millis(6000));
-            let _ = window.eval("window.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter'}))");
+            // Keep offering Enter for a couple of minutes: the start card only
+            // appears once the ROM has arrived, and a disc image streaming off
+            // the server can take a while. A single timed press would land
+            // during the download and be swallowed — the smoke run would then
+            // report "the core loads" as if it were "the game runs".
+            for _ in 0..60 {
+                std::thread::sleep(std::time::Duration::from_millis(2000));
+                let _ = window.eval("window.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter'}))");
+            }
         }
     });
 }

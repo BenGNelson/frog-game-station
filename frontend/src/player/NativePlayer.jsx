@@ -823,6 +823,11 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
         {isRunning(state) && !padActive && (
           <button
             onClick={openMenu}
+            // The stage is also the stylus, so swallow the pointer here — the
+            // click that opens the menu must not poke the DS's touchscreen at
+            // whatever the ☰ happens to be sitting over.
+            onPointerDown={(e) => e.stopPropagation()}
+            onPointerUp={(e) => e.stopPropagation()}
             aria-label="Game menu"
             style={{ background: FROG.panel, color: FROG.ink }}
             className="absolute right-2 top-2 z-10 rounded-full p-2 backdrop-blur-sm active:opacity-80"

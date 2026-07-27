@@ -34,18 +34,29 @@ pub fn cache_path(cache_dir: &Path, game_id: &str) -> PathBuf {
 /// declare `need_fullpath` (every disc core) read it off disk themselves — so
 /// buffering it would be pure waste. The session loads the bytes afterwards
 /// only for the cores that actually want a buffer.
+/// `progress(received, total)` returns false to ABORT — that's how a quit
+/// during a long download stops the fetch instead of making the user wait out
+/// a disc they've already left.
 pub fn fetch(
     rom_url: &str,
     cache_dir: &Path,
     game_id: &str,
-    mut progress: impl FnMut(u64, u64),
+    mut progress: impl FnMut(u64, u64) -> bool,
 ) -> Result<PathBuf, String> {
     std::fs::create_dir_all(cache_dir).map_err(|e| format!("rom cache dir: {e}"))?;
     let path = cache_path(cache_dir, game_id);
     if std::fs::metadata(&path).map(|m| m.len() > 0).unwrap_or(false) {
         return Ok(path);
     }
-    let resp = ureq::get(rom_url).call().map_err(|e| format!("rom fetch: {e}"))?;
+    // Timeouts matter more than they look: a half-open socket (sleep, wifi drop,
+    // NAT timeout) would otherwise block this read forever — and because the
+    // caller holds the launch lock for the whole fetch, that wedges every future
+    // launch AND quit for the life of the process.
+    let agent = ureq::AgentBuilder::new()
+        .timeout_connect(std::time::Duration::from_secs(15))
+        .timeout_read(std::time::Duration::from_secs(45))
+        .build();
+    let resp = agent.get(rom_url).call().map_err(|e| format!("rom fetch: {e}"))?;
     let total: u64 = resp
         .header("Content-Length")
         .and_then(|v| v.parse().ok())
@@ -61,23 +72,40 @@ pub fn fetch(
     let mut buf = vec![0u8; 256 * 1024];
     let mut copied: u64 = 0;
     let mut last_ping = 0u64;
-    loop {
-        let n = reader.read(&mut buf).map_err(|e| format!("rom read: {e}"))?;
-        if n == 0 {
-            break;
+    // An opening ping, so even a small ROM on a slow link proves it's moving.
+    progress(0, total);
+    let outcome = loop {
+        match reader.read(&mut buf) {
+            Ok(0) => break Ok(()),
+            Ok(n) => {
+                if let Err(e) = out.write_all(&buf[..n]) {
+                    break Err(format!("rom cache write: {e}"));
+                }
+                copied += n as u64;
+                if copied - last_ping >= 1_000_000 {
+                    last_ping = copied;
+                    if !progress(copied, total) {
+                        break Err("cancelled".into());
+                    }
+                } else if !progress(copied, total) {
+                    break Err("cancelled".into());
+                }
+            }
+            Err(e) => break Err(format!("rom read: {e}")),
         }
-        out.write_all(&buf[..n]).map_err(|e| format!("rom cache write: {e}"))?;
-        copied += n as u64;
-        if copied - last_ping >= 1_000_000 {
-            last_ping = copied;
-            progress(copied, total);
-        }
-    }
+    };
     drop(out);
+    // Any failure takes the partial with it — an abandoned download must not
+    // sit in app-data forever, and it must never look like a cache hit.
+    if let Err(e) = outcome {
+        let _ = std::fs::remove_file(&partial);
+        return Err(e);
+    }
     if copied == 0 {
         let _ = std::fs::remove_file(&partial);
         return Err("rom fetch returned no bytes".into());
     }
+    progress(copied, total.max(copied)); // the closing ping: 100%
     std::fs::rename(&partial, &path).map_err(|e| format!("rom cache write: {e}"))?;
     Ok(path)
 }

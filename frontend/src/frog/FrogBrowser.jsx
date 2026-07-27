@@ -893,9 +893,13 @@ export default function FrogBrowser() {
       if (item.count > 0) openSystem(item.label)
     } else if (item.seeAll) {
       openCollection(item.tag)
-    } else if (rail.id === 'jump') {
+    } else if (rail.id === 'jump' && playableHere(item.core, deviceCaps)) {
       play(item)
     } else openDetail(item, 'shelf')
+    // A "Jump back in" card for a game this device can't run (a PlayStation
+    // session roamed over from the desktop app) opens its PAGE instead — where
+    // the Play button says "Plays on desktop" and why. A card that did nothing
+    // at all would just read as broken.
   }
 
   // Star / unstar: the server tag is the roaming truth (optimistic, same dirty-tracked
