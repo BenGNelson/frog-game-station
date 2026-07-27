@@ -1130,6 +1130,23 @@ The player and readers are **real routes**, not overlays, so the phone's back ge
   keeps offer-plus-watchdog for now; post-native-player it gets a "plays in the desktop
   app" hand-off as an extension of the same map. Direct `/play` URLs stay backstopped
   by the player's load watchdog.
+- **The native player wears the web player's shape, so there is one save pipeline
+  (2026-07).** Phase 2a (v0.8.0) runs games in a real libretro core inside the desktop
+  app — but `NativePlayer.jsx` is not a second player. The pieces that made
+  `PlayerShell.jsx` were extracted first (`usePlayerShelf`, `usePlayerPanels`,
+  `usePlayerControls`, `padRouter`) and BOTH players compose them, so the save shelf,
+  the panels, and the pad walk can't drift apart. The engine seam is
+  `lib/nativeEmu.js`: an adapter that duck-types the EmulatorJS handle
+  (`gameManager.getState/getSaveFile/FS.writeFile`, `takeScreenshot`) over Tauri
+  commands, which is what lets `gameSaves.js`, `useGameSaves`, and `usePlayTime` drive
+  a native core **unmodified** — the lineage guard, the outbox, newest-wins seeding,
+  and every throttle come along for free instead of being reimplemented (and
+  eventually diverging) in Rust. The one real mismatch is that the web engine reads
+  SRAM synchronously while the host is async; the adapter serves a snapshot kept fresh
+  by a host-side change ping, and every exit path (quit, and a window-close the host
+  holds open for exactly this) refreshes it first so the final write is byte-true.
+  Video is the §8.2 (a) path: a GL surface under a transparent webview in the one
+  window — the chrome floats over the game exactly as it floats over the iframe.
 - **The desktop shell is the same frontend behind a build flag, not a fork (2026-07).**
   Phase 1 of the native app (`frontend/src-tauri/`, v0.7.0) wraps the *existing* React
   app in a Tauri v2 window pointed at the self-hosted backend over HTTP; play still uses
