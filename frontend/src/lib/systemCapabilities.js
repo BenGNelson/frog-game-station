@@ -37,11 +37,31 @@ export function deviceClass({ coarse, native } = {}) {
   return (coarse ?? mediaMatches('(pointer: coarse)')) ? 'touch' : 'web'
 }
 
-// Is this game playable-and-offered here? (By core — the item field every
-// browse surface already carries.)
-export function playableHere(core, cls = deviceClass()) {
+// Is this game OFFERED here at all — does it appear in the library? (By core —
+// the item field every browse surface already carries.) Only touch hides
+// anything: a phone can't run the disc era and shouldn't tease it.
+export function offeredHere(core, cls = deviceClass()) {
   if (cls !== 'touch') return true
   return !GATED_ON_TOUCH.some((s) => s.core === core)
+}
+
+// Can this device actually PLAY it? Distinct from "offered" for exactly one
+// case: a desktop BROWSER lists the disc era (you own it, its page is worth
+// reading, its saves still roam) but can't run it — those cores black-screen
+// in every desktop browser, which is why the native player exists. There, Play
+// becomes a hand-off to the desktop app rather than a button that fails.
+export function playableHere(core, cls = deviceClass()) {
+  if (cls === 'native') return true
+  return !GATED_ON_TOUCH.some((s) => s.core === core)
+}
+
+// The honest reason a game isn't playable here, for the UI to say out loud.
+// null when it plays fine.
+export function unplayableReason(core, cls = deviceClass()) {
+  if (playableHere(core, cls)) return null
+  return cls === 'touch'
+    ? 'This system needs more memory than a phone or tablet browser has.'
+    : 'Browsers can’t run this system — it plays in the Frog Game Station desktop app.'
 }
 
 // Does this device's shelf offer this system at all? (By label — the shelf's

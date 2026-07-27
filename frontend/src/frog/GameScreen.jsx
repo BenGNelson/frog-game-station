@@ -7,7 +7,7 @@ import { rematchOptions } from './rematch.js'
 import { coverUrl, saveStateShotUrl, igdbShotUrl, LARGE_ROM_BYTES } from '../lib/library.js'
 import { isNative } from '../lib/playerBackend.js'
 import { formatPlaytime, formatToBeat } from '../lib/format.js'
-import { deviceClass } from '../lib/systemCapabilities.js'
+import { deviceClass, unplayableReason } from '../lib/systemCapabilities.js'
 import { useFocusTrap } from '../lib/useFocusTrap.js'
 import ConfirmDialog from './ConfirmDialog.jsx'
 import { FROG, systemStyle, reflection, scrim, SCRIM, focusRing, FOCUS_SCALE, FONT_DISPLAY } from './theme.js'
@@ -113,6 +113,12 @@ export default function GameScreen({
   // earlier — must mirror FrogBrowser's dlShift or focus and dispatch disagree.
   const dlShift = isNative() ? 1 : 0
 
+  // Some systems are yours, and listed, but can't run HERE — the disc era in a
+  // browser. Say so on the button rather than letting Play lead to a black
+  // screen; the game page, its saves, and its metadata all stay exactly as they
+  // are, because the desktop app plays it and the saves roam either way.
+  const cantPlay = unplayableReason(game.core)
+
   const actions = (
     <div className="flex flex-wrap items-center gap-2">
       <Button
@@ -121,10 +127,12 @@ export default function GameScreen({
         data-testid="frog-detail-play"
         focused={on('actions', 0)}
         onMouseMove={() => onFocus('actions', 0)}
-        onClick={onPlay}
+        onClick={cantPlay ? undefined : onPlay}
+        disabled={!!cantPlay}
         className="flex items-center gap-2"
       >
-        <Play className="h-5 w-5" fill="currentColor" aria-hidden="true" /> Play
+        <Play className="h-5 w-5" fill="currentColor" aria-hidden="true" />
+        {cantPlay ? 'Plays on desktop' : 'Play'}
       </Button>
 
       <ActionButton
@@ -245,7 +253,18 @@ export default function GameScreen({
 
           {playMs > 0 && <PlayedLine ms={playMs} plays={plays} lastMs={lastPlayedMs} />}
 
-          {game.size >= LARGE_ROM_BYTES && deviceClass() === 'touch' && (
+          {cantPlay && (
+            <p
+              data-testid="frog-detail-handoff"
+              className="flex items-start gap-1.5 text-xs leading-relaxed"
+              style={{ color: `rgb(${FROG.amber})` }}
+            >
+              <TriangleAlert className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              <span>{cantPlay}</span>
+            </p>
+          )}
+
+          {!cantPlay && game.size >= LARGE_ROM_BYTES && deviceClass() === 'touch' && (
             <p className="flex items-start gap-1.5 text-xs leading-relaxed" style={{ color: `rgb(${FROG.amber})` }}>
               <TriangleAlert className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden="true" />
               <span>Large game — it may be too big for this device’s browser to load. Plays best on a computer or TV.</span>

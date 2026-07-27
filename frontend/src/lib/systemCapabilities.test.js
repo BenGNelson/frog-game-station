@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from 'vitest'
-import { deviceClass, playableHere, systemOffered } from './systemCapabilities.js'
+import { deviceClass, offeredHere, playableHere, systemOffered, unplayableReason } from './systemCapabilities.js'
 
 // The capability contract (decided 2026-07-25): touch devices are never offered
 // PlayStation or DS (per-tab memory ceiling), N64 and the cartridges stay, and
@@ -27,21 +27,43 @@ describe('deviceClass', () => {
   })
 })
 
-describe('playableHere', () => {
+describe('offeredHere — what shows up in the library', () => {
   it('touch hides psx and nds, keeps n64 and the cartridges', () => {
-    expect(playableHere('psx', 'touch')).toBe(false)
-    expect(playableHere('nds', 'touch')).toBe(false)
-    expect(playableHere('n64', 'touch')).toBe(true)
-    expect(playableHere('gba', 'touch')).toBe(true)
-    expect(playableHere('gb', 'touch')).toBe(true)
+    expect(offeredHere('psx', 'touch')).toBe(false)
+    expect(offeredHere('nds', 'touch')).toBe(false)
+    expect(offeredHere('n64', 'touch')).toBe(true)
+    expect(offeredHere('gba', 'touch')).toBe(true)
   })
 
-  it('web and native offer everything', () => {
+  it('web and native list everything you own', () => {
     for (const cls of ['web', 'native']) {
       for (const core of ['psx', 'nds', 'n64', 'gba']) {
-        expect(playableHere(core, cls)).toBe(true)
+        expect(offeredHere(core, cls)).toBe(true)
       }
     }
+  })
+})
+
+describe('playableHere — what this device can actually run', () => {
+  it('only the desktop app plays the disc era', () => {
+    expect(playableHere('psx', 'native')).toBe(true)
+    expect(playableHere('nds', 'native')).toBe(true)
+    expect(playableHere('psx', 'web')).toBe(false) // listed, but hands off
+    expect(playableHere('nds', 'web')).toBe(false)
+    expect(playableHere('psx', 'touch')).toBe(false)
+  })
+
+  it('N64 and the cartridges play everywhere', () => {
+    for (const cls of ['touch', 'web', 'native']) {
+      expect(playableHere('n64', cls)).toBe(true)
+      expect(playableHere('gba', cls)).toBe(true)
+    }
+  })
+
+  it('explains itself differently on a phone than on a desktop browser', () => {
+    expect(unplayableReason('n64', 'web')).toBeNull()
+    expect(unplayableReason('psx', 'touch')).toMatch(/memory/)
+    expect(unplayableReason('psx', 'web')).toMatch(/desktop app/)
   })
 })
 

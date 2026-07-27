@@ -367,18 +367,31 @@ check a row when its exit criteria hold, and note carry-over under the row.
       until now because cartridge states are tiny.**
       Carry-over: rewind/filter/fullscreen rows stay out until row 9; paraLLEl-RDP
       (the macOS N64 quality path) stays post-1.0; Windows/Linux GL is Phase 4.
-- [ ] **7. Phase 2b — DS + PS1.** melonDS (touch + dual-screen layout), PCSX-ReARMed
-      (.chd; user BIOS honored, HLE otherwise). Exit: the known browser failures play
-      natively.
-- [ ] **7b. Retire DS + PS1 from the web player.** Per the platform-responsibility split
-      (ARCHITECTURE Decision log; `NATIVE_APP_PLAN.md` §1): DS/PS1 black-screen in real
-      browsers, so once row 7 makes them play natively, stop offering play-in-browser
-      for `.nds`/`.chd` — library, metadata, covers, and saves stay (the desktop app
-      plays them; saves keep roaming). Sources of truth to touch:
-      `backend/app/library.py` `SECTIONS["games"]["formats"]` and the mirror
-      `LIBRETRO_CORE` map in `frontend/src/lib/library.js`; update the README "Nine
-      systems" prose and the ARCHITECTURE player section in the same change. Sequenced
-      deliberately AFTER row 7 — never remove a system before its replacement exists.
+- [x] **7. Phase 2b — DS + PS1.** Shipped: melonDS and PCSX-ReARMed join the pinned
+      core set, and the host grew what the disc era actually needs — ROMs **stream**
+      to the cache file instead of through memory (a PlayStation disc is hundreds of
+      MB and every disc core declares `need_fullpath`, so buffering was pure waste;
+      a partial download can't masquerade as a cache hit either), a real **stylus**
+      (`RETRO_DEVICE_POINTER` fed by the webview's mouse over the transparent stage —
+      the host maps window coords through its own letterbox so the geometry has one
+      owner, and a click on the black bars lifts the stylus rather than clamping to
+      an edge the DS would read as a touch), and a **stall-based load watchdog**: a
+      400 MB disc arriving over the network took ~50s and would have been called a
+      failure at 30, so every chunk that lands pushes the deadline out and the boot
+      screen says FETCHING n%. Verified on the M4: Chrono Trigger (DS) renders both
+      screens; Chrono Cross (403 MB `.chd`) mounts and boots on the HLE BIOS.
+      Carry-over: PS1 BIOS fetching (the endpoint exists, Ben has no dump on the
+      server, HLE is the documented fallback); DS screen-layout options → row 9.
+- [x] **7b. Retire DS + PS1 from the web player.** Shipped as the extension the
+      capability map was designed for, not a removal: `lib/systemCapabilities.js` now
+      separates **offered** (does it appear in the library at all — only touch hides
+      anything) from **playable** (can this device run it). A desktop browser still
+      lists your PlayStation and DS games, still shows their pages, art, and saves —
+      but Play reads **"Plays on desktop"** with an honest one-line reason, and every
+      other route in (pad, keyboard, a rail card) is guarded at `play()`. Nothing was
+      removed from the backend's `SECTIONS` or the `LIBRETRO_CORE` mirror: the games
+      are yours, their saves roam, and the desktop app plays them — which is exactly
+      why this row waited for row 7.
 - [ ] **8. Phase 2c — cartridge cores.** Bundle the 2D-system cores so the desktop app
       is a complete client. Exit: all nine systems play natively.
 - [ ] **9. Phase 3 — feel/parity (v0.9.0).** Fast-forward, rewind, display filter,

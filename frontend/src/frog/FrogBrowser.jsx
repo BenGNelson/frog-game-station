@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { X, Search as SearchIcon, Plane, Settings as SettingsIcon, Shuffle } from 'lucide-react'
 import { useApi, API_BASE } from '../lib/useApi.js'
 import { isNative } from '../lib/playerBackend.js'
-import { deviceClass, playableHere, systemOffered } from '../lib/systemCapabilities.js'
+import { deviceClass, offeredHere, playableHere, systemOffered } from '../lib/systemCapabilities.js'
 import { useOnline } from '../lib/online.jsx'
 import { useDownloadedEntries } from '../lib/useDownloaded.js'
 import { useDownload } from '../lib/useDownload.js'
@@ -142,7 +142,7 @@ export default function FrogBrowser() {
   // rather than offer a game (the favorites mirror, the pond stats).
   const deviceCaps = useMemo(() => deviceClass(), [])
   const items = useMemo(
-    () => (deviceCaps === 'touch' ? allItems.filter((g) => playableHere(g.core, deviceCaps)) : allItems),
+    () => (deviceCaps === 'touch' ? allItems.filter((g) => offeredHere(g.core, deviceCaps)) : allItems),
     [allItems, deviceCaps]
   )
   // Skeleton only while we truly have nothing to show and a source might still land.
@@ -642,6 +642,10 @@ export default function FrogBrowser() {
   const play = useCallback(
     (game, slot) => {
       if (!game) return
+      // A desktop browser lists the disc era but can't run it (that's what the
+      // native player is for) — the game page says so; this is the backstop for
+      // every other way in (pad, keyboard, a rail card).
+      if (!playableHere(game.core, deviceCaps)) return
       recordPlayed(game)
       // `size` rides along for the player's huge-ROM blob bypass; the BIOS URL is
       // passed only when the server actually holds this system's file (else the
