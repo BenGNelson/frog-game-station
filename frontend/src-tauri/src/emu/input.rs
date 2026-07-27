@@ -26,6 +26,11 @@ pub static PAD_AY: AtomicI16 = AtomicI16::new(0);
 pub static PAD_RX: AtomicI16 = AtomicI16::new(0);
 pub static PAD_RY: AtomicI16 = AtomicI16::new(0);
 pub static GATED: AtomicBool = AtomicBool::new(false);
+// Set when the gate lifts: the next poll drops the backlog and suppresses the
+// buttons the player is still holding (see set_gated).
+static FLUSH_ON_RESUME: AtomicBool = AtomicBool::new(false);
+// Web-button indices held across an ungate; each clears on its own release.
+static HELD_AT_RESUME: AtomicU32 = AtomicU32::new(0);
 
 // Optional remap pushed by the frontend: standard web-gamepad button index →
 // RetroPad id (or None = unmapped). Index 9 (the web pad's Start/menu chord
@@ -34,7 +39,17 @@ pub static GATED: AtomicBool = AtomicBool::new(false);
 pub static REMAP: Mutex<Option<Vec<Option<c_uint>>>> = Mutex::new(None);
 
 pub fn set_gated(gated: bool) {
-    GATED.store(gated, Ordering::Relaxed);
+    let was = GATED.swap(gated, Ordering::Relaxed);
+    if was && !gated {
+        // Lifting the gate is the dangerous edge. The webview polls the pad on
+        // its own rAF loop and reacts to "A" the instant it sees it — closing
+        // the menu and ungating — while the SAME press is still sitting in
+        // gilrs's queue, unread by the emu thread. Drained naively it would land
+        // in the game a frame later: A resumed the menu AND accelerated the kart.
+        // So on release the next poll discards whatever queued up, and any button
+        // still physically held is suppressed until the player lets go of it.
+        FLUSH_ON_RESUME.store(true, Ordering::Relaxed);
+    }
     if gated {
         PAD_BITS.store(0, Ordering::Relaxed);
         PAD_AX.store(0, Ordering::Relaxed);
@@ -105,6 +120,30 @@ pub fn web_index(b: gilrs::Button) -> Option<usize> {
 /// expressed in web-index space. Web index 9 (Start) is deliberately ABSENT —
 /// short-press START is synthesized by the app, long-press opens the menu, and
 /// the game must never see the raw button.
+/// The inverse of `web_index`, for reading a pad's live button state.
+fn button_for_web(web: usize) -> Option<gilrs::Button> {
+    use gilrs::Button;
+    Some(match web {
+        0 => Button::South,
+        1 => Button::East,
+        2 => Button::West,
+        3 => Button::North,
+        4 => Button::LeftTrigger,
+        5 => Button::RightTrigger,
+        6 => Button::LeftTrigger2,
+        7 => Button::RightTrigger2,
+        8 => Button::Select,
+        9 => Button::Start,
+        10 => Button::LeftThumb,
+        11 => Button::RightThumb,
+        12 => Button::DPadUp,
+        13 => Button::DPadDown,
+        14 => Button::DPadLeft,
+        15 => Button::DPadRight,
+        _ => return None,
+    })
+}
+
 fn default_retro_id(web: usize) -> Option<c_uint> {
     Some(match web {
         0 => JOYPAD_B,
@@ -135,6 +174,26 @@ fn retro_id_for(web: usize) -> Option<c_uint> {
 /// Drain gilrs and update the snapshot. Runs once per frame on the emu thread.
 pub fn poll(gilrs: &mut gilrs::Gilrs) {
     use gilrs::{Axis, EventType};
+
+    // The gate just lifted: throw away the backlog (it belongs to the menu the
+    // player was driving), then note which buttons are still down so they can't
+    // register as fresh presses until released.
+    if FLUSH_ON_RESUME.swap(false, Ordering::Relaxed) {
+        while gilrs.next_event().is_some() {}
+        let mut held = 0u32;
+        for (_id, pad) in gilrs.gamepads() {
+            for web in 0..16usize {
+                if let Some(button) = button_for_web(web) {
+                    if pad.is_pressed(button) {
+                        held |= 1 << web;
+                    }
+                }
+            }
+        }
+        HELD_AT_RESUME.store(held, Ordering::Relaxed);
+        return;
+    }
+
     while let Some(ev) = gilrs.next_event() {
         let gated = GATED.load(Ordering::Relaxed);
         match ev.event {
@@ -143,7 +202,18 @@ pub fn poll(gilrs: &mut gilrs::Gilrs) {
                     continue;
                 }
                 let down = matches!(ev.event, EventType::ButtonPressed(..));
-                if let Some(id) = web_index(b).and_then(retro_id_for) {
+                let Some(web) = web_index(b) else { continue };
+                let held = HELD_AT_RESUME.load(Ordering::Relaxed);
+                if held & (1 << web) != 0 {
+                    // Suppressed since the menu closed. Its release is what frees
+                    // it — and is itself swallowed, so the core never sees half
+                    // of a press it was never given.
+                    if !down {
+                        HELD_AT_RESUME.fetch_and(!(1 << web), Ordering::Relaxed);
+                    }
+                    continue;
+                }
+                if let Some(id) = retro_id_for(web) {
                     press(id, down);
                 }
             }

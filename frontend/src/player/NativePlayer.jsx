@@ -367,7 +367,9 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
   // native host has no shader pipeline and no rewind ring yet, their menu rows are
   // hidden below — but the hook still calls applyRewind on every fast-forward
   // toggle (the mutual-exclusion contract), so the slots must exist.
-  const ffRef = useRef({ on: false, ratio: Number(clampFFRatio(readSettings(window.localStorage).ffRatio)) || 3 })
+  // The host takes the ratio as the settings' own level id — a STRING, because
+  // 'unlimited' is one of them (and Number() would quietly turn it into NaN).
+  const ffRef = useRef({ on: false, ratio: String(clampFFRatio(readSettings(window.localStorage).ffRatio)) })
   const engine = useMemo(
     () => ({
       applyVolume: (v) => {
@@ -375,7 +377,7 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
       },
       applyShader: () => {},
       applyFFRatio: (r) => {
-        ffRef.current.ratio = Number(r) || 3
+        ffRef.current.ratio = String(r)
         emuRef.current?.native.setFastForward(ffRef.current.on, ffRef.current.ratio)
       },
       applyFastForward: (on) => {
