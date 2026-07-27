@@ -250,7 +250,6 @@ pub struct SessionHandle {
 pub struct StartParams {
     pub core_path: String,
     pub rom_path: String,
-    pub rom_bytes: Vec<u8>,
     pub system: String,
     pub data_dir: String,
     pub ns_view: usize,
@@ -422,14 +421,28 @@ fn run_session(
     let path_c = CString::new(params.rom_path.as_str()).unwrap();
     let mut info = unsafe { std::mem::zeroed::<SystemInfo>() };
     unsafe { (core.get_system_info)(&mut info) };
+    // Disc cores (PlayStation, and DS with some images) declare need_fullpath and
+    // read the file themselves — handing them a buffer would mean holding a whole
+    // disc in RAM for nothing. Everyone else gets the bytes.
+    let rom_bytes: Vec<u8> = if info.need_fullpath {
+        Vec::new()
+    } else {
+        match std::fs::read(&params.rom_path) {
+            Ok(b) => b,
+            Err(e) => {
+                unsafe { (core.deinit)() };
+                return fail(format!("could not read the ROM: {e}"), &boot_tx);
+            }
+        }
+    };
     let game = GameInfo {
         path: path_c.as_ptr(),
         data: if info.need_fullpath {
             std::ptr::null()
         } else {
-            params.rom_bytes.as_ptr() as *const c_void
+            rom_bytes.as_ptr() as *const c_void
         },
-        size: params.rom_bytes.len(),
+        size: rom_bytes.len(),
         meta: std::ptr::null(),
     };
     if !unsafe { (core.load_game)(&game) } {
@@ -694,6 +707,26 @@ fn read_sram(core: &Core) -> Vec<u8> {
     }
 }
 
+// The picture's rect inside the window, in physical pixels, republished every
+// present. The stylus needs it: a click lands in WINDOW space and has to become
+// a point on the game's screen, and the letterbox lives here.
+pub static PICTURE: Mutex<(i32, i32, i32, i32)> = Mutex::new((0, 0, 0, 0));
+
+/// Window-relative click (physical px) → 0.0..1.0 across the picture. None when
+/// the click landed on the letterbox rather than the game.
+pub fn picture_point(px: f32, py: f32) -> Option<(f32, f32)> {
+    let (dx, dy, dw, dh) = *PICTURE.lock().unwrap();
+    if dw <= 0 || dh <= 0 {
+        return None;
+    }
+    let x = (px - dx as f32) / dw as f32;
+    let y = (py - dy as f32) / dh as f32;
+    if !(0.0..=1.0).contains(&x) || !(0.0..=1.0).contains(&y) {
+        return None;
+    }
+    Some((x, y))
+}
+
 pub fn fnv1a(bytes: &[u8]) -> u64 {
     let mut h: u64 = 0xcbf2_9ce4_8422_2325;
     for b in bytes {
@@ -728,6 +761,7 @@ fn present(gl: &mut Gl, av: &SystemAvInfo) {
         gl.gl.clear(glow::COLOR_BUFFER_BIT);
 
         let (dx, dy, dw, dh) = letterbox(win_w, win_h, fw, fh, av.geometry.aspect_ratio);
+        *PICTURE.lock().unwrap() = (dx, dy, dw, dh);
 
         let (read_fbo, flip) = if v.hw_frame {
             let bottom_left = HW.lock().unwrap().as_ref().map(|h| h.bottom_left).unwrap_or(true);
@@ -865,6 +899,16 @@ mod tests {
     fn letterbox_falls_back_to_frame_aspect_when_core_reports_none() {
         let (_, _, dw, dh) = letterbox(1000, 1000, 320, 240, 0.0);
         assert_eq!((dw, dh), (1000, 750));
+    }
+
+    #[test]
+    fn picture_point_maps_inside_and_rejects_the_letterbox() {
+        *PICTURE.lock().unwrap() = (100, 0, 800, 600); // pillarboxed 800x600
+        assert_eq!(picture_point(500.0, 300.0), Some((0.5, 0.5)));
+        assert_eq!(picture_point(100.0, 0.0), Some((0.0, 0.0)));
+        assert!(picture_point(50.0, 300.0).is_none()); // the black bar, not the game
+        *PICTURE.lock().unwrap() = (0, 0, 0, 0);
+        assert!(picture_point(1.0, 1.0).is_none()); // nothing presented yet
     }
 
     #[test]

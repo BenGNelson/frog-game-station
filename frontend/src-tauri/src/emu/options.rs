@@ -28,6 +28,11 @@ pub fn default_options(system: &str) -> &'static [(&'static str, &'static str)] 
             ("mupen64plus-rdp-plugin", "angrylion"),
             ("mupen64plus-rsp-plugin", "cxd4"),
         ],
+        // PCSX-ReARMed defaults port 1 to the original digital pad, so the
+        // sticks read as dead until a DualShock is selected — and some games
+        // (Ape Escape) can't be played at all without one. Every controller
+        // this app supports has sticks, so analog is the honest default.
+        ("psx", _) => &[("pcsx_rearmed_pad1type", "analog")],
         _ => &[],
     }
 }
@@ -67,6 +72,11 @@ mod tests {
         } else {
             assert!(opts.is_empty());
         }
+    }
+
+    #[test]
+    fn playstation_selects_an_analog_pad_on_every_platform() {
+        assert!(default_options("psx").contains(&("pcsx_rearmed_pad1type", "analog")));
     }
 
     #[test]
