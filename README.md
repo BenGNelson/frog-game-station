@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/BenGNelson/frog-game-station/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/BenGNelson/frog-game-station/ci.yml?branch=main&style=flat-square&label=CI&logo=github" alt="CI"></a>
-  <img src="https://img.shields.io/badge/version-0.8.1-2ea44f?style=flat-square" alt="Version 0.8.1">
+  <img src="https://img.shields.io/badge/version-0.8.2-2ea44f?style=flat-square" alt="Version 0.8.2">
   <img src="https://img.shields.io/badge/license-MIT-2ea44f?style=flat-square" alt="License: MIT">
   <img src="https://img.shields.io/badge/React-18-149eca?style=flat-square&logo=react&logoColor=white" alt="React">
   <img src="https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white" alt="FastAPI">
@@ -185,13 +185,13 @@ npm run tauri dev              # dev loop: native window + hot reload
 npm run tauri build            # a real .app / installer bundle
 ```
 
-**N64 plays natively** in the desktop app (v0.8.0): a real libretro core rather
+**Every system plays natively** in the desktop app: real libretro cores rather
 than the in-browser engine, drawn on a GL surface with the app's own pause menu,
-save shelf, and Controls screen floating over it — and its saves roam to your
-phone through the same endpoints the web player uses. Fetch the cores first with
-`scripts/fetch-native-cores.sh` (pinned by checksum; nothing is committed). Every
-other system still plays through the built-in web player; DS and PlayStation join
-the native side next.
+save shelf, and Controls screen floating over it — and the saves roam to your
+phone through the same endpoints the web player uses. That includes the three
+systems no browser can run: Nintendo 64, Nintendo DS (with the mouse as the
+stylus), and PlayStation. Fetch the cores first with
+`scripts/fetch-native-cores.sh` (pinned by checksum; nothing is committed).
 
 The desktop build strips the PWA machinery (no service worker, no install nudge,
 no offline-download button — the app is already installed and local). The backend
