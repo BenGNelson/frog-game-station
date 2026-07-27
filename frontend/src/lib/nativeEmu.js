@@ -51,7 +51,7 @@ export async function createNativeEmu({ gameId, romUrl, core, system }, d = {}) 
     refreshSram()
   })
 
-  const av = await invoke('load_game', { args: { gameId, romUrl, core, system } }).catch((e) => {
+  const { av, generation } = await invoke('load_game', { args: { gameId, romUrl, core, system } }).catch((e) => {
     unlisten()
     throw e instanceof Error ? e : new Error(String(e))
   })
@@ -109,7 +109,9 @@ export async function createNativeEmu({ gameId, romUrl, core, system }, d = {}) 
       setFastForward: (on, ratio) => invoke('set_fast_forward', { on, ratio }),
       stop: async () => {
         unlisten()
-        await invoke('stop_game')
+        // Generation-scoped: a stale adapter (a cancelled boot resolving
+        // late) can only stop ITS session, never a newer one.
+        await invoke('stop_game', { generation })
       },
     },
   }

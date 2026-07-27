@@ -28,6 +28,7 @@ pub fn run() {
         ])
         .setup(|app| {
             probe::maybe_arm(app);
+            probe::maybe_nav(app);
             Ok(())
         })
         .run(tauri::generate_context!())

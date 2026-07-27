@@ -19,7 +19,7 @@ use tauri::Manager;
 const REPLY_TIMEOUT: Duration = Duration::from_secs(10);
 
 fn send(state: &EmuState, cmd: session::EmuCmd) -> Result<(), String> {
-    let guard = state.0.lock().unwrap();
+    let guard = state.session.lock().unwrap();
     let handle = guard.as_ref().ok_or("no game running")?;
     handle.tx.send(cmd).map_err(|_| "the emulator thread is gone".to_string())
 }
@@ -56,15 +56,31 @@ pub struct LoadGameArgs {
     pub system: String,
 }
 
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LoadGameReply {
+    pub av: session::AvInfoJs,
+    /// This session's launch token — stop_game with it only stops THIS
+    /// session, so a stale, cancelled boot can never reap a newer one.
+    pub generation: u64,
+}
+
+static GEN: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
 #[tauri::command]
 pub async fn load_game(
     app: tauri::AppHandle,
     window: tauri::WebviewWindow,
     state: tauri::State<'_, EmuState>,
     args: LoadGameArgs,
-) -> Result<session::AvInfoJs, String> {
+) -> Result<LoadGameReply, String> {
+    // Whole-call serialization: without it a rapid relaunch (React's dev
+    // double-mount, a double-click) interleaves two boots and the loser leaks
+    // its thread and stage view.
+    let _loading = state.load_lock.lock().await;
     // One session at a time — a second launch stops the first.
-    stop_game_inner(&app, &state).await?;
+    stop_game_inner(&app, &state, None).await?;
+    let generation = GEN.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
 
     let core_path = cores::resolve(&args.core)?;
     let cache_dir = app
@@ -123,20 +139,18 @@ pub async fn load_game(
             height: size.height,
         },
         boot_tx,
+        generation,
     );
-    *state.0.lock().unwrap() = Some(handle);
+    let resize_tx = handle.tx.clone();
+    *state.session.lock().unwrap() = Some(handle);
 
-    // Forward window resizes into the session for the rest of its life.
-    {
-        let state_handle = app.state::<EmuState>().0.lock().unwrap().as_ref().map(|h| h.tx.clone());
-        if let Some(tx) = state_handle {
-            window.on_window_event(move |event| {
-                if let tauri::WindowEvent::Resized(size) = event {
-                    let _ = tx.send(session::EmuCmd::Resize(size.width, size.height));
-                }
-            });
+    // Forward window resizes into the session for the rest of its life (a
+    // dead session just ignores the sends).
+    window.on_window_event(move |event| {
+        if let tauri::WindowEvent::Resized(size) = event {
+            let _ = resize_tx.send(session::EmuCmd::Resize(size.width, size.height));
         }
-    }
+    });
 
     let booted = tauri::async_runtime::spawn_blocking(move || {
         boot_rx
@@ -147,17 +161,30 @@ pub async fn load_game(
     .map_err(|e| e.to_string())?;
 
     match booted {
-        Ok(av) => Ok(av),
+        Ok(av) => Ok(LoadGameReply { av, generation }),
         Err(e) => {
             // Boot failed — reap the session and the stage.
-            stop_game_inner(&app, &state).await.ok();
+            stop_game_inner(&app, &state, Some(generation)).await.ok();
             Err(e)
         }
     }
 }
 
-async fn stop_game_inner(app: &tauri::AppHandle, state: &tauri::State<'_, EmuState>) -> Result<(), String> {
-    let handle = state.0.lock().unwrap().take();
+async fn stop_game_inner(
+    app: &tauri::AppHandle,
+    state: &tauri::State<'_, EmuState>,
+    only_generation: Option<u64>,
+) -> Result<(), String> {
+    let handle = {
+        let mut guard = state.session.lock().unwrap();
+        match (&*guard, only_generation) {
+            // A generation-scoped stop for a session that is no longer
+            // current (or none at all) is a no-op, not an error.
+            (Some(h), Some(want)) if h.generation != want => return Ok(()),
+            (None, _) => return Ok(()),
+            _ => guard.take(),
+        }
+    };
     let Some(mut handle) = handle else { return Ok(()) };
     let _ = handle.tx.send(session::EmuCmd::Stop);
     if let Some(join) = handle.join.take() {
@@ -176,8 +203,12 @@ async fn stop_game_inner(app: &tauri::AppHandle, state: &tauri::State<'_, EmuSta
 }
 
 #[tauri::command]
-pub async fn stop_game(app: tauri::AppHandle, state: tauri::State<'_, EmuState>) -> Result<(), String> {
-    stop_game_inner(&app, &state).await
+pub async fn stop_game(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, EmuState>,
+    generation: Option<u64>,
+) -> Result<(), String> {
+    stop_game_inner(&app, &state, generation).await
 }
 
 #[tauri::command]

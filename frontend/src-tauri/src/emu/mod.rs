@@ -15,11 +15,20 @@ pub mod session;
 
 use std::sync::Mutex;
 
-/// The managed Tauri state: at most one running session.
-pub struct EmuState(pub Mutex<Option<session::SessionHandle>>);
+/// The managed Tauri state: at most one running session. `load_lock`
+/// serializes whole load_game calls — without it, a rapid relaunch (React's
+/// dev double-mount, a double-click) can interleave two boots and leak the
+/// loser's thread and stage view.
+pub struct EmuState {
+    pub session: Mutex<Option<session::SessionHandle>>,
+    pub load_lock: tauri::async_runtime::Mutex<()>,
+}
 
 impl Default for EmuState {
     fn default() -> Self {
-        EmuState(Mutex::new(None))
+        EmuState {
+            session: Mutex::new(None),
+            load_lock: tauri::async_runtime::Mutex::new(()),
+        }
     }
 }

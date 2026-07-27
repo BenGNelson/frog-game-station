@@ -12,6 +12,22 @@
 // on a spawned render thread, which owns the context for its lifetime. If this
 // probe renders, the emu thread can too.
 
+/// Dev deep-link: FROG_NAV="/play?id=..." steers the window to a route once
+/// the page is up — a headless way to drive the player without a pointer
+/// (screenshots + logs become a full boot smoke).
+pub fn maybe_nav(app: &mut tauri::App) {
+    use tauri::Manager;
+    let Ok(path) = std::env::var("FROG_NAV") else { return };
+    let Some(window) = app.get_webview_window("main") else { return };
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(3000));
+        let _ = window.eval(&format!(
+            "window.location.assign({})",
+            serde_json::to_string(&path).unwrap_or_default()
+        ));
+    });
+}
+
 #[cfg(target_os = "macos")]
 pub fn maybe_arm(app: &mut tauri::App) {
     use tauri::Manager;

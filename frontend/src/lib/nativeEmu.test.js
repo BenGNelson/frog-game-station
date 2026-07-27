@@ -13,7 +13,7 @@ function fakeIo({ sram = null, state = new Uint8Array([1, 2, 3]) } = {}) {
     calls.push([cmd, payload])
     switch (cmd) {
       case 'load_game':
-        return { width: 320, height: 240, fps: 60, sampleRate: 44100, aspect: 4 / 3 }
+        return { av: { width: 320, height: 240, fps: 60, sampleRate: 44100, aspect: 4 / 3 }, generation: 1 }
       case 'get_sram':
         return hostSram ? hostSram.buffer.slice(0) : new ArrayBuffer(0)
       case 'load_sram':

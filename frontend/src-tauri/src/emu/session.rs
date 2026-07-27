@@ -241,6 +241,10 @@ pub struct SessionHandle {
     pub tx: Sender<EmuCmd>,
     pub join: Option<std::thread::JoinHandle<()>>,
     pub ns_view: usize,
+    // Which launch this is. A stale stop (React's dev double-mount resolves
+    // its first, cancelled boot AFTER the second one started) must be able to
+    // say which session it means — otherwise it reaps the fresh one.
+    pub generation: u64,
 }
 
 pub struct StartParams {
@@ -260,6 +264,7 @@ pub fn spawn(
     app: tauri::AppHandle,
     params: StartParams,
     boot_tx: Sender<Result<AvInfoJs, String>>,
+    generation: u64,
 ) -> SessionHandle {
     let (tx, rx) = std::sync::mpsc::channel::<EmuCmd>();
     let ns_view = params.ns_view;
@@ -267,7 +272,7 @@ pub fn spawn(
         .name("frog-emu".into())
         .spawn(move || run_session(app, params, rx, boot_tx))
         .expect("spawn emu thread");
-    SessionHandle { tx, join: Some(join), ns_view }
+    SessionHandle { tx, join: Some(join), ns_view, generation }
 }
 
 // ---------- the thread body ----------
