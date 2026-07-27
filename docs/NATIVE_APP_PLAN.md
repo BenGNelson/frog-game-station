@@ -212,6 +212,13 @@ native-only ones; the same `vite build` still produces the web PWA for the serve
   pipeline (a committed CSP can't name the env-configured backend origin), and the
   §8.2 webview-over-native-surface compositing proof moves to the START of Phase 2a —
   it needs the native player's GL surface to exist before it can be tested.
+- **Phase 2a — the native player, N64. SHIPPED (v0.8.0, 2026-07-27).** `src-tauri/src/emu/`
+  (the spike as library code on a session thread), 17 Tauri commands + `native:*` events,
+  `player/NativePlayer.jsx` over the shared player hooks, `lib/nativeEmu.js` as the engine
+  adapter, `scripts/fetch-native-cores.sh` pinning cores by content hash. §8.2 settled by
+  proof — the GL stage is an NSView beneath the transparent webview. Exit held on the M4:
+  N64 at speed, clean audio, saves roaming with the phone. 2b (DS/PS1) and 2c (cartridge
+  cores) continue from here.
 - **Phase 2 — the native player.** Wire `NativePlayer` to the Phase-0 core host. Start
   N64, then DS, then PS1. Save states + SRAM POST to the same API → **roaming with the
   phone works**. The Frog pause menu / save shelf / controls screen drive the native

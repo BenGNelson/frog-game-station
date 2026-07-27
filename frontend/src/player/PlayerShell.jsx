@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { X, Menu, Minimize } from 'lucide-react'
-import { playerSrc, coverUrl, postCover, deleteCover, ENGINE_LOADER_URL, engineIsLocal } from '../lib/library.js'
+import { playerSrc, coverUrl, ENGINE_LOADER_URL, engineIsLocal } from '../lib/library.js'
 import { goBack } from '../lib/nav.js'
 // The player is Frog Game Station's screen — launched from a game's page, it dresses in its
 // clothes (the same theme + boot mascot) so play feels continuous with the browser.
@@ -49,27 +49,22 @@ import {
   writeSettings,
   migrateLegacyEjsKeys,
   bindingsFor,
-  withBinding,
-  resetControls,
   isChord,
-  hotkeyMatches,
-  sameHotkey,
   clampVolume,
   clampShader,
   SHADER_LEVELS,
   clampFFRatio,
   FF_RATIO_LEVELS,
-  CONTROL_SKINS,
 } from '../lib/playerSettings.js'
-import { ANALOG_CORES } from '../lib/controlPresets.js'
-import { bindingForButton } from '../lib/gamepad.js'
 import { useGamepad } from '../lib/useGamepad.js'
 import { useWakeLock } from '../lib/useWakeLock.js'
 import { useGameSaves } from '../lib/useGameSaves.js'
 import { usePlayTime } from '../lib/usePlayTime.js'
 import { useMediaQuery } from '../lib/useMediaQuery.js'
-import { moveInGrid } from '../lib/gridNav.js'
-import { saveState, loadState, listStates, deleteState, captureShot } from '../lib/saveStates.js'
+import { captureShot } from '../lib/saveStates.js'
+import { usePlayerShelf } from './usePlayerShelf.js'
+import { usePlayerControls } from './usePlayerControls.js'
+import { createPadRouter } from './padRouter.js'
 import PauseMenu, { pauseItems } from './PauseMenu.jsx'
 import SaveStatePanel from './SaveStatePanel.jsx'
 import SaveActionMenu from './SaveActionMenu.jsx'
@@ -77,7 +72,7 @@ import ConfirmDialog from '../frog/ConfirmDialog.jsx'
 import ControlsPanel, { controlRows } from './ControlsPanel.jsx'
 import WikiPanel from './WikiPanel.jsx'
 import PokedexPanel from './PokedexPanel.jsx'
-import { resolveSpecies } from '../lib/pokedexApi.js'
+import { usePlayerPanels } from './usePlayerPanels.js'
 import ButtonLegend from './ButtonLegend.jsx'
 import RotatePrompt from './RotatePrompt.jsx'
 import TouchOverlay from './TouchOverlay.jsx'
@@ -149,10 +144,6 @@ function EngineMissing({ onBack }) {
   )
 }
 
-// One d-pad/stick step of wiki scroll. Repeats while held (the pad loop re-fires
-// up/down), so a held direction reads as a smooth scroll rather than a jump.
-const WIKI_SCROLL_STEP = 90
-
 export default function PlayerShell({ id, core, name, label, coverV, loadStateUrl, size, biosUrl }) {
   const navigate = useNavigate()
 
@@ -176,8 +167,6 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
 
   const [state, dispatch] = useReducer(nextPlayerState, INITIAL_PLAYER_STATE)
   const [menuFocus, setMenuFocus] = useState(0)
-  const [fastForward, setFF] = useState(false)
-  const [rewinding, setRewinding] = useState(false)
   const [immersive, setImmersive] = useState(false)
 
   // The frog between Play and the game. `bootAt` is when Play was tapped (null = not
@@ -187,39 +176,50 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
   const [loadFailed, setLoadFailed] = useState(false)
   const [bootDone, setBootDone] = useState(false)
 
-  // The save-state shelf, layered over the pause menu.
-  const [shelfOpen, setShelfOpen] = useState(false)
-  const [states, setStates] = useState([])
-  const [statesLoading, setStatesLoading] = useState(false)
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState(null)
-  const [shelfFocus, setShelfFocus] = useState(0) // 0 = Save-new tile, 1..N = the states
-  const [shelfCols, setShelfCols] = useState(2) // the shelf's real column count, measured
-  // A save state pending deletion: the slot awaiting an "are you sure?" confirm. Set by
-  // every delete trigger (touch button, keyboard Del, gamepad Y); cleared on Keep/confirm.
-  // A delete is irreversible, so it's gated once here rather than at each call site.
-  const [pendingDelete, setPendingDelete] = useState(null)
-  // Which confirm button the pad has highlighted: 0 = Delete, 1 = Keep. Starts on Delete
-  // so the Y → A muscle-memory still deletes, but the d-pad can move to Keep first.
-  const [confirmFocus, setConfirmFocus] = useState(0)
-  // Custom cover: whether this game already has one (seeds the save shelf's Reset action),
-  // and a transient confirmation shown in the shelf after a set/reset.
-  const [hasCustomCover, setHasCustomCover] = useState(!!coverV)
-  const [coverNotice, setCoverNotice] = useState(null)
   // Quit is guarded: it can drop progress since the last save-state, so the pause tile
   // arms an "are you sure?" gate rather than exiting outright. quitFocus: 0 = Quit, 1 = Keep;
   // starts on Keep (the safe option) — Quit has no Y→A muscle-memory to preserve, unlike the
   // save-delete confirm, so the default should be the non-destructive one.
   const [pendingQuit, setPendingQuit] = useState(false)
   const [quitFocus, setQuitFocus] = useState(1)
-  // Activating a state card (pad/keyboard) opens a Load/Delete chooser rather than loading
-  // outright. chooseSlot = the slot being chosen (null = closed); chooseFocus: 0 = Load, 1 =
-  // Delete. Delete hands off to the existing pendingDelete confirm — this only picks.
-  const [chooseSlot, setChooseSlot] = useState(null)
-  const [chooseFocus, setChooseFocus] = useState(0)
-  // The shelf's trailing cover actions, appended after the state cards: always "set from
-  // this frame", plus "reset to default" once a custom cover exists.
-  const coverActions = useMemo(() => ['setCover', ...(hasCustomCover ? ['resetCover'] : [])], [hasCustomCover])
+
+  // A live frame for the next save-state thumbnail.
+  //
+  // The canvas can ONLY be read back non-black while the core is actively presenting
+  // and the iframe is visible — which is NOT true at save time (by then the game is
+  // paused and the save overlay covers it, and iOS WebKit hands back solid black; that
+  // timing is why every earlier thumbnail was black). So grab a frame on a slow timer
+  // while the game plays and keep the freshest one; `doSave` uses it instead of
+  // capturing at the moment you hit Save.
+  const liveShotRef = useRef(null)
+  useEffect(() => {
+    if (!isRunning(state)) return
+    let inFlight = false
+    const grab = async () => {
+      if (inFlight) return
+      inFlight = true
+      try {
+        const shot = await captureShot(emuRef.current)
+        if (shot) liveShotRef.current = shot // captureShot already drops black frames
+      } finally {
+        inFlight = false
+      }
+    }
+    grab() // one right away, so a save moments after starting still has a frame
+    const t = setInterval(grab, 3000)
+    return () => clearInterval(t)
+  }, [state])
+
+  // The save-state shelf, layered over the pause menu.
+  const {
+    shelfOpen, setShelfOpen, states, statesLoading, busy, error, setError,
+    shelfFocus, setShelfFocus, shelfCols, setShelfCols,
+    pendingDelete, confirmFocus, setConfirmFocus,
+    chooseSlot, setChooseSlot, chooseFocus, setChooseFocus,
+    coverActions, hasCustomCover, coverNotice,
+    openShelf, doSave, doLoad, requestDelete, confirmDelete, cancelDelete,
+    openChooser, chooseLoad, chooseDelete, doSetCover, doResetCover,
+  } = usePlayerShelf({ id, coverV, emuRef, dispatch, liveShotRef })
 
   // Is a physical controller driving? Becomes true on the FIRST BUTTON PRESS —
   // never on `gamepadconnected`, which iOS Safari doesn't fire until a button is
@@ -236,21 +236,42 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
     return readSettings(window.localStorage)
   })
 
-  // The Controls screen.
-  const [controlsOpen, setControlsOpen] = useState(false)
-  const [controlsFocus, setControlsFocus] = useState(0)
-  const [listeningFor, setListeningFor] = useState(null) // RetroPad index awaiting a press
-  const [lastPress, setLastPress] = useState(null) // {index, id} — the Controls screen's input tester
+  // One place that writes settings, so localStorage and React state can't drift.
+  const saveSettings = useCallback((next) => {
+    setSettings(next)
+    writeSettings(window.localStorage, next)
+  }, [])
 
-  // The in-game wiki reader. `wikiMounted` latches true on first open and never resets,
-  // so the panel stays in the DOM (hidden) and keeps its article + scroll across a
-  // close/reopen; `wikiOpen` toggles its visibility.
-  const [wikiOpen, setWikiOpen] = useState(false)
-  const [wikiMounted, setWikiMounted] = useState(false)
+  // The engine seam for the hooks below: the emulator is driven only through these
+  // actions. Built once — they read the live handle through emuRef at call time — so
+  // the handlers that keep them in deps stay identity-stable.
+  const engine = useMemo(
+    () => ({
+      applyVolume: (v) => applyEngineVolume(emuRef.current, v),
+      applyShader: (s) => applyEngineShader(emuRef.current, s),
+      applyFFRatio: (r) => applyEngineFFRatio(emuRef.current, r),
+      applyFastForward: (on) => setFastForward(emuRef.current, on),
+      applyRewind: (on) => setRewind(emuRef.current, on),
+    }),
+    []
+  )
 
-  // The in-game Pokédex reference (Pokémon games only) — same mounted-persistent shape.
-  const [pokedexOpen, setPokedexOpen] = useState(false)
-  const [pokedexMounted, setPokedexMounted] = useState(false)
+  // The Controls screen, plus the pause menu's adjusters — all engine work goes
+  // through the seam above.
+  const {
+    controlsOpen, controlsFocus, setControlsFocus, listeningFor, setListeningFor,
+    lastPress, setLastPress, openControls, closeControls,
+    chooseScheme, chooseSkin, cycleSkin, resetBindings, captureBinding,
+    fastForward, rewinding, applyFF, applyRewind,
+    volume, stepVolume, toggleMute, shader, stepFilter, ffRatio, stepFFRatio,
+  } = usePlayerControls({ settings, saveSettings, padId, setError, engine })
+
+  // The in-game reference panels (wiki reader + Pokédex) and their cross-links.
+  const {
+    wikiOpen, wikiMounted, wikiRef, openWiki, closeWiki,
+    pokedexOpen, pokedexMounted, pokedexRef, openPokedex, closePokedex,
+    readFromPokedex, readFromWiki,
+  } = usePlayerPanels({ dispatch })
 
   // The controller map in force right now: the chosen scheme, plus anything the
   // player has rebound on THIS controller.
@@ -419,105 +440,6 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
     goBack(navigate, '/frog')
   }, [navigate])
 
-  const openShelf = useCallback(async () => {
-    setShelfOpen(true)
-    setError(null)
-    setShelfFocus(0)
-    setStatesLoading(true)
-    const list = await listStates(id)
-    setStates(list)
-    // Land on the Save-new tile (index 0), so saving a fresh state is one press away:
-    // open the shelf, press A, done. Loading a specific save is a short d-pad step down
-    // from here — a deliberate choice to favour the action you take under time pressure.
-    setShelfFocus(0)
-    setStatesLoading(false)
-  }, [id])
-
-  const doSave = useCallback(async () => {
-    setBusy(true)
-    setError(null)
-    try {
-      // Hand it the frame captured while the game was still on screen — see liveShotRef.
-      const res = await saveState(emuRef.current, id, { shot: liveShotRef.current })
-      // The local copy always lands; only the upload can fail. Say so rather than
-      // claiming success, but don't treat it as an error — the state is safe on
-      // this device and the game will still resume from it.
-      if (res.offline) setError('Saved on this device. It’ll sync to your other devices when you’re back online.')
-      setStates(await listStates(id))
-    } catch (e) {
-      setError(e?.message || 'Could not save.')
-    } finally {
-      setBusy(false)
-    }
-  }, [id])
-
-  const doLoad = useCallback(
-    async (slot) => {
-      setBusy(true)
-      setError(null)
-      try {
-        await loadState(emuRef.current, id, slot)
-        setShelfOpen(false)
-        dispatch('resume') // straight back into the game — no reboot
-      } catch (e) {
-        setError(e?.message || 'Could not load that state.')
-      } finally {
-        setBusy(false)
-      }
-    },
-    [id]
-  )
-
-  const doDelete = useCallback(
-    async (slot) => {
-      await deleteState(id, slot)
-      setStates(await listStates(id))
-    },
-    [id]
-  )
-
-  // Every delete trigger routes through here first: arm the confirm instead of deleting.
-  const requestDelete = useCallback((slot) => {
-    if (slot != null) {
-      setConfirmFocus(0) // land on Delete each time it opens
-      setPendingDelete(slot)
-    }
-  }, [])
-
-  const confirmDelete = useCallback(() => {
-    const slot = pendingDelete
-    setPendingDelete(null)
-    if (slot != null) doDelete(slot)
-  }, [pendingDelete, doDelete])
-
-  const cancelDelete = useCallback(() => setPendingDelete(null), [])
-
-  // Open the Load/Delete chooser for a state card (pad/keyboard path; touch uses the card's
-  // own buttons). Lands on Load each time.
-  const openChooser = useCallback((slot) => {
-    if (slot != null) {
-      setChooseFocus(0)
-      setChooseSlot(slot)
-    }
-  }, [])
-  const chooseLoad = useCallback(() => {
-    const slot = chooseSlot
-    setChooseSlot(null)
-    if (slot != null) doLoad(slot)
-  }, [chooseSlot, doLoad])
-  const chooseDelete = useCallback(() => {
-    const slot = chooseSlot
-    setChooseSlot(null)
-    requestDelete(slot) // hand off to the shared "Delete this save state?" confirm
-  }, [chooseSlot, requestDelete])
-
-  // Deleting the last card can leave focus pointing past the end of the grid — pull
-  // it back to the last real cell (index range is 0 = Save-new, 1..N states, then the
-  // trailing cover actions).
-  useEffect(() => {
-    setShelfFocus((f) => Math.min(f, states.length + coverActions.length))
-  }, [states.length, coverActions.length])
-
   // Native fullscreen where it exists (desktop, and iPad behind a prefix); a CSS
   // immersive mode everywhere else. iPhone Safari has no Fullscreen API at all —
   // there, the installed PWA is what gets you a chromeless screen.
@@ -534,83 +456,6 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
       setImmersive(true)
     }
   }, [])
-
-  // One place that writes settings, so localStorage and React state can't drift.
-  const saveSettings = useCallback((next) => {
-    setSettings(next)
-    writeSettings(window.localStorage, next)
-  }, [])
-
-  // The two time controls, mutually exclusive — the core can't run time both ways,
-  // so turning either on switches the other off. Both are TOGGLES (the app's idiom;
-  // rewind holds the engine's virtual rewind button down until toggled back).
-  const applyFF = useCallback((on) => {
-    if (on) {
-      setRewind(emuRef.current, false)
-      setRewinding(false)
-    }
-    setFastForward(emuRef.current, on)
-    setFF(on)
-  }, [])
-  const applyRewind = useCallback((on) => {
-    if (on) {
-      setFastForward(emuRef.current, false)
-      setFF(false)
-    }
-    setRewind(emuRef.current, on)
-    setRewinding(on)
-  }, [])
-
-  // Game audio. The saved level is the source of truth (settings.volume); changes
-  // persist AND drive the live engine at once. The last non-zero level is remembered
-  // so mute (A / tap on the row) is a true toggle rather than a one-way trip to 0.
-  const volume = clampVolume(settings.volume)
-  const lastAudibleRef = useRef(volume > 0 ? volume : clampVolume(undefined))
-  const changeVolume = useCallback(
-    (v) => {
-      const vol = clampVolume(v)
-      if (vol > 0) lastAudibleRef.current = vol
-      saveSettings({ ...readSettings(window.localStorage), volume: vol })
-      applyEngineVolume(emuRef.current, vol)
-    },
-    [saveSettings]
-  )
-  // ◀ ▶ on the volume row: tenths, snapped so float drift can't produce 43%.
-  const stepVolume = useCallback(
-    (dir) => changeVolume(Math.round((clampVolume(readSettings(window.localStorage).volume) + dir * 0.1) * 10) / 10),
-    [changeVolume]
-  )
-  const toggleMute = useCallback(
-    () => changeVolume(clampVolume(readSettings(window.localStorage).volume) === 0 ? lastAudibleRef.current : 0),
-    [changeVolume]
-  )
-
-  // The display filter — a curated shader step, cycled (◀ ▶ / A) with wrap so it
-  // always changes something. Persisted like the volume; applied live and at boot.
-  const shader = clampShader(settings.shader)
-  const stepFilter = useCallback(
-    (dir) => {
-      const ids = SHADER_LEVELS.map((s) => s.id)
-      const here = ids.indexOf(clampShader(readSettings(window.localStorage).shader))
-      const next = ids[(here + dir + ids.length) % ids.length]
-      saveSettings({ ...readSettings(window.localStorage), shader: next })
-      applyEngineShader(emuRef.current, next)
-    },
-    [saveSettings]
-  )
-
-  // Fast-forward speed — the same curated-cycle shape as the filter.
-  const ffRatio = clampFFRatio(settings.ffRatio)
-  const stepFFRatio = useCallback(
-    (dir) => {
-      const ids = FF_RATIO_LEVELS.map((s) => s.id)
-      const here = ids.indexOf(clampFFRatio(readSettings(window.localStorage).ffRatio))
-      const next = ids[(here + dir + ids.length) % ids.length]
-      saveSettings({ ...readSettings(window.localStorage), ffRatio: next })
-      applyEngineFFRatio(emuRef.current, next)
-    },
-    [saveSettings]
-  )
 
   // A frame of the live game → the share sheet (phone) or a straight download. The
   // pause menu's row reads back Saved / Nothing to capture for a beat.
@@ -649,226 +494,6 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
     setTimeout(() => URL.revokeObjectURL(url), 4000)
     flashShot('saved')
   }, [name, flashShot])
-
-  const openControls = useCallback(() => {
-    setControlsFocus(0)
-    setListeningFor(null)
-    setControlsOpen(true)
-  }, [])
-
-  const closeControls = useCallback(() => {
-    setControlsOpen(false)
-    setListeningFor(null)
-  }, [])
-
-  // Imperative controls the wiki panel exposes (scroll / link nav / back), driven from
-  // the gamepad handler below while the reader owns the pad.
-  const wikiRef = useRef(null)
-  // How the reader was opened: from the pause menu (game already paused → close returns
-  // to the menu) or by the hotkey mid-play (pause now → close resumes the game).
-  const wikiFromGameRef = useRef(false)
-
-  const openWiki = useCallback((fromGame = false) => {
-    wikiFromGameRef.current = fromGame
-    setWikiMounted(true) // mount-on-first-open, then it persists (keeps scroll/article)
-    setWikiOpen(true)
-    if (fromGame) dispatch('pause') // the hotkey fires mid-play; pause under the reader
-  }, [])
-
-  const closeWiki = useCallback(() => {
-    setWikiOpen(false)
-    if (wikiFromGameRef.current) dispatch('resume') // hotkey-opened → back to the game
-  }, [])
-
-  // The Pokédex panel — identical open/close shape (pause on hotkey-open, resume on close).
-  const pokedexRef = useRef(null)
-  const pokedexFromGameRef = useRef(false)
-
-  const openPokedex = useCallback((fromGame = false) => {
-    pokedexFromGameRef.current = fromGame
-    setPokedexMounted(true)
-    setPokedexOpen(true)
-    if (fromGame) dispatch('pause')
-  }, [])
-
-  const closePokedex = useCallback(() => {
-    setPokedexOpen(false)
-    // Drop any species jump still resolving — otherwise a resolveSpecies that lands after
-    // this close would sit in pendingSpecies and yank the user to it on the NEXT open.
-    setPendingSpecies(null)
-    if (pokedexFromGameRef.current) dispatch('resume')
-  }, [])
-
-  // "Read on Bulbapedia" from the Pokédex — hand off to the wiki reader: hide the Pokédex
-  // (no resume; the reader takes over) and open the reader deep-linked to the Pokémon's
-  // Bulbapedia page. The reader inherits the resume duty so closing it behaves the same as
-  // if opened directly. `pendingRead` defers openTo until the panel has mounted (its ref).
-  const [pendingRead, setPendingRead] = useState(null)
-  const readFromPokedex = useCallback((bulbapediaTitle) => {
-    setPokedexOpen(false)
-    wikiFromGameRef.current = pokedexFromGameRef.current
-    setWikiMounted(true)
-    setWikiOpen(true)
-    setPendingRead(bulbapediaTitle)
-  }, [])
-  // useLayoutEffect (not useEffect): it runs during commit, BEFORE WikiPanel's passive
-  // load-once effect flushes — so openTo sets the panel's loadedRef in time and the
-  // load-once effect stands down. With a passive effect, the child's load-once fires first
-  // and races openTo, landing on the game's default wiki instead of the deep-linked page.
-  useLayoutEffect(() => {
-    if (pendingRead && wikiOpen && wikiRef.current) {
-      wikiRef.current.openTo({ host: 'bulbapedia.bulbagarden.net', title: pendingRead })
-      setPendingRead(null)
-    }
-  }, [pendingRead, wikiOpen])
-
-  // The reverse hop: a species link in a walkthrough → OUR Pokédex. Hide the reader, hand
-  // the Pokédex the resume duty (so closing it behaves like a direct open), open it, and —
-  // once the Bulbapedia title resolves to a national-dex number — jump straight to that
-  // species. If it doesn't resolve (rare: a '(Pokémon)' link PokeAPI has nothing for) the
-  // Pokédex just stays on its list rather than dead-ending. Only wired for Pokémon games.
-  const [pendingSpecies, setPendingSpecies] = useState(null)
-  const readFromWiki = useCallback(async (bulbapediaTitle) => {
-    setWikiOpen(false)
-    pokedexFromGameRef.current = wikiFromGameRef.current
-    setPokedexMounted(true)
-    setPokedexOpen(true)
-    try {
-      const num = await resolveSpecies(bulbapediaTitle)
-      if (num) setPendingSpecies(num)
-    } catch {
-      /* leave the Pokédex on its list — the species just isn't resolvable */
-    }
-  }, [])
-  // Same commit-time reasoning as pendingRead: run before the panel's passive effects so
-  // openTo lands as soon as the ref is attached.
-  useLayoutEffect(() => {
-    if (pendingSpecies != null && pokedexOpen && pokedexRef.current) {
-      pokedexRef.current.openTo(pendingSpecies)
-      setPendingSpecies(null)
-    }
-  }, [pendingSpecies, pokedexOpen])
-
-  const chooseScheme = useCallback(
-    (scheme) => saveSettings({ ...settings, controlScheme: scheme }),
-    [settings, saveSettings]
-  )
-
-  const chooseSkin = useCallback(
-    (skinId) => saveSettings({ ...settings, controlSkin: skinId }),
-    [settings, saveSettings]
-  )
-  // Cycle the pad skin forward — the controller-nav twin of tapping a segment (A on the row,
-  // or left/right to step). Wraps, so a press always changes something.
-  const cycleSkin = useCallback(
-    (dir = 1) => {
-      const ids = CONTROL_SKINS.map((s) => s.id)
-      const i = ids.indexOf(settings.controlSkin)
-      chooseSkin(ids[(Math.max(0, i) + dir + ids.length) % ids.length])
-    },
-    [settings.controlSkin, chooseSkin]
-  )
-
-  // "Reset this controller to the defaults" — restore the whole controller setup, not just
-  // per-button rebinds: the scheme (letters/positions) and the Wiki/Pokédex/Fast-Forward
-  // hotkeys go back to shipped defaults too. (Clearing only the rebind map looked like it did
-  // nothing when what you'd changed was the scheme or a hotkey.)
-  const resetBindings = useCallback(
-    () => saveSettings(resetControls(settings, padId)),
-    [settings, padId, saveSettings]
-  )
-
-  // "Press a button…" — the next press on the pad becomes this button's binding.
-  // Returns true from onRawButton to swallow that press, so it doesn't also
-  // navigate the menu it was made in.
-  const captureBinding = useCallback(
-    (buttonIndex, id, menuHeld = false) => {
-      if (listeningFor == null) return false
-
-      // The wiki hotkey is an app action, not a RetroPad button — it can take ANY
-      // button except the app's own Menu/Guide. It MAY collide with a game button
-      // (then that button also acts in-game); that's on the player, said in the panel.
-      // Holding Menu during the press records a CHORD (hold-Menu + button) instead of a
-      // bare button — the way to spend a game button on a shortcut without it firing the
-      // shortcut every time you use that button in-game.
-      if (['wiki', 'pokedex', 'fastForward', 'rewind'].includes(listeningFor)) {
-        if (buttonIndex === 9 || buttonIndex === 16) {
-          setError('That button belongs to the app — pick another.')
-        } else {
-          const key = { wiki: 'wikiHotkey', pokedex: 'pokedexHotkey', fastForward: 'ffHotkey', rewind: 'rewindHotkey' }[listeningFor]
-          const value = menuHeld ? { button: buttonIndex, mod: 'menu' } : buttonIndex
-          // One slot, one shortcut: free any OTHER shortcut that was on this exact slot
-          // (same bare button, or same Menu-chord). Otherwise onRawButton checks them in
-          // order and the earlier one silently wins, so the new binding would never fire —
-          // here the freed one visibly reads Unassigned. A bare button and a Menu-chord on
-          // the same button DON'T collide (sameHotkey knows), so both can coexist.
-          const patch = { ...settings, [key]: value }
-          for (const other of ['wikiHotkey', 'pokedexHotkey', 'ffHotkey', 'rewindHotkey']) {
-            if (other !== key && sameHotkey(patch[other], value)) patch[other] = null
-          }
-          saveSettings(patch)
-        }
-        setListeningFor(null)
-        return true
-      }
-
-      // The Menu button is the app's (short press = the game's START, long press =
-      // this menu). Handing it to the game as well would make every long press do
-      // both, so it's the one button you can't have.
-      const label = bindingForButton(buttonIndex)
-      if (!label) {
-        setError('That button belongs to the app — pick another.')
-        setListeningFor(null)
-        return true
-      }
-      saveSettings(withBinding(settings, id || padId, listeningFor, label))
-      setListeningFor(null)
-      return true
-    },
-    [listeningFor, settings, padId, saveSettings]
-  )
-
-  // Set the current live frame as this game's cover. The live-shot timer already keeps a
-  // fresh non-black frame in liveShotRef, so there's nothing to capture here — just POST
-  // it. Stays on the pause menu and shows a confirmation rather than dropping you back
-  // into the game, so you know it took. A black/absent frame (first moments, iOS readback)
-  // is reported, never uploaded.
-  const doSetCover = useCallback(async () => {
-    const shot = liveShotRef.current
-    if (!shot) {
-      setCoverNotice('Couldn’t grab a frame — give it a second and try again.')
-      return
-    }
-    try {
-      const res = await postCover(id, shot)
-      if (!res.ok) throw new Error(String(res.status))
-      setHasCustomCover(true)
-      setCoverNotice('Cover set from this frame.')
-    } catch {
-      setCoverNotice('Couldn’t set the cover — try again.')
-    }
-  }, [id])
-
-  const doResetCover = useCallback(async () => {
-    try {
-      await deleteCover(id)
-      setHasCustomCover(false)
-      // 'Reset' is the last trailing tile in the shelf and just vanished; without moving
-      // focus back, its index now points past the end, so step back onto the still-present
-      // 'Set from this frame' tile.
-      setShelfFocus((f) => Math.max(0, f - 1))
-      setCoverNotice('Cover reset to the default art.')
-    } catch {
-      setCoverNotice('Couldn’t reset the cover — try again.')
-    }
-  }, [id])
-
-  // The confirmation is transient — clear it a couple seconds after it shows.
-  useEffect(() => {
-    if (!coverNotice) return
-    const t = setTimeout(() => setCoverNotice(null), 2600)
-    return () => clearTimeout(t)
-  }, [coverNotice])
 
   const onMenuAction = useCallback(
     (action) => {
@@ -1008,6 +633,21 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
 
   const rows = controlRows(isPokemon)
 
+  // The web engine's ends of the pad router — the emuBridge implementations of the
+  // actions the router hands off to.
+  const padActions = {
+    // Off iOS, A boots the game by clicking the engine's Start button (fires the frog
+    // + the core). On iOS a pad simply CAN'T start a game with audio — a synthetic
+    // click just triggers the engine's grey "click to resume" screen — so there, A
+    // bounces the "TAP TO PLAY" cue instead, pointing at the one tap that works.
+    pressStart: () => {
+      if (isIOS()) flashStartCue(frameRef.current)
+      else if (pressStart(frameRef.current)) resumeAudio(frameRef.current)
+    },
+    tapStart: () => tap(emuRef.current, RETROPAD.START),
+    stickPress: (index, down) => press(emuRef.current, index, down),
+  }
+
   useGamepad({
     onPadButton: (id) => {
       setPadActive(true)
@@ -1025,212 +665,28 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
       isChord(settings.wikiHotkey) || isChord(settings.pokedexHotkey) || isChord(settings.ffHotkey) ||
       ['wiki', 'pokedex', 'fastForward', 'rewind'].includes(listeningFor),
 
-    // While the Controls screen is waiting for a press, that press IS the binding —
-    // it must not also move the cursor. Returning true swallows it. Otherwise, in-game,
-    // the wiki hotkey opens the reader straight from play (default R3; rebindable).
-    onRawButton: (index, id, { menuHeld = false } = {}) => {
-      // The Controls screen's input tester: every press reads back as the app saw it,
-      // BEFORE any capture/consumption — the ground truth for a pad that reports a
-      // nonstandard layout, which is exactly when you're on that screen.
-      if (controlsOpen) setLastPress({ index, id })
-      if (captureBinding(index, id, menuHeld)) return true
-      if (!isRunning(state)) return false // the hotkeys only act mid-play
-      // A hotkey is a bare button (fires on its own) or a Menu-chord (fires only while Menu
-      // is held) — hotkeyMatches applies the right rule, so a bare and a chord can share a
-      // button. Earlier hotkeys still win a genuine collision; capture frees the old holder.
-      if (hotkeyMatches(settings.wikiHotkey, index, menuHeld)) {
-        openWiki(true)
-        return true
-      }
-      // The Pokédex hotkey — only meaningful for a Pokémon game.
-      if (hotkeyMatches(settings.pokedexHotkey, index, menuHeld) && isPokemon) {
-        openPokedex(true)
-        return true
-      }
-      // The fast-forward hotkey — toggle the core's turbo mid-play.
-      if (hotkeyMatches(settings.ffHotkey, index, menuHeld)) {
-        applyFF(!fastForward)
-        return true
-      }
-      // The rewind hotkey — hold time in reverse until toggled back.
-      if (hotkeyMatches(settings.rewindHotkey, index, menuHeld)) {
-        applyRewind(!rewinding)
-        return true
-      }
-      return false
-    },
-
-    // The Menu button is ours alone (START is left unbound in the preset, so this
-    // can't double-fire): a short press is the game's START, a long press opens
-    // the HQ menu.
-    onMenuAction: (action) => {
-      if (action === 'pauseMenu') {
-        // Back out one layer at a time. Resuming straight from a panel would
-        // un-pause the game while that panel still covered it (and leave the
-        // engine's gamepad gated, so the pad would drive nothing).
-        // The confirms are the topmost layer — Menu cancels them first (like B),
-        // so one can't be stranded over the pause menu by dismissing the layer under it.
-        if (pendingQuit) setPendingQuit(false)
-        else if (pendingDelete != null) cancelDelete()
-        else if (chooseSlot != null) setChooseSlot(null)
-        else if (wikiOpen) closeWiki()
-        else if (pokedexOpen) closePokedex()
-        else if (controlsOpen) closeControls()
-        else if (shelfOpen) setShelfOpen(false)
-        else if (paused) dispatch('resume')
-        else openMenu()
-      } else if (action === 'start' && !menuOpenRef.current) {
-        tap(emuRef.current, RETROPAD.START)
-      }
-    },
-
-    // Menu navigation. Only wired while a menu is open — in-game the engine reads
-    // the pad itself, straight from the preset.
-    onAction: (action) => {
-      // On the start screen a controller has no button to tap. Off iOS, A boots the
-      // game by clicking the engine's Start button (fires the frog + the core). On iOS
-      // a pad simply CAN'T start a game with audio — a synthetic click just triggers
-      // the engine's grey "click to resume" screen — so there, A bounces the "TAP TO
-      // PLAY" cue instead, pointing at the one tap that works. B backs out.
-      if (state === 'AWAIT_START') {
-        if (action === 'confirm') {
-          if (isIOS()) flashStartCue(frameRef.current)
-          else if (pressStart(frameRef.current)) resumeAudio(frameRef.current)
-        } else if (action === 'back') {
-          exit()
-        }
-        return
-      }
-
-      if (!menuOpenRef.current) return
-
-      if (wikiOpen) {
-        // The reader owns the pad. Sticks/D-pad scroll (both arrive here as up/down
-        // with velocity-scaled repeat); shoulders page; triggers jump section; D-pad
-        // left/right steps the focused link; A opens it; B goes back, then closes.
-        const w = wikiRef.current
-        switch (action) {
-          case 'up': w?.scroll(-WIKI_SCROLL_STEP); break
-          case 'down': w?.scroll(WIKI_SCROLL_STEP); break
-          case 'left': w?.moveLink(-1); break
-          case 'right': w?.moveLink(1); break
-          case 'railPrev': w?.page(-1); break
-          case 'railNext': w?.page(1); break
-          case 'jumpPrev': w?.section(-1); break
-          case 'jumpNext': w?.section(1); break
-          case 'confirm': w?.activate(); break
-          case 'search': w?.changeWiki(); break // X — drop the wiki and re-search
-          case 'back': if (!w?.back()) closeWiki(); break
-          default: break
-        }
-        return
-      }
-
-      if (pokedexOpen) {
-        // The Pokédex owns the pad. It routes the action itself by view (list nav vs
-        // detail scroll) and returns false only to ask us to close (Back at the list root).
-        if (pokedexRef.current?.handleAction(action) === false) closePokedex()
-        return
-      }
-
-      if (controlsOpen) {
-        // A one-column list: up/down walk it. left/right only do something on the pad-skin
-        // row (step the style); everywhere else they're inert.
-        const row = rows[controlsFocus]
-        if (action === 'back') closeControls()
-        else if (action === 'confirm') {
-          if (row === 'reset') resetBindings()
-          else if (row === 'skin') cycleSkin(1)
-          else if (['wiki', 'pokedex', 'fastForward', 'rewind'].includes(row)) setListeningFor(row)
-          else if (row.startsWith('bind:')) setListeningFor(Number(row.slice(5)))
-          else chooseScheme(row)
-        } else if ((action === 'left' || action === 'right') && row === 'skin') {
-          cycleSkin(action === 'left' ? -1 : 1)
-        } else if (action === 'up' || action === 'down') {
-          setControlsFocus((i) => moveInGrid({ count: rows.length, cols: 1, index: i }, action))
-        }
-        return
-      }
-
-      // The delete confirm sits ON TOP of the shelf, so it eats the pad first: left/right
-      // move between Delete and Keep, A commits the highlighted one, B always cancels.
-      // Nothing reaches the shelf underneath while it's up.
-      if (pendingDelete != null) {
-        if (action === 'confirm') (confirmFocus === 1 ? cancelDelete : confirmDelete)()
-        else if (action === 'back') cancelDelete()
-        else if (action === 'left' || action === 'up') setConfirmFocus(0)
-        else if (action === 'right' || action === 'down') setConfirmFocus(1)
-        return
-      }
-
-      // The Load/Delete chooser sits over the shelf (below the delete confirm): up/down move
-      // between Load and Delete, A commits, B backs out to the shelf.
-      if (chooseSlot != null) {
-        if (action === 'confirm') (chooseFocus === 1 ? chooseDelete : chooseLoad)()
-        else if (action === 'back') setChooseSlot(null)
-        else if (action === 'up' || action === 'left') setChooseFocus(0)
-        else if (action === 'down' || action === 'right') setChooseFocus(1)
-        return
-      }
-
-      if (shelfOpen) {
-        // The save shelf, walked with the pad: [Save-new, ...states, ...cover actions].
-        // A = the focused cell (save a new one, load that state, or run the cover action),
-        // Y = ask to delete the focused state (states only), B = back to the pause menu.
-        const coverStart = states.length + 1 // first trailing cover-action index
-        if (action === 'back') {
-          setShelfOpen(false)
-          setError(null)
-        } else if (action === 'confirm') {
-          if (shelfFocus === 0) doSave()
-          else if (shelfFocus < coverStart) openChooser(states[shelfFocus - 1]?.slot)
-          else if (coverActions[shelfFocus - coverStart] === 'setCover') doSetCover()
-          else if (coverActions[shelfFocus - coverStart] === 'resetCover') doResetCover()
-        } else if (action === 'alt') {
-          if (shelfFocus > 0 && shelfFocus < coverStart && states[shelfFocus - 1]) requestDelete(states[shelfFocus - 1].slot)
-        } else {
-          setShelfFocus((i) =>
-            moveInGrid({ count: states.length + 1 + coverActions.length, cols: shelfCols, index: i }, action, { centerLastRow: true })
-          )
-        }
-        return
-      }
-      // The quit confirm sits over the pause menu — it eats the pad first (like the delete
-      // confirm over the shelf): left/up→Quit, right/down→Keep, A commits the highlight,
-      // B cancels. Focus starts on Keep (index 1), the safe default.
-      if (pendingQuit) {
-        if (action === 'confirm') {
-          if (quitFocus === 1) setPendingQuit(false)
-          else {
-            dispatch('quit')
-            exit()
-          }
-        } else if (action === 'back') setPendingQuit(false)
-        else if (action === 'left' || action === 'up') setQuitFocus(0)
-        else if (action === 'right' || action === 'down') setQuitFocus(1)
-        return
-      }
-      if (action === 'confirm') onMenuAction(menuItems[menuFocus].id)
-      else if (action === 'back') dispatch('resume')
-      else if ((action === 'left' || action === 'right') && menuItems[menuFocus]?.adjust)
-        onMenuAdjust(menuItems[menuFocus].id, action === 'left' ? -1 : 1) // adjustable rows: ◀ ▶ step
-      else
-        setMenuFocus((i) =>
-          moveInGrid({ count: menuItems.length, cols: 1, index: i }, action)
-        )
-    },
-
-    // The analog stick as a d-pad, in-game only. The 2D systems have no analog
-    // input, so the engine's preset can't bind the stick — without this it'd be
-    // dead, and it's the first thing a thumb reaches for on an Xbox pad. On an
-    // ANALOG core (N64) the stick is real and this must stand down, or a nudge
-    // fires analog AND a synthetic d-pad press — menus jump several rows at once.
-    onStick: (dir, down) => {
-      if (menuOpenRef.current) return
-      if (ANALOG_CORES.has(core)) return
-      const index = { up: RETROPAD.UP, down: RETROPAD.DOWN, left: RETROPAD.LEFT, right: RETROPAD.RIGHT }[dir]
-      if (index != null) press(emuRef.current, index, down)
-    },
+    // The action router (onRawButton/onMenuAction/onAction/onStick) — rebuilt each
+    // render, so its closures are as fresh as the inline handlers were.
+    ...createPadRouter({
+      state, core, exit, dispatch, settings, isPokemon, paused, openMenu, menuOpenRef,
+      menuItems, menuFocus, setMenuFocus, onMenuAction, onMenuAdjust,
+      shelfOpen, setShelfOpen, states, shelfFocus, setShelfFocus, shelfCols, setError,
+      coverActions, doSave, openChooser, requestDelete, doSetCover, doResetCover,
+      pendingDelete, confirmFocus, setConfirmFocus, confirmDelete, cancelDelete,
+      chooseSlot, setChooseSlot, chooseFocus, setChooseFocus, chooseLoad, chooseDelete,
+      pendingQuit, setPendingQuit, quitFocus, setQuitFocus,
+      // Web order: the engine reads saves synchronously, so 'quit' first is exact.
+      confirmQuit: () => {
+        dispatch('quit')
+        exit()
+      },
+      controlsOpen, closeControls, controlsFocus, setControlsFocus, rows,
+      setLastPress, captureBinding, setListeningFor, resetBindings, cycleSkin, chooseScheme,
+      fastForward, applyFF, rewinding, applyRewind,
+      wikiOpen, wikiRef, closeWiki, openWiki,
+      pokedexOpen, pokedexRef, closePokedex, openPokedex,
+      actions: padActions,
+    }),
   })
 
   // The controller hint introduces itself and then leaves. It answers exactly one
@@ -1264,33 +720,6 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
   // Don't let the screen sleep mid-game. Re-acquired on every return to the tab,
   // because iOS drops the lock whenever the page is hidden and never gives it back.
   useWakeLock(isRunning(state))
-
-  // A live frame for the next save-state thumbnail.
-  //
-  // The canvas can ONLY be read back non-black while the core is actively presenting
-  // and the iframe is visible — which is NOT true at save time (by then the game is
-  // paused and the save overlay covers it, and iOS WebKit hands back solid black; that
-  // timing is why every earlier thumbnail was black). So grab a frame on a slow timer
-  // while the game plays and keep the freshest one; `doSave` uses it instead of
-  // capturing at the moment you hit Save.
-  const liveShotRef = useRef(null)
-  useEffect(() => {
-    if (!isRunning(state)) return
-    let inFlight = false
-    const grab = async () => {
-      if (inFlight) return
-      inFlight = true
-      try {
-        const shot = await captureShot(emuRef.current)
-        if (shot) liveShotRef.current = shot // captureShot already drops black frames
-      } finally {
-        inFlight = false
-      }
-    }
-    grab() // one right away, so a save moments after starting still has a frame
-    const t = setInterval(grab, 3000)
-    return () => clearInterval(t)
-  }, [state])
 
   // --- immersion ------------------------------------------------------------
 

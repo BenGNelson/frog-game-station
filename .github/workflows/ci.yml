@@ -79,16 +79,23 @@ jobs:
         with:
           workspaces: frontend/src-tauri
 
-      # Tauri v2's Linux webview + bundler system deps.
+      # Tauri v2's Linux webview + bundler system deps, plus the native
+      # player's audio/gamepad stacks (cpal wants ALSA, gilrs wants udev).
       - name: Webview dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file \
-            libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+            libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev \
+            libasound2-dev libudev-dev
 
       - name: Install frontend dependencies
         run: npm ci
         working-directory: frontend
+
+      # The emu host's coreless unit tests (options tables, bindings mapping,
+      # letterbox math, SRAM hashing...) — no cores, no ROMs, no GPU needed.
+      - name: Emu host unit tests
+        run: cargo test --manifest-path frontend/src-tauri/Cargo.toml
 
       - name: Build the desktop shell (no bundle)
         run: npm run tauri build -- --no-bundle

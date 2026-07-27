@@ -26,7 +26,7 @@ const SECTION_LABEL = { snapshots: 'Snapshots', play: 'Play', game: 'Game', setu
 // The menu's contents, exported so the controller can walk the same list the
 // touch/keyboard user sees — one source of truth for what's on screen and what
 // index each thing sits at.
-export function pauseItems(fastForward, { canFullscreen = true, isPokemon = false, volume, rewinding = false, shader, ffRatio, shotStatus = null } = {}) {
+export function pauseItems(fastForward, { canFullscreen = true, canRewind = true, isPokemon = false, volume, rewinding = false, shader, ffRatio, shotStatus = null } = {}) {
   return [
     { id: 'resume', label: 'Resume', Icon: Play, primary: true, section: 'top' },
     // Save and Load open the SAME shelf (it defaults focus to "Save new"), so they're
@@ -43,7 +43,9 @@ export function pauseItems(fastForward, { canFullscreen = true, isPokemon = fals
       section: 'snapshots',
     },
     // The time controls, together: rewind ⟲, fast-forward ⟳, then the volume.
-    { id: 'rewind', label: 'Rewind', Icon: Rewind, active: rewinding, section: 'play' },
+    // Rewind is omit-only, like Fullscreen and the Pokédex: the native player's core
+    // has no rewind ring yet, so it drops the row rather than showing a dead toggle.
+    ...(canRewind ? [{ id: 'rewind', label: 'Rewind', Icon: Rewind, active: rewinding, section: 'play' }] : []),
     { id: 'fastForward', label: 'Fast Forward', Icon: FastForward, active: fastForward, section: 'play' },
     // How fast the turbo runs — a cycle row directly under its toggle. `ffRatio` is
     // the current step's LABEL; the shell owns the engine values.
@@ -77,8 +79,8 @@ export function pauseItems(fastForward, { canFullscreen = true, isPokemon = fals
   ]
 }
 
-export default function PauseMenu({ open, name, fastForward, rewinding, canFullscreen, isPokemon, volume, shader, ffRatio, shotStatus, onAdjust, focus, onFocus, onAction, legend }) {
-  const items = pauseItems(fastForward, { canFullscreen, isPokemon, volume, rewinding, shader, ffRatio, shotStatus })
+export default function PauseMenu({ open, name, fastForward, rewinding, canFullscreen, canRewind, isPokemon, volume, shader, ffRatio, shotStatus, onAdjust, focus, onFocus, onAction, legend }) {
+  const items = pauseItems(fastForward, { canFullscreen, canRewind, isPokemon, volume, rewinding, shader, ffRatio, shotStatus })
 
   // Keyboard parity with the controller — the same 1-column list walk drives both, so
   // desktop and pad can never diverge. cols:1 makes left/right no-ops and up/down step

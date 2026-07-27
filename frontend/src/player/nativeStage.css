@@ -1,0 +1,18 @@
+/*
+  The native desktop player's stage. In the desktop app the running game is drawn
+  by the host on a GL surface UNDER the webview, so while NativePlayer is mounted
+  (it stamps this class on <html>) every page layer has to go see-through — the
+  WATER ground index.css paints on <html> would otherwise sit as an opaque wall
+  over the game. Scoped to the class, not the build: every other screen keeps the
+  pond. The class rules out-rank index.css's bare `html` on specificity alone, so
+  no !important is needed.
+
+  Lives here, imported by NativePlayer.jsx, rather than in index.css: the rule
+  rides the native player's module, so the web bundle — which drops NativePlayer
+  at build time — carries no trace of the native stage.
+*/
+html.native-stage,
+html.native-stage body,
+html.native-stage #root {
+  background: transparent;
+}

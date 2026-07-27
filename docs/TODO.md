@@ -342,10 +342,31 @@ check a row when its exit criteria hold, and note carry-over under the row.
       (2) Tauri CSP stays null until the Phase-4 release pipeline; (3) `tauri dev`
       serves from the Vite origin — add it to the backend's CORS while developing
       (README notes it).
-- [ ] **6. Phase 2a — NativePlayer + N64 (v0.8.0).** The Tauri command/event contract,
-      `player/NativePlayer.jsx` reusing the pause menu / save shelf / controls chrome,
-      `scripts/fetch-native-cores.sh`; saves flow through the existing roaming
-      endpoints. Exit: N64 plays natively on the M4, saves roam with the phone.
+- [x] **6. Phase 2a — NativePlayer + N64 (v0.8.0).** Shipped: N64 plays NATIVELY in
+      the desktop app. `src-tauri/src/emu/` is the spike grown into a library — the
+      dlopen'd core, GL, cpal audio, gilrs input, saves — on its own session thread,
+      behind 17 Tauri commands (bytes ride raw IPC payloads, never JSON arrays) and
+      `native:*` events. `player/NativePlayer.jsx` composes the SAME chrome the web
+      player uses: the four shared hooks extracted from `PlayerShell.jsx` first
+      (`usePlayerShelf`/`usePlayerPanels`/`usePlayerControls`/`padRouter`), so there
+      is one save-shelf implementation, not two. `lib/nativeEmu.js` duck-types the web
+      engine handle, which is what lets `gameSaves.js`/`useGameSaves`/`usePlayTime`
+      drive a native core UNCHANGED — the whole lineage/outbox/newest-wins contract
+      for free. `scripts/fetch-native-cores.sh` pins cores by content hash.
+      §8.2 compositing SETTLED by proof: the GL stage is an NSView under the
+      transparent webview, first try. Exit held on the M4 (Mario Kart 64, Ocarina):
+      full speed, clean audio, saves roam with the phone.
+      **A 20-agent adversarial review + hands-on play caught nine real defects, all
+      fixed:** the analog stick was inverted and the right stick (the N64's
+      C-buttons) missing entirely; a menu-closing press leaked into the paused game
+      (the webview ungates faster than the host drains its input queue); quit flushed
+      a stale save; window-close lost the last second of SRAM; a stop racing a launch
+      could overlap two emulator threads; a wedged core would have blocked every
+      future launch; fast-forward sent the wrong type; and **nginx's default 1 MB body
+      cap silently 413'd every save state over 1 MB — a WEB player bug too, invisible
+      until now because cartridge states are tiny.**
+      Carry-over: rewind/filter/fullscreen rows stay out until row 9; paraLLEl-RDP
+      (the macOS N64 quality path) stays post-1.0; Windows/Linux GL is Phase 4.
 - [ ] **7. Phase 2b — DS + PS1.** melonDS (touch + dual-screen layout), PCSX-ReARMed
       (.chd; user BIOS honored, HLE otherwise). Exit: the known browser failures play
       natively.
@@ -507,6 +528,18 @@ Saturn → GameCube/Wii → PS2) become the new backlog.
 ---
 
 ## Quality & polish
+
+- [ ] **A dismissing tap must not also press what it landed on (reported
+      2026-07-26).** Two sightings of one bug class: tapping the screensaver
+      wakes it AND activates whatever tile sat under the finger, and (native
+      player, fixed there) a menu-closing press reached the game underneath.
+      The boot screen already solves this deliberately — it dismisses on the
+      gesture's TERMINAL event so the whole gesture is consumed while the
+      overlay is still on top (`frog_touch.py` even asserts "no ghost-click
+      drill-in"). The screensaver should do the same: swallow the waking
+      input entirely, on every path (touch, pad, key), rather than dismissing
+      on an early event and letting the rest fall through. Worth a shared
+      helper if a third overlay ever wants it. Test alongside in the touch e2e.
 
 - [ ] **Mouse-first sweep — the desktop app must be fully drivable by mouse alone
       (requested 2026-07-26).** The couch UI was built pad-first with the mouse mostly
