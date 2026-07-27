@@ -13,3 +13,12 @@
 mupen64plus_next  mac-arm64  https://buildbot.libretro.com/nightly/apple/osx/arm64/latest/mupen64plus_next_libretro.dylib.zip  c4a7ac61450fdbe366f1a07516aec4d7359eb25b4eb26412025c78287a290436
 melonds           mac-arm64  https://buildbot.libretro.com/nightly/apple/osx/arm64/latest/melonds_libretro.dylib.zip  0f20458dac1733235846db8ba32cfce8b9d5db930795d26f5e3528919e96c179
 pcsx_rearmed      mac-arm64  https://buildbot.libretro.com/nightly/apple/osx/arm64/latest/pcsx_rearmed_libretro.dylib.zip  37982749351439a528d2ab8c74825f1f1f2d3adf314a890886b6fdb50fc38c40
+# The cartridge tier (Phase 2c). Deliberately the SAME cores the web player
+# uses: a save state is a core-specific blob, so a mismatch here would mean a
+# state made on the phone couldn't be loaded on the desktop, and vice versa.
+gambatte          mac-arm64  https://buildbot.libretro.com/nightly/apple/osx/arm64/latest/gambatte_libretro.dylib.zip  410949eae0b9ca770e55307bd7d77a407cfc540ff6bf82b199c4dd44bad0232c
+mgba              mac-arm64  https://buildbot.libretro.com/nightly/apple/osx/arm64/latest/mgba_libretro.dylib.zip  3b7d0b1b8d06fdb4b52747a316361268b576374c5144721fe124e2b8752b2955
+fceumm            mac-arm64  https://buildbot.libretro.com/nightly/apple/osx/arm64/latest/fceumm_libretro.dylib.zip  1e2e56958eb9e81b7fc58bd913cd7de7a21cc3fc3064da580845d7c972ff8c1d
+snes9x            mac-arm64  https://buildbot.libretro.com/nightly/apple/osx/arm64/latest/snes9x_libretro.dylib.zip  3e1d6206ef3902c4b528d272ca5e08dd479a2007f0cafeaa4f96bc194d9b0e82
+genesis_plus_gx   mac-arm64  https://buildbot.libretro.com/nightly/apple/osx/arm64/latest/genesis_plus_gx_libretro.dylib.zip  ad68e990d3ddc4154b81d9c342584f145e96ad6ded8931d77aa82e8851d4d9d4
+smsplus           mac-arm64  https://buildbot.libretro.com/nightly/apple/osx/arm64/latest/smsplus_libretro.dylib.zip  0eda07f657723fc6d400a80531122bb3136c0392b235cef025b85c68baaea06a

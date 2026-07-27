@@ -498,6 +498,20 @@ fn run_session(
         unsafe { reset() };
     }
 
+    // Paint the stage black before the first core frame. The window is
+    // transparent so the webview's chrome can float over the picture, which
+    // means an undrawn GL surface shows the DESKTOP through the app — briefly,
+    // between the boot screen going and the first frame arriving.
+    unsafe {
+        gl.gl.bind_framebuffer(glow::DRAW_FRAMEBUFFER, None);
+        gl.gl.clear_color(0.0, 0.0, 0.0, 1.0);
+        gl.gl.clear(glow::COLOR_BUFFER_BIT);
+    }
+    {
+        use glutin::prelude::GlSurface;
+        gl.surface.swap_buffers(&gl.context).ok();
+    }
+
     let _audio_stream = audio::start(av.timing.sample_rate);
     let mut gilrs = gilrs::Gilrs::new().ok();
 
@@ -535,6 +549,7 @@ fn run_session(
     let mut stats_frames: u64 = 0;
     let mut last_sram_hash: u64 = 0;
     let mut stopping = false;
+    let trace = std::env::var("FROG_EMU_TRACE").ok().as_deref() == Some("1");
 
     while !stopping {
         // Paused: block on the channel — a paused game costs zero CPU.
@@ -666,6 +681,14 @@ fn run_session(
         }
         if last_stats.elapsed() >= Duration::from_secs(1) {
             let fps = stats_frames as f64 / last_stats.elapsed().as_secs_f64();
+            if trace {
+                eprintln!(
+                    "[emu] frame {frames_run} {fps:.1} fps luminance {:.1} hw {} ring {}",
+                    mean_luminance(&gl),
+                    HW_ACTIVE.load(Ordering::Relaxed),
+                    audio::RING.lock().unwrap().len(),
+                );
+            }
             last_stats = Instant::now();
             stats_frames = 0;
             let _ = app.emit(
@@ -747,6 +770,60 @@ pub fn letterbox(win_w: i32, win_h: i32, fw: i32, fh: i32, aspect: f32) -> (i32,
         (win_w, (win_w as f32 / aspect) as i32)
     };
     ((win_w - dw) / 2, (win_h - dh) / 2, dw, dh)
+}
+
+/// Mean brightness of the frame the core last produced. The spike's trick for
+/// answering "is it actually rendering?" without a human looking at a window —
+/// a black screen and a working screen are otherwise indistinguishable in logs.
+/// Enabled by FROG_EMU_TRACE=1; costs a readback, so it stays off by default.
+fn mean_luminance(gl: &Gl) -> f64 {
+    let v = VIDEO.lock().unwrap();
+    let (w, h) = (v.width.max(1) as usize, v.height.max(1) as usize);
+    if v.hw_frame {
+        let Some(fbo) = gl.hw_fbo else { return 0.0 };
+        let mut buf = vec![0u8; w * h * 4];
+        unsafe {
+            gl.gl.bind_framebuffer(glow::READ_FRAMEBUFFER, Some(fbo));
+            gl.gl.read_pixels(
+                0, 0, w as i32, h as i32, glow::RGBA, glow::UNSIGNED_BYTE,
+                glow::PixelPackData::Slice(&mut buf),
+            );
+            gl.gl.bind_framebuffer(glow::READ_FRAMEBUFFER, None);
+        }
+        let total: u64 = buf.chunks_exact(4).map(|p| (p[0] as u64 + p[1] as u64 + p[2] as u64) / 3).sum();
+        return total as f64 / (w * h) as f64;
+    }
+    if v.last_frame.is_empty() {
+        return 0.0;
+    }
+    let (mut total, mut count) = (0u64, 0u64);
+    match v.pixel_format {
+        PIXFMT_XRGB8888 => {
+            for px in v.last_frame.chunks_exact(4) {
+                total += (px[0] as u64 + px[1] as u64 + px[2] as u64) / 3;
+                count += 1;
+            }
+        }
+        PIXFMT_RGB565 => {
+            for px in v.last_frame.chunks_exact(2) {
+                let raw = u16::from_le_bytes([px[0], px[1]]);
+                total += ((((raw >> 11) & 0x1f) << 3) as u64
+                    + (((raw >> 5) & 0x3f) << 2) as u64
+                    + ((raw & 0x1f) << 3) as u64) / 3;
+                count += 1;
+            }
+        }
+        _ => {
+            for px in v.last_frame.chunks_exact(2) {
+                let raw = u16::from_le_bytes([px[0], px[1]]);
+                total += ((((raw >> 10) & 0x1f) << 3) as u64
+                    + (((raw >> 5) & 0x1f) << 3) as u64
+                    + ((raw & 0x1f) << 3) as u64) / 3;
+                count += 1;
+            }
+        }
+    }
+    total as f64 / count.max(1) as f64
 }
 
 fn present(gl: &mut Gl, av: &SystemAvInfo) {
