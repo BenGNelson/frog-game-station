@@ -392,8 +392,18 @@ check a row when its exit criteria hold, and note carry-over under the row.
       removed from the backend's `SECTIONS` or the `LIBRETRO_CORE` mirror: the games
       are yours, their saves roam, and the desktop app plays them — which is exactly
       why this row waited for row 7.
-- [ ] **8. Phase 2c — cartridge cores.** Bundle the 2D-system cores so the desktop app
-      is a complete client. Exit: all nine systems play natively.
+- [x] **8. Phase 2c — cartridge cores.** Shipped: gambatte, mgba, fceumm, snes9x,
+      genesis_plus_gx and smsplus join the pinned set, so **all nine systems play
+      natively** in the desktop app. Deliberately the SAME cores the web player
+      runs, with a test pinning the pairs — a save state is a core-specific blob,
+      so a "better" core here would quietly mean a state made on the phone won't
+      load on the desktop (battery saves would roam either way; states are what
+      break). Exit verified by measurement, not by eye: `scripts/smoke-native.sh`
+      boots a game per system through the real player and reads the host's own
+      luminance/fps trace — all eight systems with games in the library hold a
+      locked 60 fps and render non-black. Also fixed: the transparent window
+      showed the DESKTOP through the app between the boot screen leaving and the
+      first frame arriving; the stage now paints black when a session starts.
 - [ ] **9. Phase 3 — feel/parity (v0.9.0).** Fast-forward, rewind, display filter,
       fullscreen, controller hotplug, per-core options, volume — parity with the web
       player's chrome.
