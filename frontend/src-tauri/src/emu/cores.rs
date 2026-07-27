@@ -8,11 +8,23 @@
 use std::path::PathBuf;
 
 pub fn core_lib(core: &str) -> Option<&'static str> {
+    // The SAME core the web player runs for each system, deliberately: a save
+    // state is a core-specific blob, so picking a "better" core here would mean
+    // a state made on the phone wouldn't load on the desktop. (Battery saves are
+    // raw and would roam either way — states are the ones that break.)
     Some(match core {
         "n64" => "mupen64plus_next_libretro",
         "nds" => "melonds_libretro",
         "psx" => "pcsx_rearmed_libretro",
-        _ => return None, // 2c adds the cartridge cores
+        "gb" => "gambatte_libretro",
+        // The backend runs Game Boy Color on the gba core too — one mapping
+        // covers .gbc and .gba, exactly as the web player does it.
+        "gba" => "mgba_libretro",
+        "nes" => "fceumm_libretro",
+        "snes" => "snes9x_libretro",
+        "segaMD" | "segaGG" => "genesis_plus_gx_libretro",
+        "segaMS" => "smsplus_libretro",
+        _ => return None,
     })
 }
 
@@ -55,12 +67,34 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_disc_era_resolves_and_unknown_systems_refuse() {
-        assert_eq!(core_lib("n64"), Some("mupen64plus_next_libretro"));
-        assert_eq!(core_lib("nds"), Some("melonds_libretro"));
-        assert_eq!(core_lib("psx"), Some("pcsx_rearmed_libretro"));
+    fn every_system_the_library_lists_resolves_to_a_core() {
+        // The backend's format table (backend/app/library.py) is the source of
+        // truth for these keys; all nine systems must play natively now.
+        for core in ["gb", "gba", "nes", "snes", "segaMD", "segaMS", "segaGG", "n64", "nds", "psx"] {
+            assert!(core_lib(core).is_some(), "no native core wired for {core}");
+        }
         assert!(core_lib("xbox").is_none());
         assert!(resolve("xbox").is_err());
+    }
+
+    #[test]
+    fn the_native_cores_match_the_web_players_so_save_states_roam() {
+        // frontend/src/lib/library.js LIBRETRO_CORE is the mirror — these pairs
+        // must not drift, or a state made on one face won't load on the other.
+        for (system, lib) in [
+            ("gb", "gambatte_libretro"),
+            ("gba", "mgba_libretro"),
+            ("nes", "fceumm_libretro"),
+            ("snes", "snes9x_libretro"),
+            ("segaMD", "genesis_plus_gx_libretro"),
+            ("segaGG", "genesis_plus_gx_libretro"),
+            ("segaMS", "smsplus_libretro"),
+            ("n64", "mupen64plus_next_libretro"),
+            ("nds", "melonds_libretro"),
+            ("psx", "pcsx_rearmed_libretro"),
+        ] {
+            assert_eq!(core_lib(system), Some(lib));
+        }
     }
 
     #[test]

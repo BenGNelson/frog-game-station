@@ -20,25 +20,36 @@ pub fn maybe_nav(app: &mut tauri::App) {
     let Ok(path) = std::env::var("FROG_NAV") else { return };
     let Some(window) = app.get_webview_window("main") else { return };
     std::thread::spawn(move || {
-        std::thread::sleep(std::time::Duration::from_millis(3000));
-        let _ = window.eval(&format!(
-            "window.location.assign({})",
+        // Keep asking until it sticks, and make the ask idempotent: the dev
+        // server can take a while to serve its first page (a cold dependency
+        // cache is tens of seconds), and a single timed navigation aimed at a
+        // page that hasn't loaded yet is simply lost. Re-navigating once the
+        // player is already up would reload the game, so the script checks
+        // where it is first.
+        let nav = format!(
+            "if (!location.pathname.startsWith('/play')) location.assign({});",
             serde_json::to_string(&path).unwrap_or_default()
-        ));
+        );
         // FROG_AUTOSTART=1 also presses start once the player has booted — the
         // difference between smoke-testing "the core loads" and "the game runs"
         // without a hand on the mouse. Enter is the player's own start key, so
-        // this drives the real path rather than a back door.
+        // this drives the real path rather than a back door. It keeps offering
+        // for a couple of minutes, because the start card only appears once the
+        // ROM has arrived and a disc image can take a while — and it runs on its
+        // OWN thread, so the navigation retries above can't delay it.
         if std::env::var("FROG_AUTOSTART").ok().as_deref() == Some("1") {
-            // Keep offering Enter for a couple of minutes: the start card only
-            // appears once the ROM has arrived, and a disc image streaming off
-            // the server can take a while. A single timed press would land
-            // during the download and be swallowed — the smoke run would then
-            // report "the core loads" as if it were "the game runs".
-            for _ in 0..60 {
-                std::thread::sleep(std::time::Duration::from_millis(2000));
-                let _ = window.eval("window.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter'}))");
-            }
+            let starter = window.clone();
+            std::thread::spawn(move || {
+                for _ in 0..60 {
+                    std::thread::sleep(std::time::Duration::from_millis(2000));
+                    let _ = starter
+                        .eval("window.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter'}))");
+                }
+            });
+        }
+        for _ in 0..20 {
+            std::thread::sleep(std::time::Duration::from_millis(1500));
+            let _ = window.eval(&nav);
         }
     });
 }
