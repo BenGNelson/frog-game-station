@@ -47,6 +47,7 @@ pub const JOYPAD_R2: c_uint = 13;
 
 // RETRO_DEVICE_INDEX_ANALOG_* / RETRO_DEVICE_ID_ANALOG_*
 pub const ANALOG_LEFT: c_uint = 0;
+pub const ANALOG_RIGHT: c_uint = 1;
 pub const ANALOG_X: c_uint = 0;
 pub const ANALOG_Y: c_uint = 1;
 

@@ -65,7 +65,10 @@ while read -r core plat url want_sha; do
   cp -n "$zip" "$ARCHIVE/$want_sha.zip" 2>/dev/null || true
 
   # Extract just the dylib/so/dll (the zip is flat); bsdtar covers minimal boxes.
-  if command -v unzip >/dev/null; then unzip -oq "$zip" -d "$DEST"; else tar -xf "$zip" -C "$DEST"; fi
+  # GNU tar cannot read zip archives — only bsdtar can stand in for unzip.
+  if command -v unzip >/dev/null; then unzip -oq "$zip" -d "$DEST"
+  elif command -v bsdtar >/dev/null; then bsdtar -xf "$zip" -C "$DEST"
+  else echo "error: need unzip or bsdtar to extract $core" >&2; exit 2; fi
   case "$PLAT" in
     mac-*) xattr -c "$DEST/${core}_libretro.dylib" 2>/dev/null || true ;;  # strip quarantine or dlopen fails
   esac

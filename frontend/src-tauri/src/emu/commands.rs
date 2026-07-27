@@ -67,6 +67,14 @@ pub struct LoadGameReply {
 
 static GEN: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
+// Set when an emu thread refused to die (a core wedged inside retro_run or
+// retro_load_game past the join timeout). The thread still owns the process
+// statics, so booting another session over it would be the exact race the
+// generation scheme exists to prevent — once wedged, launches refuse honestly
+// until the app restarts.
+static WEDGED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+const JOIN_TIMEOUT: Duration = Duration::from_secs(10);
+
 #[tauri::command]
 pub async fn load_game(
     app: tauri::AppHandle,
@@ -74,13 +82,19 @@ pub async fn load_game(
     state: tauri::State<'_, EmuState>,
     args: LoadGameArgs,
 ) -> Result<LoadGameReply, String> {
-    // Whole-call serialization: without it a rapid relaunch (React's dev
-    // double-mount, a double-click) interleaves two boots and the loser leaks
-    // its thread and stage view.
+    // Whole-call serialization: load_game AND stop_game both hold this lock,
+    // so a boot can never interleave with another boot or an in-flight stop —
+    // the emu thread's death is fully ordered before the next thread's birth
+    // (they share the process-wide callback statics).
     let _loading = state.load_lock.lock().await;
+    if WEDGED.load(std::sync::atomic::Ordering::Relaxed) {
+        return Err("the emulator is wedged from a previous game — restart the app".into());
+    }
     // One session at a time — a second launch stops the first.
     stop_game_inner(&app, &state, None).await?;
     let generation = GEN.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
+    // Fresh session, fresh guarded window-close (see lib.rs CloseRequested).
+    state.close_flush_armed.store(false, std::sync::atomic::Ordering::Relaxed);
 
     let core_path = cores::resolve(&args.core)?;
     let cache_dir = app
@@ -113,7 +127,14 @@ pub async fn load_game(
             .clone()
             .run_on_main_thread(move || {
                 let view = unsafe { stage::insert(&window) };
-                let _ = view_tx.send(view);
+                // Nobody listening (the caller timed out)? Undo the insert
+                // right here — we're already on the main thread — instead of
+                // leaving an orphan view in the hierarchy.
+                if let Err(unreceived) = view_tx.send(view) {
+                    if let Ok(ptr) = unreceived.0 {
+                        unsafe { stage::remove(ptr) };
+                    }
+                }
             })
             .map_err(|e| e.to_string())?;
     }
@@ -141,16 +162,7 @@ pub async fn load_game(
         boot_tx,
         generation,
     );
-    let resize_tx = handle.tx.clone();
     *state.session.lock().unwrap() = Some(handle);
-
-    // Forward window resizes into the session for the rest of its life (a
-    // dead session just ignores the sends).
-    window.on_window_event(move |event| {
-        if let tauri::WindowEvent::Resized(size) = event {
-            let _ = resize_tx.send(session::EmuCmd::Resize(size.width, size.height));
-        }
-    });
 
     let booted = tauri::async_runtime::spawn_blocking(move || {
         boot_rx
@@ -188,10 +200,22 @@ async fn stop_game_inner(
     let Some(mut handle) = handle else { return Ok(()) };
     let _ = handle.tx.send(session::EmuCmd::Stop);
     if let Some(join) = handle.join.take() {
-        let _ = tauri::async_runtime::spawn_blocking(move || {
+        // Bounded: a core wedged inside retro_run/retro_load_game never sees
+        // Stop, and an unbounded join here would hang this invoke AND (via
+        // load_lock) every future launch. On timeout the thread is abandoned
+        // and the host marks itself wedged — honest failure over a silent hang.
+        let (done_tx, done_rx) = mpsc::channel();
+        std::thread::spawn(move || {
             let _ = join.join();
-        })
-        .await;
+            let _ = done_tx.send(());
+        });
+        let joined = tauri::async_runtime::spawn_blocking(move || done_rx.recv_timeout(JOIN_TIMEOUT).is_ok())
+            .await
+            .unwrap_or(false);
+        if !joined {
+            WEDGED.store(true, std::sync::atomic::Ordering::Relaxed);
+            return Err("the emulator did not shut down — restart the app to play again".into());
+        }
     }
     let ns_view = handle.ns_view;
     if ns_view != 0 {
@@ -208,7 +232,17 @@ pub async fn stop_game(
     state: tauri::State<'_, EmuState>,
     generation: Option<u64>,
 ) -> Result<(), String> {
+    // Same lock as load_game: a stop that races a launch must fully finish
+    // (thread dead, stage removed) before the next boot touches the statics.
+    let _serial = state.load_lock.lock().await;
     stop_game_inner(&app, &state, generation).await
+}
+
+/// The webview's way to actually close the window after its close-requested
+/// flush (lib.rs intercepts the first close while a game is live).
+#[tauri::command]
+pub fn close_window(window: tauri::WebviewWindow) {
+    let _ = window.destroy();
 }
 
 #[tauri::command]

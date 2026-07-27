@@ -24,7 +24,7 @@ export function createPadRouter(ctx) {
     coverActions, doSave, openChooser, requestDelete, doSetCover, doResetCover,
     pendingDelete, confirmFocus, setConfirmFocus, confirmDelete, cancelDelete,
     chooseSlot, setChooseSlot, chooseFocus, setChooseFocus, chooseLoad, chooseDelete,
-    pendingQuit, setPendingQuit, quitFocus, setQuitFocus,
+    pendingQuit, setPendingQuit, quitFocus, setQuitFocus, confirmQuit,
     controlsOpen, closeControls, controlsFocus, setControlsFocus, rows,
     setLastPress, captureBinding, setListeningFor, resetBindings, cycleSkin, chooseScheme,
     fastForward, applyFF, rewinding, applyRewind,
@@ -206,11 +206,11 @@ export function createPadRouter(ctx) {
       // B cancels. Focus starts on Keep (index 1), the safe default.
       if (pendingQuit) {
         if (action === 'confirm') {
+          // confirmQuit is each player's own: the order of 'quit' vs the final
+          // save read differs between engines (the native player must pull an
+          // exact SRAM copy BEFORE 'quit' ends the capture loop).
           if (quitFocus === 1) setPendingQuit(false)
-          else {
-            dispatch('quit')
-            exit()
-          }
+          else confirmQuit()
         } else if (action === 'back') setPendingQuit(false)
         else if (action === 'left' || action === 'up') setQuitFocus(0)
         else if (action === 'right' || action === 'down') setQuitFocus(1)

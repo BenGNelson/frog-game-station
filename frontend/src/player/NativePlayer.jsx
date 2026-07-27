@@ -151,16 +151,25 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
     return () => document.documentElement.classList.remove('native-stage')
   }, [])
 
-  const exit = useCallback(() => {
-    // Leave with the truth: pull an exact SRAM copy before navigating, so the
-    // unmount flush (useGameSaves' cleanup) captures the byte-true final state
-    // rather than merely the freshest-within-a-second snapshot. Every exit path
-    // funnels through here; pre-game there's no session and refresh resolves null.
-    const leave = () => goBack(navigate, '/frog')
-    const refresh = emuRef.current?.native.refreshSram()
-    if (refresh?.then) refresh.then(leave, leave)
-    else leave()
-  }, [navigate])
+  const exit = useCallback(
+    (andQuit = false) => {
+      // Leave with the truth: pull an exact SRAM copy BEFORE anything flips the
+      // saves hook's `running` flag, so the final capture (useGameSaves' cleanup)
+      // reads the byte-true final state rather than the freshest-within-a-second
+      // snapshot. That ordering is why the quit confirm hands its dispatch to
+      // exit() instead of dispatching first — 'quit' ends `running` immediately,
+      // and a capture that has already fired can't be un-fired. Every exit path
+      // funnels through here; pre-game there's no session and refresh resolves null.
+      const leave = () => {
+        if (andQuit) dispatch('quit')
+        goBack(navigate, '/frog')
+      }
+      const refresh = emuRef.current?.native.refreshSram()
+      if (refresh?.then) refresh.then(leave, leave)
+      else leave()
+    },
+    [navigate, dispatch]
+  )
 
   // Boot the native session. Mount-once on purpose (id/core are fixed for this
   // player's life — it mounts per-game, one game per /play route); `dead` covers
@@ -219,6 +228,40 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
     }
     // `d` is the test seam, fixed for the component's life — same mount-once
     // reasoning as the boot effect.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // The window-close backstop. The host holds the FIRST close of a live game
+  // (lib.rs CloseRequested) so this flush can run — an exact SRAM read, then
+  // 'quit' + navigate so the unmount capture writes it, then the real close.
+  // The host lets a second click straight through, so a broken handler here can
+  // never trap the window open.
+  useEffect(() => {
+    let dead = false
+    let un = null
+    onNativeEvent(
+      'close-requested',
+      () => {
+        const emu = emuRef.current
+        const finish = () => {
+          dispatch('quit')
+          goBack(navigate, '/frog')
+          // After the unmount flush has had its beat, close for real.
+          setTimeout(() => emu?.native.closeWindow(), 400)
+        }
+        const refresh = emu?.native.refreshSram()
+        if (refresh?.then) refresh.then(finish, finish)
+        else finish()
+      },
+      d
+    ).then((u) => {
+      if (dead) u()
+      else un = u
+    })
+    return () => {
+      dead = true
+      un?.()
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -547,6 +590,7 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
       pendingDelete, confirmFocus, setConfirmFocus, confirmDelete, cancelDelete,
       chooseSlot, setChooseSlot, chooseFocus, setChooseFocus, chooseLoad, chooseDelete,
       pendingQuit, setPendingQuit, quitFocus, setQuitFocus,
+      confirmQuit: () => exit(true), // exact SRAM first, THEN 'quit' — see exit()
       controlsOpen, closeControls, controlsFocus, setControlsFocus, rows,
       setLastPress, captureBinding, setListeningFor, resetBindings, cycleSkin, chooseScheme,
       fastForward, applyFF,
@@ -838,10 +882,7 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
             message="Quit to library?"
             yesLabel="Quit"
             noLabel="Keep playing"
-            onYes={() => {
-              dispatch('quit')
-              exit() // exit() pulls the exact SRAM before navigating — see above
-            }}
+            onYes={() => exit(true)} // exact SRAM first, THEN 'quit' — see exit()
             onNo={() => setPendingQuit(false)}
             focus={quitFocus}
             onFocusChange={setQuitFocus}

@@ -130,7 +130,9 @@ export async function loadState(emu, gameId, slot, d) {
   const res = await f(saveStateUrl(gameId, slot))
   if (!res.ok) throw new Error(`save state unavailable (${res.status})`)
   const buf = await res.arrayBuffer()
-  emu.gameManager.loadState(new Uint8Array(buf))
+  // `await` is a no-op for the web engine's synchronous void and the whole
+  // error path for the native adapter's invoke-backed restore.
+  await emu.gameManager.loadState(new Uint8Array(buf))
   return true
 }
 

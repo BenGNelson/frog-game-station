@@ -675,6 +675,11 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
       pendingDelete, confirmFocus, setConfirmFocus, confirmDelete, cancelDelete,
       chooseSlot, setChooseSlot, chooseFocus, setChooseFocus, chooseLoad, chooseDelete,
       pendingQuit, setPendingQuit, quitFocus, setQuitFocus,
+      // Web order: the engine reads saves synchronously, so 'quit' first is exact.
+      confirmQuit: () => {
+        dispatch('quit')
+        exit()
+      },
       controlsOpen, closeControls, controlsFocus, setControlsFocus, rows,
       setLastPress, captureBinding, setListeningFor, resetBindings, cycleSkin, chooseScheme,
       fastForward, applyFF, rewinding, applyRewind,

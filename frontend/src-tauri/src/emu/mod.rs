@@ -22,6 +22,10 @@ use std::sync::Mutex;
 pub struct EmuState {
     pub session: Mutex<Option<session::SessionHandle>>,
     pub load_lock: tauri::async_runtime::Mutex<()>,
+    // One held window-close per game: the first close with a live session is
+    // intercepted for the SRAM flush; a second always passes through. Re-armed
+    // by each load_game so every session gets its own guarded close.
+    pub close_flush_armed: std::sync::atomic::AtomicBool,
 }
 
 impl Default for EmuState {
@@ -29,6 +33,7 @@ impl Default for EmuState {
         EmuState {
             session: Mutex::new(None),
             load_lock: tauri::async_runtime::Mutex::new(()),
+            close_flush_armed: std::sync::atomic::AtomicBool::new(false),
         }
     }
 }

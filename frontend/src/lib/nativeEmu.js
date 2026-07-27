@@ -35,12 +35,16 @@ export async function createNativeEmu({ gameId, romUrl, core, system }, d = {}) 
   const { invoke, listen } = d.invoke ? d : await tauriIo()
 
   let sram = null // the snapshot getSaveFile serves synchronously
+  let sramSeq = 0 // bumps on every write source; a stale get_sram can't roll it back
   let pendingWrite = null // FS.writeFile parks bytes here; loadSaveFiles ships them
 
   const refreshSram = async () => {
+    const seq = ++sramSeq
     try {
       const buf = await invoke('get_sram')
-      sram = buf && buf.byteLength ? new Uint8Array(buf) : null
+      // Only the NEWEST reader may write the snapshot — an in-flight response
+      // from before a seed (or a later refresh) would revert fresher bytes.
+      if (seq === sramSeq) sram = buf && buf.byteLength ? new Uint8Array(buf) : null
     } catch {
       // keep the previous snapshot — a torn-down session mustn't wipe it
     }
@@ -64,9 +68,10 @@ export async function createNativeEmu({ gameId, romUrl, core, system }, d = {}) 
         const buf = await invoke('save_state')
         return new Uint8Array(buf)
       },
-      loadState: (bytes) => {
-        invoke('load_state', bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes)).catch(() => {})
-      },
+      // Returns the invoke promise so a failed restore surfaces in the shelf's
+      // error path instead of reading as a silent success (the web engine's is
+      // synchronous-void; awaiting it is a no-op there).
+      loadState: (bytes) => invoke('load_state', bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes)),
       // SRAM: the snapshot bridge (see the header).
       getSaveFile: () => sram,
       getSaveFilePath: () => '/native/sram.srm',
@@ -79,10 +84,11 @@ export async function createNativeEmu({ gameId, romUrl, core, system }, d = {}) 
         const bytes = pendingWrite
         pendingWrite = null
         if (bytes) {
+          sram = bytes // optimistic: the seed IS the newest copy by definition
+          sramSeq++ // invalidate any in-flight reader that predates the seed
           invoke('load_sram', bytes)
             .then(() => refreshSram())
             .catch(() => {})
-          sram = bytes // optimistic: the seed IS the newest copy by definition
         }
       },
       restart: () => {
@@ -113,6 +119,9 @@ export async function createNativeEmu({ gameId, romUrl, core, system }, d = {}) 
         // late) can only stop ITS session, never a newer one.
         await invoke('stop_game', { generation })
       },
+      // The close-requested flush ends here — the host held the window open
+      // for it (see lib.rs).
+      closeWindow: () => invoke('close_window').catch(() => {}),
     },
   }
 }

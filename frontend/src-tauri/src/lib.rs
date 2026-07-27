@@ -25,8 +25,43 @@ pub fn run() {
             emu::commands::get_sram,
             emu::commands::load_sram,
             emu::commands::screenshot,
+            emu::commands::close_window,
         ])
         .setup(|app| {
+            use tauri::{Emitter, Manager};
+            if let Some(window) = app.get_webview_window("main") {
+                let handle = app.handle().clone();
+                // ONE listener for the app's lifetime — registering per launch
+                // would stack a forwarder per game played.
+                window.on_window_event(move |event| match event {
+                    tauri::WindowEvent::Resized(size) => {
+                        let tx = handle
+                            .state::<emu::EmuState>()
+                            .session
+                            .lock()
+                            .ok()
+                            .and_then(|g| g.as_ref().map(|h| h.tx.clone()));
+                        if let Some(tx) = tx {
+                            let _ = tx.send(emu::session::EmuCmd::Resize(size.width, size.height));
+                        }
+                    }
+                    // The window-close SRAM backstop: a live game's final save
+                    // read must be exact, and the webview can't run its flush
+                    // after the window dies. Hold the FIRST close, tell the
+                    // player to flush-and-quit (it calls close_window when
+                    // done); a second click passes through regardless, so a
+                    // broken webview can never trap the window open.
+                    tauri::WindowEvent::CloseRequested { api, .. } => {
+                        let state = handle.state::<emu::EmuState>();
+                        let live = state.session.lock().ok().map(|g| g.is_some()).unwrap_or(false);
+                        if live && !state.close_flush_armed.swap(true, std::sync::atomic::Ordering::Relaxed) {
+                            api.prevent_close();
+                            let _ = handle.emit("native:close-requested", serde_json::json!({}));
+                        }
+                    }
+                    _ => {}
+                });
+            }
             probe::maybe_arm(app);
             probe::maybe_nav(app);
             Ok(())

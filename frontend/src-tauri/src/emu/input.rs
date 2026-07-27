@@ -21,6 +21,10 @@ use std::sync::Mutex;
 pub static PAD_BITS: AtomicU32 = AtomicU32::new(0);
 pub static PAD_AX: AtomicI16 = AtomicI16::new(0);
 pub static PAD_AY: AtomicI16 = AtomicI16::new(0);
+// The right stick — on the N64 it IS the C-buttons (mupen64plus_next maps
+// them there), so a host without it has no C-buttons at all.
+pub static PAD_RX: AtomicI16 = AtomicI16::new(0);
+pub static PAD_RY: AtomicI16 = AtomicI16::new(0);
 pub static GATED: AtomicBool = AtomicBool::new(false);
 
 // Optional remap pushed by the frontend: standard web-gamepad button index →
@@ -35,6 +39,8 @@ pub fn set_gated(gated: bool) {
         PAD_BITS.store(0, Ordering::Relaxed);
         PAD_AX.store(0, Ordering::Relaxed);
         PAD_AY.store(0, Ordering::Relaxed);
+        PAD_RX.store(0, Ordering::Relaxed);
+        PAD_RY.store(0, Ordering::Relaxed);
     }
 }
 
@@ -49,15 +55,22 @@ pub fn press(index: c_uint, down: bool) {
     }
 }
 
-/// Analog halves, in the frontend's `retropad.js` ANALOG index space
-/// (16/17 = left-stick X−/X+, 18/19 = Y−/Y+), value 0..=32767.
+/// Analog halves, in the frontend's `retropad.js` ANALOG index space —
+/// each direction is its own input, value 0..=32767:
+/// 16 = LX_PLUS (stick right), 17 = LX_MINUS (left),
+/// 18 = LY_PLUS (down — libretro Y is positive-down), 19 = LY_MINUS (up),
+/// 20..=23 the same four for the right stick (the N64 C-buttons).
 pub fn analog(index: c_uint, value: u16) {
     let v = value.min(32767) as i16;
     match index {
-        16 => PAD_AX.store(-v, Ordering::Relaxed),
-        17 => PAD_AX.store(v, Ordering::Relaxed),
-        18 => PAD_AY.store(-v, Ordering::Relaxed),
-        19 => PAD_AY.store(v, Ordering::Relaxed),
+        16 => PAD_AX.store(v, Ordering::Relaxed),
+        17 => PAD_AX.store(-v, Ordering::Relaxed),
+        18 => PAD_AY.store(v, Ordering::Relaxed),
+        19 => PAD_AY.store(-v, Ordering::Relaxed),
+        20 => PAD_RX.store(v, Ordering::Relaxed),
+        21 => PAD_RX.store(-v, Ordering::Relaxed),
+        22 => PAD_RY.store(v, Ordering::Relaxed),
+        23 => PAD_RY.store(-v, Ordering::Relaxed),
         _ => {}
     }
 }
@@ -145,6 +158,16 @@ pub fn poll(gilrs: &mut gilrs::Gilrs) {
                     PAD_AY.store((-v * 32767.0) as i16, Ordering::Relaxed);
                 }
             }
+            EventType::AxisChanged(Axis::RightStickX, v, _) => {
+                if !gated {
+                    PAD_RX.store((v * 32767.0) as i16, Ordering::Relaxed);
+                }
+            }
+            EventType::AxisChanged(Axis::RightStickY, v, _) => {
+                if !gated {
+                    PAD_RY.store((-v * 32767.0) as i16, Ordering::Relaxed);
+                }
+            }
             _ => {}
         }
     }
@@ -163,6 +186,11 @@ pub unsafe extern "C" fn input_state(port: c_uint, device: c_uint, index: c_uint
             ANALOG_Y => PAD_AY.load(Ordering::Relaxed),
             _ => 0,
         },
+        DEVICE_ANALOG if index == ANALOG_RIGHT => match id {
+            ANALOG_X => PAD_RX.load(Ordering::Relaxed),
+            ANALOG_Y => PAD_RY.load(Ordering::Relaxed),
+            _ => 0,
+        },
         _ => 0,
     }
 }
@@ -170,6 +198,10 @@ pub unsafe extern "C" fn input_state(port: c_uint, device: c_uint, index: c_uint
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // The pad snapshot is process-wide state; cargo runs tests in parallel
+    // threads, so every test that touches it takes this lock.
+    static PAD_TEST_LOCK: Mutex<()> = Mutex::new(());
 
     #[test]
     fn the_default_table_never_maps_the_menu_button() {
@@ -186,6 +218,7 @@ mod tests {
 
     #[test]
     fn gating_zeroes_and_blocks_nothing_synthetic() {
+        let _lock = PAD_TEST_LOCK.lock().unwrap();
         set_gated(true);
         assert_eq!(PAD_BITS.load(Ordering::Relaxed), 0);
         press(JOYPAD_START, true); // synthetic presses bypass the gate
@@ -195,14 +228,36 @@ mod tests {
     }
 
     #[test]
-    fn analog_halves_map_to_signed_axes() {
+    fn analog_halves_follow_the_retropad_contract() {
+        let _lock = PAD_TEST_LOCK.lock().unwrap();
+        // retropad.js: 16 = LX_PLUS (stick right, positive X).
         analog(16, 32767);
-        assert_eq!(PAD_AX.load(Ordering::Relaxed), -32767);
-        analog(17, 32767);
         assert_eq!(PAD_AX.load(Ordering::Relaxed), 32767);
+        analog(17, 32767);
+        assert_eq!(PAD_AX.load(Ordering::Relaxed), -32767);
+        // 18 = LY_PLUS = down, which IS positive in libretro's Y convention.
         analog(18, 12000);
+        assert_eq!(PAD_AY.load(Ordering::Relaxed), 12000);
+        analog(19, 12000);
         assert_eq!(PAD_AY.load(Ordering::Relaxed), -12000);
-        analog(16, 0);
-        analog(18, 0);
+        // 20-23: the right stick — the N64's C-buttons.
+        analog(20, 9000);
+        assert_eq!(PAD_RX.load(Ordering::Relaxed), 9000);
+        analog(23, 9000);
+        assert_eq!(PAD_RY.load(Ordering::Relaxed), -9000);
+        for i in [16, 18, 20, 23] {
+            analog(i, 0);
+        }
+    }
+
+    #[test]
+    fn the_right_stick_serves_the_analog_right_index() {
+        let _lock = PAD_TEST_LOCK.lock().unwrap();
+        analog(20, 4242);
+        unsafe {
+            assert_eq!(input_state(0, DEVICE_ANALOG, ANALOG_RIGHT, ANALOG_X), 4242);
+            assert_eq!(input_state(0, DEVICE_ANALOG, ANALOG_LEFT, ANALOG_X), 0);
+        }
+        analog(20, 0);
     }
 }
