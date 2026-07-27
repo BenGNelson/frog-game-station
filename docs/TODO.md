@@ -508,6 +508,18 @@ Saturn → GameCube/Wii → PS2) become the new backlog.
 
 ## Quality & polish
 
+- [ ] **A dismissing tap must not also press what it landed on (reported
+      2026-07-26).** Two sightings of one bug class: tapping the screensaver
+      wakes it AND activates whatever tile sat under the finger, and (native
+      player, fixed there) a menu-closing press reached the game underneath.
+      The boot screen already solves this deliberately — it dismisses on the
+      gesture's TERMINAL event so the whole gesture is consumed while the
+      overlay is still on top (`frog_touch.py` even asserts "no ghost-click
+      drill-in"). The screensaver should do the same: swallow the waking
+      input entirely, on every path (touch, pad, key), rather than dismissing
+      on an early event and letting the rest fall through. Worth a shared
+      helper if a third overlay ever wants it. Test alongside in the touch e2e.
+
 - [ ] **Mouse-first sweep — the desktop app must be fully drivable by mouse alone
       (requested 2026-07-26).** The couch UI was built pad-first with the mouse mostly
       along for the ride (hover moves focus, click activates); now that the desktop
