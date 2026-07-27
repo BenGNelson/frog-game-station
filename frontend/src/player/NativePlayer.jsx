@@ -298,10 +298,35 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
 
   // The load watchdog: only the BOOT stretch (mount → load_game answered) is
   // covered — once the start card is up, the player can sit there forever.
+  //
+  // It watches for a STALL, not for slowness. A PlayStation disc is hundreds of
+  // megabytes streaming off the self-hosted server, and taking a minute is not a
+  // failure — so every chunk of ROM that lands pushes the deadline out, and only
+  // silence trips it. `fetch` also feeds the boot screen's progress line.
+  const [fetched, setFetched] = useState(null)
   useEffect(() => {
-    if (state !== 'BOOT') return
-    const t = setTimeout(() => setLoadFailed(true), NATIVE_LOAD_WATCHDOG_MS)
-    return () => clearTimeout(t)
+    if (state !== 'BOOT') return undefined
+    let dead = false
+    let un = null
+    let t = setTimeout(() => setLoadFailed(true), NATIVE_LOAD_WATCHDOG_MS)
+    onNativeEvent(
+      'fetch',
+      (p) => {
+        clearTimeout(t)
+        t = setTimeout(() => setLoadFailed(true), NATIVE_LOAD_WATCHDOG_MS)
+        setFetched(p?.total ? { received: p.received, total: p.total } : null)
+      },
+      d
+    ).then((u) => {
+      if (dead) u()
+      else un = u
+    })
+    return () => {
+      dead = true
+      un?.()
+      clearTimeout(t)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state])
 
   // Start the game: unpause the core and (for a slot launch) pour the save state
@@ -683,15 +708,37 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
     }
   }, [state])
 
+  // The stylus, for the systems that have one (the DS). Only while the game is
+  // actually running and no menu is over it — a drag across the pause menu must
+  // not poke the game underneath, the same rule the pad gate follows.
+  const stylusLive = isRunning(state) && !menuOpenRef.current
+  const sendStylus = useCallback(
+    (e, down) => {
+      if (!stylusLive) return
+      emuRef.current?.native.setPointer(e.clientX, e.clientY, down)
+    },
+    [stylusLive]
+  )
+  const onStylus = useCallback((down) => (e) => sendStylus(e, down), [sendStylus])
+  // Only a held drag moves the stylus — a hovering mouse isn't touching anything.
+  const onStylusMove = useCallback((e) => { if (e.buttons & 1) sendStylus(e, true) }, [sendStylus])
+
   return (
     <div
-      // The stage: transparent chrome over the native GL picture. A click here is
-      // only ever meaningful on the start card (start the game); once playing,
-      // clicks land on nothing and the game shows through.
+      // The stage: transparent chrome over the native GL picture. A click here
+      // starts the game on the start card — and, once playing, IS the stylus:
+      // the DS's lower screen is a touchscreen, and on a desktop the mouse is
+      // the only finger there is. The host maps window coordinates through its
+      // own letterbox, so this hands over raw CSS pixels and stays out of the
+      // geometry business.
       className="fixed inset-0 z-50 flex select-none flex-col"
       onClick={() => {
         if (state === 'AWAIT_START') startGame()
       }}
+      onPointerDown={onStylus(true)}
+      onPointerMove={onStylusMove}
+      onPointerUp={onStylus(false)}
+      onPointerLeave={onStylus(false)}
     >
       {/* The corner exit, pre-game only — same contract as the web player: once the
           game runs, the pause menu owns Quit. */}
@@ -737,6 +784,17 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
           <div className="animate-pulse text-sm font-bold tracking-[0.3em]" style={{ color: `rgb(${FROG.jade})` }}>
             {startCueText()}
           </div>
+        </div>
+      )}
+
+      {/* Big games arrive over the network before they can boot — say so, rather
+          than leaving the frog breathing over an apparently idle app. */}
+      {state === 'BOOT' && fetched && !loadFailed && (
+        <div
+          className="pointer-events-none absolute inset-x-0 bottom-24 z-30 text-center text-xs font-semibold tracking-[0.2em]"
+          style={{ color: FROG.soft }}
+        >
+          FETCHING {Math.min(99, Math.floor((fetched.received / fetched.total) * 100))}%
         </div>
       )}
 

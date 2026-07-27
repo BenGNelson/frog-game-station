@@ -51,6 +51,15 @@ pub const ANALOG_RIGHT: c_uint = 1;
 pub const ANALOG_X: c_uint = 0;
 pub const ANALOG_Y: c_uint = 1;
 
+// RETRO_DEVICE_POINTER — how a touchscreen reaches a core. The DS's lower
+// screen is the one system so far that needs it: on the desktop the mouse is
+// the stylus. Coordinates are the full framebuffer mapped to -0x7fff..0x7fff.
+pub const DEVICE_POINTER: c_uint = 6;
+pub const POINTER_X: c_uint = 0;
+pub const POINTER_Y: c_uint = 1;
+pub const POINTER_PRESSED: c_uint = 2;
+pub const POINTER_COUNT: c_uint = 3;
+
 // RETRO_MEMORY_* — the SRAM region (the battery save that roams with the phone).
 pub const MEMORY_SAVE_RAM: c_uint = 0;
 

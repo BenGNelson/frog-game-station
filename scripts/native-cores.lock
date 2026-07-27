@@ -11,3 +11,5 @@
 #
 # Verified 2026-07-26 on the M4 (the Mac-validation build family).
 mupen64plus_next  mac-arm64  https://buildbot.libretro.com/nightly/apple/osx/arm64/latest/mupen64plus_next_libretro.dylib.zip  c4a7ac61450fdbe366f1a07516aec4d7359eb25b4eb26412025c78287a290436
+melonds           mac-arm64  https://buildbot.libretro.com/nightly/apple/osx/arm64/latest/melonds_libretro.dylib.zip  0f20458dac1733235846db8ba32cfce8b9d5db930795d26f5e3528919e96c179
+pcsx_rearmed      mac-arm64  https://buildbot.libretro.com/nightly/apple/osx/arm64/latest/pcsx_rearmed_libretro.dylib.zip  37982749351439a528d2ab8c74825f1f1f2d3adf314a890886b6fdb50fc38c40

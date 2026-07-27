@@ -25,6 +25,14 @@ pub fn maybe_nav(app: &mut tauri::App) {
             "window.location.assign({})",
             serde_json::to_string(&path).unwrap_or_default()
         ));
+        // FROG_AUTOSTART=1 also presses start once the player has booted — the
+        // difference between smoke-testing "the core loads" and "the game runs"
+        // without a hand on the mouse. Enter is the player's own start key, so
+        // this drives the real path rather than a back door.
+        if std::env::var("FROG_AUTOSTART").ok().as_deref() == Some("1") {
+            std::thread::sleep(std::time::Duration::from_millis(6000));
+            let _ = window.eval("window.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter'}))");
+        }
     });
 }
 

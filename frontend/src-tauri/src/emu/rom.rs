@@ -4,7 +4,7 @@
 // the core gets both a path and the bytes (need_fullpath cores read the path,
 // the rest take the buffer — same dual hand-off the spike used).
 
-use std::io::Read;
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 
 /// FNV-1a, the house change-detector — here it just makes a filesystem-safe
@@ -27,25 +27,59 @@ pub fn cache_path(cache_dir: &Path, game_id: &str) -> PathBuf {
     cache_dir.join(name)
 }
 
-/// Fetch (or reuse) the ROM. Returns (path, bytes).
-pub fn fetch(rom_url: &str, cache_dir: &Path, game_id: &str) -> Result<(PathBuf, Vec<u8>), String> {
+/// Fetch (or reuse) the ROM, STREAMING to the cache file. Returns its path.
+///
+/// Deliberately never holds the whole game in memory: a Game Boy ROM is a few
+/// hundred KB, but a PlayStation disc is hundreds of megabytes, and cores that
+/// declare `need_fullpath` (every disc core) read it off disk themselves — so
+/// buffering it would be pure waste. The session loads the bytes afterwards
+/// only for the cores that actually want a buffer.
+pub fn fetch(
+    rom_url: &str,
+    cache_dir: &Path,
+    game_id: &str,
+    mut progress: impl FnMut(u64, u64),
+) -> Result<PathBuf, String> {
     std::fs::create_dir_all(cache_dir).map_err(|e| format!("rom cache dir: {e}"))?;
     let path = cache_path(cache_dir, game_id);
-    if let Ok(bytes) = std::fs::read(&path) {
-        if !bytes.is_empty() {
-            return Ok((path, bytes));
-        }
+    if std::fs::metadata(&path).map(|m| m.len() > 0).unwrap_or(false) {
+        return Ok(path);
     }
     let resp = ureq::get(rom_url).call().map_err(|e| format!("rom fetch: {e}"))?;
-    let mut bytes = Vec::new();
-    resp.into_reader()
-        .read_to_end(&mut bytes)
-        .map_err(|e| format!("rom read: {e}"))?;
-    if bytes.is_empty() {
+    let total: u64 = resp
+        .header("Content-Length")
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(0);
+    // Write to a temp sibling first: an interrupted download must never look
+    // like a complete cache hit on the next launch.
+    let partial = path.with_extension("partial");
+    let mut out = std::fs::File::create(&partial).map_err(|e| format!("rom cache write: {e}"))?;
+    // Copy in chunks rather than io::copy, so the caller can report progress —
+    // a disc image is hundreds of megabytes and the player must be able to tell
+    // "still arriving" from "stalled".
+    let mut reader = resp.into_reader();
+    let mut buf = vec![0u8; 256 * 1024];
+    let mut copied: u64 = 0;
+    let mut last_ping = 0u64;
+    loop {
+        let n = reader.read(&mut buf).map_err(|e| format!("rom read: {e}"))?;
+        if n == 0 {
+            break;
+        }
+        out.write_all(&buf[..n]).map_err(|e| format!("rom cache write: {e}"))?;
+        copied += n as u64;
+        if copied - last_ping >= 1_000_000 {
+            last_ping = copied;
+            progress(copied, total);
+        }
+    }
+    drop(out);
+    if copied == 0 {
+        let _ = std::fs::remove_file(&partial);
         return Err("rom fetch returned no bytes".into());
     }
-    std::fs::write(&path, &bytes).map_err(|e| format!("rom cache write: {e}"))?;
-    Ok((path, bytes))
+    std::fs::rename(&partial, &path).map_err(|e| format!("rom cache write: {e}"))?;
+    Ok(path)
 }
 
 #[cfg(test)]

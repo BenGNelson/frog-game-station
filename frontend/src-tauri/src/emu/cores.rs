@@ -10,7 +10,9 @@ use std::path::PathBuf;
 pub fn core_lib(core: &str) -> Option<&'static str> {
     Some(match core {
         "n64" => "mupen64plus_next_libretro",
-        _ => return None, // 2b adds nds/psx; 2c the cartridge cores
+        "nds" => "melonds_libretro",
+        "psx" => "pcsx_rearmed_libretro",
+        _ => return None, // 2c adds the cartridge cores
     })
 }
 
@@ -53,8 +55,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn n64_resolves_to_mupen_and_unknown_systems_refuse() {
+    fn the_disc_era_resolves_and_unknown_systems_refuse() {
         assert_eq!(core_lib("n64"), Some("mupen64plus_next_libretro"));
+        assert_eq!(core_lib("nds"), Some("melonds_libretro"));
+        assert_eq!(core_lib("psx"), Some("pcsx_rearmed_libretro"));
         assert!(core_lib("xbox").is_none());
         assert!(resolve("xbox").is_err());
     }

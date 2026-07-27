@@ -111,6 +111,9 @@ export async function createNativeEmu({ gameId, romUrl, core, system }, d = {}) 
       setGated: (gated) => invoke('set_input_gated', { gated }),
       setBindings: (entries) => invoke('set_bindings', { entries }),
       clearBindings: () => invoke('clear_bindings'),
+      // The stylus, in CSS pixels relative to the window — the host owns the
+      // letterbox maths that turns them into a point on the game's screen.
+      setPointer: (x, y, down) => invoke('set_pointer', { x, y, down }).catch(() => {}),
       setVolume: (level) => invoke('set_volume', { level }),
       setFastForward: (on, ratio) => invoke('set_fast_forward', { on, ratio }),
       stop: async () => {

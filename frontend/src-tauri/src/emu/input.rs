@@ -26,6 +26,11 @@ pub static PAD_AY: AtomicI16 = AtomicI16::new(0);
 pub static PAD_RX: AtomicI16 = AtomicI16::new(0);
 pub static PAD_RY: AtomicI16 = AtomicI16::new(0);
 pub static GATED: AtomicBool = AtomicBool::new(false);
+// The stylus: libretro pointer coordinates (-0x7fff..0x7fff over the whole
+// framebuffer) plus whether it's currently down.
+static POINTER_X_POS: AtomicI16 = AtomicI16::new(0);
+static POINTER_Y_POS: AtomicI16 = AtomicI16::new(0);
+static POINTER_DOWN: AtomicBool = AtomicBool::new(false);
 // Set when the gate lifts: the next poll drops the backlog and suppresses the
 // buttons the player is still holding (see set_gated).
 static FLUSH_ON_RESUME: AtomicBool = AtomicBool::new(false);
@@ -56,6 +61,7 @@ pub fn set_gated(gated: bool) {
         PAD_AY.store(0, Ordering::Relaxed);
         PAD_RX.store(0, Ordering::Relaxed);
         PAD_RY.store(0, Ordering::Relaxed);
+        POINTER_DOWN.store(false, Ordering::Relaxed);
     }
 }
 
@@ -88,6 +94,16 @@ pub fn analog(index: c_uint, value: u16) {
         23 => PAD_RY.store(-v, Ordering::Relaxed),
         _ => {}
     }
+}
+
+/// Move the stylus. `x`/`y` are 0.0..1.0 across the GAME PICTURE (the window's
+/// letterboxed rect, mapped by the caller), which is the space libretro's
+/// pointer wants — outside that range the touch simply isn't on the screen.
+pub fn pointer(x: f32, y: f32, down: bool) {
+    let to_axis = |v: f32| ((v.clamp(0.0, 1.0) * 2.0 - 1.0) * 32767.0) as i16;
+    POINTER_X_POS.store(to_axis(x), Ordering::Relaxed);
+    POINTER_Y_POS.store(to_axis(y), Ordering::Relaxed);
+    POINTER_DOWN.store(down, Ordering::Relaxed);
 }
 
 /// gilrs Button → standard web-gamepad button index (the W3C "standard
@@ -261,6 +277,15 @@ pub unsafe extern "C" fn input_state(port: c_uint, device: c_uint, index: c_uint
             ANALOG_Y => PAD_RY.load(Ordering::Relaxed),
             _ => 0,
         },
+        // The stylus. Only pointer 0 exists (one mouse, one finger); COUNT
+        // answers 1 while it's down so a core can poll how many are touching.
+        DEVICE_POINTER if index == 0 => match id {
+            POINTER_X => POINTER_X_POS.load(Ordering::Relaxed),
+            POINTER_Y => POINTER_Y_POS.load(Ordering::Relaxed),
+            POINTER_PRESSED => POINTER_DOWN.load(Ordering::Relaxed) as i16,
+            _ => 0,
+        },
+        DEVICE_POINTER if id == POINTER_COUNT => POINTER_DOWN.load(Ordering::Relaxed) as i16,
         _ => 0,
     }
 }
@@ -318,6 +343,37 @@ mod tests {
         for i in [16, 18, 20, 23] {
             analog(i, 0);
         }
+    }
+
+    #[test]
+    fn the_stylus_maps_the_picture_to_libretro_pointer_space() {
+        let _lock = PAD_TEST_LOCK.lock().unwrap();
+        pointer(0.5, 0.5, true); // dead centre of the picture
+        unsafe {
+            assert_eq!(input_state(0, DEVICE_POINTER, 0, POINTER_X), 0);
+            assert_eq!(input_state(0, DEVICE_POINTER, 0, POINTER_Y), 0);
+            assert_eq!(input_state(0, DEVICE_POINTER, 0, POINTER_PRESSED), 1);
+        }
+        pointer(0.0, 1.0, true); // bottom-left corner
+        unsafe {
+            assert_eq!(input_state(0, DEVICE_POINTER, 0, POINTER_X), -32767);
+            assert_eq!(input_state(0, DEVICE_POINTER, 0, POINTER_Y), 32767);
+        }
+        pointer(0.5, 0.5, false);
+        unsafe {
+            assert_eq!(input_state(0, DEVICE_POINTER, 0, POINTER_PRESSED), 0);
+        }
+    }
+
+    #[test]
+    fn gating_lifts_the_stylus() {
+        let _lock = PAD_TEST_LOCK.lock().unwrap();
+        pointer(0.5, 0.5, true);
+        set_gated(true);
+        unsafe {
+            assert_eq!(input_state(0, DEVICE_POINTER, 0, POINTER_PRESSED), 0);
+        }
+        set_gated(false);
     }
 
     #[test]

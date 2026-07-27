@@ -18,6 +18,7 @@ pub fn run() {
             emu::commands::clear_bindings,
             emu::commands::press_input,
             emu::commands::set_analog,
+            emu::commands::set_pointer,
             emu::commands::set_volume,
             emu::commands::set_fast_forward,
             emu::commands::save_state,

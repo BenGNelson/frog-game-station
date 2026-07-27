@@ -14,7 +14,7 @@ use serde::Deserialize;
 use std::sync::mpsc;
 use std::time::Duration;
 use tauri::ipc::{InvokeBody, Request, Response};
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 
 const REPLY_TIMEOUT: Duration = Duration::from_secs(10);
 
@@ -112,8 +112,11 @@ pub async fn load_game(
 
     let rom_url = args.rom_url.clone();
     let game_id = args.game_id.clone();
-    let (rom_path, rom_bytes) = tauri::async_runtime::spawn_blocking(move || {
-        rom::fetch(&rom_url, &cache_dir, &game_id)
+    let fetch_app = app.clone();
+    let rom_path = tauri::async_runtime::spawn_blocking(move || {
+        rom::fetch(&rom_url, &cache_dir, &game_id, |received, total| {
+            let _ = fetch_app.emit("native:fetch", serde_json::json!({ "received": received, "total": total }));
+        })
     })
     .await
     .map_err(|e| e.to_string())??;
@@ -152,7 +155,6 @@ pub async fn load_game(
         session::StartParams {
             core_path: core_path.to_string_lossy().into_owned(),
             rom_path: rom_path.to_string_lossy().into_owned(),
-            rom_bytes,
             system: args.system,
             data_dir,
             ns_view,
@@ -295,6 +297,20 @@ pub fn press_input(index: u32, down: bool) {
 #[tauri::command]
 pub fn set_analog(index: u32, value: u16) {
     input::analog(index, value);
+}
+
+/// The stylus, from the webview's mouse. `x`/`y` arrive in CSS pixels relative
+/// to the window (what a browser mouse event gives you); the host scales them to
+/// physical pixels and maps them through its own letterbox, so the geometry has
+/// exactly one owner. A click on the letterbox lifts the stylus rather than
+/// clamping to an edge — the DS would read a clamp as a real touch.
+#[tauri::command]
+pub fn set_pointer(window: tauri::WebviewWindow, x: f32, y: f32, down: bool) {
+    let scale = window.scale_factor().unwrap_or(1.0) as f32;
+    match session::picture_point(x * scale, y * scale) {
+        Some((px, py)) => input::pointer(px, py, down),
+        None => input::pointer(0.0, 0.0, false),
+    }
 }
 
 #[tauri::command]
