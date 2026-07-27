@@ -297,14 +297,20 @@ fn init_gl(ns_view: usize, width: u32, height: u32) -> Result<Gl, String> {
     use raw_window_handle::{AppKitDisplayHandle, AppKitWindowHandle, RawDisplayHandle, RawWindowHandle};
     use std::num::NonZeroU32;
 
+    // Phase 2a targets macOS; Windows/Linux get their own display/surface plumbing
+    // when Phase 4 takes the app cross-platform. Everything else in this module —
+    // the core, options, audio, input, pacing, saves — is already portable and
+    // compiles (and unit-tests) everywhere, which is what keeps the CI gate honest.
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = (ns_view, width, height);
+        return Err("the native player runs on macOS in this release".into());
+    }
+
+    #[cfg(target_os = "macos")]
     unsafe {
-        #[cfg(target_os = "macos")]
-        let (raw_display, api) = (
-            RawDisplayHandle::AppKit(AppKitDisplayHandle::new()),
-            DisplayApiPreference::Cgl,
-        );
-        #[cfg(not(target_os = "macos"))]
-        compile_error!("the native player's GL path is macOS-only until Phase 4 targets more platforms");
+        let raw_display = RawDisplayHandle::AppKit(AppKitDisplayHandle::new());
+        let api = DisplayApiPreference::Cgl;
 
         let display = Display::new(raw_display, api).map_err(|e| format!("gl display: {e}"))?;
         let config = display
