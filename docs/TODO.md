@@ -441,10 +441,14 @@ check a row when its exit criteria hold, and note carry-over under the row.
       mis-mapping the stylus with it.
       Verified: all nine systems boot and render on the M4 through
       `scripts/smoke-native.sh` (59.7–60.9 fps, all non-black), plus Ben's hands-on
-      pass. Note the `--all` sequential run flakes on one random system per run
-      (the dev double-mount races `FROG_AUTOSTART`, so the start press can land on
-      the cancelled first session) — pre-existing, reproduced on v0.8.2; each system
-      passes when run on its own. Worth a retry loop next time the script is touched.
+      pass. Also fixed here: `--all` used to fail on one RANDOM system per run —
+      the dev double-mount races `FROG_AUTOSTART`, so the start press can land on
+      the cancelled first session and the game never leaves the start card (the
+      log signature is two GL inits, core activity, and zero trace lines). It was
+      pre-existing (reproduced on v0.8.2) and it made the one check the desktop
+      player has easy to wave away. Systems now get two tries, with the retry
+      ANNOUNCED and the failed attempt's log kept — a flake that hides itself would
+      just move the lie. `ATTEMPTS=1` restores one-shot.
 - [ ] **10. Phase 4a — first-run setup + runtime backend.** Native setup screen
       (remote server URL | local ROM folder); `API_BASE` becomes a runtime getter.
 - [ ] **11. Phase 4b — backend sidecar.** PyInstaller one-file FastAPI bundled as a
