@@ -20,9 +20,14 @@ import {
   clampVolume,
   clampFFRatio,
   clampShader,
+  coreOptionsFor,
+  withCoreOption,
+  clearCoreOptions,
   FF_RATIO_LEVELS,
   SHADER_LEVELS,
 } from '../lib/playerSettings.js'
+import { curatedRows, stepOptionValue } from '../lib/coreOptions.js'
+import CoreOptionsPanel from './CoreOptionsPanel.jsx'
 import { useGamepad } from '../lib/useGamepad.js'
 import { useGameSaves } from '../lib/useGameSaves.js'
 import { usePlayTime } from '../lib/usePlayTime.js'
@@ -145,6 +150,12 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
     writeSettings(window.localStorage, next)
   }, [])
 
+  // Everything the running core registered (filled once the session boots), and
+  // the System options screen's own open/focus state.
+  const [coreOpts, setCoreOpts] = useState([])
+  const [coreOptionsOpen, setCoreOptionsOpen] = useState(false)
+  const [coreOptionsFocus, setCoreOptionsFocus] = useState(0)
+
   // The game picture lives UNDER the webview, so while this player is mounted every
   // layer of the page must be see-through — index.css paints the pond ground on
   // <html> otherwise, which would sit as an opaque wall over the game.
@@ -179,7 +190,18 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
   // moment it arrives rather than leaking under the library.
   useEffect(() => {
     let dead = false
-    createNativeEmu({ gameId: id, romUrl: fileUrl('games', id), core, system: core }, d)
+    createNativeEmu(
+      {
+        gameId: id,
+        romUrl: fileUrl('games', id),
+        core,
+        system: core,
+        // The saved core options must ride the launch — the host arms them
+        // before retro_init, the only moment a core reads them.
+        options: coreOptionsFor(readSettings(window.localStorage), core),
+      },
+      d
+    )
       .then((emu) => {
         if (dead) {
           emu.native.stop()
@@ -198,6 +220,10 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
         const saved = readSettings(window.localStorage)
         emu.native.setVolume(clampVolume(saved.volume))
         emu.native.setFilter(clampShader(saved.shader))
+        // What this core actually registered. The curated shortlist is drawn
+        // from it, so a core that offers nothing simply has no System options
+        // row — and a failure to ask must not stop the game booting.
+        emu.native.listOptions().then(setCoreOpts).catch(() => {})
         dispatch('engine-loaded')
       })
       .catch((e) => {
@@ -476,7 +502,7 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
   // character underneath. The web player wraps the engine's listener; the native
   // host exposes the gate directly.
   const menuOpenRef = useRef(false)
-  menuOpenRef.current = paused || shelfOpen || controlsOpen || wikiOpen || pokedexOpen
+  menuOpenRef.current = paused || shelfOpen || controlsOpen || coreOptionsOpen || wikiOpen || pokedexOpen
   const menuOpen = menuOpenRef.current
   useEffect(() => {
     emuRef.current?.native.setGated(menuOpen)
@@ -528,6 +554,57 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
   // never be a trap.
   const [menuScreen, setMenuScreen] = useState('root')
 
+  // --- System options: the core's own knobs ---------------------------------
+  // Declared ABOVE onMenuAction because its deps array names openCoreOptions —
+  // a const referenced from a hook's deps before its own declaration is a
+  // temporal dead zone, and it blanks the whole player at runtime.
+
+  // The curated view of what this core offers — the intersection of the shortlist
+  // in lib/coreOptions.js with what the running core actually registered.
+  const optionRows = useMemo(() => curatedRows(core, coreOpts), [core, coreOpts])
+
+  const openCoreOptions = useCallback(() => {
+    setCoreOptionsFocus(0)
+    setCoreOptionsOpen(true)
+  }, [])
+  const closeCoreOptions = useCallback(() => setCoreOptionsOpen(false), [])
+
+  const stepCoreOption = useCallback(
+    (key, dir) => {
+      const row = optionRows.find((r) => r.key === key)
+      if (!row) return
+      const next = stepOptionValue(row, dir)
+      if (next === row.current) return
+      saveSettings(withCoreOption(readSettings(window.localStorage), core, key, next))
+      // Read the row back immediately — the panel shows the choice whether or not
+      // the core can act on it yet.
+      setCoreOpts((prev) => prev.map((o) => (o.key === key ? { ...o, current: next } : o)))
+      // An option the core only reads at startup is PERSISTED, not pushed: the
+      // row says "Applies next launch" and that stays literally true. Pushing it
+      // would be ignored at best, and at worst have the core rebuild its renderer
+      // under a live GL context.
+      if (row.appliesOnRelaunch) return
+      emuRef.current?.native.setOption(key, next).catch((e) => {
+        setError(String(e?.message || e))
+        // The host refused it — re-read rather than keep showing a value the
+        // core isn't actually running.
+        emuRef.current?.native.listOptions().then(setCoreOpts).catch(() => {})
+      })
+    },
+    [optionRows, core, saveSettings, setError]
+  )
+
+  const resetCoreOptions = useCallback(() => {
+    saveSettings(clearCoreOptions(readSettings(window.localStorage), core))
+    for (const row of optionRows) {
+      if (row.defaultValue == null || row.current === row.defaultValue) continue
+      setCoreOpts((prev) => prev.map((o) => (o.key === row.key ? { ...o, current: row.defaultValue } : o)))
+      if (!row.appliesOnRelaunch) {
+        emuRef.current?.native.setOption(row.key, row.defaultValue).catch(() => {})
+      }
+    }
+  }, [optionRows, core, saveSettings])
+
   const onMenuAction = useCallback(
     (action) => {
       switch (action) {
@@ -569,6 +646,9 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
         case 'controls':
           openControls()
           break
+        case 'coreOptions':
+          openCoreOptions()
+          break
         case 'wiki':
           openWiki()
           break
@@ -587,7 +667,7 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
           break
       }
     },
-    [fastForward, applyFF, openShelf, openControls, openWiki, openPokedex, toggleMute, stepFFRatio, stepFilter, takeScreenshot]
+    [fastForward, applyFF, openShelf, openControls, openCoreOptions, openWiki, openPokedex, toggleMute, stepFFRatio, stepFilter, takeScreenshot]
   )
 
   const openMenu = useCallback(() => {
@@ -614,6 +694,7 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
     shader: shaderLabel,
     ffRatio: ffRatioLabel,
     shotStatus,
+    hasCoreOptions: optionRows.length > 0,
   }
   const menuItems = pauseItems(fastForward, menuOpts, menuScreen)
 
@@ -660,6 +741,8 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
       pendingQuit, setPendingQuit, quitFocus, setQuitFocus,
       confirmQuit: () => exit(true), // exact SRAM first, THEN 'quit' — see exit()
       controlsOpen, closeControls, controlsFocus, setControlsFocus, rows,
+      coreOptionsOpen, closeCoreOptions, coreOptionsFocus, setCoreOptionsFocus,
+      optionRows, stepCoreOption, resetCoreOptions,
       setLastPress, captureBinding, setListeningFor, resetBindings, cycleSkin, chooseScheme,
       fastForward, applyFF,
       // The rewind hotkey must not flip a state the host can't honour — a no-op
@@ -918,6 +1001,18 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
             onListen={setListeningFor}
             onReset={resetBindings}
             onBack={closeControls}
+          />
+        )}
+
+        {coreOptionsOpen && (
+          <CoreOptionsPanel
+            system={label || core}
+            rows={optionRows}
+            focus={coreOptionsFocus}
+            onFocus={setCoreOptionsFocus}
+            onStep={stepCoreOption}
+            onReset={resetCoreOptions}
+            onBack={closeCoreOptions}
           />
         )}
 

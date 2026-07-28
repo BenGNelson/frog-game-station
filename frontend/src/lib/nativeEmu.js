@@ -31,7 +31,7 @@ async function tauriIo() {
 /// Start a native session and return the engine adapter. Rejects if the core
 /// refuses (missing core, bad ROM, GL failure) — the caller shows the honest
 /// failure screen.
-export async function createNativeEmu({ gameId, romUrl, core, system }, d = {}) {
+export async function createNativeEmu({ gameId, romUrl, core, system, options = {} }, d = {}) {
   const { invoke, listen } = d.invoke ? d : await tauriIo()
 
   let sram = null // the snapshot getSaveFile serves synchronously
@@ -55,7 +55,10 @@ export async function createNativeEmu({ gameId, romUrl, core, system }, d = {}) 
     refreshSram()
   })
 
-  const { av, generation } = await invoke('load_game', { args: { gameId, romUrl, core, system } }).catch((e) => {
+  // `options` are the player's saved core-option choices for this system. They
+  // must ride the LAUNCH, not a later call: the host arms them before retro_init,
+  // which is the only moment SET_VARIABLES can consult them.
+  const { av, generation } = await invoke('load_game', { args: { gameId, romUrl, core, system, options } }).catch((e) => {
     unlisten()
     throw e instanceof Error ? e : new Error(String(e))
   })
@@ -118,6 +121,11 @@ export async function createNativeEmu({ gameId, romUrl, core, system }, d = {}) 
       setFastForward: (on, ratio) => invoke('set_fast_forward', { on, ratio }),
       setRewinding: (on) => invoke('set_rewinding', { on }),
       setFilter: (id) => invoke('set_filter', { id }),
+      // The core's own options: what it registered, and a change to one. The
+      // list is whatever THIS core declared — lib/coreOptions.js decides which
+      // of them a human is offered.
+      listOptions: () => invoke('list_core_options'),
+      setOption: (key, value) => invoke('set_core_option', { key, value }),
       setFullscreen: (on) => invoke('set_fullscreen', { on }),
       isFullscreen: () => invoke('is_fullscreen'),
       stop: async () => {

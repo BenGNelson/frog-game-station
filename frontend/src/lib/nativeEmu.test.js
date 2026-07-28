@@ -72,6 +72,35 @@ describe('createNativeEmu — the adapter shape', () => {
     expect(blob.size).toBe(4)
   })
 
+  it('carries the saved core options on the LAUNCH, where the host can still apply them', async () => {
+    // Not a later call: the host arms them before retro_init, which is the only
+    // moment SET_VARIABLES can consult them.
+    const io = fakeIo()
+    const options = { melonds_screen_layout: 'Left/Right' }
+    await createNativeEmu({ gameId: 'g', romUrl: 'u', core: 'nds', system: 'nds', options }, io)
+    const [, payload] = io.calls.find(([cmd]) => cmd === 'load_game')
+    expect(payload.args.options).toEqual(options)
+  })
+
+  it('sends an empty option set when the player has chosen nothing', async () => {
+    const io = fakeIo()
+    await createNativeEmu({ gameId: 'g', romUrl: 'u', core: 'gb', system: 'gb' }, io)
+    const [, payload] = io.calls.find(([cmd]) => cmd === 'load_game')
+    expect(payload.args.options).toEqual({})
+  })
+
+  it('asks the host what the core registered, and can change one', async () => {
+    const io = fakeIo()
+    const emu = await createNativeEmu({ gameId: 'g', romUrl: 'u', core: 'nds', system: 'nds' }, io)
+    await emu.native.listOptions()
+    await emu.native.setOption('melonds_screen_layout', 'Left/Right')
+    expect(io.calls).toContainEqual(['list_core_options', undefined])
+    expect(io.calls).toContainEqual([
+      'set_core_option',
+      { key: 'melonds_screen_layout', value: 'Left/Right' },
+    ])
+  })
+
   it('a refused boot rejects and unlistens', async () => {
     const io = fakeIo()
     io.invoke.mockImplementation(async (cmd) => {

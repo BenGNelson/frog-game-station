@@ -8,6 +8,7 @@ import SaveStatePanel from './SaveStatePanel.jsx'
 import SaveActionMenu from './SaveActionMenu.jsx'
 import ControllerDiagram from './ControllerDiagram.jsx'
 import ControlsPanel from './ControlsPanel.jsx'
+import CoreOptionsPanel from './CoreOptionsPanel.jsx'
 import { resolveBindings } from '../lib/controlPresets.js'
 
 // Render smoke test for the mounted-persistent player panels. Server-rendering each one
@@ -219,5 +220,53 @@ describe('player panel render smoke', () => {
         )
       ).not.toThrow()
     }
+  })
+
+  it('CoreOptionsPanel mounts for a normal list, an init-only row, and nothing at all', () => {
+    const lists = [
+      [
+        { key: 'melonds_screen_layout', label: 'Screen layout', values: ['Top/Bottom', 'Left/Right'], current: 'Top/Bottom', defaultValue: 'Top/Bottom', appliesOnRelaunch: false, valueLabels: {} },
+      ],
+      [
+        { key: 'mupen64plus-rdp-plugin', label: 'Graphics plugin', values: ['angrylion', 'gliden64'], current: 'angrylion', defaultValue: 'angrylion', appliesOnRelaunch: true, valueLabels: { angrylion: 'Software (accurate)' } },
+      ],
+      // The empty case can't be reached through the menu (the row is hidden when
+      // there's nothing to show), but the panel must not crash if it ever is.
+      [],
+    ]
+    for (const rows of lists) {
+      expect(() =>
+        renderToString(
+          <CoreOptionsPanel
+            system="Nintendo DS"
+            rows={rows}
+            focus={0}
+            onFocus={() => {}}
+            onStep={() => {}}
+            onReset={() => {}}
+            onBack={() => {}}
+          />
+        )
+      ).not.toThrow()
+    }
+  })
+
+  it('CoreOptionsPanel says so on a row that only applies next launch', () => {
+    const html = renderToString(
+      <CoreOptionsPanel
+        system="Nintendo 64"
+        rows={[
+          { key: 'mupen64plus-rdp-plugin', label: 'Graphics plugin', values: ['angrylion', 'gliden64'], current: 'angrylion', defaultValue: 'angrylion', appliesOnRelaunch: true, valueLabels: { angrylion: 'Software (accurate)' } },
+        ]}
+        focus={0}
+        onFocus={() => {}}
+        onStep={() => {}}
+        onReset={() => {}}
+        onBack={() => {}}
+      />
+    )
+    // The honesty rule is the feature here, so it's asserted rather than assumed.
+    expect(html).toContain('Applies next launch')
+    expect(html).toContain('Software (accurate)') // the friendly label, not the raw id
   })
 })
