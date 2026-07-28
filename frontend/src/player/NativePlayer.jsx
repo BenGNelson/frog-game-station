@@ -137,6 +137,8 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
   const [padActive, setPadActive] = useState(false)
   const [padId, setPadId] = useState(null)
   const [padName, setPadName] = useState(null)
+  // Bumped on every hot-plug edge, purely to re-run the bindings push below.
+  const [padGen, setPadGen] = useState(0)
   const [settings, setSettings] = useState(() => {
     // Same sweep as the web player — the two share localStorage on a dev machine,
     // and the migration is a no-op once done.
@@ -260,6 +262,39 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
     }
     // `d` is the test seam, fixed for the component's life — same mount-once
     // reasoning as the boot effect.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Controller hot-plug. The host owns pad PRESENCE — it sees gilrs's connect and
+  // disconnect edges even while a menu is up and the webview has stopped polling
+  // — but the webview keeps owning the binding KEY, because per-pad rebinds are
+  // keyed by the Web Gamepad API's "<name>:<index>" id and gilrs names pads
+  // differently; re-keying off the host would strand every rebind ever made. So a
+  // connection just bumps a generation, which re-pushes whatever map the webview
+  // currently believes in; the first actual press then resolves the real padId
+  // and the existing effect pushes that pad's own map over it.
+  useEffect(() => {
+    let dead = false
+    let un = null
+    onNativeEvent(
+      'pad',
+      (p) => {
+        const count = Number(p?.count) || 0
+        setPadActive(!!p?.connected || count > 0)
+        // Named before you press anything — the Controls screen used to read
+        // "No controller connected" until the first button went down.
+        if (p?.connected && p?.name) setPadName(p.name)
+        setPadGen((n) => n + 1)
+      },
+      d
+    ).then((u) => {
+      if (dead) u()
+      else un = u
+    })
+    return () => {
+      dead = true
+      un?.()
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -477,8 +512,11 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
     )
     // Deps are the granular inputs the map is built from — not `settings` itself,
     // which is a fresh object every save and would re-push on unrelated changes.
+    // `padGen` is in there so a pad plugged in mid-game gets the map too: the
+    // push used to happen once at boot, so a controller connected later played
+    // on whatever the host last had (or nothing at all).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state, settings.controlScheme, settings.controlBindings, padId, core])
+  }, [state, settings.controlScheme, settings.controlBindings, padId, core, padGen])
 
   // Pause the core whenever we're not in PLAYING, and release every input on the
   // way back in — a key or button held when the menu opened had its release

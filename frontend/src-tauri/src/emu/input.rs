@@ -56,12 +56,7 @@ pub fn set_gated(gated: bool) {
         FLUSH_ON_RESUME.store(true, Ordering::Relaxed);
     }
     if gated {
-        PAD_BITS.store(0, Ordering::Relaxed);
-        PAD_AX.store(0, Ordering::Relaxed);
-        PAD_AY.store(0, Ordering::Relaxed);
-        PAD_RX.store(0, Ordering::Relaxed);
-        PAD_RY.store(0, Ordering::Relaxed);
-        POINTER_DOWN.store(false, Ordering::Relaxed);
+        clear_snapshot();
     }
 }
 
@@ -187,15 +182,59 @@ fn retro_id_for(web: usize) -> Option<c_uint> {
     }
 }
 
-/// Drain gilrs and update the snapshot. Runs once per frame on the emu thread.
-pub fn poll(gilrs: &mut gilrs::Gilrs) {
+/// Which way a connection event went, or None for anything else. Split out so
+/// the classification can be tested without a physical pad.
+pub fn connection_of(ev: &gilrs::EventType) -> Option<bool> {
+    match ev {
+        gilrs::EventType::Connected => Some(true),
+        gilrs::EventType::Disconnected => Some(false),
+        _ => None,
+    }
+}
+
+/// Zero everything the pad owns. Shared by the gate and by a disconnect — a pad
+/// unplugged mid-run leaves its last press LATCHED, and the character keeps
+/// walking into a wall with nothing plugged in.
+pub fn clear_snapshot() {
+    PAD_BITS.store(0, Ordering::Relaxed);
+    PAD_AX.store(0, Ordering::Relaxed);
+    PAD_AY.store(0, Ordering::Relaxed);
+    PAD_RX.store(0, Ordering::Relaxed);
+    PAD_RY.store(0, Ordering::Relaxed);
+    POINTER_DOWN.store(false, Ordering::Relaxed);
+}
+
+/// The connected pads' names, newest last — the frontend surfaces the name so
+/// the Controls screen can say what's in your hands before you press anything.
+pub fn pad_names(gilrs: &gilrs::Gilrs) -> Vec<String> {
+    gilrs.gamepads().map(|(_, pad)| pad.name().to_string()).collect()
+}
+
+/// Drain gilrs and update the snapshot. Runs once per frame on the emu thread,
+/// and on a slow tick while paused with `connections_only` — that keeps hot-plug
+/// alive behind the pause menu without letting a press at the start card latch
+/// into the snapshot before the game has begun.
+///
+/// Returns the connection edges seen this drain, so the caller can announce them.
+pub fn poll(gilrs: &mut gilrs::Gilrs, connections_only: bool) -> Vec<bool> {
     use gilrs::{Axis, EventType};
+    let mut edges = Vec::new();
 
     // The gate just lifted: throw away the backlog (it belongs to the menu the
     // player was driving), then note which buttons are still down so they can't
     // register as fresh presses until released.
     if FLUSH_ON_RESUME.swap(false, Ordering::Relaxed) {
-        while gilrs.next_event().is_some() {}
+        // Inspect what's drained rather than binning it wholesale: a pad plugged
+        // in while the menu was open announces itself exactly once, and throwing
+        // that away means the game never learns it's there.
+        while let Some(ev) = gilrs.next_event() {
+            if let Some(connected) = connection_of(&ev.event) {
+                if !connected {
+                    clear_snapshot();
+                }
+                edges.push(connected);
+            }
+        }
         let mut held = 0u32;
         for (_id, pad) in gilrs.gamepads() {
             for web in 0..16usize {
@@ -207,11 +246,24 @@ pub fn poll(gilrs: &mut gilrs::Gilrs) {
             }
         }
         HELD_AT_RESUME.store(held, Ordering::Relaxed);
-        return;
+        return edges;
     }
 
     while let Some(ev) = gilrs.next_event() {
         let gated = GATED.load(Ordering::Relaxed);
+        // Connections are always handled, gated or not, paused or not — that IS
+        // hot-plug. gilrs needs the event drained either way to keep its own
+        // gamepad list current.
+        if let Some(connected) = connection_of(&ev.event) {
+            if !connected {
+                clear_snapshot();
+            }
+            edges.push(connected);
+            continue;
+        }
+        if connections_only {
+            continue;
+        }
         match ev.event {
             EventType::ButtonPressed(b, _) | EventType::ButtonReleased(b, _) => {
                 if gated {
@@ -257,6 +309,7 @@ pub fn poll(gilrs: &mut gilrs::Gilrs) {
             _ => {}
         }
     }
+    edges
 }
 
 pub unsafe extern "C" fn input_poll() {}
@@ -390,5 +443,69 @@ mod tests {
             assert_eq!(input_state(0, DEVICE_ANALOG, ANALOG_LEFT, ANALOG_X), 0);
         }
         analog(20, 0);
+    }
+
+    #[test]
+    fn connection_events_are_told_apart_from_everything_else() {
+        use gilrs::EventType;
+        assert_eq!(connection_of(&EventType::Connected), Some(true));
+        assert_eq!(connection_of(&EventType::Disconnected), Some(false));
+        // Anything else is not a connection edge and must not be announced as
+        // one. (Dropped stands in for the button/axis traffic here — those carry
+        // a gilrs Code that can't be constructed outside a real event.)
+        assert_eq!(connection_of(&EventType::Dropped), None);
+    }
+
+    #[test]
+    fn a_disconnect_releases_everything_the_pad_was_holding() {
+        // A pad yanked mid-run leaves its last press LATCHED — the character
+        // walks into a wall with nothing plugged in until something clears it.
+        let _lock = PAD_TEST_LOCK.lock().unwrap();
+        press(JOYPAD_RIGHT, true);
+        analog(16, 32767);
+        analog(22, 12000);
+        pointer(0.5, 0.5, true);
+        assert_ne!(PAD_BITS.load(Ordering::Relaxed), 0);
+
+        clear_snapshot();
+
+        assert_eq!(PAD_BITS.load(Ordering::Relaxed), 0);
+        assert_eq!(PAD_AX.load(Ordering::Relaxed), 0);
+        assert_eq!(PAD_AY.load(Ordering::Relaxed), 0);
+        assert_eq!(PAD_RX.load(Ordering::Relaxed), 0);
+        assert_eq!(PAD_RY.load(Ordering::Relaxed), 0);
+        assert!(!POINTER_DOWN.load(Ordering::Relaxed));
+    }
+
+    #[test]
+    fn the_gate_and_a_disconnect_clear_exactly_the_same_state() {
+        // They share one implementation on purpose; this pins that they can't
+        // drift into clearing different halves of the snapshot.
+        let _lock = PAD_TEST_LOCK.lock().unwrap();
+        let snapshot = || {
+            (
+                PAD_BITS.load(Ordering::Relaxed),
+                PAD_AX.load(Ordering::Relaxed),
+                PAD_AY.load(Ordering::Relaxed),
+                PAD_RX.load(Ordering::Relaxed),
+                PAD_RY.load(Ordering::Relaxed),
+                POINTER_DOWN.load(Ordering::Relaxed),
+            )
+        };
+        let dirty = || {
+            press(JOYPAD_A, true);
+            analog(16, 30000);
+            analog(22, 30000);
+            pointer(0.5, 0.5, true);
+        };
+
+        dirty();
+        set_gated(true);
+        let after_gate = snapshot();
+        set_gated(false);
+
+        dirty();
+        clear_snapshot();
+        assert_eq!(after_gate, snapshot());
     }
 }

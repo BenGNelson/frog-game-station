@@ -671,11 +671,24 @@ fn run_session(
     let trace = std::env::var("FROG_EMU_TRACE").ok().as_deref() == Some("1");
 
     while !stopping {
-        // Paused: block on the channel — a paused game costs zero CPU.
+        // Paused: wait on the channel rather than spin — a paused game costs
+        // almost nothing. Not a bare recv(), because that would also stop
+        // draining gilrs: a pad plugged in while the pause menu is open would go
+        // unnoticed until the player resumed. Ten wakeups a second is enough to
+        // notice a connection and cheap enough to still be "paused".
         let first = if paused {
-            match rx.recv() {
+            match rx.recv_timeout(Duration::from_millis(100)) {
                 Ok(c) => Some(c),
-                Err(_) => break,
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                    if let Some(g) = gilrs.as_mut() {
+                        // Connections only: the game is paused and the gate may
+                        // be off (the start card), so a physical press must not
+                        // latch into the snapshot before play begins.
+                        announce_pads(&app, input::poll(g, true), g);
+                    }
+                    None
+                }
+                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
             }
         } else {
             match rx.try_recv() {
@@ -768,7 +781,7 @@ fn run_session(
         }
 
         if let Some(g) = gilrs.as_mut() {
-            input::poll(g);
+            announce_pads(&app, input::poll(g, false), g);
         }
 
         // Rewinding replaces the frame: pop the most recent snapshot and load
@@ -876,6 +889,32 @@ fn run_session(
 
     teardown(&core);
     let _ = app.emit("native:state", serde_json::json!({ "state": "stopped" }));
+}
+
+/// Tell the frontend a pad came or went. Only on an EDGE — the poll returns one
+/// entry per connection event, so a quiet frame emits nothing.
+///
+/// The host owns pad PRESENCE (is one there, what's it called, how many); the
+/// webview keeps owning the binding key space, because its per-pad rebinds are
+/// keyed by the Web Gamepad API's "<name>:<index>" id and gilrs names pads
+/// differently. Re-keying off the host would strand every rebind the player has
+/// made. So this event's job is to say "something changed" — the frontend
+/// re-pushes whatever map it already believes in, and the first actual press
+/// resolves the pad's real identity.
+fn announce_pads(app: &tauri::AppHandle, edges: Vec<bool>, gilrs: &gilrs::Gilrs) {
+    if edges.is_empty() {
+        return;
+    }
+    let names = input::pad_names(gilrs);
+    let connected = *edges.last().unwrap_or(&false);
+    let _ = app.emit(
+        "native:pad",
+        serde_json::json!({
+            "connected": connected,
+            "name": names.last().cloned().unwrap_or_default(),
+            "count": names.len(),
+        }),
+    );
 }
 
 fn teardown(core: &Core) {
