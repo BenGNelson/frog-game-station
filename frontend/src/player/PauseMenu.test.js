@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { pauseItems } from './PauseMenu.jsx'
+import { renderToString } from 'react-dom/server'
+import React from 'react'
+import PauseMenu, { pauseItems } from './PauseMenu.jsx'
 
 const ids = (opts) => pauseItems(false, opts).map((i) => i.id)
 
@@ -103,6 +105,39 @@ describe('pauseItems', () => {
   it('System options appear only when the running core registered some', () => {
     expect(pauseItems(false, {}, 'display').map((i) => i.id)).not.toContain('coreOptions')
     expect(pauseItems(false, { hasCoreOptions: true }, 'display').map((i) => i.id)).toContain('coreOptions')
+  })
+
+  it('draws exactly the rows it walks, for every options bag', () => {
+    // The invariant that broke: the native player spelled its options out twice —
+    // once for pauseItems (what the pad walks) and once as <PauseMenu> props (what
+    // the player sees) — and the two drifted, so from the first missing row down
+    // every index highlighted one action and fired another. Both players now build
+    // ONE bag and spread it; this pins that they agree.
+    const bags = [
+      {},
+      { volume: 0.5 },
+      { canFullscreen: true, canRewind: true, volume: 0.5, shader: 'CRT', ffRatio: '3×' },
+      { canFullscreen: false, canRewind: false, volume: 0.5 },
+      { canFullscreen: true, canRewind: true, isPokemon: true, volume: 0.5, shader: 'Off', ffRatio: '2×', hasCoreOptions: true },
+    ]
+    for (const bag of bags) {
+      for (const screen of ['root', 'display']) {
+        const html = renderToString(
+          React.createElement(PauseMenu, {
+            open: true,
+            name: 'A Game',
+            fastForward: false,
+            ...bag,
+            screen,
+            focus: 0,
+            onFocus: () => {},
+            onAction: () => {},
+          })
+        )
+        const drawn = html.split('data-testid="pause-row"').length - 1
+        expect(drawn).toBe(pauseItems(false, bag, screen).length)
+      }
+    }
   })
 
   it('carries a Volume row only when the shell passes a level', () => {

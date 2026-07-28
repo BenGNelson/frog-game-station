@@ -639,11 +639,11 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
   const ffRatioLabel = FF_RATIO_LEVELS.find((s) => s.id === ffRatio)?.label || '3×'
   const onMenuAdjust = (id, dir) =>
     id === 'volume' ? stepVolume(dir) : id === 'ffRatio' ? stepFFRatio(dir) : stepFilter(dir)
-  const menuItems = pauseItems(
-    fastForward,
-    { canFullscreen, isPokemon, volume, rewinding, shader: shaderLabel, ffRatio: ffRatioLabel, shotStatus },
-    menuScreen
-  )
+  // ONE bag feeds the list the pad WALKS and the list the player SEES — see the
+  // contract note above pauseItems. Spelling the options out twice is how the
+  // native player's two lists drifted apart.
+  const menuOpts = { canFullscreen, isPokemon, volume, rewinding, shader: shaderLabel, ffRatio: ffRatioLabel, shotStatus }
+  const menuItems = pauseItems(fastForward, menuOpts, menuScreen)
 
   const rows = controlRows(isPokemon)
 
@@ -989,13 +989,7 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
           open={paused && !shelfOpen}
           name={name}
           fastForward={fastForward}
-          rewinding={rewinding}
-          canFullscreen={canFullscreen}
-          isPokemon={isPokemon}
-          volume={volume}
-          shader={shaderLabel}
-          ffRatio={ffRatioLabel}
-          shotStatus={shotStatus}
+          {...menuOpts}
           onAdjust={onMenuAdjust}
           focus={menuFocus}
           onFocus={setMenuFocus}

@@ -19,7 +19,9 @@ import {
   isChord,
   clampVolume,
   clampFFRatio,
+  clampShader,
   FF_RATIO_LEVELS,
+  SHADER_LEVELS,
 } from '../lib/playerSettings.js'
 import { useGamepad } from '../lib/useGamepad.js'
 import { useGameSaves } from '../lib/useGameSaves.js'
@@ -189,9 +191,13 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
         // audio stream needs no gesture).
         emu.native.setPaused(true)
         emu.native.setGated(false)
-        // The saved volume, applied the moment the engine exists (it boots at unity
-        // gain). Read from storage, not the closure — this effect mounts once.
-        emu.native.setVolume(clampVolume(readSettings(window.localStorage).volume))
+        // The saved volume and filter, applied the moment the engine exists (it
+        // boots at unity gain through the plain blit). Read from storage, not the
+        // closure — this effect mounts once. Without the filter push, a look chosen
+        // last session would read back in the menu while the stage rendered Off.
+        const saved = readSettings(window.localStorage)
+        emu.native.setVolume(clampVolume(saved.volume))
+        emu.native.setFilter(clampShader(saved.shader))
         dispatch('engine-loaded')
       })
       .catch((e) => {
@@ -388,10 +394,7 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
 
   // The engine seam for the shared controls hook, over the native surface. Fast-
   // forward is one host call carrying both halves (on × ratio), so the two actions
-  // share a ref of the current pair. Shader and rewind are deliberate no-ops: the
-  // native host has no shader pipeline and no rewind ring yet, their menu rows are
-  // hidden below — but the hook still calls applyRewind on every fast-forward
-  // toggle (the mutual-exclusion contract), so the slots must exist.
+  // share a ref of the current pair.
   // The host takes the ratio as the settings' own level id — a STRING, because
   // 'unlimited' is one of them (and Number() would quietly turn it into NaN).
   // The window's own fullscreen state — it only changes when that row is picked,
@@ -426,7 +429,7 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
     lastPress, setLastPress, openControls, closeControls,
     chooseScheme, chooseSkin, cycleSkin, resetBindings, captureBinding,
     fastForward, applyFF, rewinding, applyRewind,
-    volume, stepVolume, toggleMute, ffRatio, stepFFRatio,
+    volume, stepVolume, toggleMute, ffRatio, stepFFRatio, shader, stepFilter,
   } = usePlayerControls({ settings, saveSettings, padId, setError, engine })
 
   // The in-game reference panels (wiki reader + Pokédex) and their cross-links.
@@ -557,6 +560,9 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
         case 'ffRatio':
           stepFFRatio(1) // A cycles the turbo speed
           break
+        case 'filter':
+          stepFilter(1) // A cycles the look, same as the web player
+          break
         case 'screenshot':
           takeScreenshot() // stays on the menu — the row reads back Saved
           break
@@ -581,7 +587,7 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
           break
       }
     },
-    [fastForward, applyFF, openShelf, openControls, openWiki, openPokedex, toggleMute, stepFFRatio, takeScreenshot]
+    [fastForward, applyFF, openShelf, openControls, openWiki, openPokedex, toggleMute, stepFFRatio, stepFilter, takeScreenshot]
   )
 
   const openMenu = useCallback(() => {
@@ -591,23 +597,25 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
   }, [])
 
   const ffRatioLabel = FF_RATIO_LEVELS.find((s) => s.id === ffRatio)?.label || '3×'
-  const onMenuAdjust = (rowId, dir) => (rowId === 'volume' ? stepVolume(dir) : stepFFRatio(dir))
-  // No Rewind, no Filter, no Fullscreen: the host has no rewind ring or shader
-  // pipeline yet, and a Tauri window's fullscreen belongs to the window chrome.
-  const menuItems = pauseItems(
-    fastForward,
-    {
-      // Phase 3: the native core has a rewind ring and the window can go
-      // fullscreen, so the rows the player used to omit are real now.
-      canFullscreen: true,
-      canRewind: true,
-      isPokemon,
-      volume,
-      ffRatio: ffRatioLabel,
-      shotStatus,
-    },
-    menuScreen
-  )
+  const shaderLabel = SHADER_LEVELS.find((s) => s.id === shader)?.label || 'Off'
+  const onMenuAdjust = (rowId, dir) =>
+    rowId === 'volume' ? stepVolume(dir) : rowId === 'ffRatio' ? stepFFRatio(dir) : stepFilter(dir)
+  // ONE bag feeds the list the pad WALKS and the list the player SEES. These were
+  // written out twice and drifted: the walked list carried Rewind, the drawn one
+  // didn't, so from Fast Forward down every highlight fired the row above it.
+  // Phase 3: the native core has a rewind ring, a shader pipeline and a window that
+  // goes fullscreen, so the rows the player used to omit are all real now.
+  const menuOpts = {
+    canFullscreen: true,
+    canRewind: true,
+    isPokemon,
+    volume,
+    rewinding,
+    shader: shaderLabel,
+    ffRatio: ffRatioLabel,
+    shotStatus,
+  }
+  const menuItems = pauseItems(fastForward, menuOpts, menuScreen)
 
   const rows = controlRows(isPokemon)
 
@@ -873,12 +881,7 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
           open={paused && !shelfOpen}
           name={name}
           fastForward={fastForward}
-          canFullscreen={false}
-          canRewind={false}
-          isPokemon={isPokemon}
-          volume={volume}
-          ffRatio={ffRatioLabel}
-          shotStatus={shotStatus}
+          {...menuOpts}
           onAdjust={onMenuAdjust}
           focus={menuFocus}
           onFocus={setMenuFocus}

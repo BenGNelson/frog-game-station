@@ -32,6 +32,13 @@ const SECTION_LABEL = { snapshots: 'Snapshots', play: 'Play', game: 'Game', setu
 // grouping, not by cramming" rule that turned Save and Load into a single shelf
 // entry. `screen` picks which list you get; the walk and the legend are identical
 // either way, so nothing new has to be learned to use it.
+//
+// THE CONTRACT: the options bag handed to `pauseItems` must be the SAME object
+// handed to <PauseMenu>. The component builds its own list from these props, so two
+// hand-written copies of the bag mean two different lists — the pad walks one, the
+// player sees the other, and every index below the first difference highlights one
+// row while firing another. Both players build one `menuOpts` and spread it; a
+// row-count test in PauseMenu.test.js pins the invariant.
 export function pauseItems(
   fastForward,
   { canFullscreen = true, canRewind = true, isPokemon = false, volume, rewinding = false, shader, ffRatio, shotStatus = null, hasCoreOptions = false } = {},
@@ -69,8 +76,9 @@ export function pauseItems(
       section: 'snapshots',
     },
     // The time controls, together: rewind ⟲, fast-forward ⟳, then the volume.
-    // Rewind is omit-only, like Fullscreen and the Pokédex: the native player's core
-    // has no rewind ring yet, so it drops the row rather than showing a dead toggle.
+    // Rewind is omit-only, like Fullscreen and the Pokédex — a player whose engine
+    // can't hold time drops the row rather than showing a dead toggle. Both players
+    // pass true today (the native host grew its state ring in Phase 3).
     ...(canRewind ? [{ id: 'rewind', label: 'Rewind', Icon: Rewind, active: rewinding, section: 'play' }] : []),
     { id: 'fastForward', label: 'Fast Forward', Icon: FastForward, active: fastForward, section: 'play' },
     // Volume stays at the top level: it's the one 'setting' people genuinely reach
@@ -207,6 +215,9 @@ function MenuRow({ item, focused, onSelect, onHover, onAdjust }) {
   return (
     <button
       ref={ref}
+      // One marker per WALKABLE row (the adjust taps inside a row are buttons too),
+      // so a test can count what's drawn against what pauseItems returned.
+      data-testid="pause-row"
       onClick={onSelect}
       // Hover-focus is onMouseMove app-wide (not onMouseEnter): with a pad and a mouse
       // both live, a mouse *nudge* over an item re-claims the cursor even when the pointer
