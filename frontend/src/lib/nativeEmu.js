@@ -117,6 +117,7 @@ export async function createNativeEmu({ gameId, romUrl, core, system }, d = {}) 
       setVolume: (level) => invoke('set_volume', { level }),
       setFastForward: (on, ratio) => invoke('set_fast_forward', { on, ratio }),
       setRewinding: (on) => invoke('set_rewinding', { on }),
+      setFilter: (id) => invoke('set_filter', { id }),
       setFullscreen: (on) => invoke('set_fullscreen', { on }),
       isFullscreen: () => invoke('is_fullscreen'),
       stop: async () => {

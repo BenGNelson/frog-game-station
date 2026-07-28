@@ -403,7 +403,9 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
       applyVolume: (v) => {
         emuRef.current?.native.setVolume(v)
       },
-      applyShader: () => {},
+      applyShader: (id) => {
+        emuRef.current?.native.setFilter(id)
+      },
       applyFFRatio: (r) => {
         ffRef.current.ratio = String(r)
         emuRef.current?.native.setFastForward(ffRef.current.on, ffRef.current.ratio)

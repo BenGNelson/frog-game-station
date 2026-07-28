@@ -327,6 +327,13 @@ pub fn set_pointer(window: tauri::WebviewWindow, x: f32, y: f32, down: bool) {
     }
 }
 
+/// The display filter, by the frontend's own shader id — the same value the web
+/// player hands its engine, so the shared pause menu means one thing.
+#[tauri::command]
+pub fn set_filter(id: String) {
+    session::set_filter(&id);
+}
+
 #[tauri::command]
 pub fn set_rewinding(state: tauri::State<'_, EmuState>, on: bool) -> Result<(), String> {
     send(&state, session::EmuCmd::SetRewinding(on))

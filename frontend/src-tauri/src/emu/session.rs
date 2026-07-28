@@ -59,6 +59,30 @@ struct HwInfo {
 static HW: Mutex<Option<HwInfo>> = Mutex::new(None);
 static HW_FBO: AtomicUsize = AtomicUsize::new(0);
 static HW_ACTIVE: AtomicBool = AtomicBool::new(false);
+// The display filter, as an index into shader::Filter. An atomic because the
+// command thread sets it and the emu thread reads it every present.
+static FILTER: AtomicUsize = AtomicUsize::new(0);
+
+pub fn set_filter(id: &str) {
+    use crate::emu::shader::Filter;
+    let f = match Filter::from_id(id) {
+        Filter::Off => 0,
+        Filter::Smooth => 1,
+        Filter::Crt => 2,
+        Filter::CrtCurve => 3,
+    };
+    FILTER.store(f, Ordering::Relaxed);
+}
+
+fn current_filter() -> crate::emu::shader::Filter {
+    use crate::emu::shader::Filter;
+    match FILTER.load(Ordering::Relaxed) {
+        1 => Filter::Smooth,
+        2 => Filter::Crt,
+        3 => Filter::CrtCurve,
+        _ => Filter::Off,
+    }
+}
 
 // The system/save dir handed to the core (leaked once; absolute app-data path
 // set per session before retro_init — the spike's CWD-relative "spike_data"
@@ -284,6 +308,10 @@ struct Gl {
     sw_texture: glow::Texture,
     sw_fbo: glow::Framebuffer,
     hw_fbo: Option<glow::Framebuffer>,
+    // The core's own render target, kept because the filter samples it as a
+    // texture — a framebuffer alone can only be blitted.
+    hw_texture: Option<glow::Texture>,
+    filter_stage: Option<crate::emu::shader::FilterStage>,
     win_w: u32,
     win_h: u32,
 }
@@ -355,7 +383,19 @@ fn init_gl(ns_view: usize, width: u32, height: u32) -> Result<Gl, String> {
 
         let sw_texture = gl.create_texture().map_err(|e| e.to_string())?;
         let sw_fbo = gl.create_framebuffer().map_err(|e| e.to_string())?;
-        Ok(Gl { context, surface, gl, sw_texture, sw_fbo, hw_fbo: None, win_w: width, win_h: height })
+        let filter_stage = crate::emu::shader::FilterStage::new(&gl);
+        Ok(Gl {
+            context,
+            surface,
+            gl,
+            sw_texture,
+            sw_fbo,
+            hw_fbo: None,
+            hw_texture: None,
+            filter_stage,
+            win_w: width,
+            win_h: height,
+        })
     }
 }
 
@@ -492,6 +532,7 @@ fn run_session(
             }
             gl.gl.bind_framebuffer(glow::FRAMEBUFFER, None);
             gl.hw_fbo = Some(fbo);
+            gl.hw_texture = Some(color);
             HW_FBO.store(fbo.0.get() as usize, Ordering::Relaxed);
             HW_ACTIVE.store(true, Ordering::Relaxed);
         }
@@ -927,11 +968,31 @@ fn present(gl: &mut Gl, av: &SystemAvInfo) {
             (Some(gl.sw_fbo), true) // texture row 0 = image top → flip on blit
         };
 
-        if let Some(fbo) = read_fbo {
-            gl.gl.bind_framebuffer(glow::READ_FRAMEBUFFER, Some(fbo));
-            let (sy0, sy1) = if flip { (fh, 0) } else { (0, fh) };
-            gl.gl.blit_framebuffer(0, sy0, fw, sy1, dx, dy, dx + dw, dy + dh, glow::COLOR_BUFFER_BIT, glow::NEAREST);
-            gl.gl.bind_framebuffer(glow::READ_FRAMEBUFFER, None);
+        let filter = current_filter();
+        let source_tex = if v.hw_frame { gl.hw_texture } else { Some(gl.sw_texture) };
+
+        match (filter.needs_shader(), source_tex, gl.filter_stage.as_ref()) {
+            // The CRT looks draw the game as a textured quad so a fragment
+            // shader can lay scanlines over it.
+            (true, Some(tex), Some(stage)) => {
+                stage.draw(&gl.gl, tex, filter, (fw, fh), (dx, dy, dw, dh), flip);
+                gl.gl.viewport(0, 0, win_w, win_h);
+            }
+            // Off and Smooth are the same blit with different sampling —
+            // cheaper and sharper than imitating them in a shader.
+            _ => {
+                if let Some(fbo) = read_fbo {
+                    let sampling = if filter == crate::emu::shader::Filter::Smooth {
+                        glow::LINEAR
+                    } else {
+                        glow::NEAREST
+                    };
+                    gl.gl.bind_framebuffer(glow::READ_FRAMEBUFFER, Some(fbo));
+                    let (sy0, sy1) = if flip { (fh, 0) } else { (0, fh) };
+                    gl.gl.blit_framebuffer(0, sy0, fw, sy1, dx, dy, dx + dw, dy + dh, glow::COLOR_BUFFER_BIT, sampling);
+                    gl.gl.bind_framebuffer(glow::READ_FRAMEBUFFER, None);
+                }
+            }
         }
     }
     drop(v);

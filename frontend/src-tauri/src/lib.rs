@@ -21,6 +21,7 @@ pub fn run() {
             emu::commands::set_pointer,
             emu::commands::set_volume,
             emu::commands::set_rewinding,
+            emu::commands::set_filter,
             emu::commands::set_fullscreen,
             emu::commands::is_fullscreen,
             emu::commands::set_fast_forward,
