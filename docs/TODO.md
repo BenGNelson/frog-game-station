@@ -404,9 +404,31 @@ check a row when its exit criteria hold, and note carry-over under the row.
       locked 60 fps and render non-black. Also fixed: the transparent window
       showed the DESKTOP through the app between the boot screen leaving and the
       first frame arriving; the stage now paints black when a session starts.
-- [ ] **9. Phase 3 — feel/parity (v0.9.0).** Fast-forward, rewind, display filter,
-      fullscreen, controller hotplug, per-core options, volume — parity with the web
-      player's chrome.
+- [ ] **9. Phase 3 — feel/parity (v0.9.0). IN PROGRESS** — branch `native/phase-3`,
+      three commits in, NOT yet merged/tagged.
+      **Done:** the pause-menu restructure (decided with Ben 2026-07-27) —
+      the single-column walk now WRAPS (`moveInGrid`'s opt-in `wrap`, used only by
+      the pause menu), so Quit is one press up from Resume instead of a walk down
+      fourteen rows; and the set-once rows (Filter, FF Speed, Fullscreen, System
+      options) moved behind a **Display** sub-screen — `pauseItems(fastForward,
+      opts, screen)` returns 'root' or 'display', B pops back to root before it
+      closes the menu, and both players share it. Natively also done: **rewind**
+      (a state ring in `session.rs`, snapshots every 6 frames, bounded by BOTH
+      ~10s and a 96 MB budget because state sizes differ by 100× across systems;
+      exhausting history holds the oldest frame), **fullscreen** (the window's
+      job — the GL stage follows it), and the **display filter** (`emu/shader.rs`:
+      Off/Smooth are the blit with NEAREST/LINEAR, the two CRT looks draw a
+      textured quad; a driver that won't compile it falls back to the blit).
+      **Left to do:** (1) **per-core options** — the host already collects them at
+      `ENV_SET_VARIABLES` into `options::OPTIONS`; needs a command to list
+      {key, label, values, current}, one to set + re-apply (`GET_VARIABLE_UPDATE`
+      already answers false — it must start returning true after a change), a
+      panel behind the Display screen's `coreOptions` row (`hasCoreOptions` is
+      already plumbed through `pauseItems`), and persistence per system so a
+      choice survives a relaunch. (2) **Controller hotplug** — gilrs already
+      hot-plugs; what's missing is re-pushing bindings when a pad connects
+      mid-game and surfacing the pad name. (3) Ben's hands-on pass, then the
+      v0.9.0 docs/tag/deploy.
 - [ ] **10. Phase 4a — first-run setup + runtime backend.** Native setup screen
       (remote server URL | local ROM folder); `API_BASE` becomes a runtime getter.
 - [ ] **11. Phase 4b — backend sidecar.** PyInstaller one-file FastAPI bundled as a
