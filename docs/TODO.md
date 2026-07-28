@@ -381,7 +381,11 @@ check a row when its exit criteria hold, and note carry-over under the row.
       screen says FETCHING n%. Verified on the M4: Chrono Trigger (DS) renders both
       screens; Chrono Cross (403 MB `.chd`) mounts and boots on the HLE BIOS.
       Carry-over: PS1 BIOS fetching (the endpoint exists, Ben has no dump on the
-      server, HLE is the documented fallback); DS screen-layout options → row 9.
+      server, HLE is the documented fallback); DS screen-layout options → row 9
+      (SETTLED there by the System options panel — `melonds_screen_layout`,
+      `_screen_gap` and `_hybrid_ratio`, pinned by a test in `lib/coreOptions.test.js`;
+      it also forced the geometry fix, since melonDS changes its picture's SHAPE when
+      the layout changes and the host was freezing the aspect at boot).
 - [x] **7b. Retire DS + PS1 from the web player.** Shipped as the extension the
       capability map was designed for, not a removal: `lib/systemCapabilities.js` now
       separates **offered** (does it appear in the library at all — only touch hides
@@ -404,31 +408,43 @@ check a row when its exit criteria hold, and note carry-over under the row.
       locked 60 fps and render non-black. Also fixed: the transparent window
       showed the DESKTOP through the app between the boot screen leaving and the
       first frame arriving; the stage now paints black when a session starts.
-- [ ] **9. Phase 3 — feel/parity (v0.9.0). IN PROGRESS** — branch `native/phase-3`,
-      three commits in, NOT yet merged/tagged.
-      **Done:** the pause-menu restructure (decided with Ben 2026-07-27) —
-      the single-column walk now WRAPS (`moveInGrid`'s opt-in `wrap`, used only by
-      the pause menu), so Quit is one press up from Resume instead of a walk down
-      fourteen rows; and the set-once rows (Filter, FF Speed, Fullscreen, System
-      options) moved behind a **Display** sub-screen — `pauseItems(fastForward,
-      opts, screen)` returns 'root' or 'display', B pops back to root before it
-      closes the menu, and both players share it. Natively also done: **rewind**
-      (a state ring in `session.rs`, snapshots every 6 frames, bounded by BOTH
-      ~10s and a 96 MB budget because state sizes differ by 100× across systems;
-      exhausting history holds the oldest frame), **fullscreen** (the window's
-      job — the GL stage follows it), and the **display filter** (`emu/shader.rs`:
-      Off/Smooth are the blit with NEAREST/LINEAR, the two CRT looks draw a
-      textured quad; a driver that won't compile it falls back to the blit).
-      **Left to do:** (1) **per-core options** — the host already collects them at
-      `ENV_SET_VARIABLES` into `options::OPTIONS`; needs a command to list
-      {key, label, values, current}, one to set + re-apply (`GET_VARIABLE_UPDATE`
-      already answers false — it must start returning true after a change), a
-      panel behind the Display screen's `coreOptions` row (`hasCoreOptions` is
-      already plumbed through `pauseItems`), and persistence per system so a
-      choice survives a relaunch. (2) **Controller hotplug** — gilrs already
-      hot-plugs; what's missing is re-pushing bindings when a pad connects
-      mid-game and surfacing the pad name. (3) Ben's hands-on pass, then the
-      v0.9.0 docs/tag/deploy.
+- [x] **9. Phase 3 — feel/parity (v0.9.0).** Shipped: the desktop player reaches
+      feel-parity with the web one. The pause-menu restructure (decided with Ben
+      2026-07-27) — the single-column walk WRAPS (`moveInGrid`'s opt-in `wrap`, used
+      only by the pause menu), so Quit is one press up from Resume instead of a walk
+      down fourteen rows; and the set-once rows (Filter, FF Speed, Fullscreen, System
+      options) moved behind a **Display** sub-screen. Natively: **rewind** (a state
+      ring in `session.rs`, snapshots every 6 frames, bounded by BOTH ~10s and a
+      96 MB budget because state sizes differ by 100× across systems), **fullscreen**
+      (the window's job — the GL stage follows it), the **display filter**
+      (`emu/shader.rs`), **per-core options**, and **controller hotplug**.
+      **System options** are curated per system (`lib/coreOptions.js`), not the ~80
+      variables mupen registers: the table names keys and labels, the VALUES come
+      from the running core, and a system with nothing curated shows no row. Choices
+      persist per system and ride `load_game`, because the host arms them before
+      `retro_init`. Init-only knobs say **"Applies next launch"** and mean it — no
+      save-state-and-relaunch behind the player's back.
+      **Hotplug** splits ownership: the host owns pad presence (it sees gilrs's edges
+      even while a menu is up), the webview keeps owning the binding key space (its
+      rebinds are keyed by the Web Gamepad id, which gilrs names differently — one
+      key space, no orphaned rebinds).
+      **Three defects the row turned up and fixed:** (1) the native pause menu drew a
+      DIFFERENT list than the pad walked — the options were spelled out twice and
+      Phase 3 changed only one copy, so from Fast Forward down every highlight fired
+      the row above it and Quit ran Restart; both players now build one bag and
+      spread it, pinned by a row-count test. (2) The display filter shipped in the
+      host but was unreachable — the player never passed a step label, so the row was
+      dropped, and neither handler had a filter arm. (3) The host **froze the aspect
+      ratio at boot**: `SET_GEOMETRY`/`SET_SYSTEM_AV_INFO` fell through the
+      environment catch-all, which is exactly how melonDS announces a screen-layout
+      change — the DS option would have shipped stretching the picture up to 4× and
+      mis-mapping the stylus with it.
+      Verified: all nine systems boot and render on the M4 through
+      `scripts/smoke-native.sh` (59.7–60.9 fps, all non-black), plus Ben's hands-on
+      pass. Note the `--all` sequential run flakes on one random system per run
+      (the dev double-mount races `FROG_AUTOSTART`, so the start press can land on
+      the cancelled first session) — pre-existing, reproduced on v0.8.2; each system
+      passes when run on its own. Worth a retry loop next time the script is touched.
 - [ ] **10. Phase 4a — first-run setup + runtime backend.** Native setup screen
       (remote server URL | local ROM folder); `API_BASE` becomes a runtime getter.
 - [ ] **11. Phase 4b — backend sidecar.** PyInstaller one-file FastAPI bundled as a
