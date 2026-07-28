@@ -22,6 +22,8 @@ pub fn run() {
             emu::commands::set_volume,
             emu::commands::set_rewinding,
             emu::commands::set_filter,
+            emu::commands::list_core_options,
+            emu::commands::set_core_option,
             emu::commands::set_fullscreen,
             emu::commands::is_fullscreen,
             emu::commands::set_fast_forward,

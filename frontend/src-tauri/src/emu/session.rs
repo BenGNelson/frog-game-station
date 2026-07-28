@@ -140,41 +140,32 @@ unsafe extern "C" fn environment(cmd: c_uint, data: *mut c_void) -> bool {
         }
         ENV_SET_VARIABLES => {
             let mut vars = data as *const RetroVariable;
-            let mut opts = options::OPTIONS.lock().unwrap();
-            let overrides = options::OVERRIDES.lock().unwrap();
             while !(*vars).key.is_null() {
                 let key = CStr::from_ptr((*vars).key).to_string_lossy().into_owned();
-                let desc = CStr::from_ptr((*vars).value).to_string_lossy();
-                let default = desc
-                    .split_once("; ")
-                    .map(|(_, o)| o.split('|').next().unwrap_or(""))
-                    .unwrap_or("")
-                    .to_string();
-                let chosen = overrides
-                    .iter()
-                    .find(|(k, _)| *k == key)
-                    .map(|(_, v)| v.clone())
-                    .unwrap_or(default);
-                let leaked = CString::new(chosen).unwrap().into_raw() as usize;
-                opts.push((key, leaked));
+                let desc = CStr::from_ptr((*vars).value).to_string_lossy().into_owned();
+                options::register(&key, &desc);
                 vars = vars.add(1);
             }
             true
         }
         ENV_GET_VARIABLE => {
             let var = &mut *(data as *mut RetroVariable);
-            let key = CStr::from_ptr(var.key).to_string_lossy();
-            let opts = options::OPTIONS.lock().unwrap();
-            match opts.iter().find(|(k, _)| *k == key) {
-                Some((_, ptr)) => {
-                    var.value = *ptr as *const c_char;
+            let key = CStr::from_ptr(var.key).to_string_lossy().into_owned();
+            // Declining is correct ONLY for a key we never saw registered — see
+            // the mupen64plus-abort note in options.rs.
+            match options::value_ptr(&key) {
+                Some(ptr) => {
+                    var.value = ptr as *const c_char;
                     true
                 }
                 None => false,
             }
         }
         ENV_GET_VARIABLE_UPDATE => {
-            *(data as *mut bool) = false;
+            // True exactly ONCE per change. Always-true has melonDS rebuild its
+            // renderer every frame; always-false (what this was) means a changed
+            // option is never picked up at all.
+            *(data as *mut bool) = options::take_update();
             true
         }
         ENV_SET_HW_RENDER => {
@@ -258,6 +249,14 @@ pub enum EmuCmd {
     LoadSram(Vec<u8>, Sender<Result<(), String>>),
     Screenshot(Sender<Result<Vec<u8>, String>>),
     SetFastForward { on: bool, ratio: String },
+    /// Change one core option. Routed through the channel rather than done on
+    /// the command thread so the pointer swap lands BETWEEN frames — never
+    /// while the core is inside retro_run reading the pointer being replaced.
+    SetOption {
+        key: String,
+        value: String,
+        reply: Sender<Result<(), String>>,
+    },
     Resize(u32, u32),
     Stop,
 }
@@ -276,6 +275,9 @@ pub struct StartParams {
     pub core_path: String,
     pub rom_path: String,
     pub system: String,
+    /// The player's saved core-option choices for this system. Applied before
+    /// retro_init, which is the only moment SET_VARIABLES can consult them.
+    pub options: Vec<(String, String)>,
     pub data_dir: String,
     pub ns_view: usize,
     pub width: u32,
@@ -441,7 +443,7 @@ fn run_session(
         Err(e) => return fail(e, &boot_tx),
     };
 
-    options::arm(&params.system);
+    options::arm(&params.system, &params.options);
     let core = match Core::load(&params.core_path) {
         Ok(c) => c,
         Err(e) => return fail(format!("core load: {e}"), &boot_tx),
@@ -681,6 +683,9 @@ fn run_session(
                     ff_ratio = ratio;
                     next_frame = Instant::now();
                 }
+                EmuCmd::SetOption { key, value, reply } => {
+                    let _ = reply.send(options::set_value(&key, &value));
+                }
                 EmuCmd::Resize(w, h) => {
                     use glutin::prelude::GlSurface;
                     gl.win_w = w.max(1);
@@ -822,6 +827,9 @@ fn teardown(core: &Core) {
         (core.unload_game)();
         (core.deinit)();
     }
+    // The dead core's option table would otherwise still answer list_core_options
+    // between games. (The leaked value strings stay leaked — nothing is freed.)
+    options::clear();
 }
 
 fn read_sram(core: &Core) -> Vec<u8> {
