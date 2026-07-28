@@ -495,12 +495,21 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
     flashShot('saved')
   }, [name, flashShot])
 
+  // Which pause list is showing: the root menu or the Display sub-screen. B (and
+  // the ✕) pops back to root before it closes the menu, so the sub-screen can
+  // never be a trap.
+  const [menuScreen, setMenuScreen] = useState('root')
+
   const onMenuAction = useCallback(
     (action) => {
       const emu = emuRef.current
       switch (action) {
         case 'resume':
           dispatch('resume')
+          break
+        case 'display':
+          setMenuScreen('display')
+          setMenuFocus(0)
           break
         case 'states':
           // Save and Load are one tile — the shelf does both (it opens on "Save new").
@@ -559,6 +568,7 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
 
   const openMenu = useCallback(() => {
     setMenuFocus(0)
+    setMenuScreen('root') // always opens at the top level
     dispatch('pause')
   }, [])
 
@@ -629,7 +639,11 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
   const ffRatioLabel = FF_RATIO_LEVELS.find((s) => s.id === ffRatio)?.label || '3×'
   const onMenuAdjust = (id, dir) =>
     id === 'volume' ? stepVolume(dir) : id === 'ffRatio' ? stepFFRatio(dir) : stepFilter(dir)
-  const menuItems = pauseItems(fastForward, { canFullscreen, isPokemon, volume, rewinding, shader: shaderLabel, ffRatio: ffRatioLabel, shotStatus })
+  const menuItems = pauseItems(
+    fastForward,
+    { canFullscreen, isPokemon, volume, rewinding, shader: shaderLabel, ffRatio: ffRatioLabel, shotStatus },
+    menuScreen
+  )
 
   const rows = controlRows(isPokemon)
 
@@ -670,6 +684,7 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
     ...createPadRouter({
       state, core, exit, dispatch, settings, isPokemon, paused, openMenu, menuOpenRef,
       menuItems, menuFocus, setMenuFocus, onMenuAction, onMenuAdjust,
+      menuScreen, setMenuScreen,
       shelfOpen, setShelfOpen, states, shelfFocus, setShelfFocus, shelfCols, setError,
       coverActions, doSave, openChooser, requestDelete, doSetCover, doResetCover,
       pendingDelete, confirmFocus, setConfirmFocus, confirmDelete, cancelDelete,
@@ -984,6 +999,7 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
           onAdjust={onMenuAdjust}
           focus={menuFocus}
           onFocus={setMenuFocus}
+          screen={menuScreen}
           onAction={onMenuAction}
           legend={
             mode === 'pad' ? (

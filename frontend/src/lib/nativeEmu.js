@@ -116,6 +116,9 @@ export async function createNativeEmu({ gameId, romUrl, core, system }, d = {}) 
       setPointer: (x, y, down) => invoke('set_pointer', { x, y, down }).catch(() => {}),
       setVolume: (level) => invoke('set_volume', { level }),
       setFastForward: (on, ratio) => invoke('set_fast_forward', { on, ratio }),
+      setRewinding: (on) => invoke('set_rewinding', { on }),
+      setFullscreen: (on) => invoke('set_fullscreen', { on }),
+      isFullscreen: () => invoke('is_fullscreen'),
       stop: async () => {
         unlisten()
         // Generation-scoped: a stale adapter (a cancelled boot resolving

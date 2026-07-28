@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { Play, Save, Camera, FastForward, Rewind, Maximize, Tv, Gauge, Gamepad2, RotateCcw, LogOut, BookOpen, BookMarked, ChevronRight, ChevronLeft, Volume2, VolumeX } from 'lucide-react'
+import { Play, Save, Camera, FastForward, Rewind, Maximize, Tv, Gauge, Gamepad2, RotateCcw, LogOut, BookOpen, BookMarked, ChevronRight, ChevronLeft, Volume2, VolumeX, SlidersHorizontal } from 'lucide-react'
 import { moveInGrid } from '../lib/gridNav.js'
 import { FROG, scrim, SCRIM, focusRing } from '../frog/theme.js'
 import { radiantBackdrop } from '../lib/glow.js'
@@ -26,7 +26,33 @@ const SECTION_LABEL = { snapshots: 'Snapshots', play: 'Play', game: 'Game', setu
 // The menu's contents, exported so the controller can walk the same list the
 // touch/keyboard user sees — one source of truth for what's on screen and what
 // index each thing sits at.
-export function pauseItems(fastForward, { canFullscreen = true, canRewind = true, isPokemon = false, volume, rewinding = false, shader, ffRatio, shotStatus = null } = {}) {
+// The menu is TWO lists, not one long one. The rows you reach for mid-game stay
+// at the top level; the ones you set once and forget (the picture, the turbo's
+// speed, a core's own knobs) live behind Display — the same "growth is handled by
+// grouping, not by cramming" rule that turned Save and Load into a single shelf
+// entry. `screen` picks which list you get; the walk and the legend are identical
+// either way, so nothing new has to be learned to use it.
+export function pauseItems(
+  fastForward,
+  { canFullscreen = true, canRewind = true, isPokemon = false, volume, rewinding = false, shader, ffRatio, shotStatus = null, hasCoreOptions = false } = {},
+  screen = 'root'
+) {
+  if (screen === 'display') {
+    return [
+      ...(shader != null
+        ? [{ id: 'filter', label: 'Filter', Icon: Tv, adjust: true, control: 'cycle', value: shader, section: 'top' }]
+        : []),
+      ...(ffRatio != null
+        ? [{ id: 'ffRatio', label: 'FF Speed', Icon: Gauge, adjust: true, control: 'cycle', value: ffRatio, section: 'top' }]
+        : []),
+      ...(canFullscreen ? [{ id: 'fullscreen', label: 'Fullscreen', Icon: Maximize, section: 'top' }] : []),
+      // The core's own options (mupen's RDP plugin, melonDS's screen layout...).
+      // Only offered when the running core actually registered some.
+      ...(hasCoreOptions
+        ? [{ id: 'coreOptions', label: 'System options', Icon: SlidersHorizontal, chevron: true, section: 'top' }]
+        : []),
+    ]
+  }
   return [
     { id: 'resume', label: 'Resume', Icon: Play, primary: true, section: 'top' },
     // Save and Load open the SAME shelf (it defaults focus to "Save new"), so they're
@@ -47,25 +73,13 @@ export function pauseItems(fastForward, { canFullscreen = true, canRewind = true
     // has no rewind ring yet, so it drops the row rather than showing a dead toggle.
     ...(canRewind ? [{ id: 'rewind', label: 'Rewind', Icon: Rewind, active: rewinding, section: 'play' }] : []),
     { id: 'fastForward', label: 'Fast Forward', Icon: FastForward, active: fastForward, section: 'play' },
-    // How fast the turbo runs — a cycle row directly under its toggle. `ffRatio` is
-    // the current step's LABEL; the shell owns the engine values.
-    ...(ffRatio != null
-      ? [{ id: 'ffRatio', label: 'FF Speed', Icon: Gauge, adjust: true, control: 'cycle', value: ffRatio, section: 'play' }]
-      : []),
-    // Game audio. An adjustable row (◀ ▶ / the − + taps step it; A / tap toggles
-    // mute), shown only when the shell passes a level — older callers just omit it.
-    ...(typeof volume === 'number'
+    // Volume stays at the top level: it's the one 'setting' people genuinely reach
+    // for mid-game (someone walked in, the room got quiet).
+    ...(volume != null
       ? [{ id: 'volume', label: 'Volume', Icon: volume === 0 ? VolumeX : Volume2, adjust: true, control: 'slider', value: volume, section: 'play' }]
       : []),
-    // The display filter — a curated shader step (Off / CRT / …), cycled with ◀ ▶
-    // or A. `shader` is the current step's LABEL; the shell owns the ids.
-    ...(shader != null
-      ? [{ id: 'filter', label: 'Filter', Icon: Tv, adjust: true, control: 'cycle', value: shader, section: 'play' }]
-      : []),
-    // The top bar used to carry Fullscreen, and it's hidden while you play — so the menu
-    // is where it lives now. Except on iPhone, which has no Fullscreen API at all: there
-    // the button did nothing, so it isn't shown. Quit is the way out.
-    ...(canFullscreen ? [{ id: 'fullscreen', label: 'Fullscreen', Icon: Maximize, section: 'play' }] : []),
+    // Everything you set once lives behind here — see the note above pauseItems.
+    { id: 'display', label: 'Display', Icon: Tv, chevron: true, section: 'play' },
     // Read this game's wiki over the paused game — opens the in-player reader.
     { id: 'wiki', label: 'Wiki', Icon: BookOpen, section: 'game' },
     // Pokémon games only: the structured Pokédex reference.
@@ -79,8 +93,12 @@ export function pauseItems(fastForward, { canFullscreen = true, canRewind = true
   ]
 }
 
-export default function PauseMenu({ open, name, fastForward, rewinding, canFullscreen, canRewind, isPokemon, volume, shader, ffRatio, shotStatus, onAdjust, focus, onFocus, onAction, legend }) {
-  const items = pauseItems(fastForward, { canFullscreen, canRewind, isPokemon, volume, rewinding, shader, ffRatio, shotStatus })
+export default function PauseMenu({ open, name, fastForward, rewinding, canFullscreen, canRewind, isPokemon, volume, shader, ffRatio, shotStatus, hasCoreOptions, screen = 'root', onAdjust, focus, onFocus, onAction, legend }) {
+  const items = pauseItems(
+    fastForward,
+    { canFullscreen, canRewind, isPokemon, volume, rewinding, shader, ffRatio, shotStatus, hasCoreOptions },
+    screen
+  )
 
   // Keyboard parity with the controller — the same 1-column list walk drives both, so
   // desktop and pad can never diverge. cols:1 makes left/right no-ops and up/down step
@@ -93,7 +111,7 @@ export default function PauseMenu({ open, name, fastForward, rewinding, canFulls
       onAdjust?.(items[focus].id, dir === 'left' ? -1 : 1)
     } else if (dir) {
       e.preventDefault()
-      onFocus(moveInGrid({ count: items.length, cols: 1, index: focus }, dir))
+      onFocus(moveInGrid({ count: items.length, cols: 1, index: focus }, dir, { wrap: true }))
     } else if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault()
       onAction(items[focus].id)

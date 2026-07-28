@@ -25,6 +25,7 @@ export function createPadRouter(ctx) {
     pendingDelete, confirmFocus, setConfirmFocus, confirmDelete, cancelDelete,
     chooseSlot, setChooseSlot, chooseFocus, setChooseFocus, chooseLoad, chooseDelete,
     pendingQuit, setPendingQuit, quitFocus, setQuitFocus, confirmQuit,
+    menuScreen, setMenuScreen,
     controlsOpen, closeControls, controlsFocus, setControlsFocus, rows,
     setLastPress, captureBinding, setListeningFor, resetBindings, cycleSkin, chooseScheme,
     fastForward, applyFF, rewinding, applyRewind,
@@ -217,12 +218,21 @@ export function createPadRouter(ctx) {
         return
       }
       if (action === 'confirm') onMenuAction(menuItems[menuFocus].id)
-      else if (action === 'back') dispatch('resume')
+      // B backs OUT of the Display list first — a sub-screen you can only leave
+      // by resuming the game would be a trap.
+      else if (action === 'back') {
+        if (menuScreen !== 'root') {
+          setMenuScreen('root')
+          setMenuFocus(0)
+        } else dispatch('resume')
+      }
       else if ((action === 'left' || action === 'right') && menuItems[menuFocus]?.adjust)
         onMenuAdjust(menuItems[menuFocus].id, action === 'left' ? -1 : 1) // adjustable rows: ◀ ▶ step
       else
         setMenuFocus((i) =>
-          moveInGrid({ count: menuItems.length, cols: 1, index: i }, action)
+          // Wraps: Quit is the LAST row and Resume the first, so one press up
+          // from the top reaches the way out instead of a walk down the menu.
+          moveInGrid({ count: menuItems.length, cols: 1, index: i }, action, { wrap: true })
         )
     },
 

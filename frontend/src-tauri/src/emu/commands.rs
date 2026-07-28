@@ -328,6 +328,23 @@ pub fn set_pointer(window: tauri::WebviewWindow, x: f32, y: f32, down: bool) {
 }
 
 #[tauri::command]
+pub fn set_rewinding(state: tauri::State<'_, EmuState>, on: bool) -> Result<(), String> {
+    send(&state, session::EmuCmd::SetRewinding(on))
+}
+
+/// Fullscreen is the window's job, not the emulator's — the GL stage is sized
+/// by the window, so it follows along for free.
+#[tauri::command]
+pub fn set_fullscreen(window: tauri::WebviewWindow, on: bool) -> Result<(), String> {
+    window.set_fullscreen(on).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn is_fullscreen(window: tauri::WebviewWindow) -> bool {
+    window.is_fullscreen().unwrap_or(false)
+}
+
+#[tauri::command]
 pub fn set_volume(level: f32) {
     audio::set_gain(level);
 }

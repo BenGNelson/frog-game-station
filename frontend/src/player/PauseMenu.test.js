@@ -32,8 +32,27 @@ describe('pauseItems', () => {
   })
 
   it('drops Fullscreen where there is no fullscreen API', () => {
-    expect(ids({ canFullscreen: false })).not.toContain('fullscreen')
-    expect(ids({ canFullscreen: true })).toContain('fullscreen')
+    // It lives on the Display sub-screen now — still omit-only.
+    const display = (o) => pauseItems(false, o, 'display').map((i) => i.id)
+    expect(display({ canFullscreen: false })).not.toContain('fullscreen')
+    expect(display({ canFullscreen: true })).toContain('fullscreen')
+  })
+
+  it('keeps the mid-game rows at the top level and the set-once ones behind Display', () => {
+    // The whole point of the split: what you reach for while playing stays one
+    // walk away; what you set once is a level down.
+    const root = ids({ volume: 0.5, shader: 'CRT', ffRatio: '3×', canFullscreen: true })
+    expect(root).toContain('display')
+    expect(root).toEqual(expect.arrayContaining(['resume', 'states', 'rewind', 'fastForward', 'volume', 'quit']))
+    expect(root).not.toContain('filter')
+    expect(root).not.toContain('ffRatio')
+    expect(root).not.toContain('fullscreen')
+  })
+
+  it('Quit is last, so a wrapping walk reaches it one press up from Resume', () => {
+    const root = ids({ volume: 0.5 })
+    expect(root[0]).toBe('resume')
+    expect(root.at(-1)).toBe('quit')
   })
 
   it('offers the Pokédex only for Pokémon games', () => {
@@ -62,8 +81,8 @@ describe('pauseItems', () => {
   })
 
   it('carries a Filter cycle row only when the shell passes a step label', () => {
-    expect(ids({})).not.toContain('filter')
-    const items = pauseItems(false, { shader: 'CRT', volume: 0.5 })
+    expect(pauseItems(false, {}, 'display').map((i) => i.id)).not.toContain('filter')
+    const items = pauseItems(false, { shader: 'CRT', volume: 0.5 }, 'display')
     const f = items.find((i) => i.id === 'filter')
     expect(f.adjust).toBe(true)
     expect(f.control).toBe('cycle')
@@ -73,14 +92,17 @@ describe('pauseItems', () => {
     expect(list.indexOf('filter')).toBe(list.indexOf('volume') + 1)
   })
 
-  it('FF Speed cycles right under the Fast Forward toggle', () => {
-    expect(ids({})).not.toContain('ffRatio')
-    const items = pauseItems(false, { ffRatio: '3×' })
+  it('FF Speed is a cycle row on the Display screen', () => {
+    expect(pauseItems(false, {}, 'display').map((i) => i.id)).not.toContain('ffRatio')
+    const items = pauseItems(false, { ffRatio: '3×' }, 'display')
     const r = items.find((i) => i.id === 'ffRatio')
     expect(r.adjust).toBe(true)
     expect(r.control).toBe('cycle')
-    const list = items.map((i) => i.id)
-    expect(list.indexOf('ffRatio')).toBe(list.indexOf('fastForward') + 1)
+  })
+
+  it('System options appear only when the running core registered some', () => {
+    expect(pauseItems(false, {}, 'display').map((i) => i.id)).not.toContain('coreOptions')
+    expect(pauseItems(false, { hasCoreOptions: true }, 'display').map((i) => i.id)).toContain('coreOptions')
   })
 
   it('carries a Volume row only when the shell passes a level', () => {

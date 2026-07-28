@@ -226,6 +226,7 @@ pub struct AvInfoJs {
 
 pub enum EmuCmd {
     SetPaused(bool),
+    SetRewinding(bool),
     Reset,
     SaveState(Sender<Result<Vec<u8>, String>>),
     LoadState(Vec<u8>, Sender<Result<(), String>>),
@@ -547,6 +548,20 @@ fn run_session(
     let mut frames_run: u64 = 0;
     let mut last_stats = Instant::now();
     let mut stats_frames: u64 = 0;
+    // Rewind: a rolling ring of recent save states. Snapshots are taken every
+    // REWIND_EVERY frames rather than every frame — ten a second is enough to
+    // scrub back smoothly — and the ring is bounded by BYTES as well as time,
+    // because a Game Boy state is a few hundred KB while a PlayStation state is
+    // megabytes. So the depth is ~10s on the small systems and however much of
+    // that fits in the budget on the big ones, instead of an unbounded promise.
+    const REWIND_EVERY: u64 = 6;
+    const REWIND_SECONDS: usize = 10;
+    const REWIND_BUDGET: usize = 96 * 1024 * 1024;
+    let rewind_max = (REWIND_SECONDS * 60) / REWIND_EVERY as usize;
+    let mut rewind_ring: std::collections::VecDeque<Vec<u8>> = std::collections::VecDeque::new();
+    let mut rewind_bytes: usize = 0;
+    let mut rewinding = false;
+
     let mut last_sram_hash: u64 = 0;
     let mut stopping = false;
     let trace = std::env::var("FROG_EMU_TRACE").ok().as_deref() == Some("1");
@@ -568,6 +583,10 @@ fn run_session(
         let mut pending = first;
         while let Some(cmd) = pending.take() {
             match cmd {
+                EmuCmd::SetRewinding(on) => {
+                    rewinding = on;
+                    next_frame = Instant::now();
+                }
                 EmuCmd::SetPaused(p) => {
                     paused = p;
                     if !p {
@@ -645,6 +664,32 @@ fn run_session(
             input::poll(g);
         }
 
+        // Rewinding replaces the frame: pop the most recent snapshot and load
+        // it. Runs at the snapshot rate rather than the frame rate, which is
+        // what makes it look like time running backwards instead of a stutter.
+        if rewinding {
+            match rewind_ring.pop_back() {
+                Some(state) => {
+                    rewind_bytes = rewind_bytes.saturating_sub(state.len());
+                    unsafe { (core.unserialize)(state.as_ptr() as *const c_void, state.len()) };
+                }
+                None => {
+                    // Out of history — hold the oldest frame rather than
+                    // silently running forward again under the player's thumb.
+                    std::thread::sleep(Duration::from_millis(16));
+                    present(&mut gl, &av);
+                    continue;
+                }
+            }
+            let now = Instant::now();
+            if now < next_frame {
+                std::thread::sleep(next_frame - now);
+            }
+            next_frame += Duration::from_secs_f64(1.0 / av.timing.fps.max(1.0)) * REWIND_EVERY as u32;
+            present(&mut gl, &av);
+            continue;
+        }
+
         // Pace to the core's fps; 'unlimited' fast-forward runs an unpaced batch.
         if ff_on && ff_ratio == "unlimited" {
             for _ in 0..4 {
@@ -669,6 +714,25 @@ fn run_session(
         }
 
         present(&mut gl, &av);
+
+        if frames_run % REWIND_EVERY == 0 {
+            unsafe {
+                let size = (core.serialize_size)();
+                if size > 0 && size <= REWIND_BUDGET {
+                    let mut buf = vec![0u8; size];
+                    if (core.serialize)(buf.as_mut_ptr() as *mut c_void, size) {
+                        rewind_bytes += size;
+                        rewind_ring.push_back(buf);
+                        while rewind_ring.len() > rewind_max || rewind_bytes > REWIND_BUDGET {
+                            match rewind_ring.pop_front() {
+                                Some(old) => rewind_bytes = rewind_bytes.saturating_sub(old.len()),
+                                None => break,
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         // SRAM watch: cheap hash every 60 frames; a change pings the webview,
         // which pulls the bytes and runs the roaming pipeline.

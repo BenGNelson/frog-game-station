@@ -394,6 +394,9 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
   // toggle (the mutual-exclusion contract), so the slots must exist.
   // The host takes the ratio as the settings' own level id — a STRING, because
   // 'unlimited' is one of them (and Number() would quietly turn it into NaN).
+  // The window's own fullscreen state — it only changes when that row is picked,
+  // so it's latched here rather than asked for on every render.
+  const fullscreenRef = useRef(false)
   const ffRef = useRef({ on: false, ratio: String(clampFFRatio(readSettings(window.localStorage).ffRatio)) })
   const engine = useMemo(
     () => ({
@@ -409,7 +412,9 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
         ffRef.current.on = on
         emuRef.current?.native.setFastForward(on, ffRef.current.ratio)
       },
-      applyRewind: () => {},
+      applyRewind: (on) => {
+        emuRef.current?.native.setRewinding(on)
+      },
     }),
     []
   )
@@ -418,7 +423,7 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
     controlsOpen, controlsFocus, setControlsFocus, listeningFor, setListeningFor,
     lastPress, setLastPress, openControls, closeControls,
     chooseScheme, chooseSkin, cycleSkin, resetBindings, captureBinding,
-    fastForward, applyFF,
+    fastForward, applyFF, rewinding, applyRewind,
     volume, stepVolume, toggleMute, ffRatio, stepFFRatio,
   } = usePlayerControls({ settings, saveSettings, padId, setError, engine })
 
@@ -513,10 +518,28 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
     flashShot('saved')
   }, [name, flashShot])
 
+  // Which pause list is showing: the root menu or the Display sub-screen. B (and
+  // the ✕) pops back to root before it closes the menu, so the sub-screen can
+  // never be a trap.
+  const [menuScreen, setMenuScreen] = useState('root')
+
   const onMenuAction = useCallback(
     (action) => {
       switch (action) {
         case 'resume':
+          dispatch('resume')
+          break
+        case 'display':
+          setMenuScreen('display')
+          setMenuFocus(0)
+          break
+        case 'rewind':
+          applyRewind(!rewinding)
+          dispatch('resume') // rewind is something you want to SEE
+          break
+        case 'fullscreen':
+          fullscreenRef.current = !fullscreenRef.current
+          emuRef.current?.native.setFullscreen(fullscreenRef.current)
           dispatch('resume')
           break
         case 'states':
@@ -561,6 +584,7 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
 
   const openMenu = useCallback(() => {
     setMenuFocus(0)
+    setMenuScreen('root') // always opens at the top level
     dispatch('pause')
   }, [])
 
@@ -568,14 +592,20 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
   const onMenuAdjust = (rowId, dir) => (rowId === 'volume' ? stepVolume(dir) : stepFFRatio(dir))
   // No Rewind, no Filter, no Fullscreen: the host has no rewind ring or shader
   // pipeline yet, and a Tauri window's fullscreen belongs to the window chrome.
-  const menuItems = pauseItems(fastForward, {
-    canFullscreen: false,
-    canRewind: false,
-    isPokemon,
-    volume,
-    ffRatio: ffRatioLabel,
-    shotStatus,
-  })
+  const menuItems = pauseItems(
+    fastForward,
+    {
+      // Phase 3: the native core has a rewind ring and the window can go
+      // fullscreen, so the rows the player used to omit are real now.
+      canFullscreen: true,
+      canRewind: true,
+      isPokemon,
+      volume,
+      ffRatio: ffRatioLabel,
+      shotStatus,
+    },
+    menuScreen
+  )
 
   const rows = controlRows(isPokemon)
 
@@ -612,6 +642,7 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
     ...createPadRouter({
       state, core, exit, dispatch, settings, isPokemon, paused, openMenu, menuOpenRef,
       menuItems, menuFocus, setMenuFocus, onMenuAction, onMenuAdjust,
+      menuScreen, setMenuScreen,
       shelfOpen, setShelfOpen, states, shelfFocus, setShelfFocus, shelfCols, setError,
       coverActions, doSave, openChooser, requestDelete, doSetCover, doResetCover,
       pendingDelete, confirmFocus, setConfirmFocus, confirmDelete, cancelDelete,
@@ -623,7 +654,7 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
       fastForward, applyFF,
       // The rewind hotkey must not flip a state the host can't honour — a no-op
       // keeps the router's contract without pretending time ran backwards.
-      rewinding: false, applyRewind: () => {},
+      rewinding, applyRewind,
       wikiOpen, wikiRef, closeWiki, openWiki,
       pokedexOpen, pokedexRef, closePokedex, openPokedex,
       actions: padActions,
@@ -849,6 +880,7 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
           onAdjust={onMenuAdjust}
           focus={menuFocus}
           onFocus={setMenuFocus}
+          screen={menuScreen}
           onAction={onMenuAction}
           legend={
             <ButtonLegend
