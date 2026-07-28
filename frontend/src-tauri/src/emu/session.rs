@@ -21,7 +21,7 @@ use glow::HasContext;
 use serde::Serialize;
 use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_uint, c_void};
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicUsize, Ordering};
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
@@ -62,6 +62,39 @@ static HW_ACTIVE: AtomicBool = AtomicBool::new(false);
 // The display filter, as an index into shader::Filter. An atomic because the
 // command thread sets it and the emu thread reads it every present.
 static FILTER: AtomicUsize = AtomicUsize::new(0);
+
+// The picture's shape and pace, LIVE. Seeded from get_system_av_info at boot and
+// then updated by SET_GEOMETRY / SET_SYSTEM_AV_INFO, which is how a core says
+// "my picture changed shape" — melonDS sends one on every screen-layout change
+// (Top/Bottom is ~0.67, Left/Right ~2.67, Hybrid ~1.4). Read from the environment
+// callback and written by it too, so they're atomics rather than a Mutex the
+// callback would have to take mid-frame. f32/f64 have no atomic, so both ride
+// their bit patterns.
+static ASPECT: AtomicU32 = AtomicU32::new(0);
+static FPS: AtomicU64 = AtomicU64::new(0);
+// The rate the cpal stream was actually opened at, so a core that changes its
+// mind mid-session can be caught and reported rather than silently drifting.
+static SAMPLE_RATE: AtomicU64 = AtomicU64::new(0);
+
+fn set_aspect(aspect: f32) {
+    if aspect > 0.0 {
+        ASPECT.store(aspect.to_bits(), Ordering::Relaxed);
+    }
+}
+
+fn current_aspect() -> f32 {
+    f32::from_bits(ASPECT.load(Ordering::Relaxed))
+}
+
+fn set_fps(fps: f64) {
+    if fps > 0.0 {
+        FPS.store(fps.to_bits(), Ordering::Relaxed);
+    }
+}
+
+fn current_fps() -> f64 {
+    f64::from_bits(FPS.load(Ordering::Relaxed))
+}
 
 pub fn set_filter(id: &str) {
     use crate::emu::shader::Filter;
@@ -166,6 +199,29 @@ unsafe extern "C" fn environment(cmd: c_uint, data: *mut c_void) -> bool {
             // renderer every frame; always-false (what this was) means a changed
             // option is never picked up at all.
             *(data as *mut bool) = options::take_update();
+            true
+        }
+        ENV_SET_GEOMETRY => {
+            // The cheap one: shape only, no re-pacing, no reallocation. This is
+            // what melonDS sends when the screen layout changes.
+            set_aspect((*(data as *const GameGeometry)).aspect_ratio);
+            true
+        }
+        ENV_SET_SYSTEM_AV_INFO => {
+            // The heavy one: shape AND timing. A sample-rate change would mean
+            // re-opening the cpal stream mid-session; no core we ship does that,
+            // so say so out loud rather than pretend we handled it.
+            let info = &*(data as *const SystemAvInfo);
+            set_aspect(info.geometry.aspect_ratio);
+            let old_rate = SAMPLE_RATE.load(Ordering::Relaxed);
+            let new_rate = info.timing.sample_rate as u64;
+            if old_rate != 0 && new_rate != 0 && new_rate != old_rate {
+                eprintln!(
+                    "[frog.emu] core asked for {new_rate} Hz mid-session (was {old_rate}); \
+                     keeping the open stream — audio may drift"
+                );
+            }
+            set_fps(info.timing.fps);
             true
         }
         ENV_SET_HW_RENDER => {
@@ -495,6 +551,11 @@ fn run_session(
 
     let mut av = unsafe { std::mem::zeroed::<SystemAvInfo>() };
     unsafe { (core.get_system_av_info)(&mut av) };
+    // Seed the live shape/pace. From here on the loop reads the atomics, never
+    // `av` — a core can change either mid-run and used to be ignored.
+    set_aspect(av.geometry.aspect_ratio);
+    set_fps(av.timing.fps);
+    SAMPLE_RATE.store(av.timing.sample_rate as u64, Ordering::Relaxed);
 
     // HW path: the core's render target, then context_reset — order matters.
     if HW.lock().unwrap().is_some() {
@@ -723,7 +784,7 @@ fn run_session(
                     // Out of history — hold the oldest frame rather than
                     // silently running forward again under the player's thumb.
                     std::thread::sleep(Duration::from_millis(16));
-                    present(&mut gl, &av);
+                    present(&mut gl);
                     continue;
                 }
             }
@@ -731,8 +792,8 @@ fn run_session(
             if now < next_frame {
                 std::thread::sleep(next_frame - now);
             }
-            next_frame += Duration::from_secs_f64(1.0 / av.timing.fps.max(1.0)) * REWIND_EVERY as u32;
-            present(&mut gl, &av);
+            next_frame += Duration::from_secs_f64(1.0 / current_fps().max(1.0)) * REWIND_EVERY as u32;
+            present(&mut gl);
             continue;
         }
 
@@ -745,7 +806,7 @@ fn run_session(
             }
             next_frame = Instant::now();
         } else {
-            let period = frame_period(av.timing.fps, if ff_on { &ff_ratio } else { "1" });
+            let period = frame_period(current_fps(), if ff_on { &ff_ratio } else { "1" });
             let now = Instant::now();
             if now < next_frame {
                 std::thread::sleep(next_frame - now);
@@ -759,7 +820,7 @@ fn run_session(
             }
         }
 
-        present(&mut gl, &av);
+        present(&mut gl);
 
         if frames_run % REWIND_EVERY == 0 {
             unsafe {
@@ -939,7 +1000,7 @@ fn mean_luminance(gl: &Gl) -> f64 {
     total as f64 / count.max(1) as f64
 }
 
-fn present(gl: &mut Gl, av: &SystemAvInfo) {
+fn present(gl: &mut Gl) {
     let (win_w, win_h) = (gl.win_w.max(1) as i32, gl.win_h.max(1) as i32);
     let mut v = VIDEO.lock().unwrap();
     let (fw, fh) = (v.width.max(1) as i32, v.height.max(1) as i32);
@@ -950,7 +1011,9 @@ fn present(gl: &mut Gl, av: &SystemAvInfo) {
         gl.gl.clear_color(0.0, 0.0, 0.0, 1.0);
         gl.gl.clear(glow::COLOR_BUFFER_BIT);
 
-        let (dx, dy, dw, dh) = letterbox(win_w, win_h, fw, fh, av.geometry.aspect_ratio);
+        // The LIVE aspect, not the one captured at boot: a DS screen-layout
+        // change moves this, and with it the picture rect the stylus maps through.
+        let (dx, dy, dw, dh) = letterbox(win_w, win_h, fw, fh, current_aspect());
         *PICTURE.lock().unwrap() = (dx, dy, dw, dh);
 
         let (read_fbo, flip) = if v.hw_frame {
@@ -1109,6 +1172,37 @@ mod tests {
     fn letterbox_falls_back_to_frame_aspect_when_core_reports_none() {
         let (_, _, dw, dh) = letterbox(1000, 1000, 320, 240, 0.0);
         assert_eq!((dw, dh), (1000, 750));
+    }
+
+    #[test]
+    fn a_ds_layout_change_moves_the_picture_rect() {
+        // The same window and the same framebuffer, at the two aspects melonDS
+        // reports for Top/Bottom and Left/Right. If the host ignores SET_GEOMETRY
+        // these come out identical and the picture is stretched by ~4x — which is
+        // exactly what happened before the aspect became live.
+        let stacked = letterbox(1600, 1200, 256, 384, 256.0 / 384.0);
+        let side_by_side = letterbox(1600, 1200, 512, 192, 512.0 / 192.0);
+        assert_ne!(stacked, side_by_side);
+        // Tall picture pillarboxes, wide picture letterboxes — and each fills the
+        // axis it can, so the game is never scaled to a shape it didn't ask for.
+        assert_eq!(stacked.3, 1200);
+        assert_eq!(side_by_side.2, 1600);
+    }
+
+    #[test]
+    fn the_live_aspect_and_pace_round_trip_through_their_bit_patterns() {
+        // f32/f64 have no atomic, so both ride to_bits/from_bits. A botched
+        // round-trip would freeze the picture at a nonsense shape.
+        set_aspect(2.6666667);
+        assert_eq!(current_aspect(), 2.6666667);
+        set_fps(59.8261);
+        assert_eq!(current_fps(), 59.8261);
+        // A core reporting nothing must not zero what's already known — an aspect
+        // of 0.0 means "use the frame's own shape", not "forget the last one".
+        set_aspect(0.0);
+        assert_eq!(current_aspect(), 2.6666667);
+        set_fps(0.0);
+        assert_eq!(current_fps(), 59.8261);
     }
 
     #[test]
