@@ -804,6 +804,31 @@ pruned), so the collection can't grow without bound.
   states (screenshot thumbnails), and **Resume** relaunches loading the chosen state's
   bytes. Slot ids are backend-assigned millisecond timestamps (digits only) — which
   doubles as the traversal guard for the file paths.
+  - **Native audio consumes at the core's DECLARED rate, which one core gets wrong.**
+    The cpal callback runs at the device rate and each output frame eats
+    `ratio = core_rate / device_rate` source frames, so consumption is pinned to
+    exactly `timing.sample_rate`. That is only correct while a core's declaration is
+    honest, and mupen64plus-next's is not — it pushes ~51.6 kHz against a declared
+    44.1 kHz, so the ring pegs at its 1s cap and drops audio continuously. **Known,
+    unfixed, and tracked in `docs/TODO.md` under Known issues**, with the measurements
+    and the two live leads; `FROG_EMU_TRACE=1` prints the declared/device pair and the
+    core's real production rate. Two attempted fixes are in `git stash` — both measured
+    well and still sounded wrong, so treat buffer-occupancy metrics as necessary and
+    NOT sufficient here: the ear is the acceptance test.
+  - **One state format across both players: the RASTATE container** (`lib/rastate.js`).
+    A state made on the phone has to open on the desktop, and matching the two players'
+    **cores** (row 8) turned out to be necessary and not sufficient — they also have to
+    agree on the **envelope**. EmulatorJS writes RASTATE, RetroArch's container: the magic
+    `"RASTATE"` + a version byte, then `id(4) + size(u32 LE) + payload` blocks padded to
+    8 bytes, where `"MEM "` holds the raw `retro_serialize` output and `"END "` terminates.
+    The native host deals only in raw core bytes, so the adapter wraps on the way out and
+    unwraps on the way in — the same place every other web-engine shape difference is
+    absorbed, which keeps the Rust side ignorant of how anyone chose to package a state.
+    Unwrapping passes non-container bytes **through untouched**, so the raw states the
+    native player wrote before this existed still load. Skipping the wrap is not a smaller
+    fix, it's half of one: it would repair phone→desktop and leave desktop→phone broken.
+    Found the hard way — a raw parser reading a container reports it as a corrupt state
+    for a *different game*, so the symptom names neither the cause nor the container.
   - **Manage a slot: rename / annotate / pin.** A slot's default name is its age, but the
     game page's save-shelf editor (a modal, Y or the pencil) gives it a custom **label**, a
     **note**, and a **pin**. It's stored in a per-slot `{slot}.json` sidecar beside the state

@@ -196,6 +196,70 @@ shape:
 
 ### Known issues (backlogged)
 
+- [ ] **[P1] Native N64 audio is wrong — the core produces ~17% more audio than it
+      declares.** Wants its own session; two attempted fixes measured well and still
+      sounded wrong, which is the tell that the measurements weren't testing the
+      thing that matters. **Pre-existing, not a Phase 3 regression** — the ring was
+      already pegged on v0.8.2.
+      - **Measured on the M4 (Mario Kart 64, `scripts/dev-desktop.sh --trace`):** the
+        core declares `timing.sample_rate` 44100 and actually pushes **~51,600 frames/s**
+        (`audio_in` in the frame trace). Device runs 48000/2ch, so `ratio` 0.9187 pins
+        consumption to exactly 44,100 — the ring gains ~7,500 frames a second, pegs at
+        its 96,000 cap, and drops the oldest samples forever after. That is ~1s of
+        latency plus continuous dropouts, which reads to the ear as "running fast".
+      - **Video is NOT affected** — measured 60.15 fps against a 59.94 NTSC target
+        (+0.35%). Don't re-chase this; it was ruled out.
+      - **Ruled out:** no mid-session `SET_SYSTEM_AV_INFO` rate change (the host's
+        drift warning never fired); core options are v1 `SET_VARIABLES` only, where
+        first-value-is-default is the spec, so nothing is being silently flipped.
+      - **Untested and the best next lead:** macOS forces `mupen64plus-rsp-plugin=cxd4`
+        (LLE RSP, see `default_options`). With HLE RSP the core's high-level audio path
+        resamples to the declared rate; LLE may emit at the console's native AI clock
+        (`vi_clock / (dacrate + 1)` ≈ 51,570 Hz, which matches the measurement almost
+        exactly). **Run the A/B** — one attempt was made and produced no data because
+        the session hit the dev double-mount race. Note 859 samples/frame at 60 fps is
+        consistent with a 51,570 Hz source, so the rate may well be honest and the
+        declaration simply wrong.
+      - **Second lead, if the rate is honest:** the resampler lerps between two frames
+        (`ring[0..4]`), so at a ratio above 1.0 it SKIPS source frames with no
+        filtering — textbook aliasing, which sounds like distorted music and a rough
+        voice while ring occupancy looks perfectly healthy. Ben reports crackle
+        concentrated on dense audio (loading screen, engine roar), which fits aliasing
+        better than starvation. **Verify by decoding captured output, not by watching
+        the buffer** — that's the mistake both attempts made.
+      - **Prior art in `git stash` ("wip: n64 audio rate-steering (backlogged)")**:
+        occupancy-steered then measured-rate resampling, with tests. Attempt 1 warbled
+        (±10% proportional term = ±1.5 semitones); attempt 2 held pitch to ±0.5% and
+        parked the ring at 2× target, but still sounded off. Kept from that work: the
+        `audio_in`/rate traces and a real bug fix — `audio_sample` never trimmed the
+        ring, so a core pushing one frame at a time could grow it without bound.
+- [ ] **[P2] The DS stylus does nothing** (Chrono Trigger's "Touch to start"; A/Enter
+      work). **Narrowed, not fixed.** The `FROG_EMU_TRACE` stylus trace in `set_pointer`
+      proves the webview→command→letterbox chain is CORRECT — a real click logs
+      `stylus css(400,527) x2 -> picture(0.276,0.659) rect(213,0,2133x1600)`, and the
+      arithmetic checks out. So the pointer reaches `input::pointer` with good
+      coordinates and the bug is downstream: how melonDS is fed or polled. Look at
+      `DEVICE_POINTER`/`POINTER_COUNT` in `input::state`, whether the core needs
+      `retro_set_controller_port_device(0, RETRO_DEVICE_POINTER)`, and whether
+      `clear_snapshot()` (which zeroes `POINTER_DOWN` along with the pad) is firing
+      mid-play.
+- [ ] **[P3] DS screen ratio presets.** A layout that makes the top screen large and
+      the touch screen small, for games you mostly watch. `melonds_hybrid_ratio` is
+      already curated in `lib/coreOptions.js`; this is about choosing honest presets
+      rather than exposing the core's raw value list.
+- [ ] **[P3] The Quit confirm's focused button is hard to identify.** Root cause:
+      focus is encoded in the SAME channel (accent colour) that the danger variant
+      already uses for meaning — `Button.jsx` gives `solid` a glow in its own accent,
+      so focusing the red Quit button draws a red glow on red and vanishes, while the
+      quiet "Keep playing" gets a clearly visible jade ring. The two states speak
+      different languages and the important one is mute. **Recommendation:** give focus
+      its own constant channel — a 2px outline in one cursor colour at `outline-offset:
+      3px`, identical on both variants (an outline sits outside the fill, so unlike an
+      inset ring it survives a solid background) — plus dim the unfocused sibling to
+      ~60% so the pair reads as figure/ground. Keep the scale nudge. Lands in
+      `Button.jsx`, so it touches every focus cursor in the app: its own commit, and
+      re-check the other panels.
+
 - [ ] **[P1] Disc-era (N64/DS/PS1) playback is browser-broken — TWO distinct problems.**
       Full investigation + compatibility matrix + hypotheses in memory
       `frog-disc-era-browser-compat.md` (start there). In brief:
