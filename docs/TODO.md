@@ -243,6 +243,30 @@ shape:
       `retro_set_controller_port_device(0, RETRO_DEVICE_POINTER)`, and whether
       `clear_snapshot()` (which zeroes `POINTER_DOWN` along with the pad) is firing
       mid-play.
+- [ ] **[P2] Three of row 9's features shipped without a hands-on check.** The v0.9.0
+      pass ran out of road before them and they were deferred, not skipped for being
+      low-risk — `scripts/smoke-native.sh` proves a game boots and renders, and none of
+      these three are things it can see. Each needs a couple of minutes with a real pad:
+      **controller hot-plug** (plug in mid-game, unplug while holding a direction and
+      check nothing stays latched, plug in with the pause menu open), **live geometry**
+      (change the DS screen layout mid-game — the picture should reshape, and the stylus
+      should follow the new letterbox, though note the stylus is dead outright, below),
+      and **PS1 System options** (DualShock ↔ Digital pad on a running game; blocked
+      during the pass by a launch that turned out to be the dev double-mount race).
+- [ ] **[P3] The library's honest error takes ~99s to appear when the server is truly
+      down.** It waits out the full retry backoff before giving up, so a genuinely
+      offline server looks like a slow one for a minute and a half. The fix is already
+      sitting there: the `OnlineProvider` health probe fails in ~4s and the "Offline"
+      chip already renders off it, so surface the error from that instead of from the
+      backoff running out. Deliberately parked when the retry fix shipped — the honest
+      error was the win, its latency is the polish.
+- [ ] **[P3] One pre-existing save state won't open on the phone.** Every state written
+      before v0.9.0 by the NATIVE player is raw core bytes rather than RASTATE — in
+      practice exactly one, a Mario Kart 64 state from the row 6 validation. The desktop
+      still loads it (the unwrap passes non-container bytes through, and that path is
+      tested), but the web player can't. Not worth a migration for a single slot:
+      re-save it in the desktop app and the problem is gone. Listed so it isn't
+      rediscovered as a bug.
 - [ ] **[P3] DS screen ratio presets.** A layout that makes the top screen large and
       the touch screen small, for games you mostly watch. `melonds_hybrid_ratio` is
       already curated in `lib/coreOptions.js`; this is about choosing honest presets
@@ -504,8 +528,12 @@ check a row when its exit criteria hold, and note carry-over under the row.
       change — the DS option would have shipped stretching the picture up to 4× and
       mis-mapping the stylus with it.
       Verified: all nine systems boot and render on the M4 through
-      `scripts/smoke-native.sh` (59.7–60.9 fps, all non-black), plus Ben's hands-on
-      pass. Also fixed here: `--all` used to fail on one RANDOM system per run —
+      `scripts/smoke-native.sh` (59.7–60.9 fps, all non-black). Ben's hands-on pass
+      (2026-07-30) covered the menu wrap, System options on DS/N64/GB, save states
+      and the library — and found four defects, all fixed before v0.9.0 shipped.
+      **Three of this row's features were NOT hands-on checked** and are listed under
+      Known issues below: controller hot-plug, live geometry / the DS screen layout,
+      and PS1 System options. Also fixed here: `--all` used to fail on one RANDOM system per run —
       the dev double-mount races `FROG_AUTOSTART`, so the start press can land on
       the cancelled first session and the game never leaves the start card (the
       log signature is two GL inits, core activity, and zero trace lines). It was
