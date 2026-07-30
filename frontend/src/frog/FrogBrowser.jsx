@@ -4,6 +4,7 @@ import { X, Search as SearchIcon, Plane, Settings as SettingsIcon, Shuffle } fro
 import { useApi, API_BASE } from '../lib/useApi.js'
 import { isNative } from '../lib/playerBackend.js'
 import { deviceClass, offeredHere, playableHere, systemOffered } from '../lib/systemCapabilities.js'
+import { libraryStatus } from '../lib/libraryStatus.js'
 import { useOnline } from '../lib/online.jsx'
 import { useDownloadedEntries } from '../lib/useDownloaded.js'
 import { useDownload } from '../lib/useDownload.js'
@@ -35,7 +36,7 @@ import { mediaMatches } from '../lib/useMediaQuery.js'
 import { SkeletonLine } from '../components/ui.jsx'
 import ButtonLegend from '../player/ButtonLegend.jsx'
 import { defaultFrogMode, nextFrogMode, usesNativeKeyboard } from './input.js'
-import { FROG, systemStyle, FONT_DISPLAY } from './theme.js'
+import { FROG, systemStyle, FONT_DISPLAY, focusRing } from './theme.js'
 import Caustics from './Caustics.jsx'
 import Screensaver from './Screensaver.jsx'
 import { LilyPads, Firefly, Dragonfly } from './pond.jsx'
@@ -111,7 +112,13 @@ export default function FrogBrowser() {
     if (online && !wasOnline.current) setReloadNonce((n) => n + 1)
     wasOnline.current = online
   }, [online])
-  const { data, loading } = useApi(`/library/games${reloadNonce ? `?r=${reloadNonce}` : ''}`, 0)
+  const { data, loading, error: libraryError, retrying } = useApi(
+    `/library/games${reloadNonce ? `?r=${reloadNonce}` : ''}`,
+    0
+  )
+  // The manual lever, for when the backoff has given up. Same nonce the
+  // offline→online edge uses, so there is one refetch path, not two.
+  const retryLibrary = useCallback(() => setReloadNonce((n) => n + 1), [])
   const apiItems = data?.items ?? []
   // Which systems' BIOS files the server holds ({psx: true}) — decides whether a
   // launch passes the BIOS URL or lets the core's HLE stand in. Memoized so the
@@ -145,10 +152,20 @@ export default function FrogBrowser() {
     () => (deviceCaps === 'touch' ? allItems.filter((g) => offeredHere(g.core, deviceCaps)) : allItems),
     [allItems, deviceCaps]
   )
-  // Skeleton only while we truly have nothing to show and a source might still land.
-  // Keyed on `items` (not the API alone) so a reconnect refetch keeps the offline
-  // shelf up rather than flashing a skeleton over it.
-  const booting = !items.length && (loading || offlineItems === null)
+  // Skeleton only while we truly have nothing to show and a source might still
+  // land; an honest error only once every source has answered and failed. Keyed
+  // on `items` (not the API alone) so a reconnect refetch keeps the offline shelf
+  // up rather than flashing a skeleton over it. The rule itself lives in
+  // lib/libraryStatus.js, where it can be read and tested on its own.
+  const status = libraryStatus({
+    itemCount: items.length,
+    loading,
+    retrying,
+    offlineResolved: offlineItems !== null,
+    error: libraryError,
+  })
+  const booting = status === 'booting'
+  const libraryUnreachable = status === 'unreachable'
   // The chip means "you're seeing downloaded games only because the server is
   // unreachable" — precisely when the probe says offline AND the API gave us nothing.
   const offline = !online && !apiItems.length
@@ -2064,6 +2081,26 @@ export default function FrogBrowser() {
               <div key={i} className="h-32 flex-1 animate-pulse rounded-2xl" style={{ background: FROG.panel }} />
             ))}
           </div>
+        </div>
+      ) : libraryUnreachable ? (
+        // Say what actually happened. This used to render as an ordinary empty
+        // library — indistinguishable from owning no games — so the only way out
+        // looked like restarting the app.
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
+          <p className="text-lg font-semibold" style={{ color: FROG.ink }}>Couldn’t reach your library</p>
+          <p className="max-w-sm text-sm leading-relaxed" style={{ color: FROG.faint }}>
+            The server didn’t answer. It may still be starting up — that’s common right
+            after an update.
+          </p>
+          <button
+            data-testid="frog-library-retry"
+            onClick={retryLibrary}
+            autoFocus
+            className="mt-1 rounded-xl px-5 py-2.5 text-sm font-semibold"
+            style={{ background: `rgb(${FROG.jade})`, color: FROG.ground, boxShadow: focusRing() }}
+          >
+            Try again
+          </button>
         </div>
       ) : screen === 'search' ? (
         <Search
