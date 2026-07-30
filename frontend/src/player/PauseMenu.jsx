@@ -144,7 +144,7 @@ export default function PauseMenu({ open, name, fastForward, rewinding, canFulls
       aria-label="Game menu"
       tabIndex={-1}
       onKeyDown={onKeyDown}
-      className="absolute inset-0 z-20 touch-auto overflow-y-auto overscroll-contain outline-none backdrop-blur-md"
+      className="absolute inset-0 z-20 flex touch-auto flex-col outline-none backdrop-blur-md"
       style={{
         background: scrim(SCRIM.dialog),
         paddingLeft: 'env(safe-area-inset-left)',
@@ -157,15 +157,27 @@ export default function PauseMenu({ open, name, fastForward, rewinding, canFulls
         style={{ background: radiantBackdrop(FROG.jade, 0.14) }}
       />
 
-      {/* A narrow centred column — an action sheet, not a wall of tiles. min-h-full
-          centres the common short menu; overflow-y-auto on the parent catches an
-          unusually short (landscape phone) viewport, where a list scrolls cleanly in
-          one axis rather than the grid's disorienting 2-D scroll. */}
-      <div className="relative flex min-h-full flex-col items-center justify-center py-4">
-        <div className="w-full max-w-sm px-4">
+      {/* Three bands, and only the middle one scrolls. The whole sheet used to be
+          one scroll box, which meant walking down to Quit dragged the game's NAME
+          off the top — the menu stopped saying which game you were about to quit
+          at exactly the moment that matters. Title and legend are now fixed
+          furniture; the list moves under them. */}
+      <div className="relative w-full shrink-0 px-4 pt-4">
+        <div className="mx-auto w-full max-w-sm">
           <p className="mb-1 text-center text-xs font-medium uppercase tracking-widest" style={{ color: FROG.faint }}>Paused</p>
-          <h2 className="mb-3 truncate text-center text-lg font-semibold" style={{ color: FROG.ink }}>{name}</h2>
+          <h2 className="truncate text-center text-lg font-semibold" style={{ color: FROG.ink }}>{name}</h2>
+        </div>
+      </div>
 
+      {/* A narrow centred column — an action sheet, not a wall of tiles. `my-auto`
+          rather than justify-center: a centred flex child whose content outgrows the
+          box overflows in BOTH directions, and the half above the fold is
+          unreachable — no scroll gets you there. Auto margins collapse to zero when
+          there's no room, so a short menu still sits centred and a long one scrolls
+          from its true first row. py-3 is the breathing room under Quit (and over
+          Resume) that the old layout ate. */}
+      <div className="relative flex w-full flex-1 flex-col overflow-y-auto overscroll-contain">
+        <div className="my-auto w-full max-w-sm self-center px-4 py-3">
           <div className="flex flex-col gap-1">
             {items.map((item, i) => {
               const prev = items[i - 1]
@@ -191,10 +203,14 @@ export default function PauseMenu({ open, name, fastForward, rewinding, canFulls
               )
             })}
           </div>
-
-          {legend && <div className="mt-4">{legend}</div>}
         </div>
       </div>
+
+      {legend && (
+        <div className="relative w-full shrink-0 px-4 pb-4 pt-3">
+          <div className="mx-auto w-full max-w-sm">{legend}</div>
+        </div>
+      )}
     </div>
   )
 }

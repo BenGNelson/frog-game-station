@@ -159,3 +159,51 @@ describe('pauseItems', () => {
     expect(list.indexOf('volume')).toBe(list.indexOf('fastForward') + 1)
   })
 })
+
+// The sheet is three bands and only the middle one scrolls. Worth pinning as
+// structure rather than as pixels: when the whole sheet was one scroll box, the
+// walk down to Quit carried the game's name off the top, and a centred flex
+// child that outgrew its box overflowed in both directions — so the rows above
+// the fold could not be scrolled to at all. Both are layout bugs that render
+// perfectly in every unit test that only counts rows.
+describe('PauseMenu layout', () => {
+  const html = () =>
+    renderToString(
+      React.createElement(PauseMenu, {
+        open: true,
+        name: 'Chrono Trigger',
+        fastForward: false,
+        volume: 0.5,
+        shader: 0,
+        ffRatio: 2,
+        focus: 0,
+        onFocus: () => {},
+        onAction: () => {},
+        legend: React.createElement('div', { 'data-testid': 'pause-legend' }, 'A Select'),
+      })
+    )
+
+  it('keeps the game name OUTSIDE the scrolling band, so walking to Quit never hides it', () => {
+    const out = html()
+    const name = out.indexOf('Chrono Trigger')
+    const scroller = out.indexOf('overflow-y-auto')
+    expect(name).toBeGreaterThan(-1)
+    expect(scroller).toBeGreaterThan(-1)
+    expect(name).toBeLessThan(scroller)
+  })
+
+  it('keeps the legend outside it too — the button hints are furniture, not a last row', () => {
+    const out = html()
+    expect(out.indexOf('pause-legend')).toBeGreaterThan(out.indexOf('overflow-y-auto'))
+  })
+
+  it('scrolls in exactly one band', () => {
+    expect(html().split('overflow-y-auto').length - 1).toBe(1)
+  })
+
+  it('centres a long list with auto margins, never justify-center (which clips the top)', () => {
+    const out = html()
+    expect(out).toContain('my-auto')
+    expect(out).not.toContain('justify-center')
+  })
+})
