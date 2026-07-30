@@ -331,7 +331,25 @@ pub fn set_analog(index: u32, value: u16) {
 #[tauri::command]
 pub fn set_pointer(window: tauri::WebviewWindow, x: f32, y: f32, down: bool) {
     let scale = window.scale_factor().unwrap_or(1.0) as f32;
-    match session::picture_point(x * scale, y * scale) {
+    let mapped = session::picture_point(x * scale, y * scale);
+    // Under FROG_EMU_TRACE, say what happened to a PRESS. A dead stylus has three
+    // indistinguishable causes from the outside — the command never fired, the
+    // point fell outside the picture rect, or it mapped fine and the core ignored
+    // it — and only the middle one leaves any other evidence. Press edges only:
+    // a drag would print sixty lines a second and bury the answer.
+    if down && std::env::var("FROG_EMU_TRACE").ok().as_deref() == Some("1") {
+        let (dx, dy, dw, dh) = *session::PICTURE.lock().unwrap();
+        match mapped {
+            Some((px, py)) => eprintln!(
+                "[emu] stylus css({x:.0},{y:.0}) x{scale} -> picture({px:.3},{py:.3}) \
+                 rect({dx},{dy},{dw}x{dh})"
+            ),
+            None => eprintln!(
+                "[emu] stylus css({x:.0},{y:.0}) x{scale} -> OUTSIDE rect({dx},{dy},{dw}x{dh})"
+            ),
+        }
+    }
+    match mapped {
         Some((px, py)) => input::pointer(px, py, down),
         None => input::pointer(0.0, 0.0, false),
     }

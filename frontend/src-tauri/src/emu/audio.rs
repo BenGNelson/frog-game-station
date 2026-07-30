@@ -27,11 +27,23 @@ fn gain() -> f32 {
     f32::from_bits(GAIN.load(Ordering::Relaxed))
 }
 
+/// The backstop: audio can never hoard more than ~1s of 48k stereo.
+const RING_CAP: usize = 48000 * 2;
+
+fn trim(a: &mut VecDeque<i16>) {
+    while a.len() > RING_CAP {
+        a.pop_front();
+    }
+}
+
 pub unsafe extern "C" fn audio_sample(l: i16, r: i16) {
     FRAMES_IN.fetch_add(1, Ordering::Relaxed);
     let mut a = RING.lock().unwrap();
     a.push_back(l);
     a.push_back(r);
+    // The batch path has always trimmed; this one hadn't, so a core that pushes
+    // one frame at a time could grow the ring without bound.
+    trim(&mut a);
 }
 
 pub unsafe extern "C" fn audio_sample_batch(data: *const i16, frames: usize) -> usize {
@@ -39,10 +51,7 @@ pub unsafe extern "C" fn audio_sample_batch(data: *const i16, frames: usize) -> 
     let s = std::slice::from_raw_parts(data, frames * 2);
     let mut a = RING.lock().unwrap();
     a.extend(s.iter().copied());
-    let cap = 48000 * 2;
-    while a.len() > cap {
-        a.pop_front();
-    }
+    trim(&mut a);
     frames
 }
 
@@ -57,6 +66,17 @@ pub fn start(core_rate: f64) -> Option<cpal::Stream> {
     let device_rate = config.sample_rate().0 as f64;
     let channels = config.channels() as usize;
     let ratio = core_rate / device_rate; // source frames consumed per output frame
+    // The two numbers behind the N64 audio defect (docs/TODO.md): consumption is
+    // pinned to the core's DECLARED rate — the callback runs at device_rate and
+    // each output frame eats `ratio` source frames, so the product is exactly
+    // core_rate — while mupen64plus-next actually pushes ~51.6 kHz against a
+    // declared 44.1 kHz. Nothing else in the app can show you that pair.
+    if std::env::var("FROG_EMU_TRACE").ok().as_deref() == Some("1") {
+        eprintln!(
+            "[emu] audio core {core_rate:.0} Hz -> device {device_rate:.0} Hz \
+             ({channels}ch, ratio {ratio:.4})"
+        );
+    }
     let mut src_pos: f64 = 0.0;
     let low_water = (core_rate * 0.04) as usize * 2; // ~40ms of core-rate stereo
     let mut holding = true;

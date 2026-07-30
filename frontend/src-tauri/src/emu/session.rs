@@ -652,6 +652,10 @@ fn run_session(
     let mut frames_run: u64 = 0;
     let mut last_stats = Instant::now();
     let mut stats_frames: u64 = 0;
+    // Audio frames the core has handed us, sampled once a second. The core's
+    // DECLARED rate is what the resampler consumes at, so the gap between this
+    // and that declaration is the ring's drift, in Hz, directly measured.
+    let mut last_frames_in: u64 = audio::FRAMES_IN.load(Ordering::Relaxed);
     // Rewind: a rolling ring of recent save states. Snapshots are taken every
     // REWIND_EVERY frames rather than every frame — ten a second is enough to
     // scrub back smoothly — and the ring is bounded by BYTES as well as time,
@@ -865,12 +869,17 @@ fn run_session(
         }
         if last_stats.elapsed() >= Duration::from_secs(1) {
             let fps = stats_frames as f64 / last_stats.elapsed().as_secs_f64();
+            let frames_in = audio::FRAMES_IN.load(Ordering::Relaxed);
+            let audio_in = (frames_in - last_frames_in) as f64 / last_stats.elapsed().as_secs_f64();
+            last_frames_in = frames_in;
             if trace {
                 eprintln!(
-                    "[emu] frame {frames_run} {fps:.1} fps luminance {:.1} hw {} ring {}",
+                    "[emu] frame {frames_run} {fps:.1} fps luminance {:.1} hw {} ring {} \
+                     audio_in {audio_in:.0} Hz (declared {})",
                     mean_luminance(&gl),
                     HW_ACTIVE.load(Ordering::Relaxed),
                     audio::RING.lock().unwrap().len(),
+                    SAMPLE_RATE.load(Ordering::Relaxed),
                 );
             }
             last_stats = Instant::now();
