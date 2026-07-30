@@ -1,10 +1,11 @@
 # Frog Game Station — Native Desktop App Plan (Tauri)
 
-> Scoping document. Not built yet. The goal: a native Mac/Windows app that plays the
-> disc-era 3D systems (N64/DS/PS1 — and beyond) at native speed, using the SAME Frog
-> UI, the SAME backend, and the SAME roaming saves as the phone/iPad PWA. One library,
-> three faces. See memory `frog-disc-era-browser-compat.md` for WHY this exists (the
-> browser can't run these cores; the machine can).
+> The scope and architecture for the desktop client. Phases 1–3 have shipped (see §5);
+> Phase 4 is open. The goal: a native Mac/Windows app that plays the disc-era 3D
+> systems (N64/DS/PS1 — and beyond) at native speed, using the SAME Frog UI, the SAME
+> backend, and the SAME roaming saves as the phone/iPad PWA. One library, three faces.
+> WHY it exists: the browser can't run these cores and the machine can — see
+> `docs/KNOWN_ISSUES.md` for the compatibility findings.
 
 ## 1. The product, in one picture
 
@@ -30,7 +31,7 @@ save/SRAM **roaming already exists** (built in the v0.3 work).
   which is proven to run acceptably in iOS Safari.
 - **Desktop owns:** the disc-era 3D systems authoritatively. **DS and PS1 black-screen
   in real browsers** (WASM-core limitation, no workaround found), so they retire from
-  the web player once the native player plays them (roadmap row 7b in `docs/TODO.md`) —
+  the web player once the native player plays them (roadmap row 7b in the backlog) —
   removal only *after* the replacement exists. All heavier systems (§9 tiers) are
   native-only from day one. The desktop app also plays everything the PWA plays.
 - **Changing the split** requires a new ARCHITECTURE Decision-log entry plus an update
@@ -41,13 +42,12 @@ installable product with a self-hosted server, two installable PWAs, and a signe
 native desktop app, all sharing a design system, a metadata pipeline, and live save
 sync. That's a systems-design story worth telling even if nobody clicks download.
 
-## 1a. For the next session — start here
+## 1a. How to read this
 
-Read this whole file, then the repo's working-context file (the gitignored one at the
-repo root) + `docs/ARCHITECTURE.md`. Then do **Phase 0** (§5) — a throwaway spike
-proving native cores work before committing.
-Recommendations are firm below; the numbered "open decisions" (§8) are for confirming,
-not re-opening. The reuse map (§2) is the whole argument: only the player forks.
+Read this file alongside `docs/ARCHITECTURE.md`. The recommendations below are firm;
+the numbered "open decisions" (§8) were settled during Phases 1–3 and are kept as a
+record of what was decided, not as live questions. The reuse map (§2) is the whole
+argument: only the player forks.
 
 ## 2. The core insight: the emulation backend is the ONLY seam
 

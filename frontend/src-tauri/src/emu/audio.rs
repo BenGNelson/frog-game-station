@@ -66,7 +66,7 @@ pub fn start(core_rate: f64) -> Option<cpal::Stream> {
     let device_rate = config.sample_rate().0 as f64;
     let channels = config.channels() as usize;
     let ratio = core_rate / device_rate; // source frames consumed per output frame
-    // The two numbers behind the N64 audio defect (docs/TODO.md): consumption is
+    // The two numbers behind the N64 audio defect (docs/KNOWN_ISSUES.md): consumption is
     // pinned to the core's DECLARED rate — the callback runs at device_rate and
     // each output frame eats `ratio` source frames, so the product is exactly
     // core_rate — while mupen64plus-next actually pushes ~51.6 kHz against a

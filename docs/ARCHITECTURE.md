@@ -810,7 +810,7 @@ pruned), so the collection can't grow without bound.
     exactly `timing.sample_rate`. That is only correct while a core's declaration is
     honest, and mupen64plus-next's is not — it pushes ~51.6 kHz against a declared
     44.1 kHz, so the ring pegs at its 1s cap and drops audio continuously. **Known,
-    unfixed, and tracked in `docs/TODO.md` under Known issues**, with the measurements
+    unfixed, and tracked in `docs/KNOWN_ISSUES.md`**, with the measurements
     and the two live leads; `FROG_EMU_TRACE=1` prints the declared/device pair and the
     core's real production rate. Two attempted fixes are in `git stash` — both measured
     well and still sounded wrong, so treat buffer-occupancy metrics as necessary and

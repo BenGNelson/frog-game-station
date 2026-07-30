@@ -39,3 +39,5 @@ frontend/.env.desktop.local
 # Native libretro cores — GPL, dlopen'd, pinned + fetched by
 # scripts/fetch-native-cores.sh (the sha256 in native-cores.lock is the pin).
 frontend/src-tauri/cores/
+# Personal planning notes - local only, never committed
+planning
