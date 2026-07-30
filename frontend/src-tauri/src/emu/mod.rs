@@ -12,6 +12,7 @@ pub mod libretro;
 pub mod options;
 pub mod rom;
 pub mod session;
+pub mod shader;
 
 use std::sync::Mutex;
 

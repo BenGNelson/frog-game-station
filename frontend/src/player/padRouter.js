@@ -25,7 +25,12 @@ export function createPadRouter(ctx) {
     pendingDelete, confirmFocus, setConfirmFocus, confirmDelete, cancelDelete,
     chooseSlot, setChooseSlot, chooseFocus, setChooseFocus, chooseLoad, chooseDelete,
     pendingQuit, setPendingQuit, quitFocus, setQuitFocus, confirmQuit,
+    menuScreen, setMenuScreen,
     controlsOpen, closeControls, controlsFocus, setControlsFocus, rows,
+    // Native only — the web player has no core to ask, so these stay undefined
+    // and the branch below is unreachable there.
+    coreOptionsOpen, closeCoreOptions, coreOptionsFocus, setCoreOptionsFocus,
+    optionRows = [], stepCoreOption, resetCoreOptions,
     setLastPress, captureBinding, setListeningFor, resetBindings, cycleSkin, chooseScheme,
     fastForward, applyFF, rewinding, applyRewind,
     wikiOpen, wikiRef, closeWiki, openWiki,
@@ -84,6 +89,7 @@ export function createPadRouter(ctx) {
         else if (chooseSlot != null) setChooseSlot(null)
         else if (wikiOpen) closeWiki()
         else if (pokedexOpen) closePokedex()
+        else if (coreOptionsOpen) closeCoreOptions()
         else if (controlsOpen) closeControls()
         else if (shelfOpen) setShelfOpen(false)
         else if (paused) dispatch('resume')
@@ -158,6 +164,26 @@ export function createPadRouter(ctx) {
         return
       }
 
+      // System options — the core's own knobs (native player only; the web
+      // player leaves every key below undefined, exactly as it does for the
+      // Display sub-screen). One column again: up/down walk it, left/right step
+      // the focused option, A steps forward (or fires Reset on the last row).
+      // No wrap — the pause menu is the one deliberate exception.
+      if (coreOptionsOpen) {
+        const count = optionRows.length + 1 // + the trailing Reset row
+        const onReset = coreOptionsFocus === optionRows.length
+        if (action === 'back') closeCoreOptions()
+        else if (action === 'confirm') {
+          if (onReset) resetCoreOptions()
+          else stepCoreOption(optionRows[coreOptionsFocus]?.key, 1)
+        } else if ((action === 'left' || action === 'right') && !onReset) {
+          stepCoreOption(optionRows[coreOptionsFocus]?.key, action === 'left' ? -1 : 1)
+        } else if (action === 'up' || action === 'down') {
+          setCoreOptionsFocus((i) => moveInGrid({ count, cols: 1, index: i }, action))
+        }
+        return
+      }
+
       // The delete confirm sits ON TOP of the shelf, so it eats the pad first: left/right
       // move between Delete and Keep, A commits the highlighted one, B always cancels.
       // Nothing reaches the shelf underneath while it's up.
@@ -217,12 +243,21 @@ export function createPadRouter(ctx) {
         return
       }
       if (action === 'confirm') onMenuAction(menuItems[menuFocus].id)
-      else if (action === 'back') dispatch('resume')
+      // B backs OUT of the Display list first — a sub-screen you can only leave
+      // by resuming the game would be a trap.
+      else if (action === 'back') {
+        if (menuScreen !== 'root') {
+          setMenuScreen('root')
+          setMenuFocus(0)
+        } else dispatch('resume')
+      }
       else if ((action === 'left' || action === 'right') && menuItems[menuFocus]?.adjust)
         onMenuAdjust(menuItems[menuFocus].id, action === 'left' ? -1 : 1) // adjustable rows: ◀ ▶ step
       else
         setMenuFocus((i) =>
-          moveInGrid({ count: menuItems.length, cols: 1, index: i }, action)
+          // Wraps: Quit is the LAST row and Resume the first, so one press up
+          // from the top reaches the way out instead of a walk down the menu.
+          moveInGrid({ count: menuItems.length, cols: 1, index: i }, action, { wrap: true })
         )
     },
 

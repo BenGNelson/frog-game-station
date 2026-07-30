@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { Play, Save, Camera, FastForward, Rewind, Maximize, Tv, Gauge, Gamepad2, RotateCcw, LogOut, BookOpen, BookMarked, ChevronRight, ChevronLeft, Volume2, VolumeX } from 'lucide-react'
+import { Play, Save, Camera, FastForward, Rewind, Maximize, Tv, Gauge, Gamepad2, RotateCcw, LogOut, BookOpen, BookMarked, ChevronRight, ChevronLeft, Volume2, VolumeX, SlidersHorizontal } from 'lucide-react'
 import { moveInGrid } from '../lib/gridNav.js'
 import { FROG, scrim, SCRIM, focusRing } from '../frog/theme.js'
 import { radiantBackdrop } from '../lib/glow.js'
@@ -26,7 +26,40 @@ const SECTION_LABEL = { snapshots: 'Snapshots', play: 'Play', game: 'Game', setu
 // The menu's contents, exported so the controller can walk the same list the
 // touch/keyboard user sees — one source of truth for what's on screen and what
 // index each thing sits at.
-export function pauseItems(fastForward, { canFullscreen = true, canRewind = true, isPokemon = false, volume, rewinding = false, shader, ffRatio, shotStatus = null } = {}) {
+// The menu is TWO lists, not one long one. The rows you reach for mid-game stay
+// at the top level; the ones you set once and forget (the picture, the turbo's
+// speed, a core's own knobs) live behind Display — the same "growth is handled by
+// grouping, not by cramming" rule that turned Save and Load into a single shelf
+// entry. `screen` picks which list you get; the walk and the legend are identical
+// either way, so nothing new has to be learned to use it.
+//
+// THE CONTRACT: the options bag handed to `pauseItems` must be the SAME object
+// handed to <PauseMenu>. The component builds its own list from these props, so two
+// hand-written copies of the bag mean two different lists — the pad walks one, the
+// player sees the other, and every index below the first difference highlights one
+// row while firing another. Both players build one `menuOpts` and spread it; a
+// row-count test in PauseMenu.test.js pins the invariant.
+export function pauseItems(
+  fastForward,
+  { canFullscreen = true, canRewind = true, isPokemon = false, volume, rewinding = false, shader, ffRatio, shotStatus = null, hasCoreOptions = false } = {},
+  screen = 'root'
+) {
+  if (screen === 'display') {
+    return [
+      ...(shader != null
+        ? [{ id: 'filter', label: 'Filter', Icon: Tv, adjust: true, control: 'cycle', value: shader, section: 'top' }]
+        : []),
+      ...(ffRatio != null
+        ? [{ id: 'ffRatio', label: 'FF Speed', Icon: Gauge, adjust: true, control: 'cycle', value: ffRatio, section: 'top' }]
+        : []),
+      ...(canFullscreen ? [{ id: 'fullscreen', label: 'Fullscreen', Icon: Maximize, section: 'top' }] : []),
+      // The core's own options (mupen's RDP plugin, melonDS's screen layout...).
+      // Only offered when the running core actually registered some.
+      ...(hasCoreOptions
+        ? [{ id: 'coreOptions', label: 'System options', Icon: SlidersHorizontal, chevron: true, section: 'top' }]
+        : []),
+    ]
+  }
   return [
     { id: 'resume', label: 'Resume', Icon: Play, primary: true, section: 'top' },
     // Save and Load open the SAME shelf (it defaults focus to "Save new"), so they're
@@ -43,29 +76,18 @@ export function pauseItems(fastForward, { canFullscreen = true, canRewind = true
       section: 'snapshots',
     },
     // The time controls, together: rewind ⟲, fast-forward ⟳, then the volume.
-    // Rewind is omit-only, like Fullscreen and the Pokédex: the native player's core
-    // has no rewind ring yet, so it drops the row rather than showing a dead toggle.
+    // Rewind is omit-only, like Fullscreen and the Pokédex — a player whose engine
+    // can't hold time drops the row rather than showing a dead toggle. Both players
+    // pass true today (the native host grew its state ring in Phase 3).
     ...(canRewind ? [{ id: 'rewind', label: 'Rewind', Icon: Rewind, active: rewinding, section: 'play' }] : []),
     { id: 'fastForward', label: 'Fast Forward', Icon: FastForward, active: fastForward, section: 'play' },
-    // How fast the turbo runs — a cycle row directly under its toggle. `ffRatio` is
-    // the current step's LABEL; the shell owns the engine values.
-    ...(ffRatio != null
-      ? [{ id: 'ffRatio', label: 'FF Speed', Icon: Gauge, adjust: true, control: 'cycle', value: ffRatio, section: 'play' }]
-      : []),
-    // Game audio. An adjustable row (◀ ▶ / the − + taps step it; A / tap toggles
-    // mute), shown only when the shell passes a level — older callers just omit it.
-    ...(typeof volume === 'number'
+    // Volume stays at the top level: it's the one 'setting' people genuinely reach
+    // for mid-game (someone walked in, the room got quiet).
+    ...(volume != null
       ? [{ id: 'volume', label: 'Volume', Icon: volume === 0 ? VolumeX : Volume2, adjust: true, control: 'slider', value: volume, section: 'play' }]
       : []),
-    // The display filter — a curated shader step (Off / CRT / …), cycled with ◀ ▶
-    // or A. `shader` is the current step's LABEL; the shell owns the ids.
-    ...(shader != null
-      ? [{ id: 'filter', label: 'Filter', Icon: Tv, adjust: true, control: 'cycle', value: shader, section: 'play' }]
-      : []),
-    // The top bar used to carry Fullscreen, and it's hidden while you play — so the menu
-    // is where it lives now. Except on iPhone, which has no Fullscreen API at all: there
-    // the button did nothing, so it isn't shown. Quit is the way out.
-    ...(canFullscreen ? [{ id: 'fullscreen', label: 'Fullscreen', Icon: Maximize, section: 'play' }] : []),
+    // Everything you set once lives behind here — see the note above pauseItems.
+    { id: 'display', label: 'Display', Icon: Tv, chevron: true, section: 'play' },
     // Read this game's wiki over the paused game — opens the in-player reader.
     { id: 'wiki', label: 'Wiki', Icon: BookOpen, section: 'game' },
     // Pokémon games only: the structured Pokédex reference.
@@ -79,8 +101,12 @@ export function pauseItems(fastForward, { canFullscreen = true, canRewind = true
   ]
 }
 
-export default function PauseMenu({ open, name, fastForward, rewinding, canFullscreen, canRewind, isPokemon, volume, shader, ffRatio, shotStatus, onAdjust, focus, onFocus, onAction, legend }) {
-  const items = pauseItems(fastForward, { canFullscreen, canRewind, isPokemon, volume, rewinding, shader, ffRatio, shotStatus })
+export default function PauseMenu({ open, name, fastForward, rewinding, canFullscreen, canRewind, isPokemon, volume, shader, ffRatio, shotStatus, hasCoreOptions, screen = 'root', onAdjust, focus, onFocus, onAction, legend }) {
+  const items = pauseItems(
+    fastForward,
+    { canFullscreen, canRewind, isPokemon, volume, rewinding, shader, ffRatio, shotStatus, hasCoreOptions },
+    screen
+  )
 
   // Keyboard parity with the controller — the same 1-column list walk drives both, so
   // desktop and pad can never diverge. cols:1 makes left/right no-ops and up/down step
@@ -93,7 +119,7 @@ export default function PauseMenu({ open, name, fastForward, rewinding, canFulls
       onAdjust?.(items[focus].id, dir === 'left' ? -1 : 1)
     } else if (dir) {
       e.preventDefault()
-      onFocus(moveInGrid({ count: items.length, cols: 1, index: focus }, dir))
+      onFocus(moveInGrid({ count: items.length, cols: 1, index: focus }, dir, { wrap: true }))
     } else if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault()
       onAction(items[focus].id)
@@ -118,7 +144,7 @@ export default function PauseMenu({ open, name, fastForward, rewinding, canFulls
       aria-label="Game menu"
       tabIndex={-1}
       onKeyDown={onKeyDown}
-      className="absolute inset-0 z-20 touch-auto overflow-y-auto overscroll-contain outline-none backdrop-blur-md"
+      className="absolute inset-0 z-20 flex touch-auto flex-col outline-none backdrop-blur-md"
       style={{
         background: scrim(SCRIM.dialog),
         paddingLeft: 'env(safe-area-inset-left)',
@@ -131,15 +157,27 @@ export default function PauseMenu({ open, name, fastForward, rewinding, canFulls
         style={{ background: radiantBackdrop(FROG.jade, 0.14) }}
       />
 
-      {/* A narrow centred column — an action sheet, not a wall of tiles. min-h-full
-          centres the common short menu; overflow-y-auto on the parent catches an
-          unusually short (landscape phone) viewport, where a list scrolls cleanly in
-          one axis rather than the grid's disorienting 2-D scroll. */}
-      <div className="relative flex min-h-full flex-col items-center justify-center py-4">
-        <div className="w-full max-w-sm px-4">
+      {/* Three bands, and only the middle one scrolls. The whole sheet used to be
+          one scroll box, which meant walking down to Quit dragged the game's NAME
+          off the top — the menu stopped saying which game you were about to quit
+          at exactly the moment that matters. Title and legend are now fixed
+          furniture; the list moves under them. */}
+      <div className="relative w-full shrink-0 px-4 pt-4">
+        <div className="mx-auto w-full max-w-sm">
           <p className="mb-1 text-center text-xs font-medium uppercase tracking-widest" style={{ color: FROG.faint }}>Paused</p>
-          <h2 className="mb-3 truncate text-center text-lg font-semibold" style={{ color: FROG.ink }}>{name}</h2>
+          <h2 className="truncate text-center text-lg font-semibold" style={{ color: FROG.ink }}>{name}</h2>
+        </div>
+      </div>
 
+      {/* A narrow centred column — an action sheet, not a wall of tiles. `my-auto`
+          rather than justify-center: a centred flex child whose content outgrows the
+          box overflows in BOTH directions, and the half above the fold is
+          unreachable — no scroll gets you there. Auto margins collapse to zero when
+          there's no room, so a short menu still sits centred and a long one scrolls
+          from its true first row. py-3 is the breathing room under Quit (and over
+          Resume) that the old layout ate. */}
+      <div className="relative flex w-full flex-1 flex-col overflow-y-auto overscroll-contain">
+        <div className="my-auto w-full max-w-sm self-center px-4 py-3">
           <div className="flex flex-col gap-1">
             {items.map((item, i) => {
               const prev = items[i - 1]
@@ -165,10 +203,14 @@ export default function PauseMenu({ open, name, fastForward, rewinding, canFulls
               )
             })}
           </div>
-
-          {legend && <div className="mt-4">{legend}</div>}
         </div>
       </div>
+
+      {legend && (
+        <div className="relative w-full shrink-0 px-4 pb-4 pt-3">
+          <div className="mx-auto w-full max-w-sm">{legend}</div>
+        </div>
+      )}
     </div>
   )
 }
@@ -189,6 +231,9 @@ function MenuRow({ item, focused, onSelect, onHover, onAdjust }) {
   return (
     <button
       ref={ref}
+      // One marker per WALKABLE row (the adjust taps inside a row are buttons too),
+      // so a test can count what's drawn against what pauseItems returned.
+      data-testid="pause-row"
       onClick={onSelect}
       // Hover-focus is onMouseMove app-wide (not onMouseEnter): with a pad and a mouse
       // both live, a mouse *nudge* over an item re-claims the cursor even when the pointer

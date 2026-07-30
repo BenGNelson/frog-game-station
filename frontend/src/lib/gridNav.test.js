@@ -179,3 +179,28 @@ describe('reconcileShelfFocus', () => {
     expect(reconcileShelfFocus([rail('jump', 4)], [rail('jump', 4)], f, false)).toBe(f)
   })
 })
+
+describe('moveInGrid — wrapping a single column', () => {
+  // The pause menu opts into this so its LAST row (Quit) is one press up from
+  // its first (Resume), instead of a walk down fourteen rows.
+  const col = (index) => ({ count: 5, cols: 1, index })
+
+  it('up from the first row lands on the last, and down from the last returns', () => {
+    expect(moveInGrid(col(0), 'up', { wrap: true })).toBe(4)
+    expect(moveInGrid(col(4), 'down', { wrap: true })).toBe(0)
+  })
+
+  it('walks normally in between', () => {
+    expect(moveInGrid(col(2), 'up', { wrap: true })).toBe(1)
+    expect(moveInGrid(col(2), 'down', { wrap: true })).toBe(3)
+  })
+
+  it('stays put without the opt-in, so every other list is unchanged', () => {
+    expect(moveInGrid(col(0), 'up')).toBe(0)
+    expect(moveInGrid(col(4), 'down')).toBe(4)
+  })
+
+  it('never wraps a real grid, even when asked', () => {
+    expect(moveInGrid({ count: 9, cols: 3, index: 0 }, 'up', { wrap: true })).toBe(0)
+  })
+})

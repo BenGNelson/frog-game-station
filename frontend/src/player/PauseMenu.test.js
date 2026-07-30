@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { pauseItems } from './PauseMenu.jsx'
+import { renderToString } from 'react-dom/server'
+import React from 'react'
+import PauseMenu, { pauseItems } from './PauseMenu.jsx'
 
 const ids = (opts) => pauseItems(false, opts).map((i) => i.id)
 
@@ -32,8 +34,27 @@ describe('pauseItems', () => {
   })
 
   it('drops Fullscreen where there is no fullscreen API', () => {
-    expect(ids({ canFullscreen: false })).not.toContain('fullscreen')
-    expect(ids({ canFullscreen: true })).toContain('fullscreen')
+    // It lives on the Display sub-screen now — still omit-only.
+    const display = (o) => pauseItems(false, o, 'display').map((i) => i.id)
+    expect(display({ canFullscreen: false })).not.toContain('fullscreen')
+    expect(display({ canFullscreen: true })).toContain('fullscreen')
+  })
+
+  it('keeps the mid-game rows at the top level and the set-once ones behind Display', () => {
+    // The whole point of the split: what you reach for while playing stays one
+    // walk away; what you set once is a level down.
+    const root = ids({ volume: 0.5, shader: 'CRT', ffRatio: '3×', canFullscreen: true })
+    expect(root).toContain('display')
+    expect(root).toEqual(expect.arrayContaining(['resume', 'states', 'rewind', 'fastForward', 'volume', 'quit']))
+    expect(root).not.toContain('filter')
+    expect(root).not.toContain('ffRatio')
+    expect(root).not.toContain('fullscreen')
+  })
+
+  it('Quit is last, so a wrapping walk reaches it one press up from Resume', () => {
+    const root = ids({ volume: 0.5 })
+    expect(root[0]).toBe('resume')
+    expect(root.at(-1)).toBe('quit')
   })
 
   it('offers the Pokédex only for Pokémon games', () => {
@@ -62,8 +83,8 @@ describe('pauseItems', () => {
   })
 
   it('carries a Filter cycle row only when the shell passes a step label', () => {
-    expect(ids({})).not.toContain('filter')
-    const items = pauseItems(false, { shader: 'CRT', volume: 0.5 })
+    expect(pauseItems(false, {}, 'display').map((i) => i.id)).not.toContain('filter')
+    const items = pauseItems(false, { shader: 'CRT', volume: 0.5 }, 'display')
     const f = items.find((i) => i.id === 'filter')
     expect(f.adjust).toBe(true)
     expect(f.control).toBe('cycle')
@@ -73,14 +94,50 @@ describe('pauseItems', () => {
     expect(list.indexOf('filter')).toBe(list.indexOf('volume') + 1)
   })
 
-  it('FF Speed cycles right under the Fast Forward toggle', () => {
-    expect(ids({})).not.toContain('ffRatio')
-    const items = pauseItems(false, { ffRatio: '3×' })
+  it('FF Speed is a cycle row on the Display screen', () => {
+    expect(pauseItems(false, {}, 'display').map((i) => i.id)).not.toContain('ffRatio')
+    const items = pauseItems(false, { ffRatio: '3×' }, 'display')
     const r = items.find((i) => i.id === 'ffRatio')
     expect(r.adjust).toBe(true)
     expect(r.control).toBe('cycle')
-    const list = items.map((i) => i.id)
-    expect(list.indexOf('ffRatio')).toBe(list.indexOf('fastForward') + 1)
+  })
+
+  it('System options appear only when the running core registered some', () => {
+    expect(pauseItems(false, {}, 'display').map((i) => i.id)).not.toContain('coreOptions')
+    expect(pauseItems(false, { hasCoreOptions: true }, 'display').map((i) => i.id)).toContain('coreOptions')
+  })
+
+  it('draws exactly the rows it walks, for every options bag', () => {
+    // The invariant that broke: the native player spelled its options out twice —
+    // once for pauseItems (what the pad walks) and once as <PauseMenu> props (what
+    // the player sees) — and the two drifted, so from the first missing row down
+    // every index highlighted one action and fired another. Both players now build
+    // ONE bag and spread it; this pins that they agree.
+    const bags = [
+      {},
+      { volume: 0.5 },
+      { canFullscreen: true, canRewind: true, volume: 0.5, shader: 'CRT', ffRatio: '3×' },
+      { canFullscreen: false, canRewind: false, volume: 0.5 },
+      { canFullscreen: true, canRewind: true, isPokemon: true, volume: 0.5, shader: 'Off', ffRatio: '2×', hasCoreOptions: true },
+    ]
+    for (const bag of bags) {
+      for (const screen of ['root', 'display']) {
+        const html = renderToString(
+          React.createElement(PauseMenu, {
+            open: true,
+            name: 'A Game',
+            fastForward: false,
+            ...bag,
+            screen,
+            focus: 0,
+            onFocus: () => {},
+            onAction: () => {},
+          })
+        )
+        const drawn = html.split('data-testid="pause-row"').length - 1
+        expect(drawn).toBe(pauseItems(false, bag, screen).length)
+      }
+    }
   })
 
   it('carries a Volume row only when the shell passes a level', () => {
@@ -100,5 +157,53 @@ describe('pauseItems', () => {
     expect(list[list.length - 1]).toBe('quit')
     // Right after Fast Forward — the two play-feel controls sit together.
     expect(list.indexOf('volume')).toBe(list.indexOf('fastForward') + 1)
+  })
+})
+
+// The sheet is three bands and only the middle one scrolls. Worth pinning as
+// structure rather than as pixels: when the whole sheet was one scroll box, the
+// walk down to Quit carried the game's name off the top, and a centred flex
+// child that outgrew its box overflowed in both directions — so the rows above
+// the fold could not be scrolled to at all. Both are layout bugs that render
+// perfectly in every unit test that only counts rows.
+describe('PauseMenu layout', () => {
+  const html = () =>
+    renderToString(
+      React.createElement(PauseMenu, {
+        open: true,
+        name: 'Chrono Trigger',
+        fastForward: false,
+        volume: 0.5,
+        shader: 0,
+        ffRatio: 2,
+        focus: 0,
+        onFocus: () => {},
+        onAction: () => {},
+        legend: React.createElement('div', { 'data-testid': 'pause-legend' }, 'A Select'),
+      })
+    )
+
+  it('keeps the game name OUTSIDE the scrolling band, so walking to Quit never hides it', () => {
+    const out = html()
+    const name = out.indexOf('Chrono Trigger')
+    const scroller = out.indexOf('overflow-y-auto')
+    expect(name).toBeGreaterThan(-1)
+    expect(scroller).toBeGreaterThan(-1)
+    expect(name).toBeLessThan(scroller)
+  })
+
+  it('keeps the legend outside it too — the button hints are furniture, not a last row', () => {
+    const out = html()
+    expect(out.indexOf('pause-legend')).toBeGreaterThan(out.indexOf('overflow-y-auto'))
+  })
+
+  it('scrolls in exactly one band', () => {
+    expect(html().split('overflow-y-auto').length - 1).toBe(1)
+  })
+
+  it('centres a long list with auto margins, never justify-center (which clips the top)', () => {
+    const out = html()
+    expect(out).toContain('my-auto')
+    expect(out).not.toContain('justify-center')
   })
 })

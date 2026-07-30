@@ -21,7 +21,7 @@ use glow::HasContext;
 use serde::Serialize;
 use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_uint, c_void};
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicUsize, Ordering};
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
@@ -59,6 +59,63 @@ struct HwInfo {
 static HW: Mutex<Option<HwInfo>> = Mutex::new(None);
 static HW_FBO: AtomicUsize = AtomicUsize::new(0);
 static HW_ACTIVE: AtomicBool = AtomicBool::new(false);
+// The display filter, as an index into shader::Filter. An atomic because the
+// command thread sets it and the emu thread reads it every present.
+static FILTER: AtomicUsize = AtomicUsize::new(0);
+
+// The picture's shape and pace, LIVE. Seeded from get_system_av_info at boot and
+// then updated by SET_GEOMETRY / SET_SYSTEM_AV_INFO, which is how a core says
+// "my picture changed shape" — melonDS sends one on every screen-layout change
+// (Top/Bottom is ~0.67, Left/Right ~2.67, Hybrid ~1.4). Read from the environment
+// callback and written by it too, so they're atomics rather than a Mutex the
+// callback would have to take mid-frame. f32/f64 have no atomic, so both ride
+// their bit patterns.
+static ASPECT: AtomicU32 = AtomicU32::new(0);
+static FPS: AtomicU64 = AtomicU64::new(0);
+// The rate the cpal stream was actually opened at, so a core that changes its
+// mind mid-session can be caught and reported rather than silently drifting.
+static SAMPLE_RATE: AtomicU64 = AtomicU64::new(0);
+
+fn set_aspect(aspect: f32) {
+    if aspect > 0.0 {
+        ASPECT.store(aspect.to_bits(), Ordering::Relaxed);
+    }
+}
+
+fn current_aspect() -> f32 {
+    f32::from_bits(ASPECT.load(Ordering::Relaxed))
+}
+
+fn set_fps(fps: f64) {
+    if fps > 0.0 {
+        FPS.store(fps.to_bits(), Ordering::Relaxed);
+    }
+}
+
+fn current_fps() -> f64 {
+    f64::from_bits(FPS.load(Ordering::Relaxed))
+}
+
+pub fn set_filter(id: &str) {
+    use crate::emu::shader::Filter;
+    let f = match Filter::from_id(id) {
+        Filter::Off => 0,
+        Filter::Smooth => 1,
+        Filter::Crt => 2,
+        Filter::CrtCurve => 3,
+    };
+    FILTER.store(f, Ordering::Relaxed);
+}
+
+fn current_filter() -> crate::emu::shader::Filter {
+    use crate::emu::shader::Filter;
+    match FILTER.load(Ordering::Relaxed) {
+        1 => Filter::Smooth,
+        2 => Filter::Crt,
+        3 => Filter::CrtCurve,
+        _ => Filter::Off,
+    }
+}
 
 // The system/save dir handed to the core (leaked once; absolute app-data path
 // set per session before retro_init — the spike's CWD-relative "spike_data"
@@ -116,41 +173,55 @@ unsafe extern "C" fn environment(cmd: c_uint, data: *mut c_void) -> bool {
         }
         ENV_SET_VARIABLES => {
             let mut vars = data as *const RetroVariable;
-            let mut opts = options::OPTIONS.lock().unwrap();
-            let overrides = options::OVERRIDES.lock().unwrap();
             while !(*vars).key.is_null() {
                 let key = CStr::from_ptr((*vars).key).to_string_lossy().into_owned();
-                let desc = CStr::from_ptr((*vars).value).to_string_lossy();
-                let default = desc
-                    .split_once("; ")
-                    .map(|(_, o)| o.split('|').next().unwrap_or(""))
-                    .unwrap_or("")
-                    .to_string();
-                let chosen = overrides
-                    .iter()
-                    .find(|(k, _)| *k == key)
-                    .map(|(_, v)| v.clone())
-                    .unwrap_or(default);
-                let leaked = CString::new(chosen).unwrap().into_raw() as usize;
-                opts.push((key, leaked));
+                let desc = CStr::from_ptr((*vars).value).to_string_lossy().into_owned();
+                options::register(&key, &desc);
                 vars = vars.add(1);
             }
             true
         }
         ENV_GET_VARIABLE => {
             let var = &mut *(data as *mut RetroVariable);
-            let key = CStr::from_ptr(var.key).to_string_lossy();
-            let opts = options::OPTIONS.lock().unwrap();
-            match opts.iter().find(|(k, _)| *k == key) {
-                Some((_, ptr)) => {
-                    var.value = *ptr as *const c_char;
+            let key = CStr::from_ptr(var.key).to_string_lossy().into_owned();
+            // Declining is correct ONLY for a key we never saw registered — see
+            // the mupen64plus-abort note in options.rs.
+            match options::value_ptr(&key) {
+                Some(ptr) => {
+                    var.value = ptr as *const c_char;
                     true
                 }
                 None => false,
             }
         }
         ENV_GET_VARIABLE_UPDATE => {
-            *(data as *mut bool) = false;
+            // True exactly ONCE per change. Always-true has melonDS rebuild its
+            // renderer every frame; always-false (what this was) means a changed
+            // option is never picked up at all.
+            *(data as *mut bool) = options::take_update();
+            true
+        }
+        ENV_SET_GEOMETRY => {
+            // The cheap one: shape only, no re-pacing, no reallocation. This is
+            // what melonDS sends when the screen layout changes.
+            set_aspect((*(data as *const GameGeometry)).aspect_ratio);
+            true
+        }
+        ENV_SET_SYSTEM_AV_INFO => {
+            // The heavy one: shape AND timing. A sample-rate change would mean
+            // re-opening the cpal stream mid-session; no core we ship does that,
+            // so say so out loud rather than pretend we handled it.
+            let info = &*(data as *const SystemAvInfo);
+            set_aspect(info.geometry.aspect_ratio);
+            let old_rate = SAMPLE_RATE.load(Ordering::Relaxed);
+            let new_rate = info.timing.sample_rate as u64;
+            if old_rate != 0 && new_rate != 0 && new_rate != old_rate {
+                eprintln!(
+                    "[frog.emu] core asked for {new_rate} Hz mid-session (was {old_rate}); \
+                     keeping the open stream — audio may drift"
+                );
+            }
+            set_fps(info.timing.fps);
             true
         }
         ENV_SET_HW_RENDER => {
@@ -226,6 +297,7 @@ pub struct AvInfoJs {
 
 pub enum EmuCmd {
     SetPaused(bool),
+    SetRewinding(bool),
     Reset,
     SaveState(Sender<Result<Vec<u8>, String>>),
     LoadState(Vec<u8>, Sender<Result<(), String>>),
@@ -233,6 +305,14 @@ pub enum EmuCmd {
     LoadSram(Vec<u8>, Sender<Result<(), String>>),
     Screenshot(Sender<Result<Vec<u8>, String>>),
     SetFastForward { on: bool, ratio: String },
+    /// Change one core option. Routed through the channel rather than done on
+    /// the command thread so the pointer swap lands BETWEEN frames — never
+    /// while the core is inside retro_run reading the pointer being replaced.
+    SetOption {
+        key: String,
+        value: String,
+        reply: Sender<Result<(), String>>,
+    },
     Resize(u32, u32),
     Stop,
 }
@@ -251,6 +331,9 @@ pub struct StartParams {
     pub core_path: String,
     pub rom_path: String,
     pub system: String,
+    /// The player's saved core-option choices for this system. Applied before
+    /// retro_init, which is the only moment SET_VARIABLES can consult them.
+    pub options: Vec<(String, String)>,
     pub data_dir: String,
     pub ns_view: usize,
     pub width: u32,
@@ -283,6 +366,10 @@ struct Gl {
     sw_texture: glow::Texture,
     sw_fbo: glow::Framebuffer,
     hw_fbo: Option<glow::Framebuffer>,
+    // The core's own render target, kept because the filter samples it as a
+    // texture — a framebuffer alone can only be blitted.
+    hw_texture: Option<glow::Texture>,
+    filter_stage: Option<crate::emu::shader::FilterStage>,
     win_w: u32,
     win_h: u32,
 }
@@ -354,7 +441,19 @@ fn init_gl(ns_view: usize, width: u32, height: u32) -> Result<Gl, String> {
 
         let sw_texture = gl.create_texture().map_err(|e| e.to_string())?;
         let sw_fbo = gl.create_framebuffer().map_err(|e| e.to_string())?;
-        Ok(Gl { context, surface, gl, sw_texture, sw_fbo, hw_fbo: None, win_w: width, win_h: height })
+        let filter_stage = crate::emu::shader::FilterStage::new(&gl);
+        Ok(Gl {
+            context,
+            surface,
+            gl,
+            sw_texture,
+            sw_fbo,
+            hw_fbo: None,
+            hw_texture: None,
+            filter_stage,
+            win_w: width,
+            win_h: height,
+        })
     }
 }
 
@@ -400,7 +499,7 @@ fn run_session(
         Err(e) => return fail(e, &boot_tx),
     };
 
-    options::arm(&params.system);
+    options::arm(&params.system, &params.options);
     let core = match Core::load(&params.core_path) {
         Ok(c) => c,
         Err(e) => return fail(format!("core load: {e}"), &boot_tx),
@@ -452,6 +551,11 @@ fn run_session(
 
     let mut av = unsafe { std::mem::zeroed::<SystemAvInfo>() };
     unsafe { (core.get_system_av_info)(&mut av) };
+    // Seed the live shape/pace. From here on the loop reads the atomics, never
+    // `av` — a core can change either mid-run and used to be ignored.
+    set_aspect(av.geometry.aspect_ratio);
+    set_fps(av.timing.fps);
+    SAMPLE_RATE.store(av.timing.sample_rate as u64, Ordering::Relaxed);
 
     // HW path: the core's render target, then context_reset — order matters.
     if HW.lock().unwrap().is_some() {
@@ -491,6 +595,7 @@ fn run_session(
             }
             gl.gl.bind_framebuffer(glow::FRAMEBUFFER, None);
             gl.hw_fbo = Some(fbo);
+            gl.hw_texture = Some(color);
             HW_FBO.store(fbo.0.get() as usize, Ordering::Relaxed);
             HW_ACTIVE.store(true, Ordering::Relaxed);
         }
@@ -547,16 +652,47 @@ fn run_session(
     let mut frames_run: u64 = 0;
     let mut last_stats = Instant::now();
     let mut stats_frames: u64 = 0;
+    // Audio frames the core has handed us, sampled once a second. The core's
+    // DECLARED rate is what the resampler consumes at, so the gap between this
+    // and that declaration is the ring's drift, in Hz, directly measured.
+    let mut last_frames_in: u64 = audio::FRAMES_IN.load(Ordering::Relaxed);
+    // Rewind: a rolling ring of recent save states. Snapshots are taken every
+    // REWIND_EVERY frames rather than every frame — ten a second is enough to
+    // scrub back smoothly — and the ring is bounded by BYTES as well as time,
+    // because a Game Boy state is a few hundred KB while a PlayStation state is
+    // megabytes. So the depth is ~10s on the small systems and however much of
+    // that fits in the budget on the big ones, instead of an unbounded promise.
+    const REWIND_EVERY: u64 = 6;
+    const REWIND_SECONDS: usize = 10;
+    const REWIND_BUDGET: usize = 96 * 1024 * 1024;
+    let rewind_max = (REWIND_SECONDS * 60) / REWIND_EVERY as usize;
+    let mut rewind_ring: std::collections::VecDeque<Vec<u8>> = std::collections::VecDeque::new();
+    let mut rewind_bytes: usize = 0;
+    let mut rewinding = false;
+
     let mut last_sram_hash: u64 = 0;
     let mut stopping = false;
     let trace = std::env::var("FROG_EMU_TRACE").ok().as_deref() == Some("1");
 
     while !stopping {
-        // Paused: block on the channel — a paused game costs zero CPU.
+        // Paused: wait on the channel rather than spin — a paused game costs
+        // almost nothing. Not a bare recv(), because that would also stop
+        // draining gilrs: a pad plugged in while the pause menu is open would go
+        // unnoticed until the player resumed. Ten wakeups a second is enough to
+        // notice a connection and cheap enough to still be "paused".
         let first = if paused {
-            match rx.recv() {
+            match rx.recv_timeout(Duration::from_millis(100)) {
                 Ok(c) => Some(c),
-                Err(_) => break,
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                    if let Some(g) = gilrs.as_mut() {
+                        // Connections only: the game is paused and the gate may
+                        // be off (the start card), so a physical press must not
+                        // latch into the snapshot before play begins.
+                        announce_pads(&app, input::poll(g, true), g);
+                    }
+                    None
+                }
+                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
             }
         } else {
             match rx.try_recv() {
@@ -568,6 +704,10 @@ fn run_session(
         let mut pending = first;
         while let Some(cmd) = pending.take() {
             match cmd {
+                EmuCmd::SetRewinding(on) => {
+                    rewinding = on;
+                    next_frame = Instant::now();
+                }
                 EmuCmd::SetPaused(p) => {
                     paused = p;
                     if !p {
@@ -621,6 +761,9 @@ fn run_session(
                     ff_ratio = ratio;
                     next_frame = Instant::now();
                 }
+                EmuCmd::SetOption { key, value, reply } => {
+                    let _ = reply.send(options::set_value(&key, &value));
+                }
                 EmuCmd::Resize(w, h) => {
                     use glutin::prelude::GlSurface;
                     gl.win_w = w.max(1);
@@ -642,7 +785,33 @@ fn run_session(
         }
 
         if let Some(g) = gilrs.as_mut() {
-            input::poll(g);
+            announce_pads(&app, input::poll(g, false), g);
+        }
+
+        // Rewinding replaces the frame: pop the most recent snapshot and load
+        // it. Runs at the snapshot rate rather than the frame rate, which is
+        // what makes it look like time running backwards instead of a stutter.
+        if rewinding {
+            match rewind_ring.pop_back() {
+                Some(state) => {
+                    rewind_bytes = rewind_bytes.saturating_sub(state.len());
+                    unsafe { (core.unserialize)(state.as_ptr() as *const c_void, state.len()) };
+                }
+                None => {
+                    // Out of history — hold the oldest frame rather than
+                    // silently running forward again under the player's thumb.
+                    std::thread::sleep(Duration::from_millis(16));
+                    present(&mut gl);
+                    continue;
+                }
+            }
+            let now = Instant::now();
+            if now < next_frame {
+                std::thread::sleep(next_frame - now);
+            }
+            next_frame += Duration::from_secs_f64(1.0 / current_fps().max(1.0)) * REWIND_EVERY as u32;
+            present(&mut gl);
+            continue;
         }
 
         // Pace to the core's fps; 'unlimited' fast-forward runs an unpaced batch.
@@ -654,7 +823,7 @@ fn run_session(
             }
             next_frame = Instant::now();
         } else {
-            let period = frame_period(av.timing.fps, if ff_on { &ff_ratio } else { "1" });
+            let period = frame_period(current_fps(), if ff_on { &ff_ratio } else { "1" });
             let now = Instant::now();
             if now < next_frame {
                 std::thread::sleep(next_frame - now);
@@ -668,7 +837,26 @@ fn run_session(
             }
         }
 
-        present(&mut gl, &av);
+        present(&mut gl);
+
+        if frames_run % REWIND_EVERY == 0 {
+            unsafe {
+                let size = (core.serialize_size)();
+                if size > 0 && size <= REWIND_BUDGET {
+                    let mut buf = vec![0u8; size];
+                    if (core.serialize)(buf.as_mut_ptr() as *mut c_void, size) {
+                        rewind_bytes += size;
+                        rewind_ring.push_back(buf);
+                        while rewind_ring.len() > rewind_max || rewind_bytes > REWIND_BUDGET {
+                            match rewind_ring.pop_front() {
+                                Some(old) => rewind_bytes = rewind_bytes.saturating_sub(old.len()),
+                                None => break,
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         // SRAM watch: cheap hash every 60 frames; a change pings the webview,
         // which pulls the bytes and runs the roaming pipeline.
@@ -681,12 +869,17 @@ fn run_session(
         }
         if last_stats.elapsed() >= Duration::from_secs(1) {
             let fps = stats_frames as f64 / last_stats.elapsed().as_secs_f64();
+            let frames_in = audio::FRAMES_IN.load(Ordering::Relaxed);
+            let audio_in = (frames_in - last_frames_in) as f64 / last_stats.elapsed().as_secs_f64();
+            last_frames_in = frames_in;
             if trace {
                 eprintln!(
-                    "[emu] frame {frames_run} {fps:.1} fps luminance {:.1} hw {} ring {}",
+                    "[emu] frame {frames_run} {fps:.1} fps luminance {:.1} hw {} ring {} \
+                     audio_in {audio_in:.0} Hz (declared {})",
                     mean_luminance(&gl),
                     HW_ACTIVE.load(Ordering::Relaxed),
                     audio::RING.lock().unwrap().len(),
+                    SAMPLE_RATE.load(Ordering::Relaxed),
                 );
             }
             last_stats = Instant::now();
@@ -707,6 +900,32 @@ fn run_session(
     let _ = app.emit("native:state", serde_json::json!({ "state": "stopped" }));
 }
 
+/// Tell the frontend a pad came or went. Only on an EDGE — the poll returns one
+/// entry per connection event, so a quiet frame emits nothing.
+///
+/// The host owns pad PRESENCE (is one there, what's it called, how many); the
+/// webview keeps owning the binding key space, because its per-pad rebinds are
+/// keyed by the Web Gamepad API's "<name>:<index>" id and gilrs names pads
+/// differently. Re-keying off the host would strand every rebind the player has
+/// made. So this event's job is to say "something changed" — the frontend
+/// re-pushes whatever map it already believes in, and the first actual press
+/// resolves the pad's real identity.
+fn announce_pads(app: &tauri::AppHandle, edges: Vec<bool>, gilrs: &gilrs::Gilrs) {
+    if edges.is_empty() {
+        return;
+    }
+    let names = input::pad_names(gilrs);
+    let connected = *edges.last().unwrap_or(&false);
+    let _ = app.emit(
+        "native:pad",
+        serde_json::json!({
+            "connected": connected,
+            "name": names.last().cloned().unwrap_or_default(),
+            "count": names.len(),
+        }),
+    );
+}
+
 fn teardown(core: &Core) {
     unsafe {
         if let Some(hw) = HW.lock().unwrap().as_ref() {
@@ -717,6 +936,9 @@ fn teardown(core: &Core) {
         (core.unload_game)();
         (core.deinit)();
     }
+    // The dead core's option table would otherwise still answer list_core_options
+    // between games. (The leaked value strings stay leaked — nothing is freed.)
+    options::clear();
 }
 
 fn read_sram(core: &Core) -> Vec<u8> {
@@ -826,7 +1048,7 @@ fn mean_luminance(gl: &Gl) -> f64 {
     total as f64 / count.max(1) as f64
 }
 
-fn present(gl: &mut Gl, av: &SystemAvInfo) {
+fn present(gl: &mut Gl) {
     let (win_w, win_h) = (gl.win_w.max(1) as i32, gl.win_h.max(1) as i32);
     let mut v = VIDEO.lock().unwrap();
     let (fw, fh) = (v.width.max(1) as i32, v.height.max(1) as i32);
@@ -837,7 +1059,9 @@ fn present(gl: &mut Gl, av: &SystemAvInfo) {
         gl.gl.clear_color(0.0, 0.0, 0.0, 1.0);
         gl.gl.clear(glow::COLOR_BUFFER_BIT);
 
-        let (dx, dy, dw, dh) = letterbox(win_w, win_h, fw, fh, av.geometry.aspect_ratio);
+        // The LIVE aspect, not the one captured at boot: a DS screen-layout
+        // change moves this, and with it the picture rect the stylus maps through.
+        let (dx, dy, dw, dh) = letterbox(win_w, win_h, fw, fh, current_aspect());
         *PICTURE.lock().unwrap() = (dx, dy, dw, dh);
 
         let (read_fbo, flip) = if v.hw_frame {
@@ -863,11 +1087,31 @@ fn present(gl: &mut Gl, av: &SystemAvInfo) {
             (Some(gl.sw_fbo), true) // texture row 0 = image top → flip on blit
         };
 
-        if let Some(fbo) = read_fbo {
-            gl.gl.bind_framebuffer(glow::READ_FRAMEBUFFER, Some(fbo));
-            let (sy0, sy1) = if flip { (fh, 0) } else { (0, fh) };
-            gl.gl.blit_framebuffer(0, sy0, fw, sy1, dx, dy, dx + dw, dy + dh, glow::COLOR_BUFFER_BIT, glow::NEAREST);
-            gl.gl.bind_framebuffer(glow::READ_FRAMEBUFFER, None);
+        let filter = current_filter();
+        let source_tex = if v.hw_frame { gl.hw_texture } else { Some(gl.sw_texture) };
+
+        match (filter.needs_shader(), source_tex, gl.filter_stage.as_ref()) {
+            // The CRT looks draw the game as a textured quad so a fragment
+            // shader can lay scanlines over it.
+            (true, Some(tex), Some(stage)) => {
+                stage.draw(&gl.gl, tex, filter, (fw, fh), (dx, dy, dw, dh), flip);
+                gl.gl.viewport(0, 0, win_w, win_h);
+            }
+            // Off and Smooth are the same blit with different sampling —
+            // cheaper and sharper than imitating them in a shader.
+            _ => {
+                if let Some(fbo) = read_fbo {
+                    let sampling = if filter == crate::emu::shader::Filter::Smooth {
+                        glow::LINEAR
+                    } else {
+                        glow::NEAREST
+                    };
+                    gl.gl.bind_framebuffer(glow::READ_FRAMEBUFFER, Some(fbo));
+                    let (sy0, sy1) = if flip { (fh, 0) } else { (0, fh) };
+                    gl.gl.blit_framebuffer(0, sy0, fw, sy1, dx, dy, dx + dw, dy + dh, glow::COLOR_BUFFER_BIT, sampling);
+                    gl.gl.bind_framebuffer(glow::READ_FRAMEBUFFER, None);
+                }
+            }
         }
     }
     drop(v);
@@ -976,6 +1220,37 @@ mod tests {
     fn letterbox_falls_back_to_frame_aspect_when_core_reports_none() {
         let (_, _, dw, dh) = letterbox(1000, 1000, 320, 240, 0.0);
         assert_eq!((dw, dh), (1000, 750));
+    }
+
+    #[test]
+    fn a_ds_layout_change_moves_the_picture_rect() {
+        // The same window and the same framebuffer, at the two aspects melonDS
+        // reports for Top/Bottom and Left/Right. If the host ignores SET_GEOMETRY
+        // these come out identical and the picture is stretched by ~4x — which is
+        // exactly what happened before the aspect became live.
+        let stacked = letterbox(1600, 1200, 256, 384, 256.0 / 384.0);
+        let side_by_side = letterbox(1600, 1200, 512, 192, 512.0 / 192.0);
+        assert_ne!(stacked, side_by_side);
+        // Tall picture pillarboxes, wide picture letterboxes — and each fills the
+        // axis it can, so the game is never scaled to a shape it didn't ask for.
+        assert_eq!(stacked.3, 1200);
+        assert_eq!(side_by_side.2, 1600);
+    }
+
+    #[test]
+    fn the_live_aspect_and_pace_round_trip_through_their_bit_patterns() {
+        // f32/f64 have no atomic, so both ride to_bits/from_bits. A botched
+        // round-trip would freeze the picture at a nonsense shape.
+        set_aspect(2.6666667);
+        assert_eq!(current_aspect(), 2.6666667);
+        set_fps(59.8261);
+        assert_eq!(current_fps(), 59.8261);
+        // A core reporting nothing must not zero what's already known — an aspect
+        // of 0.0 means "use the frame's own shape", not "forget the last one".
+        set_aspect(0.0);
+        assert_eq!(current_aspect(), 2.6666667);
+        set_fps(0.0);
+        assert_eq!(current_fps(), 59.8261);
     }
 
     #[test]

@@ -16,6 +16,11 @@ pub const ENV_SET_VARIABLES: c_uint = 16;
 pub const ENV_GET_VARIABLE_UPDATE: c_uint = 17;
 pub const ENV_GET_LOG_INTERFACE: c_uint = 27;
 pub const ENV_GET_SAVE_DIRECTORY: c_uint = 31;
+// How a core announces that its picture changed shape mid-run — melonDS sends
+// one of these on every screen-layout change. Declining them freezes the aspect
+// ratio at whatever get_system_av_info said at boot.
+pub const ENV_SET_SYSTEM_AV_INFO: c_uint = 32;
+pub const ENV_SET_GEOMETRY: c_uint = 37;
 pub const ENV_SET_HW_RENDER: c_uint = 14;
 pub const ENV_GET_AUDIO_VIDEO_ENABLE: c_uint = 47;
 pub const ENV_GET_PREFERRED_HW_RENDER: c_uint = 56;

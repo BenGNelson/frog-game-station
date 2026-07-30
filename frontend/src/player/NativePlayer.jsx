@@ -19,8 +19,15 @@ import {
   isChord,
   clampVolume,
   clampFFRatio,
+  clampShader,
+  coreOptionsFor,
+  withCoreOption,
+  clearCoreOptions,
   FF_RATIO_LEVELS,
+  SHADER_LEVELS,
 } from '../lib/playerSettings.js'
+import { curatedRows, stepOptionValue } from '../lib/coreOptions.js'
+import CoreOptionsPanel from './CoreOptionsPanel.jsx'
 import { useGamepad } from '../lib/useGamepad.js'
 import { useGameSaves } from '../lib/useGameSaves.js'
 import { usePlayTime } from '../lib/usePlayTime.js'
@@ -130,6 +137,8 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
   const [padActive, setPadActive] = useState(false)
   const [padId, setPadId] = useState(null)
   const [padName, setPadName] = useState(null)
+  // Bumped on every hot-plug edge, purely to re-run the bindings push below.
+  const [padGen, setPadGen] = useState(0)
   const [settings, setSettings] = useState(() => {
     // Same sweep as the web player — the two share localStorage on a dev machine,
     // and the migration is a no-op once done.
@@ -142,6 +151,12 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
     setSettings(next)
     writeSettings(window.localStorage, next)
   }, [])
+
+  // Everything the running core registered (filled once the session boots), and
+  // the System options screen's own open/focus state.
+  const [coreOpts, setCoreOpts] = useState([])
+  const [coreOptionsOpen, setCoreOptionsOpen] = useState(false)
+  const [coreOptionsFocus, setCoreOptionsFocus] = useState(0)
 
   // The game picture lives UNDER the webview, so while this player is mounted every
   // layer of the page must be see-through — index.css paints the pond ground on
@@ -177,7 +192,18 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
   // moment it arrives rather than leaking under the library.
   useEffect(() => {
     let dead = false
-    createNativeEmu({ gameId: id, romUrl: fileUrl('games', id), core, system: core }, d)
+    createNativeEmu(
+      {
+        gameId: id,
+        romUrl: fileUrl('games', id),
+        core,
+        system: core,
+        // The saved core options must ride the launch — the host arms them
+        // before retro_init, the only moment a core reads them.
+        options: coreOptionsFor(readSettings(window.localStorage), core),
+      },
+      d
+    )
       .then((emu) => {
         if (dead) {
           emu.native.stop()
@@ -189,9 +215,17 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
         // audio stream needs no gesture).
         emu.native.setPaused(true)
         emu.native.setGated(false)
-        // The saved volume, applied the moment the engine exists (it boots at unity
-        // gain). Read from storage, not the closure — this effect mounts once.
-        emu.native.setVolume(clampVolume(readSettings(window.localStorage).volume))
+        // The saved volume and filter, applied the moment the engine exists (it
+        // boots at unity gain through the plain blit). Read from storage, not the
+        // closure — this effect mounts once. Without the filter push, a look chosen
+        // last session would read back in the menu while the stage rendered Off.
+        const saved = readSettings(window.localStorage)
+        emu.native.setVolume(clampVolume(saved.volume))
+        emu.native.setFilter(clampShader(saved.shader))
+        // What this core actually registered. The curated shortlist is drawn
+        // from it, so a core that offers nothing simply has no System options
+        // row — and a failure to ask must not stop the game booting.
+        emu.native.listOptions().then(setCoreOpts).catch(() => {})
         dispatch('engine-loaded')
       })
       .catch((e) => {
@@ -228,6 +262,39 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
     }
     // `d` is the test seam, fixed for the component's life — same mount-once
     // reasoning as the boot effect.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Controller hot-plug. The host owns pad PRESENCE — it sees gilrs's connect and
+  // disconnect edges even while a menu is up and the webview has stopped polling
+  // — but the webview keeps owning the binding KEY, because per-pad rebinds are
+  // keyed by the Web Gamepad API's "<name>:<index>" id and gilrs names pads
+  // differently; re-keying off the host would strand every rebind ever made. So a
+  // connection just bumps a generation, which re-pushes whatever map the webview
+  // currently believes in; the first actual press then resolves the real padId
+  // and the existing effect pushes that pad's own map over it.
+  useEffect(() => {
+    let dead = false
+    let un = null
+    onNativeEvent(
+      'pad',
+      (p) => {
+        const count = Number(p?.count) || 0
+        setPadActive(!!p?.connected || count > 0)
+        // Named before you press anything — the Controls screen used to read
+        // "No controller connected" until the first button went down.
+        if (p?.connected && p?.name) setPadName(p.name)
+        setPadGen((n) => n + 1)
+      },
+      d
+    ).then((u) => {
+      if (dead) u()
+      else un = u
+    })
+    return () => {
+      dead = true
+      un?.()
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -388,19 +455,21 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
 
   // The engine seam for the shared controls hook, over the native surface. Fast-
   // forward is one host call carrying both halves (on × ratio), so the two actions
-  // share a ref of the current pair. Shader and rewind are deliberate no-ops: the
-  // native host has no shader pipeline and no rewind ring yet, their menu rows are
-  // hidden below — but the hook still calls applyRewind on every fast-forward
-  // toggle (the mutual-exclusion contract), so the slots must exist.
+  // share a ref of the current pair.
   // The host takes the ratio as the settings' own level id — a STRING, because
   // 'unlimited' is one of them (and Number() would quietly turn it into NaN).
+  // The window's own fullscreen state — it only changes when that row is picked,
+  // so it's latched here rather than asked for on every render.
+  const fullscreenRef = useRef(false)
   const ffRef = useRef({ on: false, ratio: String(clampFFRatio(readSettings(window.localStorage).ffRatio)) })
   const engine = useMemo(
     () => ({
       applyVolume: (v) => {
         emuRef.current?.native.setVolume(v)
       },
-      applyShader: () => {},
+      applyShader: (id) => {
+        emuRef.current?.native.setFilter(id)
+      },
       applyFFRatio: (r) => {
         ffRef.current.ratio = String(r)
         emuRef.current?.native.setFastForward(ffRef.current.on, ffRef.current.ratio)
@@ -409,7 +478,9 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
         ffRef.current.on = on
         emuRef.current?.native.setFastForward(on, ffRef.current.ratio)
       },
-      applyRewind: () => {},
+      applyRewind: (on) => {
+        emuRef.current?.native.setRewinding(on)
+      },
     }),
     []
   )
@@ -418,8 +489,8 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
     controlsOpen, controlsFocus, setControlsFocus, listeningFor, setListeningFor,
     lastPress, setLastPress, openControls, closeControls,
     chooseScheme, chooseSkin, cycleSkin, resetBindings, captureBinding,
-    fastForward, applyFF,
-    volume, stepVolume, toggleMute, ffRatio, stepFFRatio,
+    fastForward, applyFF, rewinding, applyRewind,
+    volume, stepVolume, toggleMute, ffRatio, stepFFRatio, shader, stepFilter,
   } = usePlayerControls({ settings, saveSettings, padId, setError, engine })
 
   // The in-game reference panels (wiki reader + Pokédex) and their cross-links.
@@ -441,8 +512,11 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
     )
     // Deps are the granular inputs the map is built from — not `settings` itself,
     // which is a fresh object every save and would re-push on unrelated changes.
+    // `padGen` is in there so a pad plugged in mid-game gets the map too: the
+    // push used to happen once at boot, so a controller connected later played
+    // on whatever the host last had (or nothing at all).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state, settings.controlScheme, settings.controlBindings, padId, core])
+  }, [state, settings.controlScheme, settings.controlBindings, padId, core, padGen])
 
   // Pause the core whenever we're not in PLAYING, and release every input on the
   // way back in — a key or button held when the menu opened had its release
@@ -466,7 +540,7 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
   // character underneath. The web player wraps the engine's listener; the native
   // host exposes the gate directly.
   const menuOpenRef = useRef(false)
-  menuOpenRef.current = paused || shelfOpen || controlsOpen || wikiOpen || pokedexOpen
+  menuOpenRef.current = paused || shelfOpen || controlsOpen || coreOptionsOpen || wikiOpen || pokedexOpen
   const menuOpen = menuOpenRef.current
   useEffect(() => {
     emuRef.current?.native.setGated(menuOpen)
@@ -513,10 +587,79 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
     flashShot('saved')
   }, [name, flashShot])
 
+  // Which pause list is showing: the root menu or the Display sub-screen. B (and
+  // the ✕) pops back to root before it closes the menu, so the sub-screen can
+  // never be a trap.
+  const [menuScreen, setMenuScreen] = useState('root')
+
+  // --- System options: the core's own knobs ---------------------------------
+  // Declared ABOVE onMenuAction because its deps array names openCoreOptions —
+  // a const referenced from a hook's deps before its own declaration is a
+  // temporal dead zone, and it blanks the whole player at runtime.
+
+  // The curated view of what this core offers — the intersection of the shortlist
+  // in lib/coreOptions.js with what the running core actually registered.
+  const optionRows = useMemo(() => curatedRows(core, coreOpts), [core, coreOpts])
+
+  const openCoreOptions = useCallback(() => {
+    setCoreOptionsFocus(0)
+    setCoreOptionsOpen(true)
+  }, [])
+  const closeCoreOptions = useCallback(() => setCoreOptionsOpen(false), [])
+
+  const stepCoreOption = useCallback(
+    (key, dir) => {
+      const row = optionRows.find((r) => r.key === key)
+      if (!row) return
+      const next = stepOptionValue(row, dir)
+      if (next === row.current) return
+      saveSettings(withCoreOption(readSettings(window.localStorage), core, key, next))
+      // Read the row back immediately — the panel shows the choice whether or not
+      // the core can act on it yet.
+      setCoreOpts((prev) => prev.map((o) => (o.key === key ? { ...o, current: next } : o)))
+      // An option the core only reads at startup is PERSISTED, not pushed: the
+      // row says "Applies next launch" and that stays literally true. Pushing it
+      // would be ignored at best, and at worst have the core rebuild its renderer
+      // under a live GL context.
+      if (row.appliesOnRelaunch) return
+      emuRef.current?.native.setOption(key, next).catch((e) => {
+        setError(String(e?.message || e))
+        // The host refused it — re-read rather than keep showing a value the
+        // core isn't actually running.
+        emuRef.current?.native.listOptions().then(setCoreOpts).catch(() => {})
+      })
+    },
+    [optionRows, core, saveSettings, setError]
+  )
+
+  const resetCoreOptions = useCallback(() => {
+    saveSettings(clearCoreOptions(readSettings(window.localStorage), core))
+    for (const row of optionRows) {
+      if (row.defaultValue == null || row.current === row.defaultValue) continue
+      setCoreOpts((prev) => prev.map((o) => (o.key === row.key ? { ...o, current: row.defaultValue } : o)))
+      if (!row.appliesOnRelaunch) {
+        emuRef.current?.native.setOption(row.key, row.defaultValue).catch(() => {})
+      }
+    }
+  }, [optionRows, core, saveSettings])
+
   const onMenuAction = useCallback(
     (action) => {
       switch (action) {
         case 'resume':
+          dispatch('resume')
+          break
+        case 'display':
+          setMenuScreen('display')
+          setMenuFocus(0)
+          break
+        case 'rewind':
+          applyRewind(!rewinding)
+          dispatch('resume') // rewind is something you want to SEE
+          break
+        case 'fullscreen':
+          fullscreenRef.current = !fullscreenRef.current
+          emuRef.current?.native.setFullscreen(fullscreenRef.current)
           dispatch('resume')
           break
         case 'states':
@@ -532,11 +675,17 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
         case 'ffRatio':
           stepFFRatio(1) // A cycles the turbo speed
           break
+        case 'filter':
+          stepFilter(1) // A cycles the look, same as the web player
+          break
         case 'screenshot':
           takeScreenshot() // stays on the menu — the row reads back Saved
           break
         case 'controls':
           openControls()
+          break
+        case 'coreOptions':
+          openCoreOptions()
           break
         case 'wiki':
           openWiki()
@@ -556,26 +705,36 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
           break
       }
     },
-    [fastForward, applyFF, openShelf, openControls, openWiki, openPokedex, toggleMute, stepFFRatio, takeScreenshot]
+    [fastForward, applyFF, openShelf, openControls, openCoreOptions, openWiki, openPokedex, toggleMute, stepFFRatio, stepFilter, takeScreenshot]
   )
 
   const openMenu = useCallback(() => {
     setMenuFocus(0)
+    setMenuScreen('root') // always opens at the top level
     dispatch('pause')
   }, [])
 
   const ffRatioLabel = FF_RATIO_LEVELS.find((s) => s.id === ffRatio)?.label || '3×'
-  const onMenuAdjust = (rowId, dir) => (rowId === 'volume' ? stepVolume(dir) : stepFFRatio(dir))
-  // No Rewind, no Filter, no Fullscreen: the host has no rewind ring or shader
-  // pipeline yet, and a Tauri window's fullscreen belongs to the window chrome.
-  const menuItems = pauseItems(fastForward, {
-    canFullscreen: false,
-    canRewind: false,
+  const shaderLabel = SHADER_LEVELS.find((s) => s.id === shader)?.label || 'Off'
+  const onMenuAdjust = (rowId, dir) =>
+    rowId === 'volume' ? stepVolume(dir) : rowId === 'ffRatio' ? stepFFRatio(dir) : stepFilter(dir)
+  // ONE bag feeds the list the pad WALKS and the list the player SEES. These were
+  // written out twice and drifted: the walked list carried Rewind, the drawn one
+  // didn't, so from Fast Forward down every highlight fired the row above it.
+  // Phase 3: the native core has a rewind ring, a shader pipeline and a window that
+  // goes fullscreen, so the rows the player used to omit are all real now.
+  const menuOpts = {
+    canFullscreen: true,
+    canRewind: true,
     isPokemon,
     volume,
+    rewinding,
+    shader: shaderLabel,
     ffRatio: ffRatioLabel,
     shotStatus,
-  })
+    hasCoreOptions: optionRows.length > 0,
+  }
+  const menuItems = pauseItems(fastForward, menuOpts, menuScreen)
 
   const rows = controlRows(isPokemon)
 
@@ -612,6 +771,7 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
     ...createPadRouter({
       state, core, exit, dispatch, settings, isPokemon, paused, openMenu, menuOpenRef,
       menuItems, menuFocus, setMenuFocus, onMenuAction, onMenuAdjust,
+      menuScreen, setMenuScreen,
       shelfOpen, setShelfOpen, states, shelfFocus, setShelfFocus, shelfCols, setError,
       coverActions, doSave, openChooser, requestDelete, doSetCover, doResetCover,
       pendingDelete, confirmFocus, setConfirmFocus, confirmDelete, cancelDelete,
@@ -619,11 +779,13 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
       pendingQuit, setPendingQuit, quitFocus, setQuitFocus,
       confirmQuit: () => exit(true), // exact SRAM first, THEN 'quit' — see exit()
       controlsOpen, closeControls, controlsFocus, setControlsFocus, rows,
+      coreOptionsOpen, closeCoreOptions, coreOptionsFocus, setCoreOptionsFocus,
+      optionRows, stepCoreOption, resetCoreOptions,
       setLastPress, captureBinding, setListeningFor, resetBindings, cycleSkin, chooseScheme,
       fastForward, applyFF,
       // The rewind hotkey must not flip a state the host can't honour — a no-op
       // keeps the router's contract without pretending time ran backwards.
-      rewinding: false, applyRewind: () => {},
+      rewinding, applyRewind,
       wikiOpen, wikiRef, closeWiki, openWiki,
       pokedexOpen, pokedexRef, closePokedex, openPokedex,
       actions: padActions,
@@ -840,15 +1002,11 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
           open={paused && !shelfOpen}
           name={name}
           fastForward={fastForward}
-          canFullscreen={false}
-          canRewind={false}
-          isPokemon={isPokemon}
-          volume={volume}
-          ffRatio={ffRatioLabel}
-          shotStatus={shotStatus}
+          {...menuOpts}
           onAdjust={onMenuAdjust}
           focus={menuFocus}
           onFocus={setMenuFocus}
+          screen={menuScreen}
           onAction={onMenuAction}
           legend={
             <ButtonLegend
@@ -881,6 +1039,18 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
             onListen={setListeningFor}
             onReset={resetBindings}
             onBack={closeControls}
+          />
+        )}
+
+        {coreOptionsOpen && (
+          <CoreOptionsPanel
+            system={label || core}
+            rows={optionRows}
+            focus={coreOptionsFocus}
+            onFocus={setCoreOptionsFocus}
+            onStep={stepCoreOption}
+            onReset={resetCoreOptions}
+            onBack={closeCoreOptions}
           />
         )}
 

@@ -196,6 +196,70 @@ shape:
 
 ### Known issues (backlogged)
 
+- [ ] **[P1] Native N64 audio is wrong — the core produces ~17% more audio than it
+      declares.** Wants its own session; two attempted fixes measured well and still
+      sounded wrong, which is the tell that the measurements weren't testing the
+      thing that matters. **Pre-existing, not a Phase 3 regression** — the ring was
+      already pegged on v0.8.2.
+      - **Measured on the M4 (Mario Kart 64, `scripts/dev-desktop.sh --trace`):** the
+        core declares `timing.sample_rate` 44100 and actually pushes **~51,600 frames/s**
+        (`audio_in` in the frame trace). Device runs 48000/2ch, so `ratio` 0.9187 pins
+        consumption to exactly 44,100 — the ring gains ~7,500 frames a second, pegs at
+        its 96,000 cap, and drops the oldest samples forever after. That is ~1s of
+        latency plus continuous dropouts, which reads to the ear as "running fast".
+      - **Video is NOT affected** — measured 60.15 fps against a 59.94 NTSC target
+        (+0.35%). Don't re-chase this; it was ruled out.
+      - **Ruled out:** no mid-session `SET_SYSTEM_AV_INFO` rate change (the host's
+        drift warning never fired); core options are v1 `SET_VARIABLES` only, where
+        first-value-is-default is the spec, so nothing is being silently flipped.
+      - **Untested and the best next lead:** macOS forces `mupen64plus-rsp-plugin=cxd4`
+        (LLE RSP, see `default_options`). With HLE RSP the core's high-level audio path
+        resamples to the declared rate; LLE may emit at the console's native AI clock
+        (`vi_clock / (dacrate + 1)` ≈ 51,570 Hz, which matches the measurement almost
+        exactly). **Run the A/B** — one attempt was made and produced no data because
+        the session hit the dev double-mount race. Note 859 samples/frame at 60 fps is
+        consistent with a 51,570 Hz source, so the rate may well be honest and the
+        declaration simply wrong.
+      - **Second lead, if the rate is honest:** the resampler lerps between two frames
+        (`ring[0..4]`), so at a ratio above 1.0 it SKIPS source frames with no
+        filtering — textbook aliasing, which sounds like distorted music and a rough
+        voice while ring occupancy looks perfectly healthy. Ben reports crackle
+        concentrated on dense audio (loading screen, engine roar), which fits aliasing
+        better than starvation. **Verify by decoding captured output, not by watching
+        the buffer** — that's the mistake both attempts made.
+      - **Prior art in `git stash` ("wip: n64 audio rate-steering (backlogged)")**:
+        occupancy-steered then measured-rate resampling, with tests. Attempt 1 warbled
+        (±10% proportional term = ±1.5 semitones); attempt 2 held pitch to ±0.5% and
+        parked the ring at 2× target, but still sounded off. Kept from that work: the
+        `audio_in`/rate traces and a real bug fix — `audio_sample` never trimmed the
+        ring, so a core pushing one frame at a time could grow it without bound.
+- [ ] **[P2] The DS stylus does nothing** (Chrono Trigger's "Touch to start"; A/Enter
+      work). **Narrowed, not fixed.** The `FROG_EMU_TRACE` stylus trace in `set_pointer`
+      proves the webview→command→letterbox chain is CORRECT — a real click logs
+      `stylus css(400,527) x2 -> picture(0.276,0.659) rect(213,0,2133x1600)`, and the
+      arithmetic checks out. So the pointer reaches `input::pointer` with good
+      coordinates and the bug is downstream: how melonDS is fed or polled. Look at
+      `DEVICE_POINTER`/`POINTER_COUNT` in `input::state`, whether the core needs
+      `retro_set_controller_port_device(0, RETRO_DEVICE_POINTER)`, and whether
+      `clear_snapshot()` (which zeroes `POINTER_DOWN` along with the pad) is firing
+      mid-play.
+- [ ] **[P3] DS screen ratio presets.** A layout that makes the top screen large and
+      the touch screen small, for games you mostly watch. `melonds_hybrid_ratio` is
+      already curated in `lib/coreOptions.js`; this is about choosing honest presets
+      rather than exposing the core's raw value list.
+- [ ] **[P3] The Quit confirm's focused button is hard to identify.** Root cause:
+      focus is encoded in the SAME channel (accent colour) that the danger variant
+      already uses for meaning — `Button.jsx` gives `solid` a glow in its own accent,
+      so focusing the red Quit button draws a red glow on red and vanishes, while the
+      quiet "Keep playing" gets a clearly visible jade ring. The two states speak
+      different languages and the important one is mute. **Recommendation:** give focus
+      its own constant channel — a 2px outline in one cursor colour at `outline-offset:
+      3px`, identical on both variants (an outline sits outside the fill, so unlike an
+      inset ring it survives a solid background) — plus dim the unfocused sibling to
+      ~60% so the pair reads as figure/ground. Keep the scale nudge. Lands in
+      `Button.jsx`, so it touches every focus cursor in the app: its own commit, and
+      re-check the other panels.
+
 - [ ] **[P1] Disc-era (N64/DS/PS1) playback is browser-broken — TWO distinct problems.**
       Full investigation + compatibility matrix + hypotheses in memory
       `frog-disc-era-browser-compat.md` (start there). In brief:
@@ -381,7 +445,11 @@ check a row when its exit criteria hold, and note carry-over under the row.
       screen says FETCHING n%. Verified on the M4: Chrono Trigger (DS) renders both
       screens; Chrono Cross (403 MB `.chd`) mounts and boots on the HLE BIOS.
       Carry-over: PS1 BIOS fetching (the endpoint exists, Ben has no dump on the
-      server, HLE is the documented fallback); DS screen-layout options → row 9.
+      server, HLE is the documented fallback); DS screen-layout options → row 9
+      (SETTLED there by the System options panel — `melonds_screen_layout`,
+      `_screen_gap` and `_hybrid_ratio`, pinned by a test in `lib/coreOptions.test.js`;
+      it also forced the geometry fix, since melonDS changes its picture's SHAPE when
+      the layout changes and the host was freezing the aspect at boot).
 - [x] **7b. Retire DS + PS1 from the web player.** Shipped as the extension the
       capability map was designed for, not a removal: `lib/systemCapabilities.js` now
       separates **offered** (does it appear in the library at all — only touch hides
@@ -404,9 +472,47 @@ check a row when its exit criteria hold, and note carry-over under the row.
       locked 60 fps and render non-black. Also fixed: the transparent window
       showed the DESKTOP through the app between the boot screen leaving and the
       first frame arriving; the stage now paints black when a session starts.
-- [ ] **9. Phase 3 — feel/parity (v0.9.0).** Fast-forward, rewind, display filter,
-      fullscreen, controller hotplug, per-core options, volume — parity with the web
-      player's chrome.
+- [x] **9. Phase 3 — feel/parity (v0.9.0).** Shipped: the desktop player reaches
+      feel-parity with the web one. The pause-menu restructure (decided with Ben
+      2026-07-27) — the single-column walk WRAPS (`moveInGrid`'s opt-in `wrap`, used
+      only by the pause menu), so Quit is one press up from Resume instead of a walk
+      down fourteen rows; and the set-once rows (Filter, FF Speed, Fullscreen, System
+      options) moved behind a **Display** sub-screen. Natively: **rewind** (a state
+      ring in `session.rs`, snapshots every 6 frames, bounded by BOTH ~10s and a
+      96 MB budget because state sizes differ by 100× across systems), **fullscreen**
+      (the window's job — the GL stage follows it), the **display filter**
+      (`emu/shader.rs`), **per-core options**, and **controller hotplug**.
+      **System options** are curated per system (`lib/coreOptions.js`), not the ~80
+      variables mupen registers: the table names keys and labels, the VALUES come
+      from the running core, and a system with nothing curated shows no row. Choices
+      persist per system and ride `load_game`, because the host arms them before
+      `retro_init`. Init-only knobs say **"Applies next launch"** and mean it — no
+      save-state-and-relaunch behind the player's back.
+      **Hotplug** splits ownership: the host owns pad presence (it sees gilrs's edges
+      even while a menu is up), the webview keeps owning the binding key space (its
+      rebinds are keyed by the Web Gamepad id, which gilrs names differently — one
+      key space, no orphaned rebinds).
+      **Three defects the row turned up and fixed:** (1) the native pause menu drew a
+      DIFFERENT list than the pad walked — the options were spelled out twice and
+      Phase 3 changed only one copy, so from Fast Forward down every highlight fired
+      the row above it and Quit ran Restart; both players now build one bag and
+      spread it, pinned by a row-count test. (2) The display filter shipped in the
+      host but was unreachable — the player never passed a step label, so the row was
+      dropped, and neither handler had a filter arm. (3) The host **froze the aspect
+      ratio at boot**: `SET_GEOMETRY`/`SET_SYSTEM_AV_INFO` fell through the
+      environment catch-all, which is exactly how melonDS announces a screen-layout
+      change — the DS option would have shipped stretching the picture up to 4× and
+      mis-mapping the stylus with it.
+      Verified: all nine systems boot and render on the M4 through
+      `scripts/smoke-native.sh` (59.7–60.9 fps, all non-black), plus Ben's hands-on
+      pass. Also fixed here: `--all` used to fail on one RANDOM system per run —
+      the dev double-mount races `FROG_AUTOSTART`, so the start press can land on
+      the cancelled first session and the game never leaves the start card (the
+      log signature is two GL inits, core activity, and zero trace lines). It was
+      pre-existing (reproduced on v0.8.2) and it made the one check the desktop
+      player has easy to wave away. Systems now get two tries, with the retry
+      ANNOUNCED and the failed attempt's log kept — a flake that hides itself would
+      just move the lie. `ATTEMPTS=1` restores one-shot.
 - [ ] **10. Phase 4a — first-run setup + runtime backend.** Native setup screen
       (remote server URL | local ROM folder); `API_BASE` becomes a runtime getter.
 - [ ] **11. Phase 4b — backend sidecar.** PyInstaller one-file FastAPI bundled as a

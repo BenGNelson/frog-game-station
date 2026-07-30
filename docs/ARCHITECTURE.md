@@ -384,7 +384,23 @@ colours), and the **button-legend glyphs** keep the real controller's face-butto
   with a direct WebAudio-gain fallback), persisted in the `frog.player` blob, and
   re-applied the moment the engine boots — the `volume: 0.5` default matches the
   engine's own historical default, so shipping the control changed nobody's loudness.
-  Under it, a **Filter** cycle row (◀ ▶ / A step it, with wrap): a curated shortlist of
+  The menu is **two lists, not one long one.** The rows you reach for mid-game stay at
+  the top level; the ones you set once — the picture, the turbo's speed, fullscreen, the
+  core's own knobs — live behind a **Display** row, the same "growth is handled by
+  grouping, not by cramming" rule that turned Save and Load into a single shelf entry.
+  `pauseItems(fastForward, opts, screen)` returns either list, B pops back to the root
+  before it closes the menu (so a sub-screen can never be a trap), and the walk, the
+  legend and the row shapes are identical either way. The single-column walk also
+  **wraps** (`moveInGrid`'s opt-in `wrap`, used only here), so Quit is one press *up*
+  from Resume rather than a walk down fourteen rows.
+
+  > **One bag, two consumers.** `pauseItems` builds the list the pad walks and
+  > `<PauseMenu>` builds the list the player sees — from the same options object. They
+  > must be the *same* object: spelled out twice they drift, and then every index below
+  > the first difference highlights one row while firing another. Both players build one
+  > `menuOpts` and spread it; a row-count test pins it.
+
+  On the Display screen: a **Filter** cycle row (◀ ▶ / A step it, with wrap): a curated shortlist of
   the engine's bundled shaders — **Off / CRT / CRT curve / Smooth** (`SHADER_LEVELS`,
   `lib/playerSettings.js`) rather than its fourteen-variant drawer — applied live
   through `emuBridge.setShader` (the engine's own `shader` setting → `enableShader`
@@ -394,6 +410,24 @@ colours), and the **button-legend glyphs** keep the real controller's face-butto
   toggle — 1.5× / 2× / 3× / Max, a curated cut of the engine's `ff-ratio` (which offers
   every half-step to 10×), defaulting to the engine's own 3× and driven live through
   `emuBridge.setFFRatio`.
+
+  **System options** (desktop only) is the last row on the Display screen, and it opens
+  its own panel rather than a third pause list — `pauseItems` is a pure function of a few
+  scalars whose whole promise is that the same walk lands on the same action, and a list
+  whose length depends on what a dylib happened to register breaks that at the root. The
+  panel is the emulator core's own knobs: how the DS stacks its two screens, which plugin
+  the N64 draws with, whether the PlayStation reports a pad with sticks. It is **curated**
+  (`lib/coreOptions.js`) — mupen registers ~80 variables and melonDS's screen gap alone
+  offers 127 values, which is a config dialog, not a preference. The table names keys and
+  labels; the **values come from the running core**, so a key a core stops registering
+  simply stops appearing and a value it never declared can't be sent. A system with
+  nothing curated shows no row at all. Choices persist per *system* (`coreOptions` in the
+  `frog.player` blob) and ride `load_game`'s args, because the host applies them before
+  `retro_init` — the only moment a core reads them. Rows the core only reads at startup
+  say **"Applies next launch"** and mean it: the choice is stored and the running core is
+  left alone (libretro exposes no machine-readable "init only", so the flag is
+  hand-authored). A trailing **"Use the core's defaults"** row is the way back when a
+  chosen plugin renders black.
 
 ### Touch controls
 
@@ -770,6 +804,31 @@ pruned), so the collection can't grow without bound.
   states (screenshot thumbnails), and **Resume** relaunches loading the chosen state's
   bytes. Slot ids are backend-assigned millisecond timestamps (digits only) — which
   doubles as the traversal guard for the file paths.
+  - **Native audio consumes at the core's DECLARED rate, which one core gets wrong.**
+    The cpal callback runs at the device rate and each output frame eats
+    `ratio = core_rate / device_rate` source frames, so consumption is pinned to
+    exactly `timing.sample_rate`. That is only correct while a core's declaration is
+    honest, and mupen64plus-next's is not — it pushes ~51.6 kHz against a declared
+    44.1 kHz, so the ring pegs at its 1s cap and drops audio continuously. **Known,
+    unfixed, and tracked in `docs/TODO.md` under Known issues**, with the measurements
+    and the two live leads; `FROG_EMU_TRACE=1` prints the declared/device pair and the
+    core's real production rate. Two attempted fixes are in `git stash` — both measured
+    well and still sounded wrong, so treat buffer-occupancy metrics as necessary and
+    NOT sufficient here: the ear is the acceptance test.
+  - **One state format across both players: the RASTATE container** (`lib/rastate.js`).
+    A state made on the phone has to open on the desktop, and matching the two players'
+    **cores** (row 8) turned out to be necessary and not sufficient — they also have to
+    agree on the **envelope**. EmulatorJS writes RASTATE, RetroArch's container: the magic
+    `"RASTATE"` + a version byte, then `id(4) + size(u32 LE) + payload` blocks padded to
+    8 bytes, where `"MEM "` holds the raw `retro_serialize` output and `"END "` terminates.
+    The native host deals only in raw core bytes, so the adapter wraps on the way out and
+    unwraps on the way in — the same place every other web-engine shape difference is
+    absorbed, which keeps the Rust side ignorant of how anyone chose to package a state.
+    Unwrapping passes non-container bytes **through untouched**, so the raw states the
+    native player wrote before this existed still load. Skipping the wrap is not a smaller
+    fix, it's half of one: it would repair phone→desktop and leave desktop→phone broken.
+    Found the hard way — a raw parser reading a container reports it as a corrupt state
+    for a *different game*, so the symptom names neither the cause nor the container.
   - **Manage a slot: rename / annotate / pin.** A slot's default name is its age, but the
     game page's save-shelf editor (a modal, Y or the pencil) gives it a custom **label**, a
     **note**, and a **pin**. It's stored in a per-slot `{slot}.json` sidecar beside the state
@@ -1165,6 +1224,43 @@ The player and readers are **real routes**, not overlays, so the phone's back ge
   the backend's CORS default now allows the desktop webview's fixed `tauri:` origins,
   which no website can present, so the desktop app works against a stock server with
   zero config.
+- **Core options are a curated shortlist owned by the frontend; the host stays a faithful
+  libretro frontend.** The host reports *everything* the running core registered and
+  applies whatever it is told; which knobs a human is offered, what they're called, and
+  what order they come in is product taste, and it lives in `lib/coreOptions.js` beside
+  `SHADER_LEVELS` and `FF_RATIO_LEVELS`. Deliberately **not** mirrored into Rust the way
+  `SECTIONS` ↔ `LIBRETRO_CORE` is: that pair is mirrored because both sides need the
+  mapping at runtime, so it's pinned by a test; here only one side does, so there is
+  nothing to drift and adding a knob is a one-file frontend edit. Three protocol rules the
+  host obeys, each with a test rather than only a comment: a changed value **leaks a new
+  C string and never frees the old one** (a core may hold every pointer `GET_VARIABLE`
+  ever handed it, so freeing is a use-after-free waiting for the next cached read);
+  `GET_VARIABLE_UPDATE` answers **true exactly once** per change (always-true has melonDS
+  rebuild its renderer sixty times a second, always-false — what it did until Phase 3 —
+  means a change is never picked up); and a value the core never declared is refused. The
+  set path rides the session channel so the pointer swap lands *between frames*, never
+  while the core is inside `retro_run`; the list path is a plain read, so it still answers
+  if a core is wedged. Options that are only read at `retro_init` are persisted but not
+  pushed — "Applies next launch" is literally true, and no save-state-and-relaunch dance
+  happens behind the player's back.
+- **The host owns pad presence; the webview owns the binding key space.** gilrs sees
+  connect and disconnect edges even while a menu is up and the webview has stopped
+  polling, so the host is what notices a controller arriving mid-game — but per-pad
+  rebinds are keyed by the Web Gamepad API's `"<name>:<index>"` id, and gilrs names pads
+  differently. Re-keying off the host would create a second key space and strand every
+  rebind ever made, so a connect edge only says "something changed": the webview re-pushes
+  the map it already believes in, and the first real press resolves which pad it is. A
+  disconnect releases the whole input snapshot — a pad yanked mid-run used to leave its
+  last press latched, and the character kept walking into a wall.
+- **The picture follows the core's geometry, not the shape it had at boot.** The host
+  answers `SET_GEOMETRY` and `SET_SYSTEM_AV_INFO` and keeps the aspect and frame rate in
+  live atomics. Declining them (the old catch-all) froze the aspect at whatever
+  `get_system_av_info` said before the first frame, which is fine until a core changes
+  shape mid-run — melonDS does exactly that on every screen-layout change (Top/Bottom
+  ≈ 0.67, Left/Right ≈ 2.67), so the picture stretched by up to 4× *and* the letterbox
+  rect went stale, which is the rect the DS stylus maps a click through. A sample-rate
+  change would mean re-opening the audio stream mid-session; no core we ship does it, so
+  it is logged plainly rather than pretended away.
 
 ---
 

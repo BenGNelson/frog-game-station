@@ -20,7 +20,11 @@ const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n))
 // 3-3 and a stray). The walk has to know that, or the cursor and your eye disagree:
 // press Up from the centred tile and you'd jump to the left-hand column, which is
 // not the tile sitting above it.
-export function moveInGrid({ count, cols, index }, dir, { centerLastRow = false } = {}) {
+// `wrap` closes a single column into a loop: up from the first row lands on the
+// last, down from the last returns to the first. Opt-in, and only meaningful for
+// a 1-column list — it exists so the pause menu's LAST item (Quit) is one press
+// from its first (Resume) instead of a walk down the whole menu.
+export function moveInGrid({ count, cols, index }, dir, { centerLastRow = false, wrap = false } = {}) {
   if (!count || !cols) return 0
   const i = clamp(index, 0, count - 1)
   const col = i % cols
@@ -34,6 +38,11 @@ export function moveInGrid({ count, cols, index }, dir, { centerLastRow = false 
   // lands on whatever is actually drawn above it — the middle of the row before.
   if (orphan && i === count - 1) {
     return dir === 'up' ? (lastRow - 1) * cols + middle : i
+  }
+
+  if (wrap && cols === 1) {
+    if (dir === 'up') return i === 0 ? count - 1 : i - 1
+    if (dir === 'down') return i === count - 1 ? 0 : i + 1
   }
 
   switch (dir) {

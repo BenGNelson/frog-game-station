@@ -19,6 +19,7 @@
 // Byte traffic rides raw invoke bodies / ArrayBuffer responses, never JSON.
 
 import { isNative } from './playerBackend.js'
+import { wrapRastate, unwrapRastate } from './rastate.js'
 
 async function tauriIo() {
   const [{ invoke }, { listen }] = await Promise.all([
@@ -31,7 +32,7 @@ async function tauriIo() {
 /// Start a native session and return the engine adapter. Rejects if the core
 /// refuses (missing core, bad ROM, GL failure) — the caller shows the honest
 /// failure screen.
-export async function createNativeEmu({ gameId, romUrl, core, system }, d = {}) {
+export async function createNativeEmu({ gameId, romUrl, core, system, options = {} }, d = {}) {
   const { invoke, listen } = d.invoke ? d : await tauriIo()
 
   let sram = null // the snapshot getSaveFile serves synchronously
@@ -55,7 +56,10 @@ export async function createNativeEmu({ gameId, romUrl, core, system }, d = {}) 
     refreshSram()
   })
 
-  const { av, generation } = await invoke('load_game', { args: { gameId, romUrl, core, system } }).catch((e) => {
+  // `options` are the player's saved core-option choices for this system. They
+  // must ride the LAUNCH, not a later call: the host arms them before retro_init,
+  // which is the only moment SET_VARIABLES can consult them.
+  const { av, generation } = await invoke('load_game', { args: { gameId, romUrl, core, system, options } }).catch((e) => {
     unlisten()
     throw e instanceof Error ? e : new Error(String(e))
   })
@@ -63,15 +67,19 @@ export async function createNativeEmu({ gameId, romUrl, core, system }, d = {}) 
 
   return {
     gameManager: {
-      // Save states: bytes across the invoke boundary as real ArrayBuffers.
+      // Save states: bytes across the invoke boundary as real ArrayBuffers, in
+      // the RASTATE container the web player also reads and writes. The host
+      // deals only in raw core bytes — the envelope is this adapter's job, like
+      // every other shape difference in here. See lib/rastate.js.
       getState: async () => {
         const buf = await invoke('save_state')
-        return new Uint8Array(buf)
+        return wrapRastate(new Uint8Array(buf))
       },
       // Returns the invoke promise so a failed restore surfaces in the shelf's
       // error path instead of reading as a silent success (the web engine's is
       // synchronous-void; awaiting it is a no-op there).
-      loadState: (bytes) => invoke('load_state', bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes)),
+      loadState: (bytes) =>
+        invoke('load_state', unwrapRastate(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes))),
       // SRAM: the snapshot bridge (see the header).
       getSaveFile: () => sram,
       getSaveFilePath: () => '/native/sram.srm',
@@ -116,6 +124,15 @@ export async function createNativeEmu({ gameId, romUrl, core, system }, d = {}) 
       setPointer: (x, y, down) => invoke('set_pointer', { x, y, down }).catch(() => {}),
       setVolume: (level) => invoke('set_volume', { level }),
       setFastForward: (on, ratio) => invoke('set_fast_forward', { on, ratio }),
+      setRewinding: (on) => invoke('set_rewinding', { on }),
+      setFilter: (id) => invoke('set_filter', { id }),
+      // The core's own options: what it registered, and a change to one. The
+      // list is whatever THIS core declared — lib/coreOptions.js decides which
+      // of them a human is offered.
+      listOptions: () => invoke('list_core_options'),
+      setOption: (key, value) => invoke('set_core_option', { key, value }),
+      setFullscreen: (on) => invoke('set_fullscreen', { on }),
+      isFullscreen: () => invoke('is_fullscreen'),
       stop: async () => {
         unlisten()
         // Generation-scoped: a stale adapter (a cancelled boot resolving

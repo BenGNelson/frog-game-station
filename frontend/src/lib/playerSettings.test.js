@@ -21,6 +21,9 @@ import {
   TOUCH_OPACITY_LEVELS,
   nearestOpacityLevel,
   CONTROL_SKINS,
+  coreOptionsFor,
+  withCoreOption,
+  clearCoreOptions,
 } from './playerSettings.js'
 
 // A stand-in for localStorage, including the index-based key() walk that
@@ -310,5 +313,57 @@ describe('clampVolume', () => {
     expect(clampVolume(undefined)).toBe(DEFAULTS.volume)
     expect(clampVolume(NaN)).toBe(DEFAULTS.volume)
     expect(clampVolume('loud')).toBe(DEFAULTS.volume)
+  })
+})
+
+describe('core options, per system', () => {
+  it('defaults to nothing chosen, so every core runs on its own settings', () => {
+    expect(DEFAULTS.coreOptions).toEqual({})
+    expect(coreOptionsFor(readSettings(fakeStorage()), 'nds')).toEqual({})
+  })
+
+  it('merges into a settings blob written before the key existed', () => {
+    // The whole point of the merge-don't-replace read: an older build's file
+    // has no coreOptions, and it must not come back undefined.
+    const storage = fakeStorage({ [SETTINGS_KEY]: JSON.stringify({ volume: 0.3 }) })
+    const settings = readSettings(storage)
+    expect(settings.volume).toBe(0.3)
+    expect(settings.coreOptions).toEqual({})
+  })
+
+  it('remembers a choice per system and never touches another system', () => {
+    let s = withCoreOption(readSettings(fakeStorage()), 'nds', 'melonds_screen_layout', 'Left/Right')
+    s = withCoreOption(s, 'n64', 'mupen64plus-rdp-plugin', 'gliden64')
+    expect(coreOptionsFor(s, 'nds')).toEqual({ melonds_screen_layout: 'Left/Right' })
+    expect(coreOptionsFor(s, 'n64')).toEqual({ 'mupen64plus-rdp-plugin': 'gliden64' })
+
+    // A second choice on one system leaves the first alone.
+    s = withCoreOption(s, 'nds', 'melonds_screen_gap', '16')
+    expect(coreOptionsFor(s, 'nds')).toEqual({
+      melonds_screen_layout: 'Left/Right',
+      melonds_screen_gap: '16',
+    })
+  })
+
+  it('resets one system back to the core’s defaults, leaving the others', () => {
+    let s = withCoreOption(readSettings(fakeStorage()), 'nds', 'melonds_screen_layout', 'Left/Right')
+    s = withCoreOption(s, 'psx', 'pcsx_rearmed_pad1type', 'standard')
+    s = clearCoreOptions(s, 'nds')
+    expect(coreOptionsFor(s, 'nds')).toEqual({})
+    expect(coreOptionsFor(s, 'psx')).toEqual({ pcsx_rearmed_pad1type: 'standard' })
+  })
+
+  it('survives the round trip through storage', () => {
+    const storage = fakeStorage()
+    const saved = withCoreOption(readSettings(storage), 'nds', 'melonds_screen_layout', 'Hybrid Top')
+    writeSettings(storage, saved)
+    expect(coreOptionsFor(readSettings(storage), 'nds')).toEqual({ melonds_screen_layout: 'Hybrid Top' })
+  })
+
+  it('ignores a call with no system or no key rather than writing junk', () => {
+    const s = readSettings(fakeStorage())
+    expect(withCoreOption(s, null, 'k', 'v')).toBe(s)
+    expect(withCoreOption(s, 'nds', '', 'v')).toBe(s)
+    expect(coreOptionsFor(s, undefined)).toEqual({})
   })
 })

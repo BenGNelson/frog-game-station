@@ -56,6 +56,15 @@ export const DEFAULTS = {
   // The rewind hotkey — same opt-in shape as fast-forward: unassigned until the
   // player picks a button (or a hold-Menu chord) in Controls.
   rewindHotkey: null,
+
+  // The core's own options, chosen per SYSTEM: `{ nds: { melonds_screen_layout:
+  // 'Left/Right' } }`. Per system rather than per game because these describe how
+  // the console behaves, not how one cartridge does — a screen layout you like is
+  // one you like for every DS game. Desktop only (the web engine has no such
+  // surface), and they ride load_game's args so the host can apply them before
+  // retro_init, which is the only moment a core reads them. See lib/coreOptions.js
+  // for the curated shortlist these keys come from.
+  coreOptions: {},
 }
 
 // --- App-shortcut hotkeys (Wiki / Pokédex / Fast-Forward) ------------------
@@ -156,6 +165,28 @@ export function resetControls(settings, padId) {
     ffHotkey: DEFAULTS.ffHotkey,
     rewindHotkey: DEFAULTS.rewindHotkey,
   }
+}
+
+// This device's core-option choices for one system. Always an object, so a caller
+// can spread it without checking.
+export function coreOptionsFor(settings, system) {
+  return (system && settings?.coreOptions?.[system]) || {}
+}
+
+// Remember one core-option choice, leaving every other system alone — a screen
+// layout picked for the DS must not touch the N64's graphics plugin.
+export function withCoreOption(settings, system, key, value) {
+  if (!system || !key) return settings
+  const forSystem = { ...coreOptionsFor(settings, system), [key]: value }
+  return { ...settings, coreOptions: { ...settings.coreOptions, [system]: forSystem } }
+}
+
+// Back to the core's own defaults for this system — the escape hatch when a
+// chosen option makes a game unplayable (an RDP plugin that renders black).
+export function clearCoreOptions(settings, system) {
+  const next = { ...settings.coreOptions }
+  delete next[system]
+  return { ...settings, coreOptions: next }
 }
 
 // A stored volume back to a sane 0..1 number — a corrupt/legacy value must not

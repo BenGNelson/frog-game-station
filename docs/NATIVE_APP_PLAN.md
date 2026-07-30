@@ -223,9 +223,13 @@ native-only ones; the same `vite build` still produces the web PWA for the serve
   N64, then DS, then PS1. Save states + SRAM POST to the same API → **roaming with the
   phone works**. The Frog pause menu / save shelf / controls screen drive the native
   core. This is the milestone that makes the desktop app the powerhouse.
-- **Phase 3 — feel + parity.** Fast-forward, rewind, the display filter, per-core
-  options, fullscreen, controller hotplug — reach parity with the web player's chrome,
-  driven natively.
+- **Phase 3 — feel + parity. DONE (v0.9.0).** Fast-forward, rewind, the display filter,
+  per-core options, fullscreen and controller hotplug all run natively, and the pause
+  menu grew a Display sub-screen to hold the set-once rows. Two things the row turned up
+  along the way: the core's geometry had to become live before the DS screen-layout
+  option could be honest (see the lesson below), and the pause menu's two lists — the one
+  the pad walks and the one the player sees — had drifted apart and are now built from
+  one object.
 - **Phase 4 — distributable (Mode 2).** First-run Setup (remote server vs local), the
   local backend (FastAPI sidecar), auto-update, code signing/notarization, GitHub
   Actions building `.dmg`/`.msi` on tag, a Release with installers, and
@@ -280,6 +284,14 @@ native-only ones; the same `vite build` still produces the web PWA for the serve
   via Vulkan/MoltenVK as the post-1.0 quality upgrade** (requires hosting a Vulkan
   HW-render context; do not fight Apple GL). Phase-2 lesson (same family as the
   GET_VARIABLE one): the NativePlayer owns **per-OS default core options**.
+  Phase-3 lessons, same family again: (a) `GET_VARIABLE_UPDATE` must answer **true
+  exactly once** after a change — always-true makes melonDS rebuild its renderer every
+  frame, always-false means a changed option is never read at all; (b) a changed value
+  must **leak a new string and never free the old one**, because a core is entitled to
+  hold every pointer `GET_VARIABLE` ever gave it; (c) declining `SET_GEOMETRY` /
+  `SET_SYSTEM_AV_INFO` **freezes the aspect ratio at boot** — a core that changes its
+  picture's shape mid-run (melonDS, on every screen-layout change) then renders
+  stretched, and the letterbox rect the stylus maps through goes stale with it.
   (2) **Audio contract:** answer `GET_AUDIO_VIDEO_ENABLE` (env 47, = video|audio) —
   declining it mutes mupen entirely — and feed the device through a jitter buffer
   (hold + ~40 ms refill on underrun); with those, all systems sound clean.

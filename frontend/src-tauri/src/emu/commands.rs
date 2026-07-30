@@ -9,7 +9,7 @@
 // channel and block on it inside spawn_blocking, with a timeout so a wedged
 // core surfaces as an error instead of a hung invoke.
 
-use super::{audio, cores, input, rom, session, EmuState};
+use super::{audio, cores, input, options, rom, session, EmuState};
 use serde::Deserialize;
 use std::sync::mpsc;
 use std::time::Duration;
@@ -54,6 +54,10 @@ pub struct LoadGameArgs {
     pub rom_url: String,
     pub core: String,
     pub system: String,
+    /// The player's saved core-option choices for this system. Defaulted so a
+    /// frontend that doesn't send them still boots.
+    #[serde(default)]
+    pub options: std::collections::HashMap<String, String>,
 }
 
 #[derive(serde::Serialize)]
@@ -160,6 +164,11 @@ pub async fn load_game(
     .await
     .map_err(|e| e.to_string())??;
 
+    // Sorted so the arm order (and therefore the trace and the tests) is
+    // deterministic — a HashMap's iteration order is not.
+    let mut saved_options: Vec<(String, String)> = args.options.into_iter().collect();
+    saved_options.sort_by(|a, b| a.0.cmp(&b.0));
+
     let (boot_tx, boot_rx) = mpsc::channel();
     let handle = session::spawn(
         app.clone(),
@@ -167,6 +176,7 @@ pub async fn load_game(
             core_path: core_path.to_string_lossy().into_owned(),
             rom_path: rom_path.to_string_lossy().into_owned(),
             system: args.system,
+            options: saved_options,
             data_dir,
             ns_view,
             width: size.width,
@@ -321,10 +331,71 @@ pub fn set_analog(index: u32, value: u16) {
 #[tauri::command]
 pub fn set_pointer(window: tauri::WebviewWindow, x: f32, y: f32, down: bool) {
     let scale = window.scale_factor().unwrap_or(1.0) as f32;
-    match session::picture_point(x * scale, y * scale) {
+    let mapped = session::picture_point(x * scale, y * scale);
+    // Under FROG_EMU_TRACE, say what happened to a PRESS. A dead stylus has three
+    // indistinguishable causes from the outside — the command never fired, the
+    // point fell outside the picture rect, or it mapped fine and the core ignored
+    // it — and only the middle one leaves any other evidence. Press edges only:
+    // a drag would print sixty lines a second and bury the answer.
+    if down && std::env::var("FROG_EMU_TRACE").ok().as_deref() == Some("1") {
+        let (dx, dy, dw, dh) = *session::PICTURE.lock().unwrap();
+        match mapped {
+            Some((px, py)) => eprintln!(
+                "[emu] stylus css({x:.0},{y:.0}) x{scale} -> picture({px:.3},{py:.3}) \
+                 rect({dx},{dy},{dw}x{dh})"
+            ),
+            None => eprintln!(
+                "[emu] stylus css({x:.0},{y:.0}) x{scale} -> OUTSIDE rect({dx},{dy},{dw}x{dh})"
+            ),
+        }
+    }
+    match mapped {
         Some((px, py)) => input::pointer(px, py, down),
         None => input::pointer(0.0, 0.0, false),
     }
+}
+
+/// The display filter, by the frontend's own shader id — the same value the web
+/// player hands its engine, so the shared pause menu means one thing.
+#[tauri::command]
+pub fn set_filter(id: String) {
+    session::set_filter(&id);
+}
+
+/// Everything the running core registered, for the System options panel. A plain
+/// synchronous read: it costs no thread hop and still answers if the core is
+/// wedged inside retro_run. Empty between games.
+#[tauri::command]
+pub fn list_core_options() -> Vec<options::CoreOptionJs> {
+    options::list()
+}
+
+/// Change one core option. Goes down the channel so the swap happens on the emu
+/// thread between frames — see EmuCmd::SetOption.
+#[tauri::command]
+pub async fn set_core_option(
+    state: tauri::State<'_, EmuState>,
+    key: String,
+    value: String,
+) -> Result<(), String> {
+    ask(state, move |reply| session::EmuCmd::SetOption { key, value, reply }).await
+}
+
+#[tauri::command]
+pub fn set_rewinding(state: tauri::State<'_, EmuState>, on: bool) -> Result<(), String> {
+    send(&state, session::EmuCmd::SetRewinding(on))
+}
+
+/// Fullscreen is the window's job, not the emulator's — the GL stage is sized
+/// by the window, so it follows along for free.
+#[tauri::command]
+pub fn set_fullscreen(window: tauri::WebviewWindow, on: bool) -> Result<(), String> {
+    window.set_fullscreen(on).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn is_fullscreen(window: tauri::WebviewWindow) -> bool {
+    window.is_fullscreen().unwrap_or(false)
 }
 
 #[tauri::command]

@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/BenGNelson/frog-game-station/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/BenGNelson/frog-game-station/ci.yml?branch=main&style=flat-square&label=CI&logo=github" alt="CI"></a>
-  <img src="https://img.shields.io/badge/version-0.8.2-2ea44f?style=flat-square" alt="Version 0.8.2">
+  <img src="https://img.shields.io/badge/version-0.9.0-2ea44f?style=flat-square" alt="Version 0.9.0">
   <img src="https://img.shields.io/badge/license-MIT-2ea44f?style=flat-square" alt="License: MIT">
   <img src="https://img.shields.io/badge/React-18-149eca?style=flat-square&logo=react&logoColor=white" alt="React">
   <img src="https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white" alt="FastAPI">
@@ -168,10 +168,10 @@ browser chrome) and downloaded games play offline.
 
 ## Desktop app (beta)
 
-The same frontend also runs as a native desktop window (Tauri), pointed at your
-self-hosted backend — the first step of the native desktop app (which will
-eventually play the disc-era systems browsers can't). For now it's the full
-browsing/playing UI in a real window; gameplay still uses the built-in web player.
+The same frontend runs as a native desktop window (Tauri), pointed at your
+self-hosted backend — the full browsing UI in a real window, with gameplay handed
+to native libretro cores instead of the in-browser engine. That's what lets it
+play the disc-era systems no browser can.
 
 Requirements: [Node](https://nodejs.org), [Rust](https://rustup.rs), and the
 EmulatorJS engine fetched (`scripts/fetch-emulatorjs.sh`).
@@ -192,6 +192,14 @@ phone through the same endpoints the web player uses. That includes the three
 systems no browser can run: Nintendo 64, Nintendo DS (with the mouse as the
 stylus), and PlayStation. Fetch the cores first with
 `scripts/fetch-native-cores.sh` (pinned by checksum; nothing is committed).
+
+The in-game feel matches the web player: **rewind** (hold time in reverse),
+**fast-forward** with a speed setting, **fullscreen**, a **display filter**
+(Off / CRT / CRT curve / Smooth), and **System options** — the running core's own
+knobs, curated per system, so the DS can change its screen layout and the
+PlayStation can pick a pad with sticks. A controller can be **plugged in
+mid-game**: it picks up your button mapping straight away, and unplugging one
+lets go of whatever it was holding.
 
 The desktop build strips the PWA machinery (no service worker, no install nudge,
 no offline-download button — the app is already installed and local). The backend
