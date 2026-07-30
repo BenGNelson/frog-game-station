@@ -19,6 +19,7 @@
 // Byte traffic rides raw invoke bodies / ArrayBuffer responses, never JSON.
 
 import { isNative } from './playerBackend.js'
+import { wrapRastate, unwrapRastate } from './rastate.js'
 
 async function tauriIo() {
   const [{ invoke }, { listen }] = await Promise.all([
@@ -66,15 +67,19 @@ export async function createNativeEmu({ gameId, romUrl, core, system, options = 
 
   return {
     gameManager: {
-      // Save states: bytes across the invoke boundary as real ArrayBuffers.
+      // Save states: bytes across the invoke boundary as real ArrayBuffers, in
+      // the RASTATE container the web player also reads and writes. The host
+      // deals only in raw core bytes — the envelope is this adapter's job, like
+      // every other shape difference in here. See lib/rastate.js.
       getState: async () => {
         const buf = await invoke('save_state')
-        return new Uint8Array(buf)
+        return wrapRastate(new Uint8Array(buf))
       },
       // Returns the invoke promise so a failed restore surfaces in the shelf's
       // error path instead of reading as a silent success (the web engine's is
       // synchronous-void; awaiting it is a no-op there).
-      loadState: (bytes) => invoke('load_state', bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes)),
+      loadState: (bytes) =>
+        invoke('load_state', unwrapRastate(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes))),
       // SRAM: the snapshot bridge (see the header).
       getSaveFile: () => sram,
       getSaveFilePath: () => '/native/sram.srm',

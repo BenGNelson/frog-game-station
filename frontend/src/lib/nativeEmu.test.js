@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { createNativeEmu } from './nativeEmu.js'
 import { captureSave, seedSave, readFromEngine } from './gameSaves.js'
 import { saveState } from './saveStates.js'
+import { isRastate, wrapRastate, unwrapRastate } from './rastate.js'
 
 // A fake Tauri io pair. `invoke` answers like the host: raw ArrayBuffers for
 // the byte commands, an AvInfo for load_game; every call is recorded.
@@ -63,10 +64,14 @@ describe('createNativeEmu — the adapter shape', () => {
     expect(Array.from(emu.gameManager.getSaveFile())).toEqual([7, 7])
   })
 
-  it('getState resolves real bytes and takeScreenshot wraps a PNG blob', async () => {
+  it('getState hands back the core bytes in the container the web player reads', async () => {
     const io = fakeIo({ state: new Uint8Array([4, 5, 6]) })
     const emu = await createNativeEmu({ gameId: 'g', romUrl: 'u', core: 'n64', system: 'n64' }, io)
-    expect(Array.from(await emu.gameManager.getState())).toEqual([4, 5, 6])
+    const state = await emu.gameManager.getState()
+    // RASTATE on the wire — a raw state here is what made every phone-made save
+    // unloadable on the desktop, and vice versa. See lib/rastate.js.
+    expect(isRastate(state)).toBe(true)
+    expect(Array.from(unwrapRastate(state))).toEqual([4, 5, 6])
     const { blob } = await emu.takeScreenshot()
     expect(blob.type).toBe('image/png')
     expect(blob.size).toBe(4)
@@ -175,10 +180,33 @@ describe('the save pipeline over the native adapter', () => {
       return { ok: true, status: 200, headers: new Headers() }
     })
     const r = await saveState(emu, 'game.z64', d)
+    const wrapped = wrapRastate(new Uint8Array([42, 42])).length
     expect(r.offline).toBe(false)
-    expect(r.bytes).toBe(2)
+    expect(r.bytes).toBe(wrapped)
     expect(r.hasShot).toBe(true) // the adapter's takeScreenshot fed the thumbnail
     const post = d.fetches.find(([, o]) => o.method === 'POST')
-    expect(post[1].body.get('state').size).toBe(2)
+    // What lands on the server is the container, which is what makes a state
+    // saved on the desktop openable on the phone.
+    expect(post[1].body.get('state').size).toBe(wrapped)
+  })
+
+  it('a state written by the WEB player loads into the native core, unwrapped', async () => {
+    // The bug this whole path exists for: EmulatorJS wraps, the host does not
+    // unwrap, and the core rejects the container as "a different game".
+    const io = fakeIo()
+    const emu = await createNativeEmu({ gameId: 'g', romUrl: 'u', core: 'gba', system: 'gba' }, io)
+    const core = new Uint8Array([1, 2, 3, 4, 5])
+    await emu.gameManager.loadState(wrapRastate(core))
+    const sent = io.calls.find(([name]) => name === 'load_state')[1]
+    expect(Array.from(sent)).toEqual([1, 2, 3, 4, 5])
+  })
+
+  it('still loads a raw state the native player wrote before the container existed', async () => {
+    const io = fakeIo()
+    const emu = await createNativeEmu({ gameId: 'g', romUrl: 'u', core: 'n64', system: 'n64' }, io)
+    const raw = new Uint8Array([...'M64+SAVE'].map((c) => c.charCodeAt(0)))
+    await emu.gameManager.loadState(raw)
+    const sent = io.calls.find(([name]) => name === 'load_state')[1]
+    expect(Array.from(sent)).toEqual(Array.from(raw))
   })
 })
