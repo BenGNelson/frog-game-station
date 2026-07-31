@@ -6,6 +6,7 @@ import Button from './Button.jsx'
 import Heading from './Heading.jsx'
 import EmptyState from './EmptyState.jsx'
 import ConfirmDialog from './ConfirmDialog.jsx'
+import { hoverMove } from '../lib/pointer.js'
 
 // The Downloads & Storage screen — the UI over lib/offlineStore's accounting layer.
 // Presentational, same contract as Settings: FrogBrowser owns the focus row, loads the
@@ -106,7 +107,7 @@ export default function Storage({
                 <li
                   key={e.key}
                   data-focused={focus === e.key || undefined}
-                  onMouseMove={() => onFocus(e.key)}
+                  onMouseMove={hoverMove(() => onFocus(e.key))}
                   className="flex items-center gap-3 rounded-xl px-4 py-3 transition-colors"
                   style={{
                     background: FROG.panel,
@@ -139,7 +140,7 @@ export default function Storage({
           <Heading>Maintenance</Heading>
           <div
             data-focused={focus === 'verify' || undefined}
-            onMouseMove={() => onFocus('verify')}
+            onMouseMove={hoverMove(() => onFocus('verify'))}
             className="rounded-xl px-4 py-3 transition-colors"
             style={{
               background: FROG.panel,
@@ -179,7 +180,7 @@ export default function Storage({
 
           <div
             data-focused={focus === 'removeAll' || undefined}
-            onMouseMove={() => onFocus('removeAll')}
+            onMouseMove={hoverMove(() => onFocus('removeAll'))}
             className="rounded-xl px-4 py-3 transition-colors"
             style={{
               background: FROG.panel,

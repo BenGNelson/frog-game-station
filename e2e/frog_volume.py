@@ -92,6 +92,25 @@ def menu_text(page):
     return page.locator('[role="dialog"][aria-label="Game menu"]').first.inner_text()
 
 
+def walk_to(page, label, limit=16):
+    """Press Down until the focused pause row is `label`.
+
+    Deliberately NOT a fixed number of presses. This test used to count them, and the
+    count went stale the moment FF Speed moved off the root menu onto the Display
+    sub-screen — six downs stopped landing on Volume and started landing on Display, so
+    every assertion below it was reading a row it was never on. It failed silently for
+    releases, because CI has no EmulatorJS engine and the whole file exits early there.
+    Walking by identity cannot go stale when a row is added or moved.
+    """
+    for _ in range(limit):
+        focused = page.locator('[data-testid="pause-row"][aria-current="true"]')
+        if focused.count() and label in focused.first.inner_text():
+            return True
+        page.keyboard.press("ArrowDown")
+        page.wait_for_timeout(90)
+    return False
+
+
 with sync_playwright() as p:
     # Headless needs autoplay allowed (the core starts audio on boot) and software GL.
     b = p.chromium.launch(args=["--autoplay-policy=no-user-gesture-required", "--enable-unsafe-swiftshader"])
@@ -101,8 +120,7 @@ with sync_playwright() as p:
     check("Volume" in t, "the Volume row renders")
     check("50%" in t, "at the shipped 50% default")
 
-    for _ in range(6):
-        page.keyboard.press("ArrowDown")  # resume -> states -> screenshot -> rewind -> ff -> ff speed -> volume
+    check(walk_to(page, "Volume"), "the walk reaches the Volume row")
     page.keyboard.press("ArrowRight")
     check("60%" in menu_text(page), "ArrowRight steps the level to 60%")
 
@@ -114,8 +132,7 @@ with sync_playwright() as p:
     check(boot(page, URL), "the player reloads")
     check("60%" in menu_text(page), "the level survived the reload (persisted)")
 
-    for _ in range(6):
-        page.keyboard.press("ArrowDown")
+    check(walk_to(page, "Volume"), "the walk reaches the Volume row again after the reload")
     page.keyboard.press("ArrowLeft")
     check("50%" in menu_text(page), "ArrowLeft steps back to 50%")
 
@@ -166,8 +183,16 @@ with sync_playwright() as p:
                 return f.evaluate("window.EJS_emulator && window.EJS_emulator.getSettingValue('shader')")
         return None
 
-    for _ in range(7):
-        page.keyboard.press("ArrowDown")  # ... -> volume -> filter
+    # Filter and FF Speed are NOT on the root menu — v0.9.0 moved the set-once rows
+    # behind Display. This block used to walk the root list and press Right on whatever
+    # it happened to land on (the wiki row), which does nothing; the shader assertion
+    # then "passed" only because the setting persists in localStorage from an earlier
+    # run. Open the sub-screen, and do both rows in the one visit.
+    check(walk_to(page, "Display"), "the walk reaches the Display row")
+    page.keyboard.press("Enter")
+    page.wait_for_timeout(400)
+
+    check(walk_to(page, "Filter"), "the Display sub-screen offers Filter")
     page.keyboard.press("ArrowRight")
     page.wait_for_timeout(400)
     check("CRT" in menu_text(page), "the Filter row cycles to CRT")
@@ -183,11 +208,7 @@ with sync_playwright() as p:
                 return f.evaluate("window.EJS_emulator && window.EJS_emulator.getSettingValue('ff-ratio')")
         return None
 
-    page.keyboard.press("Escape")
-    page.wait_for_timeout(400)
-    reopen_menu()
-    for _ in range(5):
-        page.keyboard.press("ArrowDown")  # ... -> fast-forward -> ff speed
+    check(walk_to(page, "FF Speed"), "the Display sub-screen offers FF Speed")
     page.keyboard.press("ArrowRight")  # 3x -> Max (the list wraps)
     page.wait_for_timeout(400)
     check("Max" in menu_text(page), "the FF Speed row cycles to Max")
@@ -195,6 +216,13 @@ with sync_playwright() as p:
     page.keyboard.press("ArrowLeft")
     page.wait_for_timeout(400)
     check(engine_ratio() == "3.0", "cycling back restores the 3x default")
+
+    # The sub-screen has a way out, and Escape takes it rather than resuming the game
+    # outright — a mouse has neither B nor Escape, so the Back row is its only door.
+    check(walk_to(page, "Back"), "the Display sub-screen offers a Back row")
+    page.keyboard.press("Escape")
+    page.wait_for_timeout(400)
+    check("Resume" in menu_text(page), "Escape pops back to the root menu, not into the game")
 
     # --- screenshot --------------------------------------------------------
     page.keyboard.press("Escape")  # close, reopen -> focus back on Resume

@@ -35,7 +35,16 @@ import { useGamepad } from '../lib/useGamepad.js'
 import { mediaMatches } from '../lib/useMediaQuery.js'
 import { SkeletonLine } from '../components/ui.jsx'
 import ButtonLegend from '../player/ButtonLegend.jsx'
-import { defaultFrogMode, nextFrogMode, usesNativeKeyboard } from './input.js'
+import {
+  defaultFrogMode,
+  nextFrogMode,
+  usesNativeKeyboard,
+  showsPadLegend,
+  isTouchMode,
+  hidesIdleCursor,
+} from './input.js'
+import { isMousePointer, pointerMoved } from '../lib/pointer.js'
+import { useIdleCursor } from '../lib/useIdleCursor.js'
 import { FROG, systemStyle, FONT_DISPLAY, focusRing } from './theme.js'
 import Caustics from './Caustics.jsx'
 import Screensaver from './Screensaver.jsx'
@@ -89,7 +98,13 @@ const SAVER_IDLE_MS = 3 * 60 * 1000
 // replay the whole boot animation, ask you to PRESS A again, and dump you back on
 // rail zero — having forgotten which system you were three hundred games into. The
 // boot is once per app open; your place survives a session.
-const place = { booted: false, screen: 'shelf', system: null, collection: null, facet: null, focus: { rail: 0, index: 0 }, row: 0 }
+//
+// `mode` rides along for the same reason: a couch session would otherwise come back from
+// every game in whatever the pointer kind implies (desktop on a laptop) and show no
+// legend until the next button press. It is a tab-lifetime singleton by design — tap the
+// glass once on a hybrid device and touch mode persists across route changes within that
+// tab, until a pad press or a real mouse move corrects it.
+const place = { booted: false, screen: 'shelf', system: null, collection: null, facet: null, focus: { rail: 0, index: 0 }, row: 0, mode: null }
 
 export default function FrogBrowser() {
   const navigate = useNavigate()
@@ -234,12 +249,21 @@ export default function FrogBrowser() {
   // fetch otherwise); useApi pauses when the tab is hidden.
   const igdbStatus = useApi(GAME_META_STATUS_PATH, screen === 'settings' ? 4000 : 0)
 
-  // Touch vs pad. Opens from the pointer kind (a phone starts in touch), then every
-  // real input keeps it honest — a gamepad button flips to pad, a finger back to
-  // touch. It decides the two places a finger and a D-pad disagree: the search
-  // keyboard (native vs the 6×6 grid) and whether the controller legend even shows.
-  const [mode, setMode] = useState(() => defaultFrogMode(mediaMatches('(pointer: coarse)')))
+  // Touch, pad or desktop. Opens from the pointer kind and what this tab was last in,
+  // then every real input keeps it honest — a gamepad button flips to pad, a finger to
+  // touch, a mouse to desktop. Each thing the mode decides is asked BY NAME below; a
+  // single `native` boolean used to stand in for all of them, which is how the legend
+  // ended up naming controller buttons to people holding a mouse.
+  const [mode, setMode] = useState(() => defaultFrogMode(mediaMatches('(pointer: coarse)'), place.mode))
+  place.mode = mode
   const native = usesNativeKeyboard(mode)
+  const padLegend = showsPadLegend(mode)
+
+  // Fade the mouse out on the browse screens too, not just over a game. The shelf is
+  // where a couch session actually spends its time, and a cursor parked on a tile is as
+  // distracting there as it is in play. Only while a pad is driving — in desktop mode the
+  // cursor is the instrument, and in touch mode there is none to hide.
+  useIdleCursor({ enabled: hidesIdleCursor(mode) })
 
   // Which keyboard the OPEN search screen uses, snapshotted when it opens rather than
   // read live. If it tracked `mode`, tapping a 6×6 grid key with a finger (which flips
@@ -1696,21 +1720,52 @@ export default function FrogBrowser() {
   const saverRef = useRef(false)
   saverRef.current = saver
   const lastInputRef = useRef(Date.now())
+  // Two different things, deliberately not one function. Everything you do postpones the
+  // pond; only some of it is safe to DISMISS the pond with.
   const noteActivity = useCallback(() => {
+    lastInputRef.current = Date.now()
+  }, [])
+  const wakeSaver = useCallback(() => {
     lastInputRef.current = Date.now()
     if (saverRef.current) setSaver(false)
   }, [])
 
   useEffect(() => {
+    // A key, a MOUSE move or a wheel may dismiss from here: none of them has a trailing
+    // event that could land on something once the pond unmounts. The key is also stopped
+    // so the press that wakes the pond doesn't also navigate the shelf behind it.
+    //
+    // `pointermove` MUST be gated on the pointer being a mouse. A finger is not: a real
+    // tap is pointerdown → pointermove ×N (the slop your hand adds) → pointerup → click,
+    // so an ungated move here dismisses the pond mid-tap and hands the trailing click
+    // straight to the tile underneath — the exact bug this whole change exists to kill,
+    // just needing a few pixels of jitter instead of a perfectly still finger.
+    //
+    // The consequence, chosen deliberately: a finger DRAGGED across the pond (past the
+    // slop, so no click follows) leaves it up until you tap. A pond that needs one more
+    // tap is a great deal better than a pond that opens a random console.
     const wake = (e) => {
-      // The press that wakes the pond should only wake the pond.
-      if (saverRef.current && e.type !== 'pointermove' && e.type !== 'wheel') e.stopPropagation()
-      noteActivity()
+      // A move must be a MOUSE and must have actually moved. Blink emits a synthetic
+      // pointermove at unchanged coordinates whenever the element under a stationary
+      // cursor changes — which is exactly what mounting a full-screen overlay does. Ungated,
+      // the pond dismissed itself in the frame it appeared, on any desk with a mouse on it.
+      if (e.type === 'pointermove' && (!isMousePointer(e) || !pointerMoved(e))) return
+      if (saverRef.current && e.type === 'keydown') e.stopPropagation()
+      wakeSaver()
     }
-    const events = ['keydown', 'pointerdown', 'pointermove', 'touchstart', 'wheel']
-    events.forEach((t) => window.addEventListener(t, wake, { capture: true }))
-    return () => events.forEach((t) => window.removeEventListener(t, wake, { capture: true }))
-  }, [noteActivity])
+    // A PRESS may not. A tap is pointerdown → pointerup → click, and dismissing on the
+    // first of those unmounts the overlay mid-gesture and lets iOS retarget the trailing
+    // click onto whatever shelf tile is now under the finger. So a press only postpones
+    // the pond here; the pond's own onClick dismisses it, on the gesture's terminal
+    // event, while it is still the top element. Same rule as Boot.jsx.
+    const dismissing = ['keydown', 'pointermove', 'wheel']
+    dismissing.forEach((t) => window.addEventListener(t, wake, { capture: true }))
+    window.addEventListener('pointerdown', noteActivity, { capture: true, passive: true })
+    return () => {
+      dismissing.forEach((t) => window.removeEventListener(t, wake, { capture: true }))
+      window.removeEventListener('pointerdown', noteActivity, { capture: true })
+    }
+  }, [wakeSaver, noteActivity])
 
   useEffect(() => {
     if (screen === 'boot') return
@@ -1729,7 +1784,7 @@ export default function FrogBrowser() {
 
   useGamepad({
     onAction: (a) => {
-      if (saverRef.current) return noteActivity()
+      if (saverRef.current) return wakeSaver()
       lastInputRef.current = Date.now()
       act.current(a)
     },
@@ -1737,12 +1792,12 @@ export default function FrogBrowser() {
     // never fires `gamepadconnected` until then. On the boot screen that press is
     // also the "press A" that dismisses it.
     onPadButton: () => {
-      if (saverRef.current) return noteActivity()
+      if (saverRef.current) return wakeSaver()
       setMode((m) => nextFrogMode(m, 'pad'))
       setScreen((s) => (s === 'boot' ? 'shelf' : s))
     },
     onMenuAction: (a) => {
-      if (saverRef.current) return noteActivity()
+      if (saverRef.current) return wakeSaver()
       if (a === 'start') act.current('confirm')
       // Hold ☰ opens Settings — mirrors the player, where a hold opens the pause menu.
       else if (a === 'pauseMenu') act.current('settingsToggle')
@@ -1866,13 +1921,32 @@ export default function FrogBrowser() {
   }, [])
 
   // A finger on the glass means touch mode — even on an iPad that a moment ago had a
-  // controller driving it. The mirror of the pad-button flip above.
+  // controller driving it. A mouse means desktop, by the same rule. The mirror of the
+  // pad-button flip above, and the whole mode machine lives in these two places.
+  //
+  // POINTER EVENTS ONLY — never `mousemove`/`mousedown`. iOS Safari synthesises legacy
+  // mouse events after every tap, so a mousemove listener would flip an iPhone from touch
+  // to desktop on each tap, unmounting the native search field mid-tap. Pointer events
+  // carry `pointerType`; the compatibility events do not, which is what makes them
+  // separable at all.
+  //
+  // The move is gated on the real-movement guard as well: the pad's own scrollIntoView
+  // slides content under a resting cursor and produces a move at identical coordinates,
+  // and that must not read as "the user picked up the mouse".
   useEffect(() => {
-    const onPointer = (e) => {
+    const onPointerDown = (e) => {
       if (e.pointerType === 'touch') setMode((m) => nextFrogMode(m, 'touch'))
+      else if (isMousePointer(e)) setMode((m) => nextFrogMode(m, 'mouse'))
     }
-    window.addEventListener('pointerdown', onPointer)
-    return () => window.removeEventListener('pointerdown', onPointer)
+    const onPointerMove = (e) => {
+      if (isMousePointer(e) && pointerMoved(e)) setMode((m) => nextFrogMode(m, 'mouse'))
+    }
+    window.addEventListener('pointerdown', onPointerDown)
+    window.addEventListener('pointermove', onPointerMove)
+    return () => {
+      window.removeEventListener('pointerdown', onPointerDown)
+      window.removeEventListener('pointermove', onPointerMove)
+    }
   }, [])
 
   if (screen === 'boot') return <Boot onDone={() => setScreen('shelf')} />
@@ -1898,7 +1972,15 @@ export default function FrogBrowser() {
   return (
     <div
       data-testid="frog"
-      className="frog-root fixed inset-0 z-50 flex flex-col overflow-hidden"
+      // select-none across the browse chrome, the same way the player does it. This is a
+      // console UI: a click-drag across a tile should never leave a blue selection behind,
+      // and the game page's hero is a clickable div wrapping the title, so a drag there
+      // used to select the text AND still open the lightbox on mouseup.
+      //
+      // Genuine PROSE opts back in with `select-text` (the game summary and About, the
+      // wiki reader, the Pokédex). A blanket rule that made the wiki uncopyable would be
+      // a worse bug than the one it fixes.
+      className="frog-root fixed inset-0 z-50 flex select-none flex-col overflow-hidden"
       style={{
         // Feed the palette token to the CSS ground rule, so the default background stays
         // single-sourced from FROG.ground while the phone media query overrides to #000.
@@ -1907,10 +1989,13 @@ export default function FrogBrowser() {
         paddingLeft: 'env(safe-area-inset-left)',
         paddingRight: 'env(safe-area-inset-right)',
         // The bottom inset clears the iOS home indicator. When the legend bar is shown
-        // (pad/desktop) IT owns that inset (folded into its own paddingBottom below), so the
-        // root drops it here to avoid stacking a second gap under the bar. In touch mode the
-        // legend is hidden, so the root carries the inset itself.
-        paddingBottom: native ? 'env(safe-area-inset-bottom)' : 0,
+        // (pad only) IT owns that inset (folded into its own paddingBottom below), so the
+        // root drops it here to avoid stacking a second gap under the bar. Whenever the
+        // legend is hidden — touch, and now desktop — the root carries the inset itself.
+        // Keyed on the legend rather than on the keyboard fork, because the legend is the
+        // thing that actually owns it: an iPad in desktop mode has no legend and still has
+        // a home indicator to clear.
+        paddingBottom: padLegend ? 0 : 'env(safe-area-inset-bottom)',
       }}
     >
       {/* Ambient caustics — the pond's own slow shimmer. Full strength on the shelf at
@@ -1936,14 +2021,14 @@ export default function FrogBrowser() {
           full-screen/offline home-screen app), and never in the desktop app (it IS
           installed). Renders null unless the browser actually offers install and it
           hasn't been dismissed. */}
-      {screen === 'shelf' && native && !isNative() && <InstallNudge />}
+      {screen === 'shelf' && isTouchMode(mode) && !isNative() && <InstallNudge />}
 
       {/* One-shot "you finished a game" celebration — fires from the game page, but lives
           at the root so it rides above whatever's on screen and survives the page's zones. */}
       <FinishToast tick={finishTick} />
 
       {/* The pond after you've wandered off — any input wakes it (and is swallowed). */}
-      {saver && <Screensaver />}
+      {saver && <Screensaver onWake={wakeSaver} />}
 
       {/* The pond light. It takes the colour of whatever is in focus, which is the
           single cheapest way to make a machine feel *selected* rather than outlined. */}
@@ -2123,6 +2208,15 @@ export default function FrogBrowser() {
           // autocorrect), so it sets the query directly rather than one dead-key-guarded
           // character at a time the way the grid does.
           onType={setQuery}
+          // The mouse's delete and clear. `del` is the same one Backspace uses, so the
+          // three ways of taking a letter back can't drift; clear only ever runs with a
+          // non-empty query (the buttons don't render otherwise), so unlike `del` it has
+          // no close-the-screen branch to worry about.
+          onBackspace={del}
+          onClear={() => {
+            setQuery('')
+            setZone('grid')
+          }}
           onPick={(game, ch) => (ch != null ? typeKey(ch) : openFromSearch(game))}
           recent={recentSearches}
           suggestions={suggestions}
@@ -2257,20 +2351,22 @@ export default function FrogBrowser() {
           focus={focus}
           finishedIds={finishedSet}
           hackIds={hackSet}
-          // When the controller legend is showing (pad/desktop) the shelf top-aligns and
-          // adds breathing room so "Jump back in" clears the header and the last system row
-          // clears the legend.
-          padded={!native}
+          // When the controller legend is showing the shelf top-aligns and adds breathing
+          // room so "Jump back in" clears the header and the last system row clears the
+          // legend. No legend, no need — desktop mode gets the centred layout back.
+          padded={padLegend}
           onFocus={(rail, index) => { focusDriven.current = true; setFocus({ rail, index }) }}
           onPick={pickShelfItem}
         />
       )}
 
-      {/* The controller legend. Meaningless without a controller, so it's hidden in
-          touch mode — the tappable tiles, the header search/close, and tap-to-play
-          are self-evident to a thumb. It returns the instant a pad button is pressed. */}
-      {!native && (
+      {/* The controller legend. It names A/B/X/Y, so it shows ONLY when a controller is
+          actually driving. A thumb doesn't need it (tappable tiles, the header
+          search/close and tap-to-play are self-evident) and a mouse doesn't have the
+          buttons it names. It returns the instant a pad button is pressed. */}
+      {padLegend && (
       <ButtonLegend
+        data-testid="frog-legend"
         className="relative py-3"
         style={{
           borderTop: `1px solid ${FROG.line}`,

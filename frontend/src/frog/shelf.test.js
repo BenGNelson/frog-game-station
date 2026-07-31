@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildShelf, buildSystems, jumpBackIn, favoriteGames, tagRails, collectionGames, facetGames, discoverRail, COLLECTION_LIST_MIN, agoLabel, stepLetter, SYSTEM_ORDER } from './shelf.js'
+import { buildShelf, buildSystems, jumpBackIn, favoriteGames, tagRails, collectionGames, facetGames, discoverRail, COLLECTION_LIST_MIN, agoLabel, stepLetter, SYSTEM_ORDER, SYSTEM_COLS } from './shelf.js'
 
 const g = (id, name, label) => ({ id, name, label, core: 'gb' })
 
@@ -83,6 +83,19 @@ describe('buildShelf', () => {
     const rails = buildShelf(LIBRARY, [{ id: '1', ts: 1 }])
     expect(rails[0].id).toBe('jump')
     expect(rails[1].id).toBe('systems')
+  })
+
+  it('tells the D-pad the systems block is a grid, not a flat row', () => {
+    // Shelf.jsx draws this rail from the SAME constant. If these two ever disagree the
+    // cursor and your eye part ways — you press down and the highlight goes somewhere
+    // other than the tile below it — so the agreement is worth a test of its own.
+    const systems = buildShelf(LIBRARY, []).find((r) => r.id === 'systems')
+    expect(systems.cols).toBe(SYSTEM_COLS)
+    expect(systems.centerLastRow).toBe(true)
+    // ...and no other rail claims to be one: the game rails really are single rows.
+    expect(buildShelf(LIBRARY, [{ id: '1', ts: 1 }]).filter((r) => r.cols).map((r) => r.id)).toEqual([
+      'systems',
+    ])
   })
 
   it('drops the Jump row when there is nothing to jump back into', () => {

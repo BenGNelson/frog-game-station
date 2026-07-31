@@ -6,6 +6,7 @@ import { isChord, hotkeyButton } from '../lib/playerSettings.js'
 import { glowFilter } from '../lib/glow.js'
 import { frogMarkMarkup } from '../frog/art.js'
 import '../frog/frog.css'
+import { hoverMove } from '../lib/pointer.js'
 
 // A drawn, frog-themed controller — the Controls screen's hero.
 //
@@ -158,7 +159,7 @@ export default function ControllerDiagram({
         data-testid={`pad-callout-${physical}`}
         role={interactive ? 'button' : undefined}
         onClick={interactive ? () => onSelectKey(s.key) : undefined}
-        onMouseMove={interactive ? () => onFocusKey(s.key) : undefined}
+        onMouseMove={hoverMove(interactive ? () => onFocusKey(s.key) : undefined)}
         style={{ cursor: interactive ? 'pointer' : 'default' }}
       >
         {/* Generous invisible hit area — the text alone would be a mean touch target.
@@ -205,7 +206,7 @@ export default function ControllerDiagram({
         data-testid={`pad-face-${physical}`}
         role={s.key ? 'button' : undefined}
         onClick={s.key ? () => onSelectKey(s.key) : undefined}
-        onMouseMove={s.key ? () => onFocusKey(s.key) : undefined}
+        onMouseMove={hoverMove(s.key ? () => onFocusKey(s.key) : undefined)}
         style={{ cursor: s.key ? 'pointer' : 'default' }}
       >
         {s.focused && <circle cx={p.x} cy={p.y} r={r + 3.5} fill="none" stroke={jade} strokeWidth="2" />}
@@ -277,7 +278,7 @@ export default function ControllerDiagram({
       <g
         role={sel.key ? 'button' : undefined}
         onClick={sel.key ? () => onSelectKey(sel.key) : undefined}
-        onMouseMove={sel.key ? () => onFocusKey(sel.key) : undefined}
+        onMouseMove={hoverMove(sel.key ? () => onFocusKey(sel.key) : undefined)}
         style={{ cursor: sel.key ? 'pointer' : 'default' }}
       >
         {sel.focused && <rect x={selP.x - 15.5} y={selP.y - 10} width="31" height="20" rx="10" fill="none" stroke={jade} strokeWidth="2" />}

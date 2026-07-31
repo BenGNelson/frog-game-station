@@ -12,6 +12,8 @@ import {
   playerConfig,
   attachEmu,
   killEngineChrome,
+  setFrameCursor,
+  onFrameActivity,
   clearStartScreen,
   applyControls,
   styleStartScreen,
@@ -78,6 +80,7 @@ import RotatePrompt from './RotatePrompt.jsx'
 import TouchOverlay from './TouchOverlay.jsx'
 import { portraitGameHeight } from '../lib/touchLayouts.js'
 import { LARGE_ROM_BYTES } from '../lib/library.js'
+import { useIdleCursor } from '../lib/useIdleCursor.js'
 
 // How long the frog is up for, at minimum, and how long its exit takes. The exit
 // number must match .frog-boot[data-phase='done'] in frog.css — the animation plays,
@@ -173,6 +176,8 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
   // booting), `booted` = the engine is live, `bootDone` = the frog is taking its bow.
   const [bootAt, setBootAt] = useState(null)
   const [booted, setBooted] = useState(false)
+  // Bumped on every iframe document load — see onFrameLoad.
+  const [frameGen, setFrameGen] = useState(0)
   const [loadFailed, setLoadFailed] = useState(false)
   const [bootDone, setBootDone] = useState(false)
 
@@ -302,6 +307,13 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
   }, [])
 
   const onFrameLoad = useCallback(() => {
+    // A NEW document is now in the frame. Anything we injected into the old one — the
+    // cursor stylesheet, the activity listeners — died with it, so bump this and let the
+    // effects that reach into the frame re-run. Keyed on the load itself rather than on
+    // a state flag that merely happens to change nearby: at mount the frame still holds
+    // its throwaway about:blank, which is same-origin and accepts injections quite
+    // happily, and they are all discarded the moment emulator.html arrives.
+    setFrameGen((n) => n + 1)
     frameRef.current?.contentWindow?.focus?.()
     // Both of these must happen BEFORE the engine builds anything: they patch the
     // player document's own constructors. trackAudio catches its AudioContext;
@@ -495,9 +507,13 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
     flashShot('saved')
   }, [name, flashShot])
 
-  // Which pause list is showing: the root menu or the Display sub-screen. B (and
-  // the ✕) pops back to root before it closes the menu, so the sub-screen can
-  // never be a trap.
+  // Which pause list is showing: the root menu or the Display sub-screen. B, Escape and
+  // the sub-screen's own Back row all pop to root before anything closes the menu, so it
+  // can never be a trap.
+  //
+  // This comment used to claim a ✕ did that. There has never been a ✕ here, and for a
+  // while the claim was actively covering for the bug: a mouse had no way out of Display
+  // at all, and Escape resumed the game outright rather than popping back.
   const [menuScreen, setMenuScreen] = useState('root')
 
   const onMenuAction = useCallback(
@@ -509,6 +525,12 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
           break
         case 'display':
           setMenuScreen('display')
+          setMenuFocus(0)
+          break
+        // The sub-screen's way out for a mouse — the pad's B and the keyboard's Escape
+        // both route here too, so all three leave by the same door.
+        case 'back':
+          setMenuScreen('root')
           setMenuFocus(0)
           break
         case 'states':
@@ -717,6 +739,25 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
     const t = setTimeout(() => setPadHint(false), 4500)
     return () => clearTimeout(t)
   }, [padActive])
+
+  // Fade the mouse out while a controller is driving. Keyed on `padActive` rather than
+  // the resolved input mode, because that mode's 'pad' ALSO means "desktop with no
+  // touchscreen" — hiding the cursor there would take away the only route to the ☰.
+  //
+  // The game is a separate document, so the class on our <html> stops at the iframe's
+  // edge: push the state in, and bring the frame's own mouse activity back out, or a
+  // mouse being actively moved over the game would never un-hide the cursor.
+  const { hidden: cursorHidden, wake: wakeCursor } = useIdleCursor({ enabled: padActive })
+  useEffect(() => {
+    setFrameCursor(frameRef.current, cursorHidden)
+  }, [cursorHidden, frameGen])
+  useEffect(() => {
+    if (!padActive) return undefined
+    // Feed the frame's activity to the hook's own wake path, not just to the frame's
+    // class — otherwise the parent's timer stays latched and the cursor re-hides the
+    // moment anything else re-renders.
+    return onFrameActivity(frameRef.current, wakeCursor)
+  }, [padActive, frameGen, wakeCursor])
 
   // The battery save — the game's own "Save", the one that costs you hours.
   //

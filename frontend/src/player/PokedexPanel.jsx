@@ -9,6 +9,8 @@ import { usesNativeKeyboard } from '../frog/input.js'
 import { applyKey, keyAt, moveKey, deleteChar } from '../lib/keyboard.js'
 import Keyboard from '../frog/Keyboard.jsx'
 import '../frog/frog.css'
+import { hoverMove } from '../lib/pointer.js'
+import { useWheelRail } from '../frog/useWheelRail.js'
 
 const SCROLL_STEP = 96
 // A held up/down counts as the SAME run while repeats keep arriving inside this window
@@ -416,7 +418,7 @@ function DexRow({ p, focused, onFocus, onOpen }) {
     <li>
       <button
         data-focused={focused || undefined}
-        onMouseMove={onFocus}
+        onMouseMove={hoverMove(onFocus)}
         onClick={onOpen}
         className="flex w-full items-center gap-3 rounded-lg px-3 py-1.5 text-left transition-colors"
         style={{
@@ -427,7 +429,7 @@ function DexRow({ p, focused, onFocus, onOpen }) {
         <span className="w-10 shrink-0 text-right text-xs tabular-nums" style={{ color: FROG.faint }}>
           #{String(p.number ?? p.id).padStart(3, '0')}
         </span>
-        <img src={p.sprite} alt="" loading="lazy" className="h-10 w-10 shrink-0" style={{ imageRendering: 'pixelated' }} />
+        <img draggable={false} src={p.sprite} alt="" loading="lazy" className="h-10 w-10 shrink-0" style={{ imageRendering: 'pixelated' }} />
         <span className="truncate text-sm font-medium" style={{ color: FROG.ink }}>{p.display}</span>
       </button>
     </li>
@@ -441,7 +443,7 @@ function DexTile({ p, focused, onFocus, onOpen }) {
     <li>
       <button
         data-focused={focused || undefined}
-        onMouseMove={onFocus}
+        onMouseMove={hoverMove(onFocus)}
         onClick={onOpen}
         className="flex w-full flex-col items-center gap-0.5 rounded-lg px-1 py-2 transition-colors"
         style={{
@@ -449,7 +451,7 @@ function DexTile({ p, focused, onFocus, onOpen }) {
           boxShadow: focused ? focusRing() : 'none',
         }}
       >
-        <img src={p.sprite} alt="" loading="lazy" className="h-14 w-14" style={{ imageRendering: 'pixelated' }} />
+        <img draggable={false} src={p.sprite} alt="" loading="lazy" className="h-14 w-14" style={{ imageRendering: 'pixelated' }} />
         <span className="text-[10px] tabular-nums" style={{ color: FROG.faint }}>
           #{String(p.number ?? p.id).padStart(3, '0')}
         </span>
@@ -468,7 +470,7 @@ function EvoNode({ s, current, accentText, onSelect }) {
       className="flex flex-col items-center gap-0.5 rounded-lg px-1.5 py-1 transition-colors disabled:cursor-default"
       style={{ background: current ? `rgba(${FROG.jade}, 0.12)` : 'transparent' }}
     >
-      <img src={s.sprite} alt="" loading="lazy" className="h-16 w-16" style={{ imageRendering: 'pixelated' }} />
+      <img draggable={false} src={s.sprite} alt="" loading="lazy" className="h-16 w-16" style={{ imageRendering: 'pixelated' }} />
       <span className="text-[11px] font-medium" style={{ color: current ? accentText : FROG.soft }}>{s.display}</span>
       {s.types && s.types.length > 0 && (
         <span className="flex gap-0.5">
@@ -483,11 +485,15 @@ function EvoNode({ s, current, accentText, onSelect }) {
 }
 
 function Detail({ p, accentText, onReadWiki, onSelect }) {
+  // A long evolution chain overflows sideways with no scrollbar to grab, so give the
+  // wheel to it — same treatment as the shelf and game-page rails.
+  const evoRef = useRef(null)
+  useWheelRail(evoRef)
   return (
     <div className="mx-auto max-w-2xl px-4 py-4">
       {/* Hero: artwork + types */}
       <div className="flex flex-col items-center gap-2">
-        <img src={p.artwork} alt={p.display} className="h-40 w-40 object-contain" />
+        <img draggable={false} src={p.artwork} alt={p.display} className="h-40 w-40 object-contain" />
         {p.genus && <p className="text-xs" style={{ color: FROG.faint }}>{p.genus}</p>}
         <div className="flex flex-wrap justify-center gap-1.5">
           {(p.types || []).map((t) => (
@@ -498,7 +504,7 @@ function Detail({ p, accentText, onReadWiki, onSelect }) {
       </div>
 
       {p.flavor && (
-        <p className="mx-auto mt-3 max-w-md text-center text-sm leading-relaxed" style={{ color: FROG.soft }}>
+        <p className="select-text mx-auto mt-3 max-w-md text-center text-sm leading-relaxed" style={{ color: FROG.soft }}>
           {p.flavor}
         </p>
       )}
@@ -528,7 +534,10 @@ function Detail({ p, accentText, onReadWiki, onSelect }) {
       {p.evolutions && p.evolutions.length > 1 && (
         <>
           <h3 className="mb-2 mt-5 text-xs font-medium uppercase tracking-wide" style={{ color: FROG.faint }}>Evolutions</h3>
-          <div className="flex items-stretch justify-center gap-1.5 overflow-x-auto pb-1">
+          {/* `safe center` centres a chain that fits and falls back to start when one
+              overflows. Plain `center` spills off BOTH edges, and scrollLeft cannot go
+              below 0 — so a long chain's first stage was unreachable by any means. */}
+          <div ref={evoRef} className="flex items-stretch gap-1.5 overflow-x-auto pb-1 [justify-content:safe_center]">
             {p.evolutions.map((stage, si) => (
               <div key={si} className="flex items-center gap-1.5">
                 {si > 0 && <ChevronRight className="h-5 w-5 shrink-0" style={{ color: FROG.faint }} aria-hidden="true" />}

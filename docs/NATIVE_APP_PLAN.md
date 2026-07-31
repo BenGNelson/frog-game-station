@@ -281,7 +281,7 @@ native-only ones; the same `vite build` still produces the web PWA for the serve
   not optional; depth-copy/color-copy/threaded-renderer variants don't help.
   **The Mac N64 path is therefore angrylion+cxd4 (software RDP) today** — a locked
   60 fps on the M4 and full speed even on the server's CPU — with **paraLLEl-RDP
-  via Vulkan/MoltenVK as the post-1.0 quality upgrade** (requires hosting a Vulkan
+  via Vulkan/MoltenVK as the later quality upgrade** (requires hosting a Vulkan
   HW-render context; do not fight Apple GL). Phase-2 lesson (same family as the
   GET_VARIABLE one): the NativePlayer owns **per-OS default core options**.
   Phase-3 lessons, same family again: (a) `GET_VARIABLE_UPDATE` must answer **true
@@ -381,14 +381,16 @@ Point `VITE_API_BASE` at the running backend for dev.
 4. **Which cores to bundle first** beyond N64/DS/PS1 (add the cartridge cores so the
    desktop app is a full client? — yes, recommended, for a coherent single app).
 5. **Versioning:** SETTLED — shared repo version, on the 0.x pre-1.0 scheme: the
-   native-app milestones ship as v0.7.0 → v0.9.0, and **1.0.0 is reserved** for when
-   the whole product is genuinely ready (at the earliest, the distributable
-   milestone), by explicit decision rather than automatically.
+   native-app milestones ship as v0.7.0 → v0.9.0 and onward, with **no ceiling on the
+   minor** (0.10.0, 0.11.0, …). **1.0.0 is reserved** for when the whole product is
+   genuinely ready, by explicit decision rather than automatically — the remaining
+   phases here are a precondition for it, never a trigger. See `ARCHITECTURE.md`
+   §Versioning for the bar.
 
 ## 9. Beyond the launch systems — the future-systems roadmap
 
 Once the native libretro host exists, "add a system" mostly means "pin another core."
-Tiered by effort and demand on the host, to be taken up after the 1.0.0 milestone:
+Tiered by effort and demand on the host, to be taken up after the distributable ships:
 
 - **Tier 1 — PSP (`ppsspp` core).** Mature core, light on the host (software or GL
   render), long deferred from the browser for performance — near-free natively. Do first.

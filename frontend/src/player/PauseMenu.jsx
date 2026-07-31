@@ -3,6 +3,7 @@ import { Play, Save, Camera, FastForward, Rewind, Maximize, Tv, Gauge, Gamepad2,
 import { moveInGrid } from '../lib/gridNav.js'
 import { FROG, scrim, SCRIM, focusRing } from '../frog/theme.js'
 import { radiantBackdrop } from '../lib/glow.js'
+import { hoverMove } from '../lib/pointer.js'
 
 // The in-game menu. Replaces EmulatorJS's own bottom bar, which is a strip of
 // small mouse-sized icons that a D-pad can't reach.
@@ -58,6 +59,10 @@ export function pauseItems(
       ...(hasCoreOptions
         ? [{ id: 'coreOptions', label: 'System options', Icon: SlidersHorizontal, chevron: true, section: 'top' }]
         : []),
+      // The way OUT. A pad has B and a keyboard has Escape, but a mouse had neither and
+      // no ✕ — this sub-screen was a dead end you could only leave by picking something
+      // from it. (A comment in PlayerShell claimed a ✕ existed here; it never did.)
+      { id: 'back', label: 'Back', Icon: ChevronLeft, section: 'end' },
     ]
   }
   return [
@@ -125,14 +130,23 @@ export default function PauseMenu({ open, name, fastForward, rewinding, canFulls
       onAction(items[focus].id)
     } else if (e.key === 'Escape') {
       e.preventDefault()
-      onAction('resume')
+      // Escape is the keyboard's B: on a sub-screen it POPS back to the root rather than
+      // resuming the game outright, which is what it used to do — one press from inside
+      // Display and you were back in the game with no idea why.
+      onAction(screen === 'root' ? 'resume' : 'back')
     }
   }
 
   const panelRef = useRef(null)
+  // Re-focus on a SCREEN change too, not just on open. Clicking a row focuses that
+  // <button>; switching to the Display sub-screen swaps the whole item array, so the
+  // focused button unmounts and focus falls to <body> — taking the panel's onKeyDown
+  // with it. Arrows, Enter and Escape would all go dead for anyone who reached the
+  // sub-screen with a mouse, which is precisely the user this sub-screen's Back row
+  // was added for.
   useEffect(() => {
     if (open) panelRef.current?.focus()
-  }, [open])
+  }, [open, screen])
 
   if (!open) return null
 
@@ -235,11 +249,10 @@ function MenuRow({ item, focused, onSelect, onHover, onAdjust }) {
       // so a test can count what's drawn against what pauseItems returned.
       data-testid="pause-row"
       onClick={onSelect}
-      // Hover-focus is onMouseMove app-wide (not onMouseEnter): with a pad and a mouse
-      // both live, a mouse *nudge* over an item re-claims the cursor even when the pointer
-      // was already sitting there after the D-pad moved focus elsewhere. onMouseEnter would
-      // miss that (no fresh "enter"), so the two inputs could disagree on what's focused.
-      onMouseMove={onHover}
+      // Hover-focus is onMouseMove app-wide, wrapped in hoverMove — see lib/pointer.js
+      // for why it's a move and not an enter, and why the move has to be checked against
+      // the last position before it's believed.
+      onMouseMove={hoverMove(onHover)}
       aria-current={focused || undefined}
       className="flex w-full items-center gap-3 rounded-xl border px-4 py-2.5 text-left transition-all active:scale-[0.99]"
       style={{
@@ -271,37 +284,52 @@ function MenuRow({ item, focused, onSelect, onHover, onAdjust }) {
         // stop propagation so a thumb stepping the level never also fires the row's own
         // action (mute). The row itself announces the level for AT.
         <span className="flex shrink-0 items-center gap-1.5" aria-label={`Volume ${Math.round(value * 100)} percent`}>
-          <AdjustTap side="down" onAdjust={onAdjust} />
+          <AdjustTap side="down" label={label} control={control} onAdjust={onAdjust} />
           <span className="h-1.5 w-12 overflow-hidden rounded-full" style={{ background: FROG.line }} aria-hidden="true">
             <span className="block h-full rounded-full" style={{ background: `rgb(${FROG.jade})`, width: `${Math.round(value * 100)}%` }} />
           </span>
           <span className="w-9 text-right text-xs tabular-nums" style={{ color: FROG.soft }} aria-hidden="true">
             {value === 0 ? 'Mute' : `${Math.round(value * 100)}%`}
           </span>
-          <AdjustTap side="up" onAdjust={onAdjust} />
+          <AdjustTap side="up" label={label} control={control} onAdjust={onAdjust} />
         </span>
       )}
       {adjust && control === 'cycle' && (
         // A stepped choice: ‹ value › — same tap targets, the value is a word.
         <span className="flex shrink-0 items-center gap-1" aria-label={`${label}: ${value}`}>
-          <AdjustTap side="down" onAdjust={onAdjust} />
+          <AdjustTap side="down" label={label} control={control} onAdjust={onAdjust} />
           <span className="min-w-[4.5rem] text-center text-xs font-medium" style={{ color: ['Off', '3×'].includes(value) ? FROG.soft : `rgb(${FROG.jade})` }} aria-hidden="true">
             {value}
           </span>
-          <AdjustTap side="up" onAdjust={onAdjust} />
+          <AdjustTap side="up" label={label} control={control} onAdjust={onAdjust} />
         </span>
       )}
     </button>
   )
 }
 
-function AdjustTap({ side, onAdjust }) {
+// The ‹ › steppers beside an adjustable row.
+//
+// A <span role="button"> rather than a real <button> for one unavoidable reason: MenuRow
+// IS a button, and a button cannot nest inside a button. (CoreOptionsPanel's twin, StepTap,
+// gets to be a real button only because its row is a div.) The consequences are handled
+// rather than ignored: the pointer cursor comes from the global rule in index.css, and
+// keyboard users never need to reach these — left/right on the focused row already steps
+// the value, which is why tabIndex is -1 here.
+//
+// `label` is not optional. These used to announce "Volume down"/"Volume up" on every
+// adjustable row, so a screen reader on the Filter row was told it was changing the volume.
+function AdjustTap({ side, label, control, onAdjust }) {
   const Icon = side === 'down' ? ChevronLeft : ChevronRight
+  // A slider goes down/up; a stepped choice goes previous/next. Announcing "Previous
+  // Volume" is as wrong as the hardcoded "Volume up" this replaced was on the Filter row.
+  const verb =
+    control === 'slider' ? (side === 'down' ? 'down' : 'up') : side === 'down' ? 'Previous' : 'Next'
   return (
     <span
       role="button"
       tabIndex={-1}
-      aria-label={side === 'down' ? 'Volume down' : 'Volume up'}
+      aria-label={control === 'slider' ? `${label} ${verb}` : `${verb} ${label}`}
       onClick={(e) => {
         e.stopPropagation()
         onAdjust?.(side === 'down' ? -1 : 1)

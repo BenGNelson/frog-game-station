@@ -3,6 +3,7 @@ import { hotkeyMatches } from '../lib/playerSettings.js'
 import { ANALOG_CORES } from '../lib/controlPresets.js'
 import { RETROPAD } from '../lib/retropad.js'
 import { moveInGrid } from '../lib/gridNav.js'
+import { SAVE_ACTIONS } from './SaveActionMenu.jsx'
 
 // One d-pad/stick step of wiki scroll. Repeats while held (the pad loop re-fires
 // up/down), so a held direction reads as a smooth scroll rather than a jump.
@@ -195,13 +196,23 @@ export function createPadRouter(ctx) {
         return
       }
 
-      // The Load/Delete chooser sits over the shelf (below the delete confirm): up/down move
-      // between Load and Delete, A commits, B backs out to the shelf.
+      // The Load/Delete/Cancel chooser sits over the shelf (below the delete confirm):
+      // up/down walk the rows, A commits, B backs out to the shelf.
+      //
+      // Dispatched by row ID from SAVE_ACTIONS, never by index. The old code read
+      // "chooseFocus === 1 means delete" in three places, and adding the Cancel row is
+      // precisely the change that would have turned each of those into a lie.
       if (chooseSlot != null) {
-        if (action === 'confirm') (chooseFocus === 1 ? chooseDelete : chooseLoad)()
-        else if (action === 'back') setChooseSlot(null)
-        else if (action === 'up' || action === 'left') setChooseFocus(0)
-        else if (action === 'down' || action === 'right') setChooseFocus(1)
+        if (action === 'confirm') {
+          const id = SAVE_ACTIONS[chooseFocus]?.id
+          if (id === 'delete') chooseDelete()
+          else if (id === 'cancel') setChooseSlot(null)
+          else chooseLoad()
+        } else if (action === 'back') setChooseSlot(null)
+        else if (action === 'up' || action === 'left' || action === 'down' || action === 'right') {
+          const dir = action === 'up' || action === 'left' ? 'up' : 'down'
+          setChooseFocus(moveInGrid({ count: SAVE_ACTIONS.length, cols: 1, index: chooseFocus }, dir))
+        }
         return
       }
 

@@ -18,6 +18,8 @@ import { FinishedBadge, HackBadge, HackTag } from './badges.jsx'
 import { agoLabel } from './shelf.js'
 import Keyboard from './Keyboard.jsx'
 import TrailerOverlay from './Trailer.jsx'
+import { hoverMove } from '../lib/pointer.js'
+import { useWheelRail } from './useWheelRail.js'
 
 // FROG GAME STATION — a game's page.
 //
@@ -131,7 +133,7 @@ export default function GameScreen({
         size="lg"
         data-testid="frog-detail-play"
         focused={on('actions', 0)}
-        onMouseMove={() => onFocus('actions', 0)}
+        onMouseMove={hoverMove(() => onFocus('actions', 0))}
         onClick={cantPlay ? undefined : onPlay}
         aria-disabled={cantPlay ? true : undefined}
         className="flex items-center gap-2"
@@ -470,7 +472,7 @@ function RichHero({ game, meta, shots, s, slide, focused, finished, hack, onOpen
       role={n ? 'button' : undefined}
       aria-label={n ? 'View screenshots' : undefined}
       onClick={n ? () => onOpen(idx) : undefined}
-      onMouseMove={onHover}
+      onMouseMove={hoverMove(onHover)}
       className="relative w-full overflow-hidden"
       style={{ cursor: n ? 'pointer' : 'default' }}
     >
@@ -481,6 +483,7 @@ function RichHero({ game, meta, shots, s, slide, focused, finished, hack, onOpen
             index simply never changes), so this stays a still image. */}
         {shots.map((sid, i) => (
           <img
+            draggable={false}
             key={sid}
             src={igdbShotUrl(game.id, sid)}
             alt=""
@@ -592,7 +595,7 @@ function Cover({ game, accent, finished, hack, className = '' }) {
       className={`relative shrink-0 overflow-hidden rounded-2xl ${className}`}
       style={{ border: `1px solid rgba(${accent}, 0.4)`, boxShadow: reflection(accent), background: '#000' }}
     >
-      <img src={coverUrl(game.id, game.cover_v)} alt="" className="aspect-[3/4] w-full object-cover" />
+      <img draggable={false} src={coverUrl(game.id, game.cover_v)} alt="" className="aspect-[3/4] w-full object-cover" />
       {finished && <FinishedBadge />}
       {hack && <HackBadge />}
       <div
@@ -651,7 +654,7 @@ function FacetChips({ facets, focus, onFocus, onOpen }) {
               type="button"
               data-testid="frog-facet-chip"
               data-focused={focused || undefined}
-              onMouseMove={() => onFocus('facets', i)}
+              onMouseMove={hoverMove(() => onFocus('facets', i))}
               onClick={() => onOpen?.(f)}
               className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors"
               style={{
@@ -686,7 +689,7 @@ function About({ meta }) {
         <div>
           <Heading>ABOUT</Heading>
           <p
-            className={`text-sm leading-relaxed ${expanded ? '' : 'line-clamp-4'}`}
+            className={`select-text text-sm leading-relaxed ${expanded ? '' : 'line-clamp-4'}`}
             style={{ color: FROG.soft }}
           >
             {meta.summary}
@@ -744,7 +747,7 @@ function SaveShelf({ game, saves, loadingSaves, on, accent, onFocus, onPlaySlot,
               <div
                 data-testid="frog-save-row"
                 data-focused={on('saves', i) || undefined}
-                onMouseMove={() => onFocus('saves', i)}
+                onMouseMove={hoverMove(() => onFocus('saves', i))}
                 className="flex items-center gap-3 rounded-xl px-3 py-2"
                 style={{
                   background: on('saves', i) ? `rgba(${accent}, 0.16)` : FROG.panel,
@@ -806,6 +809,8 @@ function SimilarRail({ games, focusedIndex, onFocus, onOpen }) {
       behavior: 'smooth',
     })
   }, [focusedIndex])
+  // A mouse wheel walks the rail; it has no scrollbar to grab.
+  useWheelRail(rowRef)
   return (
     <div>
       <Heading>MORE LIKE THIS</Heading>
@@ -831,7 +836,7 @@ function SimilarCard({ game, focused, onFocus, onOpen }) {
       type="button"
       data-testid="frog-similar"
       data-focused={focused || undefined}
-      onMouseMove={onFocus}
+      onMouseMove={hoverMove(onFocus)}
       onClick={onOpen}
       className="relative flex w-28 shrink-0 flex-col overflow-hidden rounded-xl text-left transition-transform duration-200 sm:w-32"
       style={{
@@ -843,6 +848,7 @@ function SimilarCard({ game, focused, onFocus, onOpen }) {
     >
       <div className="relative aspect-[3/4] w-full overflow-hidden" style={{ background: '#000' }}>
         <img
+          draggable={false}
           src={coverUrl(game.id, game.cover_v)}
           alt=""
           loading="lazy"
@@ -884,6 +890,7 @@ function Lightbox({ gameId, gameName, shots, index, onClose, onNav }) {
       onClick={onClose}
     >
       <img
+        draggable={false}
         src={igdbShotUrl(gameId, shots[index])}
         alt={shotLabel}
         onClick={stop}
@@ -952,7 +959,7 @@ function HackLine({ baseName, baseGameId, focused, accent, onFocus, onOpenBase }
       type="button"
       data-testid="frog-detail-base"
       data-focused={focused || undefined}
-      onMouseMove={onFocus}
+      onMouseMove={hoverMove(onFocus)}
       onClick={() => onOpenBase(baseGameId)}
       className="flex w-full flex-wrap items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition-colors"
       style={{
@@ -974,7 +981,7 @@ function RematchButton({ matched, focused, accent, onFocus, onClick }) {
         type="button"
         data-testid="frog-detail-fix"
         data-focused={focused || undefined}
-        onMouseMove={onFocus}
+        onMouseMove={hoverMove(onFocus)}
         onClick={onClick}
         className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium transition-colors"
         style={{
@@ -1039,7 +1046,7 @@ function RematchDialog({ rematch, native = false, accent, onHover, onPick, onTog
           data-focused={index < 0 || undefined}
           role="switch"
           aria-checked={!!hack}
-          onMouseMove={() => onHover(-1)}
+          onMouseMove={hoverMove(() => onHover(-1))}
           onClick={onToggleHack}
           className="mb-2 flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left"
           style={{
@@ -1086,7 +1093,7 @@ function RematchDialog({ rematch, native = false, accent, onHover, onPick, onTog
                   type="button"
                   data-testid={isClear ? 'frog-rematch-clear' : 'frog-rematch-option'}
                   data-focused={focused || undefined}
-                  onMouseMove={() => onHover(i)}
+                  onMouseMove={hoverMove(() => onHover(i))}
                   onClick={() => onPick(isClear ? null : o.id, isClear ? false : hack, o.name)}
                   className="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left"
                   style={{
@@ -1165,7 +1172,7 @@ function SearchRow({ native, focused, accent, searching, onFocus, onSearch }) {
       type="button"
       data-testid="frog-rematch-search"
       data-focused={focused || undefined}
-      onMouseMove={onFocus}
+      onMouseMove={hoverMove(onFocus)}
       onClick={() => onSearch()}
       className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left"
       style={{
@@ -1191,7 +1198,7 @@ function CollectionsRow({ tags, focused, accent, onFocus, onOpen }) {
         type="button"
         data-testid="frog-detail-tags"
         data-focused={focused || undefined}
-        onMouseMove={onFocus}
+        onMouseMove={hoverMove(onFocus)}
         onClick={onOpen}
         className="flex w-full flex-wrap items-center gap-2 rounded-xl px-3 py-2.5 text-left transition-colors"
         style={{
@@ -1289,7 +1296,7 @@ function TagPicker({ tags, allTags, focus, native, accent, onFocus, onToggle, on
               }}
               placeholder="New collection…"
               maxLength={40}
-              className="min-w-0 flex-1 bg-transparent px-2 py-1.5 text-sm outline-none"
+              className="select-text min-w-0 flex-1 bg-transparent px-2 py-1.5 text-sm outline-none"
               style={{ color: FROG.ink }}
             />
             <button
@@ -1309,7 +1316,7 @@ function TagPicker({ tags, allTags, focus, native, accent, onFocus, onToggle, on
             type="button"
             data-testid="frog-tag-new"
             data-focused={focus.index < 0 || undefined}
-            onMouseMove={() => onFocus(-1)}
+            onMouseMove={hoverMove(() => onFocus(-1))}
             onClick={onOpenNew}
             className="mb-3 flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-medium"
             style={{
@@ -1333,7 +1340,7 @@ function TagPicker({ tags, allTags, focus, native, accent, onFocus, onToggle, on
                     type="button"
                     data-testid="frog-tag-option"
                     data-focused={focused || undefined}
-                    onMouseMove={() => onFocus(i)}
+                    onMouseMove={hoverMove(() => onFocus(i))}
                     onClick={() => onToggle(t)}
                     className="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left"
                     style={{
@@ -1426,7 +1433,7 @@ function SaveEditor({ editor, native, accent, onEdit, onFocus, onOpenLabel, onOp
               }}
               placeholder="Name (optional)"
               maxLength={40}
-              className="mb-2 w-full rounded-xl px-3 py-2 text-sm outline-none"
+              className="select-text mb-2 w-full rounded-xl px-3 py-2 text-sm outline-none"
               style={field}
             />
             <textarea
@@ -1442,7 +1449,7 @@ function SaveEditor({ editor, native, accent, onEdit, onFocus, onOpenLabel, onOp
               placeholder="Note (optional)"
               maxLength={280}
               rows={2}
-              className="mb-3 w-full resize-none rounded-xl px-3 py-2 text-sm outline-none"
+              className="select-text mb-3 w-full resize-none rounded-xl px-3 py-2 text-sm outline-none"
               style={field}
             />
           </>
@@ -1475,7 +1482,7 @@ function SaveEditor({ editor, native, accent, onEdit, onFocus, onOpenLabel, onOp
           type="button"
           data-testid="frog-save-pin"
           data-focused={index === 2 || undefined}
-          onMouseMove={() => onFocus(2)}
+          onMouseMove={hoverMove(() => onFocus(2))}
           onClick={() => onEdit({ pinned: !pinned })}
           className="mb-1.5 mt-1 flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left"
           style={rowStyle(index === 2, false)}
@@ -1491,7 +1498,7 @@ function SaveEditor({ editor, native, accent, onEdit, onFocus, onOpenLabel, onOp
           type="button"
           data-testid="frog-save-delete"
           data-focused={index === 3 || undefined}
-          onMouseMove={() => onFocus(3)}
+          onMouseMove={hoverMove(() => onFocus(3))}
           onClick={onDelete}
           className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-medium"
           style={{ color: `rgb(${FROG.danger})`, ...rowStyle(index === 3, true) }}
@@ -1521,7 +1528,7 @@ function FieldRow({ testid, value, placeholder, on, accent, onFocus, onOpen }) {
       type="button"
       data-testid={testid}
       data-focused={on || undefined}
-      onMouseMove={onFocus}
+      onMouseMove={hoverMove(onFocus)}
       onClick={onOpen}
       className="mb-2 flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left"
       style={{
@@ -1554,6 +1561,7 @@ function SaveThumb({ gameId, snap }) {
   }
   return (
     <img
+      draggable={false}
       src={saveStateShotUrl(gameId, snap.slot)}
       alt=""
       onError={() => setFailed(true)}
@@ -1569,7 +1577,7 @@ function ActionButton({ focused, onFocus, onClick, accent, active, busy, label, 
       type="button"
       data-testid={testid}
       data-focused={focused || undefined}
-      onMouseMove={onFocus}
+      onMouseMove={hoverMove(onFocus)}
       onClick={onClick}
       disabled={busy}
       className="flex items-center gap-2 rounded-full px-4 py-3 text-sm font-medium transition-[transform,box-shadow]"

@@ -6,6 +6,7 @@ import { bindingForButton } from '../lib/gamepad.js'
 import { FROG, scrim, SCRIM, focusRing, FOCUS_SCALE } from '../frog/theme.js'
 import Heading from '../frog/Heading.jsx'
 import ControllerDiagram from './ControllerDiagram.jsx'
+import { hoverMove } from '../lib/pointer.js'
 
 // The Controls screen.
 //
@@ -140,7 +141,7 @@ export default function ControlsPanel({
             <span className="text-xs" style={{ color: FROG.faint }}>Pad style</span>
             <div
               data-focused={focusedKey === 'skin' || undefined}
-              onMouseMove={() => onFocus(rows.indexOf('skin'))}
+              onMouseMove={hoverMove(() => onFocus(rows.indexOf('skin')))}
               className="inline-flex overflow-hidden rounded-full"
               style={{
                 border: `1px solid ${focusedKey === 'skin' ? `rgba(${FROG.jade}, 0.6)` : FROG.line}`,
@@ -244,7 +245,7 @@ export default function ControlsPanel({
 
           <button
             onClick={onReset}
-            onMouseMove={() => onFocus(rows.indexOf('reset'))}
+            onMouseMove={hoverMove(() => onFocus(rows.indexOf('reset')))}
             data-focused={resetFocused || undefined}
             aria-current={resetFocused || undefined}
             className="mt-5 flex w-full items-center justify-center gap-1.5 rounded-xl border py-3 text-sm transition-colors"
@@ -282,7 +283,7 @@ function SchemeCard({ scheme, active, focused, onSelect, onHover }) {
   return (
     <button
       onClick={onSelect}
-      onMouseMove={onHover}
+      onMouseMove={hoverMove(onHover)}
       data-focused={focused || undefined}
       aria-current={focused || undefined}
       className="rounded-2xl border p-3 text-left transition-all"
@@ -309,7 +310,7 @@ function HotkeyRow({ Icon, label, hint, value, listening, focused, onSelect, onH
   return (
     <button
       onClick={onSelect}
-      onMouseMove={onHover}
+      onMouseMove={hoverMove(onHover)}
       data-focused={focused || undefined}
       aria-current={focused || undefined}
       className="flex w-full items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors"

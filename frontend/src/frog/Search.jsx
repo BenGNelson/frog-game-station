@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react'
-import { Search as SearchIcon, X } from 'lucide-react'
+import { Search as SearchIcon, X, Delete } from 'lucide-react'
 import { coverUrl } from '../lib/library.js'
 import { FROG, systemStyle, reflection, focusRing } from './theme.js'
 import Heading from './Heading.jsx'
@@ -7,6 +7,7 @@ import { useRipple, Ripples } from './ripple.jsx'
 import { KEYS, COLS, liveKeys } from './search.js'
 import Frog, { Reflected } from './Frog.jsx'
 import SystemChip from './SystemChip.jsx'
+import { hoverMove } from '../lib/pointer.js'
 
 // The search screen.
 //
@@ -19,7 +20,7 @@ import SystemChip from './SystemChip.jsx'
 // grid or the results) has the cursor; this draws what it's told. That's the same
 // contract the shelf and the game list keep, and it's what will let the whole folder
 // lift into its own repo as a copy rather than a rewrite.
-export default function Search({ query, results, zone, keyIndex, resultRow, allGames, native, onKey, onResult, onPick, onType, recent = [], suggestions = [], onRecent, onRemoveRecent }) {
+export default function Search({ query, results, zone, keyIndex, resultRow, allGames, native, onKey, onResult, onPick, onType, onBackspace, onClear, recent = [], suggestions = [], onRecent, onRemoveRecent }) {
   // With an empty query the results zone stands in for your recent searches, so the
   // cursor has somewhere to go and the screen isn't a blank invitation.
   const showRecent = query === '' && recent.length > 0
@@ -77,7 +78,7 @@ export default function Search({ query, results, zone, keyIndex, resultRow, allG
               autoCorrect="off"
               spellCheck={false}
               aria-label="Search games"
-              className="h-12 w-full rounded-xl px-4 text-lg font-semibold tracking-wide outline-none"
+              className="h-12 w-full select-text rounded-xl px-4 text-lg font-semibold tracking-wide outline-none"
               style={{
                 background: FROG.panel,
                 border: `1px solid rgba(${FROG.jade}, 0.5)`,
@@ -92,7 +93,15 @@ export default function Search({ query, results, zone, keyIndex, resultRow, allG
                 className="mb-3 flex h-11 items-center gap-1 rounded-xl px-4"
                 style={{ background: FROG.panel, border: `1px solid ${FROG.line}` }}
               >
-                <span className="text-lg font-semibold tracking-wide" style={{ color: query ? FROG.ink : FROG.faint }}>
+                <span
+                  data-testid="frog-search-query"
+                  // min-w-0 + truncate, or a long query refuses to shrink (a flex item's
+                  // default min-width is auto) and pushes the shrink-0 delete buttons out
+                  // past the field's rounded edge — taking away a mouse user's only way
+                  // to delete, exactly when they most need it.
+                  className="min-w-0 truncate text-lg font-semibold tracking-wide"
+                  style={{ color: query ? FROG.ink : FROG.faint }}
+                >
                   {query || 'Type to search'}
                 </span>
                 <span
@@ -100,6 +109,42 @@ export default function Search({ query, results, zone, keyIndex, resultRow, allG
                   style={{ background: `rgb(${FROG.jade})` }}
                   aria-hidden="true"
                 />
+
+                {/* Backspace and clear, for a mouse.
+                    A pad deletes with B and a hardware keyboard with Backspace, but a
+                    mouse alone could TYPE on the 6×6 board and then had no way to take a
+                    letter back — the board is 36 keys of A–Z0–9 and nothing else, on
+                    purpose (search.js's KEYS length is what COLS and the pad walk are
+                    built from, so a delete key does not belong in it).
+
+                    They live in the field, not the board, and they are deliberately NOT
+                    pad-reachable: B already does this, and a new focus target would
+                    perturb the grid walk for no gain. Same reasoning as the recent-search
+                    ✕, which is documented as a touch-only affordance. */}
+                {query && (
+                  <span className="ml-auto flex shrink-0 items-center gap-1">
+                    <button
+                      type="button"
+                      data-testid="frog-search-backspace"
+                      aria-label="Delete last character"
+                      onClick={onBackspace}
+                      className="rounded-lg p-1.5"
+                      style={{ color: FROG.soft }}
+                    >
+                      <Delete className="h-4 w-4" aria-hidden="true" />
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="frog-search-clear"
+                      aria-label="Clear search"
+                      onClick={onClear}
+                      className="rounded-lg p-1.5"
+                      style={{ color: FROG.soft }}
+                    >
+                      <X className="h-4 w-4" aria-hidden="true" />
+                    </button>
+                  </span>
+                )}
               </div>
 
               {/* The 6×6 grid. */}
@@ -159,7 +204,7 @@ export default function Search({ query, results, zone, keyIndex, resultRow, allG
                     type="button"
                     data-focused={on || undefined}
                     data-testid="frog-search-row"
-                    onMouseMove={() => onResult(i)}
+                    onMouseMove={hoverMove(() => onResult(i))}
                     onClick={() => onPick(g)}
                     className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left transition-colors"
                     style={{
@@ -220,12 +265,17 @@ function GridKey({ ch, on, dead, onHover, onPress }) {
     <button
       type="button"
       aria-disabled={dead || undefined}
-      onMouseMove={onHover}
+      onMouseMove={hoverMove(onHover)}
       onClick={(e) => {
         if (!dead) spawnRipple(e)
         onPress(e)
       }}
-      className="relative flex aspect-square items-center justify-center overflow-hidden rounded-lg text-lg font-semibold transition-colors"
+      // A dead key swallows a click in total silence (the query refuses the letter),
+      // which to a mouse just looks broken. The cursor is the honest tell, and it costs
+      // nothing — the dimming already says it to anyone reading the board.
+      className={`relative flex aspect-square items-center justify-center overflow-hidden rounded-lg text-lg font-semibold transition-colors ${
+        dead ? 'cursor-not-allowed' : 'cursor-pointer'
+      }`}
       style={{
         background: on ? `rgb(${FROG.jade})` : FROG.panel,
         color: on ? FROG.ground : dead ? FROG.faint : FROG.soft,
@@ -256,7 +306,7 @@ function RecentSearches({ recent, zone, resultRow, onResult, onRecent, onRemoveR
                 type="button"
                 data-focused={on || undefined}
                 data-testid="frog-recent-search"
-                onMouseMove={() => onResult(i)}
+                onMouseMove={hoverMove(() => onResult(i))}
                 onClick={() => onRecent(r.q)}
                 className="flex min-w-0 flex-1 items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors"
                 style={{
@@ -310,7 +360,7 @@ function Suggestions({ suggestions, zone, resultRow, onResult, onRun }) {
               type="button"
               data-focused={on || undefined}
               data-testid="frog-suggestion"
-              onMouseMove={() => onResult(i)}
+              onMouseMove={hoverMove(() => onResult(i))}
               onClick={() => onRun(q)}
               className="flex items-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-medium transition-colors"
               style={{
@@ -340,7 +390,7 @@ function PreviewCard({ game }) {
         className="frog-float relative overflow-hidden rounded-2xl"
         style={{ border: `1px solid rgba(${s.accent}, 0.35)`, boxShadow: reflection(s.accent), background: '#000' }}
       >
-        <img key={game.id} src={coverUrl(game.id, game.cover_v)} alt="" className="frog-rise aspect-[3/4] w-full object-cover" />
+        <img draggable={false} key={game.id} src={coverUrl(game.id, game.cover_v)} alt="" className="frog-rise aspect-[3/4] w-full object-cover" />
       </div>
       <p className="mt-2 truncate text-sm font-semibold" style={{ color: FROG.ink }}>
         {game.name}

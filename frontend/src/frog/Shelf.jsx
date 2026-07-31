@@ -2,13 +2,15 @@ import { useEffect, useRef, useState } from 'react'
 import { List, ChevronRight, Shuffle } from 'lucide-react'
 import { coverUrl } from '../lib/library.js'
 import { FROG, systemStyle, reflection, FOCUS_SCALE } from './theme.js'
-import { agoLabel } from './shelf.js'
+import { agoLabel, SYSTEM_COLS } from './shelf.js'
 import { useDozing } from '../lib/dayNight.js'
 import { Reflected, SystemFrog } from './Frog.jsx'
 
 import { FinishedBadge, HackBadge } from './badges.jsx'
 import Heading from './Heading.jsx'
 import Console from './Console.jsx'
+import { useWheelRails } from './useWheelRail.js'
+import { hoverMove } from '../lib/pointer.js'
 
 // The shelf: Frog Game Station's home screen.
 //
@@ -33,9 +35,9 @@ import Console from './Console.jsx'
 // scale 1: the keyframes win and the pop silently never happens. (It even *worked*
 // under prefers-reduced-motion, where the animation is off, which is a fun way to be
 // misled.) The wrapper bobs; the child scales.
-function Floats({ delay, children }) {
+function Floats({ delay, children, style }) {
   return (
-    <div className="frog-float" style={{ animationDelay: `${delay}ms` }}>
+    <div className="frog-float" style={{ animationDelay: `${delay}ms`, ...style }}>
       {children}
     </div>
   )
@@ -50,7 +52,7 @@ function SystemTile({ system, focused, onFocus, onPick }) {
       type="button"
       data-testid="frog-system"
       data-focused={focused || undefined}
-      onMouseMove={onFocus}
+      onMouseMove={hoverMove(onFocus)}
       onClick={onPick}
       disabled={empty}
       className="group relative flex w-full flex-col items-center rounded-2xl px-2 pb-3 pt-4 transition-transform duration-200"
@@ -92,7 +94,7 @@ function GameCard({ game, focused, finished, hack, onFocus, onPick }) {
       type="button"
       data-testid="frog-jump"
       data-focused={focused || undefined}
-      onMouseMove={onFocus}
+      onMouseMove={hoverMove(onFocus)}
       onClick={onPick}
       className="relative flex w-36 shrink-0 flex-col overflow-hidden rounded-xl text-left transition-transform duration-200 sm:w-40"
       style={{
@@ -104,6 +106,7 @@ function GameCard({ game, focused, finished, hack, onFocus, onPick }) {
     >
       <div className="relative aspect-[3/4] w-full overflow-hidden" style={{ background: '#000' }}>
         <img
+          draggable={false}
           src={coverUrl(game.id, game.cover_v)}
           alt=""
           loading="lazy"
@@ -141,7 +144,7 @@ function SeeAllCard({ collection, focused, onFocus, onPick }) {
       type="button"
       data-testid="frog-collection-all"
       data-focused={focused || undefined}
-      onMouseMove={onFocus}
+      onMouseMove={hoverMove(onFocus)}
       onClick={onPick}
       className="relative flex aspect-[3/4] w-36 shrink-0 flex-col items-center justify-center gap-2 rounded-xl px-3 text-center transition-transform duration-200 sm:w-40"
       style={{
@@ -172,7 +175,7 @@ function SurpriseCard({ focused, onFocus, onPick }) {
       type="button"
       data-testid="frog-surprise"
       data-focused={focused || undefined}
-      onMouseMove={onFocus}
+      onMouseMove={hoverMove(onFocus)}
       onClick={onPick}
       className="relative flex aspect-[3/4] w-36 shrink-0 flex-col items-center justify-center gap-2 rounded-xl px-3 text-center transition-transform duration-200 sm:w-40"
       style={{
@@ -222,6 +225,10 @@ export default function Shelf({ rails, focus, finishedIds, hackIds, onFocus, onP
   }, [focus.rail, focus.index])
   // The mascot dozes after hours (closed eyes), on the wall clock.
   const dozing = useDozing()
+
+  // A mouse wheel walks the horizontal rails. They hide their scrollbars, so without
+  // this there is no way to reach along one with a mouse at all.
+  useWheelRails(() => railRefs.current, [rails])
 
   // Home always opens at the top. Shelf remounts on return from a game/list, so the
   // viewport naturally resets — but the focus scrollIntoView below fires on the very
@@ -329,10 +336,35 @@ export default function Shelf({ rails, focus, finishedIds, hackIds, onFocus, onP
               // disc-era tiles at all — see buildSystems).
               <div
                 ref={(el) => (railRefs.current[r] = el)}
-                className="grid grid-cols-3 gap-3"
+                className="grid gap-3"
+                // From the same constant the rail's `cols` is built from (shelf.js), so
+                // what's drawn and what the D-pad walks cannot drift apart.
+                style={{ gridTemplateColumns: `repeat(${SYSTEM_COLS}, minmax(0, 1fr))` }}
               >
                 {rail.items.map((sys, i) => (
-                  <Floats key={sys.id} delay={i * 220}>
+                  <Floats
+                    key={sys.id}
+                    delay={i * 220}
+                    // A last row holding a single orphan tile is CENTRED rather than
+                    // dumped on the left — seven tiles (touch, where the disc era is
+                    // gated off) read as 3-3-1, not 3-3 and a stray. `centerLastRow` on
+                    // the rail teaches the D-pad the same thing, so pressing up from
+                    // here lands on the tile your eye says is above it.
+                    // Computed, not a `col-start-2` class: moveInGrid puts the orphan's
+                    // up-target at Math.floor((cols - 1) / 2), so a hardcoded 2 is the
+                    // other half of exactly the coupling SYSTEM_COLS exists to remove —
+                    // change the column count and the cursor and the eye part ways again.
+                    // (A template-literal Tailwind class would not work either: v4 scans
+                    // for literal strings and would emit no rule at all.)
+                    style={
+                      rail.centerLastRow &&
+                      i === rail.items.length - 1 &&
+                      rail.items.length % SYSTEM_COLS === 1 &&
+                      rail.items.length > SYSTEM_COLS
+                        ? { gridColumnStart: Math.floor((SYSTEM_COLS - 1) / 2) + 1 }
+                        : undefined
+                    }
+                  >
                     <SystemTile
                       system={sys}
                       focused={focus.rail === r && focus.index === i}

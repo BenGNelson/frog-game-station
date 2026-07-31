@@ -426,3 +426,30 @@
 .frog-danger-ghost:active {
   background-color: rgba(239, 90, 90, 0.3);
 }
+
+/* --- The idle cursor ------------------------------------------------------ */
+/* Set on <html> by lib/useIdleCursor.js while a controller is driving and the mouse
+   has been still for a few seconds. The universal selector and !important are both
+   load-bearing and should not be "cleaned up": the game page's hero sets `cursor` as an
+   INLINE style (GameScreen.jsx, the big click target behind the title), and a stylesheet
+   rule only outranks an inline style with !important. Without the `*` the cursor would
+   vanish over the page but survive over exactly the thing you most want it gone from.
+
+   The pond is exempt on purpose, but ONLY on a touch device. Its `cursor-pointer` is not
+   decoration there: iOS fires a `click` for a tap on a non-native element only when it
+   looks clickable, and that click is what dismisses the screensaver without falling
+   through to the tile beneath (see Screensaver.jsx). Without the media query the
+   exemption would paint a hand cursor back over the WHOLE viewport — the pond is
+   `fixed inset-0` — for as long as the screensaver runs, which is the exact artifact this
+   rule exists to remove, at the moment it is most visible. A mouse has no click-synthesis
+   problem to protect. */
+html.frog-cursor-hidden,
+html.frog-cursor-hidden * {
+  cursor: none !important;
+}
+@media (hover: none) {
+  html.frog-cursor-hidden [data-testid='frog-screensaver'],
+  html.frog-cursor-hidden [data-testid='frog-screensaver'] * {
+    cursor: pointer !important;
+  }
+}

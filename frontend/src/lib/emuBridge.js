@@ -15,6 +15,7 @@ import { buildControls, EJS_BUTTONS_OFF, EJS_HIDE_SETTINGS } from './controlPres
 import { sectionAccent } from './library.js'
 import { isNative } from './playerBackend.js'
 import { RETROPAD, DIGITAL_INPUTS } from './retropad.js'
+import { CURSOR_HIDDEN_CLASS } from './pointer.js'
 
 // Re-exported so callers can reach the engine and its button indices from one
 // place; retropad.js exists only to keep this module and controlPresets from
@@ -315,6 +316,72 @@ export function killEngineChrome(frame, parts = {}) {
   }
   style.textContent = css
   return true
+}
+
+// --- the cursor, inside the player document --------------------------------
+//
+// CSS does not cross a document boundary, so the class useIdleCursor puts on the parent's
+// <html> does nothing to the pointer while it is over the game. Two halves have to be
+// bridged, and missing either one is worse than not doing it at all:
+//
+//   1. setFrameCursor — push the hidden state IN, or the cursor stays visible over the
+//      one surface it's most distracting on.
+//   2. onFrameActivity — bring mouse activity OUT, or a mouse being actively moved over
+//      the game never reaches the parent's listeners and the cursor stays hidden while
+//      you're using it. That failure reads as "the cursor is stuck invisible in game".
+//
+// Same-origin (emulator.html is ours), and wrapped like killEngineChrome so a frame that
+// hasn't loaded is a no-op rather than a throw.
+
+const CURSOR_STYLE_ID = 'frog-cursor-style'
+
+export function setFrameCursor(frame, hidden) {
+  let doc
+  try {
+    doc = frame && frame.contentDocument
+  } catch {
+    return false
+  }
+  if (!doc || !doc.head || !doc.documentElement) return false
+
+  if (!doc.getElementById(CURSOR_STYLE_ID)) {
+    const style = doc.createElement('style')
+    style.id = CURSOR_STYLE_ID
+    // The same rule as frog.css, for the same reason — EmulatorJS sets its own cursor
+    // styles on the canvas and its menu, and `*` + !important is what outranks them.
+    style.textContent = `html.${CURSOR_HIDDEN_CLASS}, html.${CURSOR_HIDDEN_CLASS} * { cursor: none !important; }`
+    doc.head.appendChild(style)
+  }
+  doc.documentElement.classList.toggle(CURSOR_HIDDEN_CLASS, !!hidden)
+  return true
+}
+
+export function onFrameActivity(frame, cb) {
+  let doc
+  try {
+    doc = frame && frame.contentDocument
+  } catch {
+    return () => {}
+  }
+  if (!doc) return () => {}
+
+  // Only a MOUSE counts, matching the parent's own rule — otherwise a finger on the game
+  // canvas of a touchscreen laptop or an iPad would keep un-hiding a cursor nobody is
+  // using, and re-arm the timer on every touch so the fade never completes.
+  //
+  // Filtered here rather than through pointer.js's wakesCursor, deliberately: that
+  // records the pointer's position, and these coordinates are relative to the FRAME's
+  // viewport. Feeding them into the shared record would corrupt the very comparison
+  // hover-to-focus depends on. A wheel and a mouse press are unambiguous on their own;
+  // a move needs no position bookkeeping to prove someone is using the mouse in here.
+  const wanted = (e) => e.type === 'wheel' || e.pointerType === 'mouse'
+  const onEvent = (e) => {
+    if (wanted(e)) cb(e)
+  }
+
+  const events = ['pointermove', 'pointerdown', 'wheel']
+  events.forEach((t) => doc.addEventListener(t, onEvent, { passive: true, capture: true }))
+  return () => events.forEach((t) => doc.removeEventListener(t, onEvent, { capture: true }))
 }
 
 // --- driving the engine ----------------------------------------------------

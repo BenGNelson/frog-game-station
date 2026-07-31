@@ -62,23 +62,55 @@ export function moveInGrid({ count, cols, index }, dir, { centerLastRow = false,
   }
 }
 
-// Rails: `rails` = [{ id, items }], `focus` = { rail, index }.
+// Rails: `rails` = [{ id, items, cols? }], `focus` = { rail, index }.
 //
 // Left/right moves within a rail; up/down (and railPrev/railNext — the shoulder
 // buttons) moves between rails. Returns the new focus AND the updated column
 // memory, which is the thing that makes rails feel right: leave a rail at item
 // 12, go down, come back — you're on item 12 again, not back at the start.
 // Netflix, the Switch home screen and Steam Big Picture all do this.
+//
+// A rail may declare `cols`, which makes it a GRID of that width rather than one
+// long row — the shelf's Systems block is drawn as a 3-wide grid, and without this
+// the D-pad walked it as a flat rail, so reaching the bottom row meant stepping
+// across every tile before it. Inside such a rail, up/down move a row; only the
+// top and bottom rows exit to the neighbouring rail, which is exactly the rail
+// semantics the edges had before. The row walk is delegated to moveInGrid rather
+// than reimplemented, so the short-last-row rule holds here too: pressing down
+// into the gap under a short final row lands on the last item.
+//
+// The shoulder buttons (railPrev/railNext) deliberately IGNORE `cols` and always
+// change rail — they're the "skip a section" control, and having them stop off at
+// each row of the systems grid would defeat the point of having them.
 export function moveInRails(rails, focus, dir, memory = {}) {
   if (!rails || !rails.length) return { focus: { rail: 0, index: 0 }, memory }
 
   const rail = clamp(focus?.rail ?? 0, 0, rails.length - 1)
   const items = rails[rail]?.items ?? []
   const index = clamp(focus?.index ?? 0, 0, Math.max(0, items.length - 1))
+  // Never trust a cols wider than the rail: a 2-tile grid declared at 3 columns is
+  // one row, and the arithmetic below should see it that way.
+  const cols = rails[rail]?.cols ? Math.min(rails[rail].cols, Math.max(1, items.length)) : 0
+
+  const gridOpts = { centerLastRow: !!rails[rail]?.centerLastRow }
 
   if (dir === 'left' || dir === 'right') {
-    const next = clamp(index + (dir === 'right' ? 1 : -1), 0, Math.max(0, items.length - 1))
+    // In a grid, left/right stay within the row rather than running on into the next
+    // one — moveInGrid already refuses to cross a row edge.
+    const next = cols
+      ? moveInGrid({ count: items.length, cols, index }, dir, gridOpts)
+      : clamp(index + (dir === 'right' ? 1 : -1), 0, Math.max(0, items.length - 1))
     return { focus: { rail, index: next }, memory: { ...memory, [rails[rail].id]: next } }
+  }
+
+  // Inside a grid rail, up/down walk the rows first and only leave the rail from the
+  // top or bottom edge. moveInGrid returns the SAME index when it can't move, which is
+  // precisely the "I'm at the edge, hand it back to the rail walk" signal.
+  if (cols && (dir === 'up' || dir === 'down')) {
+    const moved = moveInGrid({ count: items.length, cols, index }, dir, gridOpts)
+    if (moved !== index) {
+      return { focus: { rail, index: moved }, memory: { ...memory, [rails[rail].id]: moved } }
+    }
   }
 
   const step = dir === 'up' || dir === 'railPrev' ? -1 : dir === 'down' || dir === 'railNext' ? 1 : 0
@@ -94,7 +126,28 @@ export function moveInRails(rails, focus, dir, memory = {}) {
   const target = rails[next]
   // Clamp against the target rail's length: remembering column 12 and moving to
   // a rail with 3 items must land on the last item, not off the end.
-  const restored = clamp(remembered[target.id] ?? 0, 0, target.items.length - 1)
+  let restored = clamp(remembered[target.id] ?? 0, 0, target.items.length - 1)
+
+  // Entering a GRID rail, land on the edge row you arrived at — top row coming down,
+  // bottom row coming up — keeping the remembered COLUMN. Column memory alone would
+  // drop you back on the row you left from, so walking down into the systems grid
+  // could skip its first row entirely and land you three tiles in. The shoulder
+  // buttons (step without up/down) are exempt: they jump between sections, so the
+  // remembered tile is the right answer for them.
+  const targetCols = target.cols ? Math.min(target.cols, Math.max(1, target.items.length)) : 0
+  if (targetCols && (dir === 'up' || dir === 'down')) {
+    const n = target.items.length
+    // A CENTRED orphan's arithmetic column is not its drawn column, and this rule is
+    // about where the tile appears. The lone tile on a short last row is index n-1 —
+    // arithmetic column 0 — but centerLastRow draws it in the middle, which is the whole
+    // reason that flag exists. Read the column the eye sees, or leaving from the centred
+    // tile and coming back lands you on the left-hand column instead.
+    const orphan = target.centerLastRow && n % targetCols === 1 && n > targetCols
+    const col = orphan && restored === n - 1 ? Math.floor((targetCols - 1) / 2) : restored % targetCols
+    const lastRow = Math.floor((n - 1) / targetCols)
+    const row = dir === 'down' ? 0 : lastRow
+    restored = clamp(row * targetCols + col, 0, n - 1)
+  }
   return { focus: { rail: next, index: restored }, memory: remembered }
 }
 

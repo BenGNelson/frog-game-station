@@ -26,9 +26,11 @@ export function usePlayerShelf({ id, coverV, emuRef, dispatch, liveShotRef }) {
   // and a transient confirmation shown in the shelf after a set/reset.
   const [hasCustomCover, setHasCustomCover] = useState(!!coverV)
   const [coverNotice, setCoverNotice] = useState(null)
-  // Activating a state card (pad/keyboard) opens a Load/Delete chooser rather than loading
-  // outright. chooseSlot = the slot being chosen (null = closed); chooseFocus: 0 = Load, 1 =
-  // Delete. Delete hands off to the existing pendingDelete confirm — this only picks.
+  // Activating a state card (pad/keyboard) opens a Load/Delete/Cancel chooser rather than
+  // loading outright. chooseSlot = the slot being chosen (null = closed); chooseFocus is an
+  // index into SAVE_ACTIONS (SaveActionMenu.jsx), which is the list both the router and the
+  // component dispatch from — never a bare number meaning a particular row. Delete hands off
+  // to the existing pendingDelete confirm; this only picks.
   const [chooseSlot, setChooseSlot] = useState(null)
   const [chooseFocus, setChooseFocus] = useState(0)
   // The shelf's trailing cover actions, appended after the state cards: always "set from

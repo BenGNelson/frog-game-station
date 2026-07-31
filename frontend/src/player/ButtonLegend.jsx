@@ -3,11 +3,12 @@ import { FROG } from '../frog/theme.js'
 // The controller legend, the way every console UI does it: a quiet footer strip
 // telling you which button does what right here. It's the difference between a
 // menu you can drive with a pad and one you have to guess at.
-export default function ButtonLegend({ hints, className = '', style }) {
+export default function ButtonLegend({ hints, className = '', style, ...rest }) {
   return (
     <div
       style={{ color: FROG.soft, ...style }}
       className={`pointer-events-none flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs ${className}`}
+      {...rest}
     >
       {hints.map(({ button, label }) => (
         <span key={button + label} className="flex items-center gap-1.5">

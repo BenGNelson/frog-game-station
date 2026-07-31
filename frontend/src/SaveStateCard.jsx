@@ -27,6 +27,7 @@ export default function SaveStateCard({ game, state, onSelect, onDelete, actionL
         <div className="aspect-video w-full bg-black">
           {state.has_shot && !failed ? (
             <img
+              draggable={false}
               src={saveStateShotUrl(game.id, state.slot)}
               alt=""
               loading="lazy"
