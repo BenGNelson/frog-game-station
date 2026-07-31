@@ -435,8 +435,10 @@ export default function FrogBrowser() {
   // The ROM-hack map (game_id → base game's name), for the "HACK" badges across the
   // browsing surfaces. Server-owned like the rest of collections, so a game marked a hack
   // on the couch reads as one on the phone.
-  const hacks = collections.hacks || {}
-  const hackSet = useMemo(() => new Set(Object.keys(hacks)), [hacks])
+  // The `|| {}` fallback lives INSIDE the memo, keyed on collections.hacks itself: as a
+  // separate const it minted a fresh object on every render whenever the server hadn't
+  // sent one, so the Set was rebuilt every render and the memo did nothing at all.
+  const hackSet = useMemo(() => new Set(Object.keys(collections.hacks || {})), [collections.hacks])
 
   // Jump back in, cross-device: this device's launches merged with the server's
   // continue list and play-stamps — newest wins, so a session on the couch surfaces
@@ -706,7 +708,10 @@ export default function FrogBrowser() {
       // was taken, the exact way you lose an afternoon.
       navigate(`/play?${q}${slot ? `&slot=${encodeURIComponent(slot)}` : ''}`)
     },
-    [navigate, biosMap]
+    // deviceCaps is a mount-time constant (deviceClass() behind an empty-dep useMemo),
+    // so naming it here costs nothing and stops the gate above silently going stale if
+    // it ever becomes reactive.
+    [navigate, biosMap, deviceCaps]
   )
 
   const openSystem = useCallback((label) => {

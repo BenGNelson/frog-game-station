@@ -12,6 +12,7 @@ tap-a-console-to-drill-in.
 import os
 import sys
 from playwright.sync_api import sync_playwright
+from player_mount import watch_player, player_mounted
 
 BASE = os.environ.get("BASE_URL", "http://localhost:8585")
 errors = []
@@ -102,9 +103,13 @@ with sync_playwright() as p:
     page.wait_for_selector('[data-testid="frog-detail"]', timeout=5000)
     check(True, "tapping a result opens its game page")
     track[0] = False
+    mount = watch_player(page)
     page.locator('[data-testid="frog-detail-play"]').tap()
     page.wait_for_url("**/play**", timeout=8000)
     check("/play" in page.url, "Play on the game page launches the game")
+    # The touch path forks the player's own tree (maxTouchPoints picks the input mode),
+    # so this is a different render from the keyboard launch next door.
+    check(player_mounted(page, mount), "the launched player mounts on touch (not a blank screen)")
 
     context.close()
     browser.close()

@@ -291,7 +291,6 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
     onNativeEvent(
       'pad',
       (p) => {
-        const count = Number(p?.count) || 0
         // Named before you press anything — the Controls screen used to read
         // "No controller connected" until the first button went down.
         if (p?.connected && p?.name) setPadName(p.name)
@@ -722,7 +721,10 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
           break
       }
     },
-    [fastForward, applyFF, openShelf, openControls, openCoreOptions, openWiki, openPokedex, toggleMute, stepFFRatio, stepFilter, takeScreenshot]
+    [
+      fastForward, applyFF, rewinding, applyRewind, openShelf, openControls, openCoreOptions,
+      openWiki, openPokedex, toggleMute, stepFFRatio, stepFilter, takeScreenshot,
+    ]
   )
 
   const openMenu = useCallback(() => {
