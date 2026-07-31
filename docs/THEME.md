@@ -79,25 +79,40 @@ Sizes: `md` (default) and `lg` (the Play button). One-off buttons that can't ado
 component yet (icon buttons, panel Back buttons, the re-scan action, segmented
 controls) still follow the family: pill-shaped, same fills, same focus language.
 
-## 5. Focus — one language
+## 5. Focus — two channels, and only one of them is the accent
 
-Defined once in theme.js; nothing hand-rolls a focus shadow:
+**The cursor is not a colour.** Focus and meaning both used to be spoken in the accent,
+and they collided: the confirm gate's Quit button is a solid `danger` fill, so its
+accent focus glow was red on red and its highlight simply vanished — you could not see
+which button you were about to press. Colour cannot carry both "what this does" and
+"where you are", so the cursor was given its own channel.
 
-- **`focusRing(accentRGB)`** → `inset 0 0 0 2px rgba(accent, 0.55)`. The ring is
-  INSET so it never collides with a neighbour in a tight list, and it wears the
-  screen's system accent (jade by default). Used by rows, cards, tiles, inputs, quiet/
-  danger buttons — browser screens and player chrome alike.
-- **Solid buttons glow instead** (`0 0 26px` accent) — an accent ring on an accent
-  fill would vanish.
+- **`focusOutline()`** → `outline: 2px solid rgba(ink, 0.95)` at `outline-offset: 3px`.
+  **This is the constant channel**: the same near-white on every variant, every system
+  accent, every surface. An OUTLINE (not a box-shadow) because it draws outside the
+  box, so a solid fill cannot swallow it the way an inset ring does. It returns style
+  properties rather than a shadow string — spread it into a `style` object.
+  It is never the accent, and `theme.test.js` pins that: not jade, not danger, not any
+  of the nine `SYSTEMS` accents.
+- **`focusRing(accentRGB)`** → `inset 0 0 0 2px rgba(accent, 0.55)`, unchanged. The
+  accent treatment is now the SECONDARY signal — warmth and system identity, not the
+  thing you rely on to find the cursor. Still inset so it never collides with a
+  neighbour in a tight list. Used by rows, cards, tiles, inputs, quiet/danger buttons.
+- **Solid buttons keep their glow** (`0 0 26px` accent) — an inset accent ring on an
+  accent fill would still vanish, so the glow stays as solid's secondary signal. What
+  changed is that it is no longer the *only* signal.
 - **`FOCUS_SCALE` = 1.04** — the one scale for things that swell when focused:
   buttons, cards, tiles. **List rows never scale** (they sit flush in a column; the
-  ring + fill + edge bar carry the state).
+  outline + ring + fill + edge bar carry the state).
 - The focused row/tile also takes an accent fill (`rgba(accent, ~0.14–0.24)`), and
   lists keep their lit edge-bar cursor.
 - Real keyboard/AT focus (`:focus-visible`) has a global outline in `index.css` —
   separate from the app's `data-focused` controller cursor, and never suppressed.
 - The shelf is the exception that proves the rule: its focus indicator is the mascot
   itself (the frog dresses in the focused system's costume) plus `FOCUS_SCALE`.
+
+The rule for a new surface: **redundancy, never a single channel.** If you can only
+afford one signal, make it `focusOutline()` — it is the one that survives any fill.
 
 ## 6. Overlays — the scrim ladder
 
@@ -178,7 +193,8 @@ is jade via `sectionAccent('games')`).
 
 1. Colors from `FROG` / `systemStyle()`; alpha only via triplet tokens.
 2. Any overlay → a `SCRIM` stop (through `ModalScrim` if it's a centered dialog).
-3. Focus → `focusRing()` (+ `FOCUS_SCALE` if it's a button/card, never on rows).
+3. Focus → `focusOutline()` **always**, plus `focusRing()` for the accent warmth
+   (+ `FOCUS_SCALE` if it's a button/card, never on rows). One channel is never enough.
 4. Buttons → `<Button>`, or at minimum pill-shaped with the family's fills.
 5. Headings → `<Heading>`; titles wear `FONT_DISPLAY`; body stays system.
 6. Empty state → `<EmptyState>`.

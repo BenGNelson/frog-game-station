@@ -5,7 +5,7 @@ import Heading from './Heading.jsx'
 import EmptyState from './EmptyState.jsx'
 import ModalScrim from './ModalScrim.jsx'
 import { FinishedBadge, HackBadge, HackTag } from './badges.jsx'
-import { FROG, SCRIM } from './theme.js'
+import { FROG, SCRIM, focusOutline } from './theme.js'
 
 // Render smoke + the contracts the theme bible (docs/THEME.md) leans on. These are
 // the shared chrome primitives — a crash or a drifted default here would show on
@@ -30,6 +30,28 @@ describe('Button — the Pebble family', () => {
   it('solid takes an accent override (the confirm gate passes danger)', () => {
     const html = renderToString(<Button variant="solid" accent={FROG.danger}>Delete</Button>)
     expect(html).toContain(`rgb(${FROG.danger})`)
+  })
+
+  // THE REGRESSION PIN. Focus used to be spoken only in the accent, so the confirm
+  // gate's solid-danger button drew a red glow on a red fill and its highlight
+  // vanished — you could not tell Quit from Keep playing. Every variant must now
+  // carry the SAME cursor outline, whatever its accent is doing.
+  it('every variant wears the same focus cursor, regardless of accent', () => {
+    const { outline } = focusOutline()
+    const cases = [
+      ['solid', FROG.jade],
+      ['solid', FROG.danger], // the one that used to disappear
+      ['quiet', FROG.jade],
+      ['danger', FROG.danger],
+    ]
+    for (const [variant, accent] of cases) {
+      const focused = renderToString(
+        <Button variant={variant} accent={accent} focused>Go</Button>
+      )
+      expect(focused, `${variant}/${accent} focused`).toContain(outline)
+      const rest = renderToString(<Button variant={variant} accent={accent}>Go</Button>)
+      expect(rest, `${variant}/${accent} unfocused`).not.toContain(outline)
+    }
   })
 })
 

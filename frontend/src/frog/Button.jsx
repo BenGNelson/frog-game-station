@@ -1,13 +1,18 @@
-import { FROG, focusRing, FOCUS_SCALE } from './theme.js'
+import { FROG, focusRing, focusOutline, FOCUS_SCALE } from './theme.js'
 import { useRipple, Ripples } from './ripple.jsx'
 
 // THE button — the Pebble family: every action is a smooth pill, like a river
-// stone. Three variants, one focus language:
+// stone. Three variants, each with its own accent treatment:
 //
-//   solid  — the accent action (Play, Save, Install). Focus glows: an inset ring
-//            in the accent would vanish on its own fill.
-//   quiet  — a secondary action on panel. Focus is the inset accent ring.
+//   solid  — the accent action (Play, Save, Install). Filled; focus adds a glow.
+//   quiet  — a secondary action on panel. Focus adds the inset accent ring.
 //   danger — destructive. Tinted, ringed and focused in FROG.danger.
+//
+// FOCUS IS NOT THE ACCENT. Every variant gets the SAME `focusOutline()` on top of
+// its own treatment, because the accent is already spoken for: on solid-danger, an
+// accent focus glow is red-on-red and disappears, which is how the Quit confirm
+// shipped with no visible highlight. The per-variant look above is a secondary
+// signal; the outline is the one that always reads.
 //
 // `focused` is the app's controller cursor (rendered via data-focused), which is
 // deliberately separate from real DOM focus; :focus-visible for keyboard/AT users
@@ -50,7 +55,9 @@ export default function Button({
       className={`relative overflow-hidden rounded-full font-semibold transition-[transform,box-shadow,background] duration-150 ${pad} ${className}`}
       style={{
         ...looks[variant],
-        ...(focused ? { transform: `scale(${FOCUS_SCALE})`, ...focusLooks[variant] } : {}),
+        ...(focused
+          ? { transform: `scale(${FOCUS_SCALE})`, ...focusLooks[variant], ...focusOutline() }
+          : {}),
         ...style,
       }}
       {...rest}

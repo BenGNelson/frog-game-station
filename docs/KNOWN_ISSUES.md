@@ -7,6 +7,10 @@ lead points — so nobody re-chases a dead end.
 Severity is about impact on play: **blocking** (a system is unusable), **degraded**
 (it plays, but wrong), **cosmetic**, or **platform limit** (not fixable here).
 
+A fixed entry is **deleted**, not marked — this file is only what is still true. The
+numbers are never reused and never renumbered, so a gap just means that one is fixed
+and every existing reference to the others still points where it did.
+
 | # | Issue | Systems | Severity |
 |---|---|---|---|
 | 1 | [Native N64 audio runs ~17% fast](#1-native-n64-audio-runs-17-fast) | N64 (desktop app) | Degraded |
@@ -16,7 +20,6 @@ Severity is about impact on play: **blocking** (a system is unusable), **degrade
 | 5 | [Sega Master System crashes mid-play on iPhone](#5-sega-master-system-crashes-mid-play-on-iphone) | SMS (iOS) | Blocking |
 | 6 | [The offline error takes ~99s to appear](#6-the-offline-error-takes-99s-to-appear) | All (web) | Degraded |
 | 7 | [N64 shows a green-black strip at the bottom](#7-n64-shows-a-green-black-strip-at-the-bottom) | N64 | Cosmetic |
-| 8 | [The Quit confirm's focused button is hard to identify](#8-the-quit-confirms-focused-button-is-hard-to-identify) | All | Cosmetic |
 | 9 | [One pre-v0.9.0 save state will not open on the phone](#9-one-pre-v090-save-state-will-not-open-on-the-phone) | N64 | Cosmetic |
 | 10 | [Changing the DS screen layout mid-game kills the game](#10-changing-the-ds-screen-layout-mid-game-kills-the-game) | DS (desktop app) | Blocking |
 | 11 | [PS1 System options do not appear](#11-ps1-system-options-do-not-appear) | PS1 (desktop app) | Degraded |
@@ -165,22 +168,6 @@ Never reproduces headlessly (software GL renders those regions clean black).
 the strip, then bisect between iOS PWA letterbox chrome (the manifest
 `background_color` is pond green `#0b1512` — a suspect if it is the iPad) and in-frame
 rendering.
-
-## 8. The Quit confirm's focused button is hard to identify
-
-**Root cause:** focus is encoded in the SAME channel (accent colour) that the danger
-variant already uses for meaning. `Button.jsx` gives `solid` a glow in its own accent,
-so focusing the red Quit button draws a red glow on red and vanishes, while the quiet
-"Keep playing" gets a clearly visible jade ring. The two states speak different
-languages and the important one is mute.
-
-**Recommendation:** give focus its own constant channel — a 2px outline in one cursor
-colour at `outline-offset: 3px`, identical on both variants (an outline sits outside
-the fill, so unlike an inset ring it survives a solid background) — plus dim the
-unfocused sibling to ~60% so the pair reads as figure/ground. Keep the scale nudge.
-
-Lands in `Button.jsx`, so it touches every focus cursor in the app: its own commit,
-and re-check the other panels.
 
 ## 9. One pre-v0.9.0 save state will not open on the phone
 

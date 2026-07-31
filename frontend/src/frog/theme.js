@@ -11,6 +11,9 @@
 // eleven files' overlays).
 const GROUND_RGB = '5, 17, 13'
 const LINE_RGB = '160, 255, 214'
+// `ink` as a triplet, for the one consumer that needs to vary its alpha: the focus
+// cursor (see focusOutline). Keep it in step with FROG.ink below — same colour.
+const INK_RGB = '230, 245, 238'
 
 // A GREEN-black ground — dark enough to disappear, warm enough to read as its own
 // thing rather than a generic slate dark mode.
@@ -22,6 +25,7 @@ export const FROG = {
   line: `rgba(${LINE_RGB}, 0.10)`,
 
   ink: '#E6F5EE',
+  inkRGB: INK_RGB,
   soft: '#93B5A8',
   // The third text tier — captions, counts, sub-labels, dimmed/inactive states. Kept
   // brighter than it looks like it "should" be on purpose: at #5B7A6E it read at only
@@ -198,4 +202,24 @@ export const FOCUS_SCALE = 1.04
 export function focusRing(rgb = FROG.jade, { glow = false } = {}) {
   const ring = `inset 0 0 0 2px rgba(${rgb}, 0.55)`
   return glow ? `${ring}, 0 0 18px rgba(${rgb}, 0.35)` : ring
+}
+
+// THE CURSOR'S OWN CHANNEL — one colour, every variant, every system.
+//
+// Focus used to be spoken only in the accent colour, and the danger variant already
+// uses colour for MEANING. So a focused solid-danger button drew a red glow on a red
+// fill and said nothing: you could not tell whether Quit or Keep playing was
+// highlighted. Colour alone cannot carry both "what this does" and "where you are".
+//
+// So the cursor takes ink — near-white, the one hue that is never a system accent and
+// never a state — and draws it as an OUTLINE rather than a box-shadow. An outline sits
+// OUTSIDE the fill, so unlike `focusRing`'s inset ring it survives a solid background.
+// It is ADDITIVE: the accent tint/ring stays as the warm secondary signal, and this is
+// the constant one underneath. Meaning keeps the colour; the cursor keeps the outline.
+//
+// Returns style properties (not a box-shadow string) because `outline`/`outline-offset`
+// are two properties — spread it into a style object alongside focusRing().
+export const FOCUS_CURSOR = INK_RGB
+export function focusOutline() {
+  return { outline: `2px solid rgba(${FOCUS_CURSOR}, 0.95)`, outlineOffset: '3px' }
 }

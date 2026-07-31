@@ -1147,6 +1147,20 @@ The player and readers are **real routes**, not overlays, so the phone's back ge
 
 ## Decision log
 
+- **The focus cursor gets its own channel; colour is reserved for meaning.** Focus used
+  to be drawn in the accent, and so did severity and system identity — three things in
+  one channel. Where they collided the cursor lost: the confirm gate's Quit button is a
+  solid `danger` fill, so its accent focus glow was red on red and the highlight was
+  invisible. The fix is not a better red, it is a second channel — `focusOutline()`, a
+  near-white 2px **outline** at `outline-offset: 3px`, constant across every variant and
+  all nine system accents. An outline rather than a box-shadow because it draws outside
+  the box, so a solid fill cannot swallow it the way `focusRing()`'s inset ring is
+  swallowed. The accent treatment stays as a secondary signal, so focused elements keep
+  their warmth and their system identity; it is simply no longer load-bearing. The
+  general rule this encodes: **a state that must always be readable never shares a
+  channel with a state that carries meaning.** Pinned in `theme.test.js` (the cursor is
+  not jade, not danger, not any `SYSTEMS` accent) and in `primitives.test.jsx` (every
+  `Button` variant emits the same outline when focused).
 - **A dismissing input must never also activate what it landed on — and the rule is a
   rule, not a component.** An overlay that closes on the *first* event of a gesture
   unmounts itself mid-gesture, and the rest of that gesture lands on whatever is now
