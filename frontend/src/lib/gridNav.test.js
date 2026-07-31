@@ -141,6 +141,83 @@ describe('moveInRails', () => {
   })
 })
 
+describe('moveInRails — a rail drawn as a grid', () => {
+  // The shelf's Systems block: drawn 3-wide, so the D-pad has to walk it 3-wide too.
+  // Nine tiles is the pad/desktop case (an exact 3×3); seven is touch, where the disc
+  // era is gated off and the last row is a single tile.
+  //   [0 1 2]
+  //   [3 4 5]
+  //   [6 7 8]
+  const nine = Array.from({ length: 9 }, (_, i) => `sys${i}`)
+  const rails = [
+    { id: 'jump', items: ['a', 'b', 'c'] },
+    { id: 'systems', cols: 3, items: nine },
+    { id: 'discover', items: ['d1', 'd2'] },
+  ]
+
+  it('walks rows with up/down instead of stepping across the whole block', () => {
+    // The bug: reaching the bottom row used to mean pressing right eight times.
+    expect(moveInRails(rails, { rail: 1, index: 0 }, 'down').focus).toEqual({ rail: 1, index: 3 })
+    expect(moveInRails(rails, { rail: 1, index: 3 }, 'down').focus).toEqual({ rail: 1, index: 6 })
+    expect(moveInRails(rails, { rail: 1, index: 6 }, 'up').focus).toEqual({ rail: 1, index: 3 })
+  })
+
+  it('keeps left/right inside the row', () => {
+    expect(moveInRails(rails, { rail: 1, index: 3 }, 'right').focus).toEqual({ rail: 1, index: 4 })
+    // ...and does not run on into the next row from the row's end.
+    expect(moveInRails(rails, { rail: 1, index: 5 }, 'right').focus).toEqual({ rail: 1, index: 5 })
+    expect(moveInRails(rails, { rail: 1, index: 3 }, 'left').focus).toEqual({ rail: 1, index: 3 })
+  })
+
+  it('leaves the rail from the top and bottom rows, exactly as a flat rail would', () => {
+    expect(moveInRails(rails, { rail: 1, index: 1 }, 'up').focus.rail).toBe(0)
+    expect(moveInRails(rails, { rail: 1, index: 7 }, 'down').focus.rail).toBe(2)
+  })
+
+  it('enters on the row you arrived at, keeping the column', () => {
+    // Column memory alone would drop you back on the row you left from, so walking
+    // down into the grid could skip its first row entirely.
+    const memory = { systems: 7 } // last seen on the bottom row, middle column
+    expect(moveInRails(rails, { rail: 0, index: 0 }, 'down', memory).focus).toEqual({
+      rail: 1,
+      index: 1, // top row, same column
+    })
+    expect(moveInRails(rails, { rail: 2, index: 0 }, 'up', memory).focus).toEqual({
+      rail: 1,
+      index: 7, // bottom row, same column
+    })
+  })
+
+  it('the shoulder buttons still skip the whole rail', () => {
+    // They're the "jump a section" control; stopping at each row would defeat them.
+    expect(moveInRails(rails, { rail: 0, index: 0 }, 'railNext').focus.rail).toBe(1)
+    expect(moveInRails(rails, { rail: 1, index: 0 }, 'railNext').focus.rail).toBe(2)
+    expect(moveInRails(rails, { rail: 1, index: 8 }, 'railPrev').focus.rail).toBe(0)
+  })
+
+  it('handles a short last row (7 tiles on touch, drawn 3-3-1)', () => {
+    const touch = [rails[0], { id: 'systems', cols: 3, items: nine.slice(0, 7) }, rails[2]]
+    // Down from the middle row lands on the last tile rather than refusing to move —
+    // the same rule moveInGrid applies everywhere else.
+    expect(moveInRails(touch, { rail: 1, index: 4 }, 'down').focus).toEqual({ rail: 1, index: 6 })
+    // And down from the orphan leaves the rail, because there is no row below it.
+    expect(moveInRails(touch, { rail: 1, index: 6 }, 'down').focus.rail).toBe(2)
+  })
+
+  it('treats a grid narrower than its cols as a single row', () => {
+    // Two tiles declared at 3 columns is one row: up/down must leave the rail rather
+    // than pretending there is a second row to walk to.
+    const narrow = [rails[0], { id: 'systems', cols: 3, items: ['x', 'y'] }, rails[2]]
+    expect(moveInRails(narrow, { rail: 1, index: 0 }, 'down').focus.rail).toBe(2)
+    expect(moveInRails(narrow, { rail: 1, index: 1 }, 'up').focus.rail).toBe(0)
+  })
+
+  it('leaves rails without cols walking flat, as before', () => {
+    expect(moveInRails(rails, { rail: 0, index: 0 }, 'down').focus.rail).toBe(1)
+    expect(moveInRails(rails, { rail: 2, index: 0 }, 'up').focus.rail).toBe(1)
+  })
+})
+
 describe('reconcileShelfFocus', () => {
   const rail = (id, n) => ({ id, items: Array.from({ length: n }, (_, i) => ({ id: `${id}${i}` })) })
   // The bug this fixes: the shelf renders `systems` first (before the library resolves),

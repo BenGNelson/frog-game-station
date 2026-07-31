@@ -27,6 +27,11 @@ export const SYSTEM_ORDER = [
   'Sony PlayStation',
 ]
 
+// How wide the systems grid is drawn, and therefore how wide the D-pad walks it.
+// Exported so Shelf.jsx renders from the same number the nav model uses — two 3s that
+// have to match are two 3s that will eventually stop matching.
+export const SYSTEM_COLS = 3
+
 // The systems, on a non-scrolling grid — the shelf never scrolls for machines.
 // A system with no games still gets its tile (dimmed): a gap in the row would be
 // more confusing than an empty shelf, and it tells you what Frog Game Station
@@ -104,7 +109,26 @@ export function buildShelf(items = [], recent = [], favorites = [], collections 
     ...(favs.length ? [{ id: 'favorites', title: 'Favorites', kind: 'game', items: favs }] : []),
     ...tagRails(items, collections.tags),
   ]
-  return [...history, { id: 'systems', title: 'Systems', kind: 'system', items: systems }, ...discoverRail(items, history)]
+  return [
+    ...history,
+    // `cols` makes the D-pad walk this rail as the GRID it is drawn as (Shelf.jsx
+    // renders `grid-cols-3`), so up/down move between its rows instead of it being one
+    // flat row you have to step all the way across. The two must agree — if the render
+    // ever becomes responsive, this has to follow, or the cursor and your eye part ways.
+    // `centerLastRow` goes with the CSS below it in Shelf.jsx: seven tiles (a touch
+    // device, where the disc era is gated off) read as 3-3-1 CENTRED rather than 3-3
+    // and a stray, and the walk has to know that or pressing up from the lone tile
+    // would jump to the left-hand column instead of the tile actually above it.
+    {
+      id: 'systems',
+      title: 'Systems',
+      kind: 'system',
+      cols: SYSTEM_COLS,
+      centerLastRow: true,
+      items: systems,
+    },
+    ...discoverRail(items, history),
+  ]
 }
 
 // A first-run shelf has no history rails — just the machines over a lot of empty pond.

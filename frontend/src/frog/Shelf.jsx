@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { List, ChevronRight, Shuffle } from 'lucide-react'
 import { coverUrl } from '../lib/library.js'
 import { FROG, systemStyle, reflection, FOCUS_SCALE } from './theme.js'
-import { agoLabel } from './shelf.js'
+import { agoLabel, SYSTEM_COLS } from './shelf.js'
 import { useDozing } from '../lib/dayNight.js'
 import { Reflected, SystemFrog } from './Frog.jsx'
 
@@ -34,9 +34,9 @@ import { hoverMove } from '../lib/pointer.js'
 // scale 1: the keyframes win and the pop silently never happens. (It even *worked*
 // under prefers-reduced-motion, where the animation is off, which is a fun way to be
 // misled.) The wrapper bobs; the child scales.
-function Floats({ delay, children }) {
+function Floats({ delay, children, className = '' }) {
   return (
-    <div className="frog-float" style={{ animationDelay: `${delay}ms` }}>
+    <div className={`frog-float ${className}`} style={{ animationDelay: `${delay}ms` }}>
       {children}
     </div>
   )
@@ -330,10 +330,29 @@ export default function Shelf({ rails, focus, finishedIds, hackIds, onFocus, onP
               // disc-era tiles at all — see buildSystems).
               <div
                 ref={(el) => (railRefs.current[r] = el)}
-                className="grid grid-cols-3 gap-3"
+                className="grid gap-3"
+                // From the same constant the rail's `cols` is built from (shelf.js), so
+                // what's drawn and what the D-pad walks cannot drift apart.
+                style={{ gridTemplateColumns: `repeat(${SYSTEM_COLS}, minmax(0, 1fr))` }}
               >
                 {rail.items.map((sys, i) => (
-                  <Floats key={sys.id} delay={i * 220}>
+                  <Floats
+                    key={sys.id}
+                    delay={i * 220}
+                    // A last row holding a single orphan tile is CENTRED rather than
+                    // dumped on the left — seven tiles (touch, where the disc era is
+                    // gated off) read as 3-3-1, not 3-3 and a stray. `centerLastRow` on
+                    // the rail teaches the D-pad the same thing, so pressing up from
+                    // here lands on the tile your eye says is above it.
+                    className={
+                      rail.centerLastRow &&
+                      i === rail.items.length - 1 &&
+                      rail.items.length % SYSTEM_COLS === 1 &&
+                      rail.items.length > SYSTEM_COLS
+                        ? 'col-start-2'
+                        : ''
+                    }
+                  >
                     <SystemTile
                       system={sys}
                       focused={focus.rail === r && focus.index === i}
