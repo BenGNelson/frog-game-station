@@ -1278,9 +1278,20 @@ Semantic-ish, judged by what a user of the app experiences:
   between milestones.
 
 **Pre-1.0:** the project versions 0.x until the whole platform vision is genuinely
-complete. **1.0.0 is reserved** — it is called by explicit decision when the app is
-truly ready (at the earliest, the distributable desktop milestone), never reached by
-increment. Until then, completed milestones bump the minor within 0.x.
+complete. **1.0.0 is reserved, and the minor has no ceiling** — releases march 0.10.0,
+0.11.0, 0.12.0 and onward for as long as it takes. 1.0.0 is called by explicit decision
+when the app is truly ready, never reached by increment and never scheduled: no roadmap
+row, plan or changelog may name a release as "the 1.0 candidate", because the number
+means *this is done* and saying it early makes the version lie.
+
+The bar for 1.0.0, stated so it can't drift: everything works and that has been
+confirmed, not assumed; almost every feature intended for the product is in; almost
+every known bug is squashed. Completing the desktop distributable is a *precondition*,
+not a trigger — it lands as whatever 0.x comes next.
+
+Note that `0.10.0` sorts BELOW `0.9.0` as a plain string. Nothing here compares versions
+as text today (`match_version` and `_CACHE_VERSION` are equality checks, not ordering),
+and nothing new should.
 
 **When and how:** bump + tag at milestone completion, in a `chore:` commit that names the
 milestone. The bump updates all three version surfaces together so they can't drift:
