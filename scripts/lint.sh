@@ -21,10 +21,17 @@
 # Lints `.` rather than `src`, so vite.config.js and eslint.config.js are inside the
 # gate too. The flat config already ignores dist/, node_modules/, public/emulatorjs/
 # and src-tauri/, and carries per-file globals for the config files themselves.
+#
+# node_modules comes from the image, so if you add a dev dependency rebuild first:
+# docker compose --profile dev build frontend-dev. (This gate gained eslint-plugin-react,
+# so a stale image fails with "Cannot find package 'eslint-plugin-react'".)
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+# --no-install: plain `npx eslint` silently fetches an unpinned eslint from the registry
+# if the image's node_modules is stale, and that copy has neither the flat config's
+# plugins nor the same rule behaviour. Fail loudly rather than lint against a stranger.
 exec docker compose -f "$REPO/docker-compose.yml" --profile dev run --rm --no-deps \
   -v "$REPO/frontend:/app" \
-  frontend-dev npx eslint . --max-warnings 0
+  frontend-dev npx --no-install eslint . --max-warnings 0

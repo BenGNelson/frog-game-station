@@ -7,12 +7,21 @@ import react from 'eslint-plugin-react'
 // style/unused noise is a warning, and the gate runs at --max-warnings 0
 // (scripts/lint.sh), so a warning is something to fix rather than to live with.
 //
-// eslint-plugin-react is here for ONE rule, and it is not cosmetic:
-// `react/jsx-uses-vars`. Without it `no-unused-vars` cannot see a JSX reference, so
-// a component prop used only as <Icon /> is reported as unused. That is a lie with
-// teeth — acting on two such reports renamed the props out from under the JSX and
-// blanked the Pond stats screen and the controls panel, with the build, the lint gate
-// and 818 unit tests all green. Only the e2e caught it.
+// eslint-plugin-react is here for TWO rules, both closing the same blindness: ESLint's
+// scope analysis creates no reference for a JSX identifier, so core rules cannot see JSX
+// at all. Neither rule is cosmetic and neither has a substitute.
+//
+//   react/jsx-uses-vars  — "defined, used only in JSX, wrongly reported unused". Acting
+//     on two such reports renamed props out from under their JSX and blanked the Pond
+//     stats screen and the controls panel, with the build, the lint gate and 818 unit
+//     tests all green. Only the e2e caught it.
+//   react/jsx-no-undef   — the inverse, and the more dangerous one: "referenced in JSX,
+//     never defined". `no-undef` cannot see <Missing />, so renaming an import and
+//     missing one call site throws ReferenceError during render — a blank screen, with
+//     nothing red anywhere. That is v0.10.0's bug in a place the gate had no coverage.
+//
+// The plugin's `recommended` set is deliberately NOT taken: react/prop-types alone fires
+// 938 times in this propTypes-free codebase. Name individual rules.
 export default [
   { ignores: ['dist/**', 'dev-dist/**', 'node_modules/**', 'public/emulatorjs/**', 'src-tauri/**'] },
   js.configs.recommended,
@@ -27,9 +36,13 @@ export default [
     plugins: { 'react-hooks': reactHooks, react },
     rules: {
       ...reactHooks.configs.recommended.rules,
-      // Marks JSX-referenced identifiers as used. Not a style rule — see the note above.
+      // Both teach ESLint to see JSX. Not style rules — see the note above.
       'react/jsx-uses-vars': 'error',
-      'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^[A-Z_]' }],
+      'react/jsx-no-undef': 'error',
+      // varsIgnorePattern is '^_' and not '^[A-Z_]': the capital-letter escape was only
+      // ever a workaround for the JSX blindness above, and with jsx-uses-vars in place it
+      // does nothing except hide genuinely dead component imports and dead constants.
+      'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
       'react-hooks/exhaustive-deps': 'warn',
       'no-empty': ['warn', { allowEmptyCatch: true }],
     },
