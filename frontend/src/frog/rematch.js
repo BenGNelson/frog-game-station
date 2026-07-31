@@ -6,7 +6,13 @@
 // indexed 0..n-1 in THIS order: the matcher's candidate shortlist, then any base-game
 // SEARCH results, then a "search for a game" action row (always present, so a ROM with no
 // candidates can still find its base), then a "use the basic page" clear row (only when a
-// match is currently showing).
+// match is currently showing), and finally the way out.
+//
+// Cancel is a ROW, not a pill below the list. It used to be the latter and was therefore
+// mouse-only — a pad could dismiss with B, but nothing said so, and there was no visible
+// way out at all. Putting it in this list is what makes it reachable: the walk clamps to
+// `opts.length`, so it costs one arm in the dispatcher and nothing else. It is last so
+// the walk still opens on the first candidate.
 export function rematchOptions(rematch) {
   if (!rematch) return []
   const { candidates = [], searchResults = [], matched } = rematch
@@ -15,5 +21,6 @@ export function rematchOptions(rematch) {
     ...searchResults.map((c) => ({ type: 'game', ...c })),
     { type: 'search' },
     ...(matched ? [{ type: 'clear' }] : []),
+    { type: 'cancel' },
   ]
 }

@@ -1302,6 +1302,7 @@ export default function FrogBrowser() {
         } else {
           const o = opts[rematch.index]
           if (o?.type === 'search') openKeyboard('baseSearch')
+          else if (o?.type === 'cancel') setRematch(null)
           // A hack borrows the chosen candidate's art but keeps its own name; 'clear'
           // (use the basic page) is never a hack.
           else if (o) applyMatch(o.type === 'clear' ? null : o.id, o.type === 'clear' ? false : rematch.hack, o.name)
@@ -1325,19 +1326,23 @@ export default function FrogBrowser() {
       return
     }
 
-    // The tag picker traps input: up/down walk the "new collection" row (index -1) and
-    // the EXISTING tags below it; A opens the keyboard on the new row, or toggles this
-    // game's membership on a tag; B closes.
+    // The tag picker traps input: up/down walk the "new collection" row (index -1), the
+    // EXISTING tags below it, and Done last; A opens the keyboard on the new row, toggles
+    // this game's membership on a tag, or closes on Done; B closes.
     if (screen === 'detail' && tagPicker) {
       const n = allTags.length
+      // Done sits one past the last tag, so it is reachable by walking DOWN off the end
+      // of the list — it used to be a pill only a mouse could press.
+      const done = n
       // The "new collection" row (index -1) exists only in pad mode; in touch mode the
       // native field stands in its place, so the D-pad floor stays at 0 there and can't
       // land on an unrendered row (which would pop the on-screen keyboard over the input).
       const floor = native ? 0 : -1
       if (action === 'up') setTagPicker((t) => ({ index: Math.max(floor, t.index - 1) }))
-      else if (action === 'down') setTagPicker((t) => ({ index: Math.min(n - 1, t.index + 1) }))
+      else if (action === 'down') setTagPicker((t) => ({ index: Math.min(done, t.index + 1) }))
       else if (action === 'confirm') {
         if (tagPicker.index < 0) openKeyboard('tag')
+        else if (tagPicker.index >= done) setTagPicker(null)
         else {
           const tag = allTags[tagPicker.index]
           if (tag) toggleGameTag(tag)
@@ -1346,17 +1351,18 @@ export default function FrogBrowser() {
       return
     }
 
-    // The save-state editor traps input: up/down move over its four rows (0 = name,
-    // 1 = note, 2 = pin, 3 = delete), A activates (name/note open the keyboard), B
-    // closes (persisting).
+    // The save-state editor traps input: up/down move over its five rows (0 = name,
+    // 1 = note, 2 = pin, 3 = delete, 4 = done), A activates (name/note open the
+    // keyboard), B closes (persisting).
     if (screen === 'detail' && saveEditor) {
       if (action === 'up') setSaveEditor((e) => ({ ...e, index: Math.max(0, e.index - 1) }))
-      else if (action === 'down') setSaveEditor((e) => ({ ...e, index: Math.min(3, e.index + 1) }))
+      else if (action === 'down') setSaveEditor((e) => ({ ...e, index: Math.min(4, e.index + 1) }))
       else if (action === 'confirm') {
         if (saveEditor.index === 0) openKeyboard('saveLabel')
         else if (saveEditor.index === 1) openKeyboard('saveNote')
         else if (saveEditor.index === 2) editSaveField({ pinned: !saveEditor.pinned })
-        else deleteFromEditor()
+        else if (saveEditor.index === 3) deleteFromEditor()
+        else closeSaveEditor()
       } else if (action === 'back') closeSaveEditor()
       return
     }
@@ -2421,7 +2427,15 @@ export default function FrogBrowser() {
                     ]
                   : rematch
                     ? [
-                        { button: 'A', label: rematch.index < 0 ? 'Toggle' : 'Choose' },
+                        {
+                          button: 'A',
+                          label:
+                            rematch.index < 0
+                              ? 'Toggle'
+                              : rematchOptions(rematch)[rematch.index]?.type === 'cancel'
+                                ? 'Cancel'
+                                : 'Choose',
+                        },
                         { button: 'B', label: 'Cancel' },
                         { button: 'D-pad', label: 'Move' },
                       ]

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { X, Menu, Minimize } from 'lucide-react'
+import { X, Menu, Minimize, Power, Play } from 'lucide-react'
 import { playerSrc, coverUrl, ENGINE_LOADER_URL, engineIsLocal } from '../lib/library.js'
 import { goBack } from '../lib/nav.js'
 // The player is Frog Game Station's screen — launched from a game's page, it dresses in its
@@ -1143,6 +1143,8 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
             message="Quit to library?"
             yesLabel="Quit"
             noLabel="Keep playing"
+            yesIcon={Power}
+            noIcon={Play}
             onYes={() => {
               dispatch('quit')
               exit()

@@ -130,6 +130,38 @@ Centered dialogs mount through `<ModalScrim>` (`frog/ModalScrim.jsx`); full pane
 that own their layout read the `SCRIM` stop directly. Dialogs blur ~3px; panels use
 `backdrop-blur-md`; the lightbox barely blurs.
 
+### Dialogs — one family, two components
+
+**A dialog is `<DialogPanel>` wrapping `<ChoiceRow>`s. Never a hand-rolled scrim.**
+Five dialogs used to write their own scrim div, their own panel style block and their
+own row-focus recipe, and the copies had drifted — so the save-state chooser read well
+and the confirm gate was unreadable. There is now one of each:
+
+- **`<DialogPanel>`** (`frog/DialogPanel.jsx`) — scrim + panel + title, over
+  `ModalScrim`. Backdrop click cancels, always: a scrim is an invisible affordance, so
+  it is belt-and-braces beside a real Cancel row, never instead of one. Its ref lands
+  on the *panel*, which is what `useFocusTrap` wants. Three title tones — `caption` (a
+  quiet label over a short menu), `prompt` (a confirm's question, centred), `heading`
+  (a titled working surface, with a `subtitle` under it). Padding is the `pad` prop,
+  not a `className` override: Tailwind resolves `p-4` vs `p-5` by stylesheet order, so
+  appending one after the other wins or loses depending on the build.
+- **`<ChoiceRow>`** (`frog/ChoiceRow.jsx`) — the focusable row. Icon, label, optional
+  `sub` and `trailing`, or `children` when the body is more than text. Stacks four
+  signals plus `focusOutline()`, and is **never a solid fill** — a 14% tint is what
+  lets a focus signal contrast against it. Two variants: `menu` (a hairline at rest;
+  a handful of actions read as a set of boxes) and `list` (no hairline; a dozen
+  scrolling options would be noise). The border box is always drawn, so a row never
+  shifts a pixel when it takes focus.
+
+Two rules the family enforces, both learned the hard way:
+
+- **The way out is a row, not a pill.** A trailing "Cancel"/"Done" pill is mouse-only —
+  the pad has B and a keyboard has Escape, but nothing on screen says so. Put it in the
+  same list the walk clamps to.
+- **A row's own meaning must not flicker as the cursor passes.** An icon that says what
+  the row *does*, a tick that says a tag *is applied*, a pin that says a save *is
+  pinned* — those keep their colour focused or not. Only the cursor changes.
+
 ## 7. Motion — the water budget
 
 The motif is WATER: things **float** (slow bob + `reflection()` shadow), **reflect**
@@ -192,7 +224,8 @@ is jade via `sectionAccent('games')`).
 ## 9. Adding a new surface — checklist
 
 1. Colors from `FROG` / `systemStyle()`; alpha only via triplet tokens.
-2. Any overlay → a `SCRIM` stop (through `ModalScrim` if it's a centered dialog).
+2. Any overlay → a `SCRIM` stop. A centered dialog → `<DialogPanel>` + `<ChoiceRow>`,
+   never a hand-rolled scrim, panel or row (§6).
 3. Focus → `focusOutline()` **always**, plus `focusRing()` for the accent warmth
    (+ `FOCUS_SCALE` if it's a button/card, never on rows). One channel is never enough.
 4. Buttons → `<Button>`, or at minimum pill-shaped with the family's fills.
