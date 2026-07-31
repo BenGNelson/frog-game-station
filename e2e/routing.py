@@ -12,7 +12,7 @@ screen when it's opened with no game.
 import os
 import sys
 from playwright.sync_api import sync_playwright
-from player_mount import watch_player, player_mounted
+from player_mount import watch_player, rendered_cleanly
 
 BASE = os.environ.get("BASE_URL", "http://localhost:8585")
 errors = []
@@ -61,7 +61,7 @@ with sync_playwright() as p:
     page.wait_for_selector("text=Back to Games", timeout=8000)
     check("/play" in page.url, "/play with no game stays on the player route")
     check(page.get_by_text("Back to Games").count() >= 1, "the player guard screen offers 'Back to Games'")
-    check(player_mounted(page, mount), "the guard screen renders without throwing")
+    check(rendered_cleanly(page, mount), "the guard screen renders without throwing")
 
     # ...and that button takes you back into Frog.
     page.get_by_text("Back to Games").first.click()
