@@ -30,6 +30,14 @@ def _benign_response(url, status, rtype):
     """True for a non-OK response that is a by-design graceful <img onError>
     fallback (a missing cover → placeholder tile), not a page failure. Kept
     TIGHT: a broken script/document/API response is NOT benign."""
+    # The EmulatorJS loader, on a clean clone. The engine is ~300 MB and is never
+    # committed or fetched in CI, so its absence is the DESIGNED path: the player HEADs
+    # the loader, gets a 404, and renders its "engine not installed" notice. That notice
+    # is a fully mounted PlayerShell, which is exactly what the player check is asserting
+    # — so the 404 must not fail it. Scoped to the loader URL alone: any other missing
+    # script is still a failure.
+    if status == 404 and "loader.js" in url:
+        return True
     if rtype != "image":
         return False
     if status == 404 and "/cover" in url:
