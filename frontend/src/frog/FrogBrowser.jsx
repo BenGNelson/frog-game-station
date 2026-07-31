@@ -41,8 +41,10 @@ import {
   usesNativeKeyboard,
   showsPadLegend,
   isTouchMode,
+  hidesIdleCursor,
 } from './input.js'
 import { isMousePointer, pointerMoved } from '../lib/pointer.js'
+import { useIdleCursor } from '../lib/useIdleCursor.js'
 import { FROG, systemStyle, FONT_DISPLAY, focusRing } from './theme.js'
 import Caustics from './Caustics.jsx'
 import Screensaver from './Screensaver.jsx'
@@ -256,6 +258,12 @@ export default function FrogBrowser() {
   place.mode = mode
   const native = usesNativeKeyboard(mode)
   const padLegend = showsPadLegend(mode)
+
+  // Fade the mouse out on the browse screens too, not just over a game. The shelf is
+  // where a couch session actually spends its time, and a cursor parked on a tile is as
+  // distracting there as it is in play. Only while a pad is driving — in desktop mode the
+  // cursor is the instrument, and in touch mode there is none to hide.
+  useIdleCursor({ enabled: hidesIdleCursor(mode) })
 
   // Which keyboard the OPEN search screen uses, snapshotted when it opens rather than
   // read live. If it tracked `mode`, tapping a 6×6 grid key with a finger (which flips

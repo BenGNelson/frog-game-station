@@ -12,6 +12,8 @@ import {
   playerConfig,
   attachEmu,
   killEngineChrome,
+  setFrameCursor,
+  onFrameActivity,
   clearStartScreen,
   applyControls,
   styleStartScreen,
@@ -78,6 +80,7 @@ import RotatePrompt from './RotatePrompt.jsx'
 import TouchOverlay from './TouchOverlay.jsx'
 import { portraitGameHeight } from '../lib/touchLayouts.js'
 import { LARGE_ROM_BYTES } from '../lib/library.js'
+import { useIdleCursor } from '../lib/useIdleCursor.js'
 
 // How long the frog is up for, at minimum, and how long its exit takes. The exit
 // number must match .frog-boot[data-phase='done'] in frog.css — the animation plays,
@@ -717,6 +720,25 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
     const t = setTimeout(() => setPadHint(false), 4500)
     return () => clearTimeout(t)
   }, [padActive])
+
+  // Fade the mouse out while a controller is driving. Keyed on `padActive` rather than
+  // the resolved input mode, because that mode's 'pad' ALSO means "desktop with no
+  // touchscreen" — hiding the cursor there would take away the only route to the ☰.
+  //
+  // The game is a separate document, so the class on our <html> stops at the iframe's
+  // edge: push the state in, and bring the frame's own mouse activity back out, or a
+  // mouse being actively moved over the game would never un-hide the cursor.
+  const { hidden: cursorHidden, wake: wakeCursor } = useIdleCursor({ enabled: padActive })
+  useEffect(() => {
+    setFrameCursor(frameRef.current, cursorHidden)
+  }, [cursorHidden, started])
+  useEffect(() => {
+    if (!padActive) return undefined
+    // Feed the frame's activity to the hook's own wake path, not just to the frame's
+    // class — otherwise the parent's timer stays latched and the cursor re-hides the
+    // moment anything else re-renders.
+    return onFrameActivity(frameRef.current, wakeCursor)
+  }, [padActive, started, wakeCursor])
 
   // The battery save — the game's own "Save", the one that costs you hours.
   //

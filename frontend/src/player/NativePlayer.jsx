@@ -32,6 +32,7 @@ import { useGamepad } from '../lib/useGamepad.js'
 import { useGameSaves } from '../lib/useGameSaves.js'
 import { usePlayTime } from '../lib/usePlayTime.js'
 import { captureShot } from '../lib/saveStates.js'
+import { useIdleCursor } from '../lib/useIdleCursor.js'
 import { usePlayerShelf } from './usePlayerShelf.js'
 import { usePlayerControls } from './usePlayerControls.js'
 import { usePlayerPanels } from './usePlayerPanels.js'
@@ -135,6 +136,10 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
   const [quitFocus, setQuitFocus] = useState(1)
 
   const [padActive, setPadActive] = useState(false)
+  // Fade the mouse out while a pad is driving. No iframe here — the game renders on a GL
+  // view UNDER a transparent webview, so the class on our own <html> covers the whole
+  // stage and none of the emuBridge frame plumbing applies.
+  useIdleCursor({ enabled: padActive })
   const [padId, setPadId] = useState(null)
   const [padName, setPadName] = useState(null)
   // Bumped on every hot-plug edge, purely to re-run the bindings push below.

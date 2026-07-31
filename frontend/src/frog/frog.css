@@ -426,3 +426,16 @@
 .frog-danger-ghost:active {
   background-color: rgba(239, 90, 90, 0.3);
 }
+
+/* --- The idle cursor ------------------------------------------------------ */
+/* Set on <html> by lib/useIdleCursor.js while a controller is driving and the mouse
+   has been still for a few seconds. The universal selector and !important are both
+   load-bearing and should not be "cleaned up": a handful of interactive elements set
+   `cursor: pointer` as an INLINE style (Boot's surface, the game page's hero, the
+   Settings re-scan), and a stylesheet rule only outranks an inline style with
+   !important. Without the `*` the cursor would vanish over the page but survive over
+   exactly the things you most want it gone from. */
+html.frog-cursor-hidden,
+html.frog-cursor-hidden * {
+  cursor: none !important;
+}

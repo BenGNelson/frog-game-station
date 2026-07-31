@@ -18,6 +18,13 @@
 // It is also what the cursor auto-hide (lib/useIdleCursor.js) needs, for the same reason:
 // the pad's own scrolling must not count as "the user is using the mouse".
 
+// The class that hides the pointer, set on <html> by lib/useIdleCursor.js. It lives here
+// rather than beside the hook because it is a contract between TWO documents — the app's
+// and the emulator iframe's (emuBridge.js injects the matching rule in there) — and the
+// iframe side must not have to import a React hook to learn the name. The rule itself is
+// in frog/frog.css.
+export const CURSOR_HIDDEN_CLASS = 'frog-cursor-hidden'
+
 // ONE shared record of where the pointer last was — deliberately module-level, not
 // per-component. Moving from tile A to tile B is a real move, but each component sees its
 // own FIRST event for that gesture; a per-component guard would compare against nothing
