@@ -100,15 +100,43 @@ describe('useIdleCursor', () => {
     expect(isHidden()).toBe(true)
   })
 
-  it('a keypress does NOT bring it back', () => {
-    // Waking on keys or pad buttons would be precisely backwards: the cursor would
-    // reappear every time the controller did anything.
+  it('a FINGER does not bring it back', () => {
+    // Only the mouse wakes the cursor. This rides a real listener, so dropping
+    // isMousePointer from wakesCursor kills it — unlike a keydown, which reaches no
+    // listener at all and so could never fail whatever the code did.
     renderHook(() => useIdleCursor({ enabled: true }))
     idle()
     act(() => {
-      window.dispatchEvent(new Event('keydown'))
+      window.dispatchEvent(
+        Object.assign(new Event('pointermove'), { pointerType: 'touch', clientX: 400, clientY: 400 })
+      )
     })
     expect(isHidden()).toBe(true)
+  })
+
+  it('the seed event alone does not wake it — the real-movement guard is the point', () => {
+    // Without this guard the pad's own scrollIntoView emits a move and the timer never
+    // once reaches the end. The helper above needs two events for exactly this reason,
+    // and nothing asserted the first one was correctly ignored.
+    renderHook(() => useIdleCursor({ enabled: true }))
+    idle()
+    move(200, 200) // first event: seeds the record, proves no movement
+    expect(isHidden()).toBe(true)
+    move(260, 240) // now it has something to compare against
+    expect(isHidden()).toBe(false)
+  })
+
+  it('restarts the countdown rather than stacking timers', () => {
+    // Dropping clearTimeout from arm() leaves the old timer live, so a continuously
+    // moving mouse still goes dark one window after the FIRST move. The half-window
+    // assertion below cannot see that, because by then the first timer has already fired.
+    renderHook(() => useIdleCursor({ enabled: true }))
+    mouseMove()
+    act(() => vi.advanceTimersByTime(IDLE_CURSOR_MS - 500))
+    move(300, 300)
+    move(360, 340)
+    act(() => vi.advanceTimersByTime(600)) // past the ORIGINAL deadline
+    expect(isHidden()).toBe(false)
   })
 
   it('unlatches the class when it stops being enabled', () => {

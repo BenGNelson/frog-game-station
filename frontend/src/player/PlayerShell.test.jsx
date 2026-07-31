@@ -13,10 +13,10 @@ import PlayerShell from './PlayerShell.jsx'
 // state initialisers, hook bodies, the render-time window assignment) with no DOM, no
 // network and no engine, which is exactly the class of bug that got through.
 //
-// It deliberately asserts almost nothing about the output. The contract is "it mounts",
-// the same one panels.render.test.jsx states — anything more would pin markup that is
-// meant to change, and this file's whole value is that it never has a reason to be
-// skipped or deleted.
+// SCOPE, precisely: this covers the PRE-GAME render path only. SSR runs no effects, so
+// bootAt is null, isRunning(state) is false and padActive is false — FrogBoot, the
+// load-failed panel, TouchOverlay, the pause menu, the save shelf, the four panels and
+// every ConfirmDialog are never reached. Do not read a pass here as "the player works".
 
 // Everything PlayerShell touches on `window` at RENDER time. Effects never run under a
 // server render, so the engine probe, the iframe handle and IndexedDB are all out of
@@ -66,23 +66,32 @@ describe('PlayerShell render', () => {
     expect(() => render()).not.toThrow()
   })
 
-  it('produces actual markup, not an empty root', () => {
-    // The regression was a BLANK page, so "did not throw" is not the whole contract —
-    // a component that renders nothing would also not throw.
-    expect(render().length).toBeGreaterThan(100)
+  it('renders the emulator frame, not just its wrapper', () => {
+    // The regression was a BLANK page, so "did not throw" is not the whole contract — a
+    // component that renders nothing would also not throw. A length threshold does NOT
+    // close that: the outer div alone, with its class list and four safe-area paddings,
+    // is 297 chars against a full render of ~1200, so `length > 100` passed with the
+    // entire body deleted. The iframe is the one element the player cannot exist
+    // without, and it is exactly what disappeared.
+    expect(render()).toContain('<iframe')
   })
 
   it('hands the engine its config during render, before the iframe exists', () => {
     // This assignment is load-bearing and easy to move into an effect by accident,
     // where it would race the player document's own inline script.
     render()
-    expect(window.HQ_PLAYER_CONFIG).toBeTruthy()
+    expect(window.HQ_PLAYER_CONFIG).toHaveProperty('defaultControls')
   })
 
-  it('mounts on a touch device too', () => {
-    // navigator.maxTouchPoints is read at render and picks the input mode, so it forks
-    // the tree — both sides need the net.
+  it('mounts in portrait on a touch device', () => {
+    // maxTouchPoints picks the input mode and matchMedia decides portrait. Without a
+    // matchMedia stub useMediaQuery silently returns false, so the portrait branch is
+    // never rendered at all — a stub that hides the path it claims to cover. With both,
+    // this is a genuinely different tree from the default case above.
     vi.stubGlobal('navigator', { maxTouchPoints: 5 })
+    const w = fakeWindow()
+    w.matchMedia = () => ({ matches: true, addEventListener() {}, removeEventListener() {} })
+    vi.stubGlobal('window', w)
     expect(() => render()).not.toThrow()
   })
 

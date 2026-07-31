@@ -28,13 +28,20 @@ function fakeFrame() {
         toggle: (c, on) => (on ? classes.add(c) : classes.delete(c)),
       },
     },
-    createElement: () => ({ id: '', textContent: '' }),
+    // The tag name is recorded, not discarded: a `cursor: none` rule injected as a
+    // <div> would apply to nothing while every assertion below still passed.
+    createElement: (tag) => ({ tag, id: '', textContent: '' }),
     getElementById: (id) => els.get(id) ?? null,
     addEventListener: (type, fn, opts) => listeners.push({ type, fn, opts }),
+    // A real EventTarget matches on (type, callback, CAPTURE). Matching on the first two
+    // only would let a removal that forgot `{ capture: true }` look successful here while
+    // leaking three listeners per game switch into the emulator document.
     removeEventListener: (type, fn, opts) => {
-      const i = listeners.findIndex((l) => l.type === type && l.fn === fn)
+      const capture = typeof opts === 'boolean' ? opts : !!opts?.capture
+      const i = listeners.findIndex(
+        (l) => l.type === type && l.fn === fn && (typeof l.opts === 'boolean' ? l.opts : !!l.opts?.capture) === capture
+      )
       if (i >= 0) listeners.splice(i, 1)
-      void opts
     },
   }
   // appendChild is what registers the style, so getElementById can find it next time.
@@ -47,10 +54,11 @@ function fakeFrame() {
 }
 
 describe('setFrameCursor', () => {
-  it('injects the cursor rule once and reuses it', () => {
+  it('injects the cursor rule once, as a real style element, and reuses it', () => {
     const { frame, doc } = fakeFrame()
     expect(setFrameCursor(frame, true)).toBe(true)
     expect(doc.head.children).toHaveLength(1)
+    expect(doc.head.children[0].tag).toBe('style') // a <div> would style nothing
     expect(doc.head.children[0].textContent).toContain('cursor: none !important')
     expect(doc.head.children[0].textContent).toContain(CURSOR_HIDDEN_CLASS)
 
