@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { X, Menu } from 'lucide-react'
+import { X, Menu, Power, Play } from 'lucide-react'
 import { coverUrl, fileUrl } from '../lib/library.js'
 import { goBack } from '../lib/nav.js'
 import { systemForCore, systemStyle, FROG, scrim } from '../frog/theme.js'
@@ -291,7 +291,6 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
     onNativeEvent(
       'pad',
       (p) => {
-        const count = Number(p?.count) || 0
         // Named before you press anything — the Controls screen used to read
         // "No controller connected" until the first button went down.
         if (p?.connected && p?.name) setPadName(p.name)
@@ -722,7 +721,10 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
           break
       }
     },
-    [fastForward, applyFF, openShelf, openControls, openCoreOptions, openWiki, openPokedex, toggleMute, stepFFRatio, stepFilter, takeScreenshot]
+    [
+      fastForward, applyFF, rewinding, applyRewind, openShelf, openControls, openCoreOptions,
+      openWiki, openPokedex, toggleMute, stepFFRatio, stepFilter, takeScreenshot,
+    ]
   )
 
   const openMenu = useCallback(() => {
@@ -1138,6 +1140,8 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
             message="Quit to library?"
             yesLabel="Quit"
             noLabel="Keep playing"
+            yesIcon={Power}
+            noIcon={Play}
             onYes={() => exit(true)} // exact SRAM first, THEN 'quit' — see exit()
             onNo={() => setPendingQuit(false)}
             focus={quitFocus}

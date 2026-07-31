@@ -893,9 +893,11 @@ pruned), so the collection can't grow without bound.
     **Y** shortcut, touch button, keyboard Del) is **gated behind an "are you sure?" confirm**:
     every trigger arms it rather than deleting. The pad moves **left/right** between Delete and
     Keep (A commits the highlight, which starts on Delete so Y → A still deletes; B always
-    cancels), or a tap resolves it directly. Both the chooser and the confirm reuse the shared
-    controlled-focus dialog pattern (`frog/ConfirmDialog` / `SaveActionMenu`) — the game page
-    stays on its uncontrolled Tab/Enter default.
+    cancels), or a tap resolves it directly. Both the chooser and the confirm are built from
+    the shared dialog family (`frog/DialogPanel` + `frog/ChoiceRow`, worn by
+    `frog/ConfirmDialog` and `player/SaveActionMenu`) and both take a controlled focus index
+    here. The game page's own confirms stay uncontrolled — there the gate has no cursor, so
+    the committing row is marked `primary` instead.
   - **The shelf also carries the cover actions.** "Set as cover" (and "Reset cover" once a
     custom cover exists) sit as **trailing tiles after the state cards** — they moved here
     from the pause menu because "capture this frame as the cover" reuses the very same
@@ -1147,6 +1149,49 @@ The player and readers are **real routes**, not overlays, so the phone's back ge
 
 ## Decision log
 
+- **The lint gate is mandatory, and it must be able to see JSX.** `scripts/lint.sh` runs
+  `eslint . --max-warnings 0` in CI. Two `eslint-plugin-react` rules are load-bearing
+  rather than stylistic, because ESLint's scope analysis creates no reference for a JSX
+  identifier: `react/jsx-uses-vars` (without it, a prop used only as `<Icon />` is
+  reported unused — and acting on two such reports blanked two screens while the build,
+  the gate and 818 unit tests stayed green) and `react/jsx-no-undef` (without it,
+  `<Missing />` is invisible, so a renamed import throws at render and nothing goes red).
+  The plugin's `recommended` set is deliberately not taken — `react/prop-types` alone
+  fires 938 times here. **A gate is only worth making mandatory if its findings are
+  true**; one that reports false positives will talk people into breaking working code.
+  Related: `scripts/test-frontend.sh` enforces a floor on the number of test FILES that
+  ran, because vitest exits 0 when a file dies on import — that has produced a green run
+  with a whole file silently skipped twice (a jsdom major requiring a newer Node than the
+  dev image has, and `npx` network-installing an unpinned vitest). jsdom is pinned to 26
+  for the first of those; bump `frontend/Dockerfile.dev` before bumping jsdom.
+- **The focus cursor gets its own channel; colour is reserved for meaning.** Focus used
+  to be drawn in the accent, and so did severity and system identity — three things in
+  one channel. Where they collided the cursor lost: the confirm gate's Quit button is a
+  solid `danger` fill, so its accent focus glow was red on red and the highlight was
+  invisible. The fix is not a better red, it is a second channel — `focusOutline()`, a
+  near-white 2px **outline** at `outline-offset: 3px`, constant across every variant and
+  all nine system accents. An outline rather than a box-shadow because it draws outside
+  the box, so a solid fill cannot swallow it the way `focusRing()`'s inset ring is
+  swallowed. The accent treatment stays as a secondary signal, so focused elements keep
+  their warmth and their system identity; it is simply no longer load-bearing. The
+  general rule this encodes: **a state that must always be readable never shares a
+  channel with a state that carries meaning.** Pinned in `theme.test.js` (the cursor is
+  not jade, not danger, not any `SYSTEMS` accent) and in `primitives.test.jsx` (every
+  `Button` variant emits the same outline when focused).
+- **Every dialog is one component family, and the way out is a row.** Five dialogs each
+  hand-rolled their own scrim, panel and row-focus recipe; the copies drifted, and the one
+  that read well (the save-state chooser) was accidentally the only one whose focused row
+  was never a solid fill. They are now all `frog/DialogPanel.jsx` + `frog/ChoiceRow.jsx`.
+  Three rules came out of it. **A row is never a solid fill** — a 14% tint is what lets a
+  focus signal contrast against it, which is why the chooser worked and the confirm gate
+  did not. **The way out is a row in the list the walk clamps to**, not a pill below it: a
+  trailing Cancel/Done pill is mouse-only, because a pad has B and a keyboard has Escape
+  but nothing on screen says so. **A row's own meaning does not flicker as the cursor
+  passes** — the icon that says what a row does, the tick that says a tag is applied, the
+  pin that says a save is pinned all keep their colour focused or not; only the cursor
+  changes. Backdrop-click cancels everywhere, including on the destructive gate, because
+  cancel is the safe direction and a scrim is an invisible affordance — belt and braces
+  beside a real Cancel row, never instead of one.
 - **A dismissing input must never also activate what it landed on — and the rule is a
   rule, not a component.** An overlay that closes on the *first* event of a gesture
   unmounts itself mid-gesture, and the rest of that gesture lands on whatever is now

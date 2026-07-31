@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { X, Menu, Minimize } from 'lucide-react'
+import { X, Menu, Minimize, Power, Play } from 'lucide-react'
 import { playerSrc, coverUrl, ENGINE_LOADER_URL, engineIsLocal } from '../lib/library.js'
 import { goBack } from '../lib/nav.js'
 // The player is Frog Game Station's screen — launched from a game's page, it dresses in its
@@ -114,6 +114,10 @@ const LOAD_WATCHDOG_MS = 75_000
 function EngineMissing({ onBack }) {
   return (
     <div
+      // The e2e mount check accepts this as a mounted player: with no engine fetched
+      // (CI, a clean clone) it IS the player's correct output, and asserting only on the
+      // running case would fail on the environment the suite mostly runs in.
+      data-testid="frog-engine-missing"
       className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-6 p-8 text-center"
       style={{ background: FROG.ground, color: FROG.ink }}
     >
@@ -882,6 +886,10 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
   return (
     <div
       ref={wrapperRef}
+      // The one stable hook for "PlayerShell actually mounted". The e2e checks used to
+      // assert `#root > *`, which is already non-empty from the previous screen when
+      // /play is reached by a client-side route change — so it passed on a blank player.
+      data-testid="frog-player"
       // touch-action/overscroll/user-select: the player owns every touch inside
       // it. Otherwise a thumb resting on the d-pad scrolls the page, a swipe down
       // pull-to-refreshes the app mid-game, and a long press pops the iOS
@@ -1143,6 +1151,8 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
             message="Quit to library?"
             yesLabel="Quit"
             noLabel="Keep playing"
+            yesIcon={Power}
+            noIcon={Play}
             onYes={() => {
               dispatch('quit')
               exit()

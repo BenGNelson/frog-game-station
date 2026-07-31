@@ -53,6 +53,21 @@ textarea:focus-visible {
 }
 
 /*
+  A dialog panel is a focus TRAP ANCHOR, not a control. useFocusTrap parks real focus on
+  it (tabIndex={-1}) so the trap has somewhere to land, and there is nothing you can do
+  to it — yet it was drawing the app's loudest focus indicator, brighter than the row
+  cursor inside it and on the one element in the dialog that takes no action.
+
+  This does NOT weaken the rule above: anything actionable keeps its ring, which is the
+  whole point of never suppressing :focus-visible. Scoped by semantics — role + a
+  programmatic tabindex — so it cannot drift onto a real control as components are
+  renamed. The trap hands focus onward immediately, and the rows carry focusOutline().
+*/
+[role='dialog'][tabindex='-1']:focus-visible {
+  outline: none;
+}
+
+/*
   A pointer cursor on everything that responds to a click.
 
   Browsers do NOT ship `cursor: pointer` on <button> — the UA default is the plain

@@ -79,25 +79,55 @@ Sizes: `md` (default) and `lg` (the Play button). One-off buttons that can't ado
 component yet (icon buttons, panel Back buttons, the re-scan action, segmented
 controls) still follow the family: pill-shaped, same fills, same focus language.
 
-## 5. Focus — one language
+## 5. Focus — two channels, and only one of them is the accent
 
-Defined once in theme.js; nothing hand-rolls a focus shadow:
+**The cursor is not a colour.** Focus and meaning both used to be spoken in the accent,
+and they collided: the confirm gate's Quit button is a solid `danger` fill, so its
+accent focus glow was red on red and its highlight simply vanished — you could not see
+which button you were about to press. Colour cannot carry both "what this does" and
+"where you are", so the cursor was given its own channel.
 
-- **`focusRing(accentRGB)`** → `inset 0 0 0 2px rgba(accent, 0.55)`. The ring is
-  INSET so it never collides with a neighbour in a tight list, and it wears the
-  screen's system accent (jade by default). Used by rows, cards, tiles, inputs, quiet/
-  danger buttons — browser screens and player chrome alike.
-- **Solid buttons glow instead** (`0 0 26px` accent) — an accent ring on an accent
-  fill would vanish.
+- **`focusOutline()`** → `outline: 2px solid rgba(ink, 0.95)` at `outline-offset: 3px`.
+  **This is the constant channel**: the same near-white on every variant and every system
+  accent. An OUTLINE (not a box-shadow) because it draws outside the box, so a solid fill
+  cannot swallow it the way an inset ring does — the positive offset is the whole
+  mechanism, and it is why no fill colour can ever be the cursor's backdrop. It returns
+  style properties rather than a shadow string — spread it into a `style` object.
+  It is never the accent, and `theme.test.js` pins that: not jade, not danger, not any
+  of the nine `SYSTEMS` accents, and light enough to clear 3:1 on every ground.
+
+  **Two components have it so far — `<Button>` and `<ChoiceRow>`.** Everything else still
+  focuses in the accent alone (list rows, shelf and game tiles, search keys, Settings and
+  Storage rows, and the player panels). That is not a finished state: those surfaces are
+  one accent-on-accent collision away from the same defect, and converting them is open
+  work. **Do not read this section as "the cursor channel is already everywhere."**
+  If you are drawing focus on a new surface, take `focusOutline()`; if you are touching
+  an old one, adding it is a welcome drive-by.
+- **`focusRing(accentRGB)`** → `inset 0 0 0 2px rgba(accent, 0.55)`, unchanged. The
+  accent treatment is now the SECONDARY signal — warmth and system identity, not the
+  thing you rely on to find the cursor. Still inset so it never collides with a
+  neighbour in a tight list. Used by rows, cards, tiles, inputs, quiet/danger buttons.
+- **Solid buttons keep their glow** (`0 0 26px` accent) — an inset accent ring on an
+  accent fill would still vanish, so the glow stays as solid's secondary signal. What
+  changed is that it is no longer the *only* signal.
 - **`FOCUS_SCALE` = 1.04** — the one scale for things that swell when focused:
   buttons, cards, tiles. **List rows never scale** (they sit flush in a column; the
-  ring + fill + edge bar carry the state).
+  ring + fill + edge bar carry the state — plus the outline on dialog rows, which are
+  the only rows that have it today).
 - The focused row/tile also takes an accent fill (`rgba(accent, ~0.14–0.24)`), and
   lists keep their lit edge-bar cursor.
 - Real keyboard/AT focus (`:focus-visible`) has a global outline in `index.css` —
-  separate from the app's `data-focused` controller cursor, and never suppressed.
+  separate from the app's `data-focused` controller cursor, and **never suppressed on
+  anything actionable**. The single exception is the dialog panel itself
+  (`[role="dialog"][tabindex="-1"]`), which takes focus only so `useFocusTrap` has an
+  anchor: it is not a control, nothing can be done to it, and its ring was louder than
+  the row cursor inside it. Suppressing a ring on something a user can act on is still
+  forbidden.
 - The shelf is the exception that proves the rule: its focus indicator is the mascot
   itself (the frog dresses in the focused system's costume) plus `FOCUS_SCALE`.
+
+The rule for a new surface: **redundancy, never a single channel.** If you can only
+afford one signal, make it `focusOutline()` — it is the one that survives any fill.
 
 ## 6. Overlays — the scrim ladder
 
@@ -114,6 +144,38 @@ raw rgba, never a new alpha:
 Centered dialogs mount through `<ModalScrim>` (`frog/ModalScrim.jsx`); full panels
 that own their layout read the `SCRIM` stop directly. Dialogs blur ~3px; panels use
 `backdrop-blur-md`; the lightbox barely blurs.
+
+### Dialogs — one family, two components
+
+**A dialog is `<DialogPanel>` wrapping `<ChoiceRow>`s. Never a hand-rolled scrim.**
+Five dialogs used to write their own scrim div, their own panel style block and their
+own row-focus recipe, and the copies had drifted — so the save-state chooser read well
+and the confirm gate was unreadable. There is now one of each:
+
+- **`<DialogPanel>`** (`frog/DialogPanel.jsx`) — scrim + panel + title, over
+  `ModalScrim`. Backdrop click cancels, always: a scrim is an invisible affordance, so
+  it is belt-and-braces beside a real Cancel row, never instead of one. Its ref lands
+  on the *panel*, which is what `useFocusTrap` wants. Three title tones — `caption` (a
+  quiet label over a short menu), `prompt` (a confirm's question, centred), `heading`
+  (a titled working surface, with a `subtitle` under it). Padding is the `pad` prop,
+  not a `className` override: Tailwind resolves `p-4` vs `p-5` by stylesheet order, so
+  appending one after the other wins or loses depending on the build.
+- **`<ChoiceRow>`** (`frog/ChoiceRow.jsx`) — the focusable row. Icon, label, optional
+  `sub` and `trailing`, or `children` when the body is more than text. Stacks four
+  signals plus `focusOutline()`, and is **never a solid fill** — a 14% tint is what
+  lets a focus signal contrast against it. Two variants: `menu` (a hairline at rest;
+  a handful of actions read as a set of boxes) and `list` (no hairline; a dozen
+  scrolling options would be noise). The border box is always drawn, so a row never
+  shifts a pixel when it takes focus.
+
+Two rules the family enforces, both learned the hard way:
+
+- **The way out is a row, not a pill.** A trailing "Cancel"/"Done" pill is mouse-only —
+  the pad has B and a keyboard has Escape, but nothing on screen says so. Put it in the
+  same list the walk clamps to.
+- **A row's own meaning must not flicker as the cursor passes.** An icon that says what
+  the row *does*, a tick that says a tag *is applied*, a pin that says a save *is
+  pinned* — those keep their colour focused or not. Only the cursor changes.
 
 ## 7. Motion — the water budget
 
@@ -177,8 +239,11 @@ is jade via `sectionAccent('games')`).
 ## 9. Adding a new surface — checklist
 
 1. Colors from `FROG` / `systemStyle()`; alpha only via triplet tokens.
-2. Any overlay → a `SCRIM` stop (through `ModalScrim` if it's a centered dialog).
-3. Focus → `focusRing()` (+ `FOCUS_SCALE` if it's a button/card, never on rows).
+2. Any overlay → a `SCRIM` stop. A centered dialog → `<DialogPanel>` + `<ChoiceRow>`,
+   never a hand-rolled scrim, panel or row (§6).
+3. Focus → `focusOutline()` **on anything new**, plus `focusRing()` for the accent warmth
+   (+ `FOCUS_SCALE` if it's a button/card, never on rows). One channel is never enough.
+   Older surfaces predate this and still wear the accent alone — see §5.
 4. Buttons → `<Button>`, or at minimum pill-shaped with the family's fills.
 5. Headings → `<Heading>`; titles wear `FONT_DISPLAY`; body stays system.
 6. Empty state → `<EmptyState>`.

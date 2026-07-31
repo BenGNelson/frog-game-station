@@ -52,7 +52,7 @@ import { LilyPads, Firefly, Dragonfly } from './pond.jsx'
 import { useDozing } from '../lib/dayNight.js'
 import { buildShelf, hydrate, stepLetter, collectionGames, facetGames } from './shelf.js'
 import { searchGames, suggestedSearches, matches, KEYS, gridMove } from './search.js'
-import { ROWS as KB_ROWS, keyAt, moveKey, applyKey, appendChar, deleteChar } from '../lib/keyboard.js'
+import { keyAt, moveKey, applyKey, appendChar, deleteChar } from '../lib/keyboard.js'
 import Frog, { FrogMark, Reflected } from './Frog.jsx'
 import Boot from './Boot.jsx'
 import Shelf from './Shelf.jsx'
@@ -435,8 +435,10 @@ export default function FrogBrowser() {
   // The ROM-hack map (game_id → base game's name), for the "HACK" badges across the
   // browsing surfaces. Server-owned like the rest of collections, so a game marked a hack
   // on the couch reads as one on the phone.
-  const hacks = collections.hacks || {}
-  const hackSet = useMemo(() => new Set(Object.keys(hacks)), [hacks])
+  // The `|| {}` fallback lives INSIDE the memo, keyed on collections.hacks itself: as a
+  // separate const it minted a fresh object on every render whenever the server hadn't
+  // sent one, so the Set was rebuilt every render and the memo did nothing at all.
+  const hackSet = useMemo(() => new Set(Object.keys(collections.hacks || {})), [collections.hacks])
 
   // Jump back in, cross-device: this device's launches merged with the server's
   // continue list and play-stamps — newest wins, so a session on the couch surfaces
@@ -706,7 +708,10 @@ export default function FrogBrowser() {
       // was taken, the exact way you lose an afternoon.
       navigate(`/play?${q}${slot ? `&slot=${encodeURIComponent(slot)}` : ''}`)
     },
-    [navigate, biosMap]
+    // deviceCaps is a mount-time constant (deviceClass() behind an empty-dep useMemo),
+    // so naming it here costs nothing and stops the gate above silently going stale if
+    // it ever becomes reactive.
+    [navigate, biosMap, deviceCaps]
   )
 
   const openSystem = useCallback((label) => {
@@ -1035,7 +1040,9 @@ export default function FrogBrowser() {
   const openSaveEditor = (snap) => {
     if (!snap) return
     const orig = { label: snap.label || '', note: snap.note || '', pinned: !!snap.pinned }
-    setSaveEditor({ slot: snap.slot, index: 0, ...orig, orig })
+    // Touch renders name/note as native fields rather than rows, so it opens on Pin —
+    // the first index that actually addresses something there. Matches the walk's floor.
+    setSaveEditor({ slot: snap.slot, index: native ? 2 : 0, ...orig, orig })
   }
   const editSaveField = (patch) => setSaveEditor((e) => (e ? { ...e, ...patch } : e))
   // Persist on close — but only if something actually changed, so opening a save just to
@@ -1302,6 +1309,7 @@ export default function FrogBrowser() {
         } else {
           const o = opts[rematch.index]
           if (o?.type === 'search') openKeyboard('baseSearch')
+          else if (o?.type === 'cancel') setRematch(null)
           // A hack borrows the chosen candidate's art but keeps its own name; 'clear'
           // (use the basic page) is never a hack.
           else if (o) applyMatch(o.type === 'clear' ? null : o.id, o.type === 'clear' ? false : rematch.hack, o.name)
@@ -1325,19 +1333,23 @@ export default function FrogBrowser() {
       return
     }
 
-    // The tag picker traps input: up/down walk the "new collection" row (index -1) and
-    // the EXISTING tags below it; A opens the keyboard on the new row, or toggles this
-    // game's membership on a tag; B closes.
+    // The tag picker traps input: up/down walk the "new collection" row (index -1), the
+    // EXISTING tags below it, and Done last; A opens the keyboard on the new row, toggles
+    // this game's membership on a tag, or closes on Done; B closes.
     if (screen === 'detail' && tagPicker) {
       const n = allTags.length
+      // Done sits one past the last tag, so it is reachable by walking DOWN off the end
+      // of the list — it used to be a pill only a mouse could press.
+      const done = n
       // The "new collection" row (index -1) exists only in pad mode; in touch mode the
       // native field stands in its place, so the D-pad floor stays at 0 there and can't
       // land on an unrendered row (which would pop the on-screen keyboard over the input).
       const floor = native ? 0 : -1
       if (action === 'up') setTagPicker((t) => ({ index: Math.max(floor, t.index - 1) }))
-      else if (action === 'down') setTagPicker((t) => ({ index: Math.min(n - 1, t.index + 1) }))
+      else if (action === 'down') setTagPicker((t) => ({ index: Math.min(done, t.index + 1) }))
       else if (action === 'confirm') {
         if (tagPicker.index < 0) openKeyboard('tag')
+        else if (tagPicker.index >= done) setTagPicker(null)
         else {
           const tag = allTags[tagPicker.index]
           if (tag) toggleGameTag(tag)
@@ -1346,17 +1358,22 @@ export default function FrogBrowser() {
       return
     }
 
-    // The save-state editor traps input: up/down move over its four rows (0 = name,
-    // 1 = note, 2 = pin, 3 = delete), A activates (name/note open the keyboard), B
-    // closes (persisting).
+    // The save-state editor traps input: up/down move over its five rows (0 = name,
+    // 1 = note, 2 = pin, 3 = delete, 4 = done), A activates (name/note open the
+    // keyboard), B closes (persisting).
     if (screen === 'detail' && saveEditor) {
-      if (action === 'up') setSaveEditor((e) => ({ ...e, index: Math.max(0, e.index - 1) }))
-      else if (action === 'down') setSaveEditor((e) => ({ ...e, index: Math.min(3, e.index + 1) }))
+      // In touch mode name/note are real <input>s, not focusable rows, so indices 0 and 1
+      // render nothing — landing there would pop the on-screen keyboard OVER the native
+      // field. Same guard, same reason, as the tag picker's floor above.
+      const floor = native ? 2 : 0
+      if (action === 'up') setSaveEditor((e) => ({ ...e, index: Math.max(floor, e.index - 1) }))
+      else if (action === 'down') setSaveEditor((e) => ({ ...e, index: Math.min(4, e.index + 1) }))
       else if (action === 'confirm') {
         if (saveEditor.index === 0) openKeyboard('saveLabel')
         else if (saveEditor.index === 1) openKeyboard('saveNote')
         else if (saveEditor.index === 2) editSaveField({ pinned: !saveEditor.pinned })
-        else deleteFromEditor()
+        else if (saveEditor.index === 3) deleteFromEditor()
+        else closeSaveEditor()
       } else if (action === 'back') closeSaveEditor()
       return
     }
@@ -2421,13 +2438,32 @@ export default function FrogBrowser() {
                     ]
                   : rematch
                     ? [
-                        { button: 'A', label: rematch.index < 0 ? 'Toggle' : 'Choose' },
+                        {
+                          button: 'A',
+                          label:
+                            rematch.index < 0
+                              ? 'Toggle'
+                              : rematchOptions(rematch)[rematch.index]?.type === 'cancel'
+                                ? 'Cancel'
+                                : 'Choose',
+                        },
                         { button: 'B', label: 'Cancel' },
                         { button: 'D-pad', label: 'Move' },
                       ]
                     : tagPicker
                       ? [
-                          { button: 'A', label: tagPicker.index < 0 ? 'Type' : 'Toggle' },
+                          {
+                            button: 'A',
+                            // The last index is the Done ROW, where A closes rather than
+                            // toggles — the legend is the couch UI's only documentation,
+                            // so it must not name the wrong verb on the row it lands on.
+                            label:
+                              tagPicker.index < 0
+                                ? 'Type'
+                                : tagPicker.index >= allTags.length
+                                  ? 'Done'
+                                  : 'Toggle',
+                          },
                           { button: 'B', label: 'Done' },
                           { button: 'D-pad', label: 'Move' },
                         ]
@@ -2435,7 +2471,9 @@ export default function FrogBrowser() {
                         ? [
                             {
                               button: 'A',
-                              label: ['Name', 'Note', 'Pin', 'Delete'][saveEditor.index] ?? 'Select',
+                              // Index 4 is the Done row; without it here the array fell
+                              // off the end and the row was legended "Select".
+                              label: ['Name', 'Note', 'Pin', 'Delete', 'Done'][saveEditor.index] ?? 'Select',
                             },
                             { button: 'B', label: 'Done' },
                             { button: 'D-pad', label: 'Move' },

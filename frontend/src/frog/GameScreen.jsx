@@ -10,6 +10,8 @@ import { formatPlaytime, formatToBeat } from '../lib/format.js'
 import { deviceClass, unplayableReason } from '../lib/systemCapabilities.js'
 import { useFocusTrap } from '../lib/useFocusTrap.js'
 import ConfirmDialog from './ConfirmDialog.jsx'
+import DialogPanel from './DialogPanel.jsx'
+import ChoiceRow from './ChoiceRow.jsx'
 import { FROG, systemStyle, reflection, scrim, SCRIM, focusRing, FOCUS_SCALE, FONT_DISPLAY } from './theme.js'
 import Button from './Button.jsx'
 import Heading from './Heading.jsx'
@@ -1009,55 +1011,45 @@ function RematchDialog({ rematch, native = false, accent, onHover, onPick, onTog
   useFocusTrap(panelRef)
   const options = rematchOptions(rematch)
   const nothingFound = !candidates.length && !searchResults.length
+  // The option list scrolls (max-h-72), and Cancel is its LAST row — so without this the
+  // walk down to the way out moves the highlight somewhere nobody can see, and the screen
+  // simply stops changing. A base search returning eight results is enough to overflow.
+  // Same one-liner as Storage/Stats/Search; DialogPanel puts the ref on the panel, which
+  // is what makes it reachable from here.
+  useEffect(() => {
+    if (consumeHoverFocus()) return // a mouse can already see what it hovered
+    panelRef.current?.querySelector('[data-focused]')?.scrollIntoView({ block: 'nearest' })
+  }, [index])
   return (
-    <div
-      data-testid="frog-rematch"
-      className="absolute inset-0 z-20 flex items-center justify-center p-6"
-      style={{ background: scrim(SCRIM.dialog), backdropFilter: 'blur(3px)' }}
-      onClick={onCancel}
+    <DialogPanel
+      ref={panelRef}
+      testid="frog-rematch"
+      title={hack ? 'Which game is it based on?' : 'Pick the right game'}
+      titleId="frog-rematch-title"
+      subtitle={
+        nothingFound
+          ? 'No close matches — search for the game by name below.'
+          : hack
+            ? 'Pick the base game — this ROM borrows its art but keeps its own name and a “hack” badge.'
+            : typeof confidence === 'number'
+              ? `The matcher was ${Math.round(confidence * 100)}% sure — pick the right one, or fall back to the basic page.`
+              : 'Choose the correct IGDB match, or fall back to the basic page.'
+      }
+      onBackdrop={onCancel}
     >
-      <div
-        ref={panelRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="frog-rematch-title"
-        tabIndex={-1}
-        className="w-full max-w-sm rounded-2xl p-5 outline-none"
-        style={{ background: FROG.panel, border: `1px solid ${FROG.line}`, boxShadow: '0 20px 60px rgba(0,0,0,0.6)' }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <p id="frog-rematch-title" className="px-1 text-sm font-semibold" style={{ color: FROG.ink }}>
-          {hack ? 'Which game is it based on?' : 'Pick the right game'}
-        </p>
-        <p className="mb-3 mt-0.5 px-1 text-xs leading-relaxed" style={{ color: FROG.faint }}>
-          {nothingFound
-            ? 'No close matches — search for the game by name below.'
-            : hack
-              ? 'Pick the base game — this ROM borrows its art but keeps its own name and a “hack” badge.'
-              : typeof confidence === 'number'
-                ? `The matcher was ${Math.round(confidence * 100)}% sure — pick the right one, or fall back to the basic page.`
-                : 'Choose the correct IGDB match, or fall back to the basic page.'}
-        </p>
-
-        {/* The hack toggle (index -1) — flips whether a pick means "this IS the game" or
-            "this is a HACK of it". */}
-        <button
-          type="button"
-          data-testid="frog-rematch-hack"
-          data-focused={index < 0 || undefined}
-          role="switch"
-          aria-checked={!!hack}
-          onMouseMove={hoverMove(() => onHover(-1))}
-          onClick={onToggleHack}
-          className="mb-2 flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left"
-          style={{
-            background: index < 0 ? `rgba(${accent}, 0.16)` : 'transparent',
-            boxShadow: index < 0 ? focusRing(accent) : `inset 0 0 0 1px ${FROG.line}`,
-          }}
-        >
-          <span className="text-sm font-medium" style={{ color: hack ? FROG.ink : FROG.soft }}>
-            It’s a ROM hack
-          </span>
+      {/* The hack toggle (index -1) — flips whether a pick means "this IS the game" or
+          "this is a HACK of it". A menu row rather than a list one: it is a setting
+          above the list, not one of the things you are choosing between. */}
+      <ChoiceRow
+        testid="frog-rematch-hack"
+        role="switch"
+        aria-checked={!!hack}
+        accent={accent}
+        focused={index < 0}
+        onClick={onToggleHack}
+        onHover={() => onHover(-1)}
+        className="mb-2"
+        trailing={
           <span
             className="flex h-5 w-9 shrink-0 items-center rounded-full px-0.5 transition-colors"
             style={{ background: hack ? `rgb(${FROG.amber})` : FROG.line }}
@@ -1067,78 +1059,94 @@ function RematchDialog({ rematch, native = false, accent, onHover, onPick, onTog
               style={{ background: hack ? FROG.ground : FROG.soft, transform: hack ? 'translateX(16px)' : 'translateX(0)' }}
             />
           </span>
-        </button>
+        }
+      >
+        <span className="flex-1" style={{ color: hack ? FROG.ink : undefined }}>
+          It’s a ROM hack
+        </span>
+      </ChoiceRow>
 
-        <ul className="max-h-72 space-y-1 overflow-y-auto" style={{ scrollbarWidth: 'none' }}>
-          {options.map((o, i) => {
-            const focused = i === index
-            if (o.type === 'search') {
-              return (
-                <li key="search">
-                  <SearchRow
-                    native={native}
-                    focused={focused}
-                    accent={accent}
-                    searching={searching}
-                    onFocus={() => onHover(i)}
-                    onSearch={onSearch}
-                  />
-                </li>
-              )
-            }
-            const isClear = o.type === 'clear'
-            const isCurrent = !isClear && o.id === current
+      {/* px-1 is not decoration: focusOutline() draws 3px OUTSIDE the row's border box,
+          and `overflow-y: auto` forces overflow-x to compute to auto too — without the
+          gutter the cursor's left and right edges are clipped away and the focused row
+          shows a broken rectangle. scroll-py keeps a row's outline clear of the fold
+          when scrollIntoView brings it in. */}
+      <ul className="max-h-72 space-y-1 overflow-y-auto px-1 py-1 scroll-py-2" style={{ scrollbarWidth: 'none' }}>
+        {options.map((o, i) => {
+          const focused = i === index
+          if (o.type === 'search') {
             return (
-              <li key={isClear ? 'clear' : o.id}>
-                <button
-                  type="button"
-                  data-testid={isClear ? 'frog-rematch-clear' : 'frog-rematch-option'}
-                  data-focused={focused || undefined}
-                  onMouseMove={hoverMove(() => onHover(i))}
-                  onClick={() => onPick(isClear ? null : o.id, isClear ? false : hack, o.name)}
-                  className="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left"
-                  style={{
-                    background: focused ? `rgba(${accent}, 0.16)` : 'transparent',
-                    boxShadow: focused ? focusRing(accent) : 'none',
-                  }}
-                >
-                  {isClear ? (
-                    <span className="text-sm font-medium" style={{ color: FROG.soft }}>
-                      Use the basic page
-                    </span>
-                  ) : (
-                    <span className="min-w-0">
-                      <span className="block truncate text-sm font-medium" style={{ color: FROG.ink }}>
-                        {o.name}
-                      </span>
-                      {o.release_year && (
-                        <span className="text-xs tabular-nums" style={{ color: FROG.faint }}>
-                          {o.release_year}
-                        </span>
-                      )}
-                    </span>
-                  )}
-                  {isCurrent && <Check className="h-4 w-4 shrink-0" style={{ color: `rgb(${accent})` }} aria-hidden="true" />}
-                </button>
+              <li key="search">
+                <SearchRow
+                  native={native}
+                  focused={focused}
+                  accent={accent}
+                  searching={searching}
+                  onFocus={() => onHover(i)}
+                  onSearch={onSearch}
+                />
               </li>
             )
-          })}
-        </ul>
-        {error && (
-          <p data-testid="frog-rematch-error" className="mt-3 px-1 text-xs font-medium" style={{ color: `rgb(${FROG.danger})` }}>
-            {error}
-          </p>
-        )}
-        <button
-          type="button"
-          onClick={onCancel}
-          className="mt-3 w-full rounded-full px-4 py-2 text-sm font-medium"
-          style={{ background: 'transparent', color: FROG.soft, border: `1px solid ${FROG.line}`, opacity: busy ? 0.6 : 1 }}
-        >
-          Cancel
-        </button>
-      </div>
-    </div>
+          }
+          if (o.type === 'cancel') {
+            return (
+              <li key="cancel">
+                <ChoiceRow
+                  testid="frog-rematch-cancel"
+                  Icon={X}
+                  label="Cancel"
+                  accent={accent}
+                  focused={focused}
+                  // Dimmed while a match is in flight, but NEVER disabled: applyMatch has
+                  // no timeout and no abort, so a stalled IGDB proxy would otherwise leave
+                  // the only labelled way out dead — and a disabled button takes neither
+                  // clicks nor hover. B and the backdrop still escape; this must too.
+                  style={busy ? { opacity: 0.6 } : undefined}
+                  onClick={onCancel}
+                  onHover={() => onHover(i)}
+                />
+              </li>
+            )
+          }
+          const isClear = o.type === 'clear'
+          const isCurrent = !isClear && o.id === current
+          return (
+            <li key={isClear ? 'clear' : o.id}>
+              <ChoiceRow
+                testid={isClear ? 'frog-rematch-clear' : 'frog-rematch-option'}
+                variant="list"
+                accent={accent}
+                focused={focused}
+                onClick={() => onPick(isClear ? null : o.id, isClear ? false : hack, o.name)}
+                onHover={() => onHover(i)}
+                label={isClear ? 'Use the basic page' : o.name}
+                // The year is a figure you scan down a column, so it keeps its tabular
+                // digits rather than taking ChoiceRow's default `sub` styling.
+                sub={
+                  !isClear && o.release_year ? (
+                    <span className="tabular-nums">{o.release_year}</span>
+                  ) : undefined
+                }
+                // The game you are ALREADY matched to reads at full strength even
+                // unfocused — that is state, not cursor, and the same rule the applied
+                // tag and the pinned save follow.
+                style={isCurrent ? { color: FROG.ink } : undefined}
+                trailing={
+                  isCurrent ? (
+                    <Check className="h-4 w-4 shrink-0" style={{ color: `rgb(${accent})` }} aria-hidden="true" />
+                  ) : undefined
+                }
+              />
+            </li>
+          )
+        })}
+      </ul>
+      {error && (
+        <p data-testid="frog-rematch-error" className="mt-3 px-1 text-xs font-medium" style={{ color: `rgb(${FROG.danger})` }}>
+          {error}
+        </p>
+      )}
+    </DialogPanel>
   )
 }
 
@@ -1169,23 +1177,22 @@ function SearchRow({ native, focused, accent, searching, onFocus, onSearch }) {
     )
   }
   return (
-    <button
-      type="button"
-      data-testid="frog-rematch-search"
-      data-focused={focused || undefined}
-      onMouseMove={hoverMove(onFocus)}
+    <ChoiceRow
+      testid="frog-rematch-search"
+      accent={accent}
+      focused={focused}
       onClick={() => onSearch()}
-      className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left"
-      style={{
-        background: focused ? `rgba(${accent}, 0.16)` : 'transparent',
-        boxShadow: focused ? focusRing(accent) : `inset 0 0 0 1px ${FROG.line}`,
-      }}
+      onHover={onFocus}
     >
-      {searching
-        ? <Loader className="h-4 w-4 shrink-0 animate-spin" style={{ color: FROG.faint }} aria-hidden="true" />
-        : <Search className="h-4 w-4 shrink-0" style={{ color: FROG.faint }} aria-hidden="true" />}
-      <span className="text-sm font-medium" style={{ color: FROG.soft }}>Search for a game…</span>
-    </button>
+      {/* The spinner replaces the icon in place, so the row doesn't jump while a search
+          is in flight. Both stay `faint` — this is an action, not a state to read. */}
+      {searching ? (
+        <Loader className="h-4 w-4 shrink-0 animate-spin" style={{ color: FROG.faint }} aria-hidden="true" />
+      ) : (
+        <Search className="h-4 w-4 shrink-0" style={{ color: FROG.faint }} aria-hidden="true" />
+      )}
+      <span className="flex-1">Search for a game…</span>
+    </ChoiceRow>
   )
 }
 
@@ -1243,37 +1250,29 @@ function TagPicker({ tags, allTags, focus, native, accent, onFocus, onToggle, on
   useFocusTrap(panelRef)
   const [draft, setDraft] = useState('')
   const has = new Set(tags)
+  // The tag list scrolls once there are more than ~6 collections, and Done sits past its
+  // end — see the re-match dialog above for why walking to it needs this.
+  useEffect(() => {
+    if (consumeHoverFocus()) return
+    panelRef.current?.querySelector('[data-focused]')?.scrollIntoView({ block: 'nearest' })
+  }, [focus.index])
   const submit = () => {
     if (draft.trim()) {
       onAdd(draft)
       setDraft('')
     }
   }
+  const doneIndex = allTags.length
   return (
-    <div
-      data-testid="frog-tag-picker"
-      className="absolute inset-0 z-20 flex items-center justify-center p-6"
-      style={{ background: scrim(SCRIM.dialog), backdropFilter: 'blur(3px)' }}
-      onClick={onClose}
+    <DialogPanel
+      ref={panelRef}
+      testid="frog-tag-picker"
+      title="Collections"
+      titleId="frog-tags-title"
+      subtitle="Tag this game to group it into a rail on your shelf."
+      onBackdrop={onClose}
     >
-      <div
-        ref={panelRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="frog-tags-title"
-        tabIndex={-1}
-        className="w-full max-w-sm rounded-2xl p-5 outline-none"
-        style={{ background: FROG.panel, border: `1px solid ${FROG.line}`, boxShadow: '0 20px 60px rgba(0,0,0,0.6)' }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <p id="frog-tags-title" className="px-1 text-sm font-semibold" style={{ color: FROG.ink }}>
-          Collections
-        </p>
-        <p className="mb-3 mt-0.5 px-1 text-xs leading-relaxed" style={{ color: FROG.faint }}>
-          Tag this game to group it into a rail on your shelf.
-        </p>
-
-        {native ? (
+      {native ? (
           // Touch / physical keyboard: the native field, as familiar as any other.
           <div
             className="mb-3 flex items-center gap-2 rounded-xl px-2 py-1"
@@ -1311,69 +1310,70 @@ function TagPicker({ tags, allTags, focus, native, accent, onFocus, onToggle, on
               <Plus className="h-5 w-5" aria-hidden="true" />
             </button>
           </div>
-        ) : (
-          // Controller: a focusable row that opens the on-screen keyboard on A.
-          <button
-            type="button"
-            data-testid="frog-tag-new"
-            data-focused={focus.index < 0 || undefined}
-            onMouseMove={hoverMove(() => onFocus(-1))}
-            onClick={onOpenNew}
-            className="mb-3 flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-medium"
-            style={{
-              background: focus.index < 0 ? `rgba(${accent}, 0.16)` : 'transparent',
-              boxShadow: focus.index < 0 ? focusRing(accent) : `inset 0 0 0 1px ${FROG.line}`,
-              color: focus.index < 0 ? FROG.ink : FROG.soft,
-            }}
-          >
-            <Plus className="h-4 w-4" aria-hidden="true" /> New collection…
-          </button>
-        )}
+      ) : (
+        // Controller: a focusable row that opens the on-screen keyboard on A.
+        <ChoiceRow
+          testid="frog-tag-new"
+          Icon={Plus}
+          label="New collection…"
+          accent={accent}
+          focused={focus.index < 0}
+          onClick={onOpenNew}
+          onHover={() => onFocus(-1)}
+          className="mb-3"
+        />
+      )}
 
-        {allTags.length > 0 ? (
-          <ul className="max-h-64 space-y-1 overflow-y-auto" style={{ scrollbarWidth: 'none' }}>
-            {allTags.map((t, i) => {
-              const focused = focus.index === i
-              const active = has.has(t)
-              return (
-                <li key={t}>
-                  <button
-                    type="button"
-                    data-testid="frog-tag-option"
-                    data-focused={focused || undefined}
-                    onMouseMove={hoverMove(() => onFocus(i))}
-                    onClick={() => onToggle(t)}
-                    className="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left"
-                    style={{
-                      background: focused ? `rgba(${accent}, 0.16)` : 'transparent',
-                      boxShadow: focused ? focusRing(accent) : 'none',
-                    }}
-                  >
-                    <span className="flex items-center gap-2 text-sm font-medium" style={{ color: active ? FROG.ink : FROG.soft }}>
-                      <Tag className="h-3.5 w-3.5" aria-hidden="true" /> {t}
-                    </span>
-                    {active && <Check className="h-4 w-4 shrink-0" style={{ color: `rgb(${accent})` }} aria-hidden="true" />}
-                  </button>
-                </li>
-              )
-            })}
-          </ul>
-        ) : (
-          <p className="px-1 py-2 text-xs" style={{ color: FROG.faint }}>
-            No collections yet — type a name above to make your first one.
-          </p>
-        )}
+      {allTags.length > 0 ? (
+        // px-1/scroll-py: see the re-match list above — the cursor outline is drawn
+        // outside the row and would be clipped by the scroll box without a gutter.
+        <ul className="max-h-64 space-y-1 overflow-y-auto px-1 py-1 scroll-py-2" style={{ scrollbarWidth: 'none' }}>
+          {allTags.map((t, i) => (
+            <li key={t}>
+              <ChoiceRow
+                testid="frog-tag-option"
+                variant="list"
+                Icon={Tag}
+                label={t}
+                accent={accent}
+                focused={focus.index === i}
+                onClick={() => onToggle(t)}
+                onHover={() => onFocus(i)}
+                // An applied tag reads at full strength even unfocused — membership is
+                // the state this list exists to show, and it must not need the cursor.
+                style={has.has(t) ? { color: FROG.ink } : undefined}
+                trailing={
+                  has.has(t) ? (
+                    <Check className="h-4 w-4 shrink-0" style={{ color: `rgb(${accent})` }} aria-hidden="true" />
+                  ) : undefined
+                }
+              />
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="px-1 py-2 text-xs" style={{ color: FROG.faint }}>
+          No collections yet — type a name above to make your first one.
+        </p>
+      )}
 
-        <button
-          type="button"
-          onClick={onClose}
-          className="mt-3 w-full rounded-full px-4 py-2 text-sm font-medium"
-          style={{ background: 'transparent', color: FROG.soft, border: `1px solid ${FROG.line}` }}
-        >
-          Done
-        </button>
-      </div>
-    </div>
+      {/* Done is a row, so the pad can reach it — it used to be a pill below the list
+          that only a mouse could press. */}
+      <ChoiceRow
+        testid="frog-tag-done"
+        Icon={Check}
+        label="Done"
+        accent={accent}
+        // `!native` guards the first-ever open on a phone: touch has no cursor (the
+        // component's `focus.index` is dead there), it opens at index 0, and with no
+        // collections yet doneIndex is also 0 — so Done would render pre-selected
+        // directly under the "No collections yet" copy.
+        focused={!native && focus.index === doneIndex}
+        onClick={onClose}
+        onHover={() => onFocus(doneIndex)}
+        className="mt-3"
+      />
+    </DialogPanel>
   )
 }
 
@@ -1390,37 +1390,16 @@ function SaveEditor({ editor, native, accent, onEdit, onFocus, onOpenLabel, onOp
     border: `1px solid ${FROG.line}`,
     color: FROG.ink,
   }
-  const rowStyle = (on, danger) => ({
-    background: on ? (danger ? `rgba(${FROG.danger}, 0.14)` : `rgba(${accent}, 0.16)`) : 'transparent',
-    boxShadow: on
-      ? `inset 0 0 0 1px ${danger ? `rgba(${FROG.danger}, 0.5)` : `rgba(${accent}, 0.5)`}`
-      : `inset 0 0 0 1px ${FROG.line}`,
-  })
   return (
-    <div
-      data-testid="frog-save-editor"
-      className="absolute inset-0 z-20 flex items-center justify-center p-6"
-      style={{ background: scrim(SCRIM.dialog), backdropFilter: 'blur(3px)' }}
-      onClick={onClose}
+    <DialogPanel
+      ref={panelRef}
+      testid="frog-save-editor"
+      title="Save state"
+      titleId="frog-save-editor-title"
+      subtitle="Give it a name, add a note, pin it to the top."
+      onBackdrop={onClose}
     >
-      <div
-        ref={panelRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="frog-save-editor-title"
-        tabIndex={-1}
-        className="w-full max-w-sm rounded-2xl p-5 outline-none"
-        style={{ background: FROG.panel, border: `1px solid ${FROG.line}`, boxShadow: '0 20px 60px rgba(0,0,0,0.6)' }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <p id="frog-save-editor-title" className="px-1 text-sm font-semibold" style={{ color: FROG.ink }}>
-          Save state
-        </p>
-        <p className="mb-3 mt-0.5 px-1 text-xs" style={{ color: FROG.faint }}>
-          Give it a name, add a note, pin it to the top.
-        </p>
-
-        {native ? (
+      {native ? (
           <>
             <input
               data-testid="frog-save-name"
@@ -1479,44 +1458,50 @@ function SaveEditor({ editor, native, accent, onEdit, onFocus, onOpenLabel, onOp
           </>
         )}
 
-        <button
-          type="button"
-          data-testid="frog-save-pin"
-          data-focused={index === 2 || undefined}
-          onMouseMove={hoverMove(() => onFocus(2))}
-          onClick={() => onEdit({ pinned: !pinned })}
-          className="mb-1.5 mt-1 flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left"
-          style={rowStyle(index === 2, false)}
-        >
-          <span className="flex items-center gap-2 text-sm font-medium" style={{ color: FROG.ink }}>
-            <Pin className="h-4 w-4" fill={pinned ? 'currentColor' : 'none'} style={{ color: pinned ? `rgb(${accent})` : FROG.soft }} aria-hidden="true" />
-            Pin to top
-          </span>
-          {pinned && <Check className="h-4 w-4" style={{ color: `rgb(${accent})` }} aria-hidden="true" />}
-        </button>
+      <ChoiceRow
+        testid="frog-save-pin"
+        accent={accent}
+        focused={index === 2}
+        onClick={() => onEdit({ pinned: !pinned })}
+        onHover={() => onFocus(2)}
+        className="mb-1.5 mt-1"
+        style={{ color: FROG.ink }}
+        trailing={pinned ? <Check className="h-4 w-4 shrink-0" style={{ color: `rgb(${accent})` }} aria-hidden="true" /> : undefined}
+      >
+        {/* The pin's own fill says whether it IS pinned; that must not change as the
+            cursor passes over, so it stays outside ChoiceRow's focus colouring. */}
+        <Pin
+          className="h-4 w-4 shrink-0"
+          fill={pinned ? 'currentColor' : 'none'}
+          style={{ color: pinned ? `rgb(${accent})` : FROG.soft }}
+          aria-hidden="true"
+        />
+        <span className="flex-1">Pin to top</span>
+      </ChoiceRow>
 
-        <button
-          type="button"
-          data-testid="frog-save-delete"
-          data-focused={index === 3 || undefined}
-          onMouseMove={hoverMove(() => onFocus(3))}
-          onClick={onDelete}
-          className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-medium"
-          style={{ color: `rgb(${FROG.danger})`, ...rowStyle(index === 3, true) }}
-        >
-          <Trash2 className="h-4 w-4" aria-hidden="true" /> Delete save
-        </button>
+      <ChoiceRow
+        testid="frog-save-delete"
+        Icon={Trash2}
+        label="Delete save"
+        danger
+        focused={index === 3}
+        onClick={onDelete}
+        onHover={() => onFocus(3)}
+        style={{ color: `rgb(${FROG.danger})` }}
+      />
 
-        <button
-          type="button"
-          onClick={onClose}
-          className="mt-3 w-full rounded-full px-4 py-2 text-sm font-medium"
-          style={{ background: 'transparent', color: FROG.soft, border: `1px solid ${FROG.line}` }}
-        >
-          Done
-        </button>
-      </div>
-    </div>
+      {/* Done is a row now, reachable by walking past Delete — it was a mouse-only pill. */}
+      <ChoiceRow
+        testid="frog-save-done"
+        Icon={Check}
+        label="Done"
+        accent={accent}
+        focused={index === 4}
+        onClick={onClose}
+        onHover={() => onFocus(4)}
+        className="mt-3"
+      />
+    </DialogPanel>
   )
 }
 
@@ -1525,23 +1510,21 @@ function SaveEditor({ editor, native, accent, onEdit, onFocus, onOpenLabel, onOp
 // for a native text field.
 function FieldRow({ testid, value, placeholder, on, accent, onFocus, onOpen }) {
   return (
-    <button
-      type="button"
-      data-testid={testid}
-      data-focused={on || undefined}
-      onMouseMove={hoverMove(onFocus)}
+    <ChoiceRow
+      testid={testid}
+      accent={accent}
+      focused={on}
       onClick={onOpen}
-      className="mb-2 flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left"
-      style={{
-        background: on ? `rgba(${accent}, 0.16)` : 'transparent',
-        boxShadow: on ? focusRing(accent) : `inset 0 0 0 1px ${FROG.line}`,
-      }}
+      onHover={onFocus}
+      className="mb-2"
     >
       <Pencil className="h-4 w-4 shrink-0" style={{ color: on ? `rgb(${accent})` : FROG.faint }} aria-hidden="true" />
-      <span className="min-w-0 flex-1 truncate text-sm" style={{ color: value ? FROG.ink : FROG.faint }}>
+      {/* An empty field reads as its placeholder, at the recessive tier — otherwise a
+          blank row looks like a row with a name you can't see. */}
+      <span className="min-w-0 flex-1 truncate" style={{ color: value ? FROG.ink : FROG.faint }}>
         {value || placeholder}
       </span>
-    </button>
+    </ChoiceRow>
   )
 }
 

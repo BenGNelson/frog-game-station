@@ -10,6 +10,7 @@ list, that dead keys dim, and that Down carries the cursor into the results.
 import os
 import sys
 from playwright.sync_api import sync_playwright
+from player_mount import watch_player, player_mounted
 
 BASE = os.environ.get("BASE_URL", "http://localhost:8585")
 errors = []
@@ -97,9 +98,13 @@ with sync_playwright() as p:
     page.wait_for_selector('[data-testid="frog-detail"]', timeout=5000)
     check(True, "Enter on a result opens its game page")
     track[0] = False
+    mount = watch_player(page)
     page.keyboard.press("Enter")
     page.wait_for_url("**/play**", timeout=8000)
     check("/play" in page.url, "Enter on the game page (Play focused) launches the game")
+    # ...and the player it launched actually rendered. The URL alone is green on a
+    # blank page — see player_mount.py.
+    check(player_mounted(page, mount), "the launched player mounts (not a blank screen)")
 
     browser.close()
 

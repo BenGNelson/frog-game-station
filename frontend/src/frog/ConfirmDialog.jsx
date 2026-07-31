@@ -1,27 +1,47 @@
 import { useRef } from 'react'
+import { Trash2, X } from 'lucide-react'
+import { moveInGrid } from '../lib/gridNav.js'
 import { useFocusTrap } from '../lib/useFocusTrap.js'
-import { FROG } from './theme.js'
-import ModalScrim from './ModalScrim.jsx'
-import Button from './Button.jsx'
-import { hoverMove } from '../lib/pointer.js'
+import DialogPanel from './DialogPanel.jsx'
+import ChoiceRow from './ChoiceRow.jsx'
 
 // A small yes/no gate. Controller-drivable and tappable — it guards a delete/remove
 // behind one deliberate step. Shared by the game-detail page and the in-game save-state
 // shelf, so `z` lets a caller stack it above its own overlay (the shelf sits at z-30, so
 // it passes z="z-40").
 //
+// It used to be a centred pair of pill Buttons, with the commit as a SOLID danger fill.
+// That fill is what broke it: an accent focus signal on an accent fill has nothing to
+// contrast against, so the highlight vanished on exactly the button you most need to see
+// before pressing. It is now the same vertical icon rows as the save-state chooser —
+// which never had the problem, because a 14% tint is not a fill — so the two dialogs a
+// player meets back-to-back are visibly the same thing.
+//
+// Tab reaches nothing inside this dialog in either mode: useFocusTrap intercepts it and
+// parks focus back on the panel. Enter/Escape arrive through FrogBrowser's window keymap
+// (browser screens) or padRouter (the player), never through the browser's own handling.
+//
 // Two selection modes:
-//  - Uncontrolled (no `focus`): the game page's default — useFocusTrap parks real focus
-//    on the panel, A/Enter confirms, B/Esc cancels, Tab walks the buttons.
+//  - Uncontrolled (no `focus`): the browser screens' default — FrogBrowser traps input
+//    and maps Enter to YES unconditionally, so there is no cursor to show. The yes row
+//    therefore renders `primary`: with no cursor, the default action must still be
+//    visible, or the gate is two identical boxes over an irreversible act. `primary` is
+//    the ONLY thing distinguishing the rows in this mode — do not remove it without
+//    giving the caller a real cursor first.
 //  - Controlled (`focus` is 0=yes / 1=no, with `onFocusChange`): the player drives the
 //    highlight itself (the app owns menu focus via `data-focused`, not real DOM focus),
-//    so a d-pad can move left/right between Delete and Keep before committing.
+//    so a d-pad can move between the rows before committing. Here the cursor carries the
+//    state and nothing is `primary`, so the two channels never compete.
 export default function ConfirmDialog({
   message,
   onYes,
   onNo,
   yesLabel = 'Delete',
   noLabel = 'Keep',
+  // The gate is generic, so its icons default to what it most often guards. A caller
+  // with a better verb passes its own (the player's quit gate passes Power / Play).
+  yesIcon = Trash2,
+  noIcon = X,
   z = 'z-20',
   focus,
   onFocusChange,
@@ -30,69 +50,66 @@ export default function ConfirmDialog({
   useFocusTrap(panelRef)
   const controlled = focus === 0 || focus === 1
 
+  // Index 0 is ALWAYS yes and index 1 is ALWAYS no. padRouter hardcodes that
+  // (`focus === 1 ? cancel : confirm`, twice), so reordering these silently makes A
+  // delete while the highlight sits on Keep. Pinned in ConfirmDialog.test.jsx.
+  const rows = [
+    { id: 'yes', label: yesLabel, Icon: yesIcon, danger: true, testid: 'frog-confirm-yes', act: onYes },
+    { id: 'no', label: noLabel, Icon: noIcon, testid: 'frog-confirm-no', act: onNo },
+  ]
+
   const onKeyDown = (e) => {
     if (!controlled) return // uncontrolled: leave Tab/Enter to the browser
-    if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+    // The rows are a column now, but left/right stay mapped: this gate was a horizontal
+    // pair for most of its life and a pad in the hand doesn't relearn that overnight.
+    const dir =
+      e.key === 'ArrowUp' || e.key === 'ArrowLeft'
+        ? 'up'
+        : e.key === 'ArrowDown' || e.key === 'ArrowRight'
+          ? 'down'
+          : null
+    if (dir) {
       e.preventDefault()
-      onFocusChange?.(0)
-    } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
-      e.preventDefault()
-      onFocusChange?.(1)
+      onFocusChange?.(moveInGrid({ count: rows.length, cols: 1, index: focus }, dir))
     } else if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault()
-      ;(focus === 1 ? onNo : onYes)()
+      rows[focus].act()
     } else if (e.key === 'Escape') {
       e.preventDefault()
       onNo()
     }
   }
 
-  const yesFocused = focus === 0
-  const noFocused = focus === 1
-
   return (
-    <ModalScrim testid="frog-confirm" z={z} depth="dialog">
-      <div
-        ref={panelRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="frog-confirm-title"
-        tabIndex={-1}
-        onKeyDown={onKeyDown}
-        className="w-full max-w-sm rounded-2xl p-5 text-center outline-none"
-        style={{ background: FROG.panel, border: `1px solid ${FROG.line}`, boxShadow: '0 20px 60px rgba(0,0,0,0.6)' }}
-      >
-        <p id="frog-confirm-title" className="text-base font-medium" style={{ color: FROG.ink }}>
-          {message}
-        </p>
-        <div className="mt-5 flex justify-center gap-3">
-          {/* The destructive commit is the one SOLID danger in the app — the gate
-              should look heavier than the thing it guards. */}
-          <Button
-            variant="solid"
-            accent={FROG.danger}
-            data-testid="frog-confirm-yes"
-            focused={yesFocused}
-            onClick={onYes}
-            onMouseMove={hoverMove(() => onFocusChange?.(0))}
-          >
-            {yesLabel}
-          </Button>
-          <Button
-            variant="quiet"
-            focused={noFocused}
-            onClick={onNo}
-            onMouseMove={hoverMove(() => onFocusChange?.(1))}
-            style={
-              noFocused
-                ? { background: `rgba(${FROG.jade}, 0.16)`, color: `rgb(${FROG.jade})` }
-                : undefined
-            }
-          >
-            {noLabel}
-          </Button>
-        </div>
+    <DialogPanel
+      ref={panelRef}
+      testid="frog-confirm"
+      z={z}
+      width="max-w-[17rem]"
+      pad="p-4"
+      title={message}
+      titleId="frog-confirm-title"
+      titleTone="prompt"
+      // Backdrop dismissal is new here, and it resolves to "no" — the safe direction.
+      onBackdrop={onNo}
+      onKeyDown={onKeyDown}
+    >
+      <div className="flex flex-col gap-2">
+        {rows.map((r, i) => (
+          <ChoiceRow
+            key={r.id}
+            testid={r.testid}
+            Icon={r.Icon}
+            label={r.label}
+            danger={r.danger}
+            focused={focus === i}
+            // No cursor in uncontrolled mode, so the row Enter commits carries the weight.
+            primary={!controlled && r.id === 'yes'}
+            onClick={r.act}
+            onHover={controlled ? () => onFocusChange(i) : undefined}
+          />
+        ))}
       </div>
-    </ModalScrim>
+    </DialogPanel>
   )
 }

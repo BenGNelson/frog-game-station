@@ -2,8 +2,8 @@ import { useRef } from 'react'
 import { Play, Trash2, X } from 'lucide-react'
 import { moveInGrid } from '../lib/gridNav.js'
 import { useFocusTrap } from '../lib/useFocusTrap.js'
-import { FROG, scrim, SCRIM, focusRing } from '../frog/theme.js'
-import { hoverMove } from '../lib/pointer.js'
+import DialogPanel from '../frog/DialogPanel.jsx'
+import ChoiceRow from '../frog/ChoiceRow.jsx'
 
 // The Load/Delete chooser for a save state.
 //
@@ -61,54 +61,34 @@ export default function SaveActionMenu({ title, focus, onFocusChange, onLoad, on
   }
 
   return (
-    <div
-      data-testid="frog-save-chooser"
+    <DialogPanel
+      ref={panelRef}
+      testid="frog-save-chooser"
+      z={z}
+      width="max-w-[15rem]"
+      pad="p-4"
+      ariaLabel="Save state"
+      title={title || 'Save state'}
+      titleTone="caption"
       // A backdrop click cancels — belt and braces beside the Cancel row, never instead
       // of it: a scrim is an invisible affordance, and this chooser sits one press away
       // from deleting a save.
-      onClick={onCancel}
-      className={`absolute inset-0 ${z} flex items-center justify-center p-6`}
-      style={{ background: scrim(SCRIM.dialog), backdropFilter: 'blur(3px)' }}
+      onBackdrop={onCancel}
+      onKeyDown={onKeyDown}
     >
-      <div
-        ref={panelRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Save state"
-        tabIndex={-1}
-        onKeyDown={onKeyDown}
-        onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-[15rem] rounded-2xl p-4 outline-none"
-        style={{ background: FROG.panel, border: `1px solid ${FROG.line}`, boxShadow: '0 20px 60px rgba(0,0,0,0.6)' }}
-      >
-        <p className="mb-3 text-center text-xs font-medium" style={{ color: FROG.faint }}>{title || 'Save state'}</p>
-        <div className="flex flex-col gap-2">
-          {rows.map((r, i) => {
-            const on = focus === i
-            const accent = r.danger ? `rgb(${FROG.danger})` : `rgb(${FROG.jade})`
-            const tint = r.danger ? FROG.danger : FROG.jade
-            return (
-              <button
-                key={r.id}
-                type="button"
-                data-focused={on || undefined}
-                onClick={() => commit(i)}
-                onMouseMove={hoverMove(() => onFocusChange(i))}
-                className="flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left text-sm font-medium transition-colors"
-                style={{
-                  background: on ? `rgba(${tint}, 0.14)` : 'transparent',
-                  borderColor: on ? `rgba(${tint}, 0.7)` : FROG.line,
-                  boxShadow: on ? focusRing(tint) : 'none',
-                  color: on ? FROG.ink : FROG.soft,
-                }}
-              >
-                <r.Icon className="h-4 w-4 shrink-0" style={{ color: accent }} aria-hidden="true" />
-                {r.label}
-              </button>
-            )
-          })}
-        </div>
+      <div className="flex flex-col gap-2">
+        {rows.map((r, i) => (
+          <ChoiceRow
+            key={r.id}
+            Icon={r.Icon}
+            label={r.label}
+            danger={r.danger}
+            focused={focus === i}
+            onClick={() => commit(i)}
+            onHover={() => onFocusChange(i)}
+          />
+        ))}
       </div>
-    </div>
+    </DialogPanel>
   )
 }
