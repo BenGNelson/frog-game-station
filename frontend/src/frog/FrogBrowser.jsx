@@ -1720,21 +1720,37 @@ export default function FrogBrowser() {
   const saverRef = useRef(false)
   saverRef.current = saver
   const lastInputRef = useRef(Date.now())
+  // Two different things, deliberately not one function. Everything you do postpones the
+  // pond; only some of it is safe to DISMISS the pond with.
   const noteActivity = useCallback(() => {
+    lastInputRef.current = Date.now()
+  }, [])
+  const wakeSaver = useCallback(() => {
     lastInputRef.current = Date.now()
     if (saverRef.current) setSaver(false)
   }, [])
 
   useEffect(() => {
+    // A key, a mouse move or a wheel may dismiss from here: none of them has a trailing
+    // event that could land on something once the pond unmounts. The key is also stopped
+    // so the press that wakes the pond doesn't also navigate the shelf behind it.
     const wake = (e) => {
-      // The press that wakes the pond should only wake the pond.
-      if (saverRef.current && e.type !== 'pointermove' && e.type !== 'wheel') e.stopPropagation()
-      noteActivity()
+      if (saverRef.current && e.type === 'keydown') e.stopPropagation()
+      wakeSaver()
     }
-    const events = ['keydown', 'pointerdown', 'pointermove', 'touchstart', 'wheel']
-    events.forEach((t) => window.addEventListener(t, wake, { capture: true }))
-    return () => events.forEach((t) => window.removeEventListener(t, wake, { capture: true }))
-  }, [noteActivity])
+    // A PRESS may not. A tap is pointerdown → pointerup → click, and dismissing on the
+    // first of those unmounts the overlay mid-gesture and lets iOS retarget the trailing
+    // click onto whatever shelf tile is now under the finger. So a press only postpones
+    // the pond here; the pond's own onClick dismisses it, on the gesture's terminal
+    // event, while it is still the top element. Same rule as Boot.jsx.
+    const dismissing = ['keydown', 'pointermove', 'wheel']
+    dismissing.forEach((t) => window.addEventListener(t, wake, { capture: true }))
+    window.addEventListener('pointerdown', noteActivity, { capture: true, passive: true })
+    return () => {
+      dismissing.forEach((t) => window.removeEventListener(t, wake, { capture: true }))
+      window.removeEventListener('pointerdown', noteActivity, { capture: true })
+    }
+  }, [wakeSaver, noteActivity])
 
   useEffect(() => {
     if (screen === 'boot') return
@@ -1753,7 +1769,7 @@ export default function FrogBrowser() {
 
   useGamepad({
     onAction: (a) => {
-      if (saverRef.current) return noteActivity()
+      if (saverRef.current) return wakeSaver()
       lastInputRef.current = Date.now()
       act.current(a)
     },
@@ -1761,12 +1777,12 @@ export default function FrogBrowser() {
     // never fires `gamepadconnected` until then. On the boot screen that press is
     // also the "press A" that dismisses it.
     onPadButton: () => {
-      if (saverRef.current) return noteActivity()
+      if (saverRef.current) return wakeSaver()
       setMode((m) => nextFrogMode(m, 'pad'))
       setScreen((s) => (s === 'boot' ? 'shelf' : s))
     },
     onMenuAction: (a) => {
-      if (saverRef.current) return noteActivity()
+      if (saverRef.current) return wakeSaver()
       if (a === 'start') act.current('confirm')
       // Hold ☰ opens Settings — mirrors the player, where a hold opens the pause menu.
       else if (a === 'pauseMenu') act.current('settingsToggle')
@@ -1989,7 +2005,7 @@ export default function FrogBrowser() {
       <FinishToast tick={finishTick} />
 
       {/* The pond after you've wandered off — any input wakes it (and is swallowed). */}
-      {saver && <Screensaver />}
+      {saver && <Screensaver onWake={wakeSaver} />}
 
       {/* The pond light. It takes the colour of whatever is in focus, which is the
           single cheapest way to make a machine feel *selected* rather than outlined. */}

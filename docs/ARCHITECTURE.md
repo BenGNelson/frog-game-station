@@ -1102,6 +1102,24 @@ The player and readers are **real routes**, not overlays, so the phone's back ge
 
 ## Decision log
 
+- **A dismissing input must never also activate what it landed on — and the rule is a
+  rule, not a component.** An overlay that closes on the *first* event of a gesture
+  unmounts itself mid-gesture, and the rest of that gesture lands on whatever is now
+  underneath. On iOS the trailing synthetic `click` is retargeted after the overlay is
+  gone, so a tap that dismisses the boot screen used to drill into a random console, and a
+  tap that woke the screensaver used to open the tile under the finger. Three shapes solve
+  this, and they are genuinely different problems rather than one missing abstraction:
+  **(1) terminal-event dismissal** — the overlay owns an `onClick` and closes on `click`,
+  the last event of a tap, so the whole gesture is consumed while it is still the top
+  element (`Boot.jsx`, `Screensaver.jsx`; `cursor-pointer` is part of the mechanism,
+  because iOS only fires `click` on a non-native element that looks clickable);
+  **(2) a live gate the receiver consults** — the thing underneath asks "is a menu over
+  me?" before acting, which is how the DS stylus and the pad are silenced while any panel
+  is up (`NativePlayer.jsx`'s `stylusLive`, `setGated`); **(3) "I consumed this"** — a
+  handler returns true to swallow a press so it doesn't also navigate the menu it was made
+  in (`padRouter.js`). A key needs none of them: it is a single event with no trailing
+  gesture, so it can safely be stopped at the window. Reach for the shape that matches;
+  don't unify them.
 - **Emulation runs in an isolated, client-side frame.** The app is a *host*; gameplay is
   handed to a sandboxed EmulatorJS iframe. This keeps the browser and the engine cleanly
   separated — the front end never has to know how a game is run, the engine never owns the

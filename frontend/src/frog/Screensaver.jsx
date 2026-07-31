@@ -10,15 +10,26 @@ import { frogDozes } from '../lib/dayNight.js'
 // By day the frog hunts — flies wander in on lazy paths, the pupils track the
 // nearest one, and every few seconds the tongue snaps it (a catch earns a
 // satisfied gulp). Past bedtime (frogDozes) he sleeps instead, and a firefly
-// keeps watch. FrogBrowser decides WHEN this shows (idle on a browse screen) and
-// unmounts it on any input — this component only draws the scene.
+// keeps watch. FrogBrowser decides WHEN this shows (idle on a browse screen);
+// this component draws the scene AND owns the tap that dismisses it.
 //
 // It doubles as burn-in protection for a couch setup left on the shelf: the
 // whole scene is dark, slow, and mostly black pixels.
+//
+// Why the dismissing tap is handled here rather than by FrogBrowser's window
+// listener: the waking input must not ALSO press whatever it landed on. This is
+// the same rule Boot.jsx follows, for the same reason — see its comment for the
+// full account. In short, a tap is pointerdown → pointerup → click, and
+// dismissing on the FIRST of those unmounts the overlay mid-gesture, leaving
+// iOS to retarget the trailing click onto whatever shelf tile is now under the
+// finger. Dismissing on `click`, the gesture's terminal event, consumes the
+// whole thing while the pond is still the top element. `cursor-pointer` is part
+// of the mechanism, not decoration: iOS only fires a click for a tap on a
+// non-native element that looks clickable.
 const SNAP_EVERY_MS = 4200
 const FLY_COUNT = 3
 
-export default function Screensaver() {
+export default function Screensaver({ onWake }) {
   const asleep = frogDozes()
   const pondRef = useRef(null)
   const frogRef = useRef(null)
@@ -133,7 +144,8 @@ export default function Screensaver() {
     <div
       ref={pondRef}
       data-testid="frog-screensaver"
-      className="frog-rise fixed inset-0 z-[60] overflow-hidden"
+      onClick={onWake}
+      className="frog-rise fixed inset-0 z-[60] cursor-pointer overflow-hidden"
       style={{ background: FROG.ground }}
       role="presentation"
     >

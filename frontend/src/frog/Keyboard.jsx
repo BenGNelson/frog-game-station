@@ -39,6 +39,11 @@ export default function Keyboard({ title, text, placeholder, pos, shift, accent,
         aria-modal="true"
         aria-label={title}
         tabIndex={-1}
+        // The scrim closes on a backdrop click, and this panel sits inside it — so
+        // without stopping the bubble, a tap on the panel's own padding or its title row
+        // reads as a tap on the backdrop and closes the keyboard mid-word. The lightbox
+        // in GameScreen does the same for the same reason.
+        onClick={(e) => e.stopPropagation()}
         className="w-full max-w-md rounded-2xl p-5 outline-none"
         style={{ background: FROG.panel, border: `1px solid ${FROG.line}`, boxShadow: '0 20px 60px rgba(0,0,0,0.6)' }}
         onClick={(e) => e.stopPropagation()}
