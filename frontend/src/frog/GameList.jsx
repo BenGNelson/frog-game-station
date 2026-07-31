@@ -197,6 +197,7 @@ export default function GameList({ system, collection, loading = false, games, f
               }}
             >
               <img
+                draggable={false}
                 key={current.id}
                 src={coverUrl(current.id, current.cover_v)}
                 alt=""

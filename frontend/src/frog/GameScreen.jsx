@@ -19,6 +19,7 @@ import { agoLabel } from './shelf.js'
 import Keyboard from './Keyboard.jsx'
 import TrailerOverlay from './Trailer.jsx'
 import { hoverMove } from '../lib/pointer.js'
+import { useWheelRail } from './useWheelRail.js'
 
 // FROG GAME STATION — a game's page.
 //
@@ -482,6 +483,7 @@ function RichHero({ game, meta, shots, s, slide, focused, finished, hack, onOpen
             index simply never changes), so this stays a still image. */}
         {shots.map((sid, i) => (
           <img
+            draggable={false}
             key={sid}
             src={igdbShotUrl(game.id, sid)}
             alt=""
@@ -593,7 +595,7 @@ function Cover({ game, accent, finished, hack, className = '' }) {
       className={`relative shrink-0 overflow-hidden rounded-2xl ${className}`}
       style={{ border: `1px solid rgba(${accent}, 0.4)`, boxShadow: reflection(accent), background: '#000' }}
     >
-      <img src={coverUrl(game.id, game.cover_v)} alt="" className="aspect-[3/4] w-full object-cover" />
+      <img draggable={false} src={coverUrl(game.id, game.cover_v)} alt="" className="aspect-[3/4] w-full object-cover" />
       {finished && <FinishedBadge />}
       {hack && <HackBadge />}
       <div
@@ -687,7 +689,7 @@ function About({ meta }) {
         <div>
           <Heading>ABOUT</Heading>
           <p
-            className={`text-sm leading-relaxed ${expanded ? '' : 'line-clamp-4'}`}
+            className={`select-text text-sm leading-relaxed ${expanded ? '' : 'line-clamp-4'}`}
             style={{ color: FROG.soft }}
           >
             {meta.summary}
@@ -807,6 +809,8 @@ function SimilarRail({ games, focusedIndex, onFocus, onOpen }) {
       behavior: 'smooth',
     })
   }, [focusedIndex])
+  // A mouse wheel walks the rail; it has no scrollbar to grab.
+  useWheelRail(rowRef)
   return (
     <div>
       <Heading>MORE LIKE THIS</Heading>
@@ -844,6 +848,7 @@ function SimilarCard({ game, focused, onFocus, onOpen }) {
     >
       <div className="relative aspect-[3/4] w-full overflow-hidden" style={{ background: '#000' }}>
         <img
+          draggable={false}
           src={coverUrl(game.id, game.cover_v)}
           alt=""
           loading="lazy"
@@ -885,6 +890,7 @@ function Lightbox({ gameId, gameName, shots, index, onClose, onNav }) {
       onClick={onClose}
     >
       <img
+        draggable={false}
         src={igdbShotUrl(gameId, shots[index])}
         alt={shotLabel}
         onClick={stop}
@@ -1555,6 +1561,7 @@ function SaveThumb({ gameId, snap }) {
   }
   return (
     <img
+      draggable={false}
       src={saveStateShotUrl(gameId, snap.slot)}
       alt=""
       onError={() => setFailed(true)}

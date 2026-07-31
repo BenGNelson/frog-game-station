@@ -498,9 +498,13 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
     flashShot('saved')
   }, [name, flashShot])
 
-  // Which pause list is showing: the root menu or the Display sub-screen. B (and
-  // the ✕) pops back to root before it closes the menu, so the sub-screen can
-  // never be a trap.
+  // Which pause list is showing: the root menu or the Display sub-screen. B, Escape and
+  // the sub-screen's own Back row all pop to root before anything closes the menu, so it
+  // can never be a trap.
+  //
+  // This comment used to claim a ✕ did that. There has never been a ✕ here, and for a
+  // while the claim was actively covering for the bug: a mouse had no way out of Display
+  // at all, and Escape resumed the game outright rather than popping back.
   const [menuScreen, setMenuScreen] = useState('root')
 
   const onMenuAction = useCallback(
@@ -512,6 +516,12 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
           break
         case 'display':
           setMenuScreen('display')
+          setMenuFocus(0)
+          break
+        // The sub-screen's way out for a mouse — the pad's B and the keyboard's Escape
+        // both route here too, so all three leave by the same door.
+        case 'back':
+          setMenuScreen('root')
           setMenuFocus(0)
           break
         case 'states':

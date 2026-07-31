@@ -9,6 +9,7 @@ import { Reflected, SystemFrog } from './Frog.jsx'
 import { FinishedBadge, HackBadge } from './badges.jsx'
 import Heading from './Heading.jsx'
 import Console from './Console.jsx'
+import { useWheelRails } from './useWheelRail.js'
 import { hoverMove } from '../lib/pointer.js'
 
 // The shelf: Frog Game Station's home screen.
@@ -105,6 +106,7 @@ function GameCard({ game, focused, finished, hack, onFocus, onPick }) {
     >
       <div className="relative aspect-[3/4] w-full overflow-hidden" style={{ background: '#000' }}>
         <img
+          draggable={false}
           src={coverUrl(game.id, game.cover_v)}
           alt=""
           loading="lazy"
@@ -223,6 +225,10 @@ export default function Shelf({ rails, focus, finishedIds, hackIds, onFocus, onP
   }, [focus.rail, focus.index])
   // The mascot dozes after hours (closed eyes), on the wall clock.
   const dozing = useDozing()
+
+  // A mouse wheel walks the horizontal rails. They hide their scrollbars, so without
+  // this there is no way to reach along one with a mouse at all.
+  useWheelRails(() => railRefs.current, [rails])
 
   // Home always opens at the top. Shelf remounts on return from a game/list, so the
   // viewport naturally resets — but the focus scrollIntoView below fires on the very

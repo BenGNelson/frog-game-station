@@ -658,6 +658,12 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
           setMenuScreen('display')
           setMenuFocus(0)
           break
+        // The sub-screen's way out for a mouse — the pad's B and the keyboard's Escape
+        // both route here too, so all three leave by the same door.
+        case 'back':
+          setMenuScreen('root')
+          setMenuFocus(0)
+          break
         case 'rewind':
           applyRewind(!rewinding)
           dispatch('resume') // rewind is something you want to SEE
@@ -937,6 +943,7 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
           }}
         >
           <img
+            draggable={false}
             src={coverUrl(id, coverV)}
             alt=""
             className="max-h-[46vh] w-auto rounded-xl object-contain"

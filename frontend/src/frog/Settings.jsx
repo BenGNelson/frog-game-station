@@ -185,7 +185,7 @@ export default function Settings({ status, loading, focus, onFocus, onRescan, re
         {/* --- About: credit where the pond's water comes from. A note like the theme
             card (not focusable — nothing to control), so the settings focus order is
             untouched. --- */}
-        <div data-testid="frog-about" className="rounded-xl px-4 py-3" style={{ background: FROG.panel, opacity: 0.75 }}>
+        <div data-testid="frog-about" className="select-text rounded-xl px-4 py-3" style={{ background: FROG.panel, opacity: 0.75 }}>
           <p className="text-sm leading-relaxed" style={{ color: FROG.soft }}>
             <span style={{ color: FROG.ink }}>About</span> — games play in the{' '}
             <span style={{ color: FROG.ink }}>EmulatorJS</span> engine (GPL-3.0, fetched

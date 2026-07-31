@@ -59,6 +59,10 @@ export function pauseItems(
       ...(hasCoreOptions
         ? [{ id: 'coreOptions', label: 'System options', Icon: SlidersHorizontal, chevron: true, section: 'top' }]
         : []),
+      // The way OUT. A pad has B and a keyboard has Escape, but a mouse had neither and
+      // no ✕ — this sub-screen was a dead end you could only leave by picking something
+      // from it. (A comment in PlayerShell claimed a ✕ existed here; it never did.)
+      { id: 'back', label: 'Back', Icon: ChevronLeft, section: 'end' },
     ]
   }
   return [
@@ -126,7 +130,10 @@ export default function PauseMenu({ open, name, fastForward, rewinding, canFulls
       onAction(items[focus].id)
     } else if (e.key === 'Escape') {
       e.preventDefault()
-      onAction('resume')
+      // Escape is the keyboard's B: on a sub-screen it POPS back to the root rather than
+      // resuming the game outright, which is what it used to do — one press from inside
+      // Display and you were back in the game with no idea why.
+      onAction(screen === 'root' ? 'resume' : 'back')
     }
   }
 
@@ -271,37 +278,48 @@ function MenuRow({ item, focused, onSelect, onHover, onAdjust }) {
         // stop propagation so a thumb stepping the level never also fires the row's own
         // action (mute). The row itself announces the level for AT.
         <span className="flex shrink-0 items-center gap-1.5" aria-label={`Volume ${Math.round(value * 100)} percent`}>
-          <AdjustTap side="down" onAdjust={onAdjust} />
+          <AdjustTap side="down" label={label} onAdjust={onAdjust} />
           <span className="h-1.5 w-12 overflow-hidden rounded-full" style={{ background: FROG.line }} aria-hidden="true">
             <span className="block h-full rounded-full" style={{ background: `rgb(${FROG.jade})`, width: `${Math.round(value * 100)}%` }} />
           </span>
           <span className="w-9 text-right text-xs tabular-nums" style={{ color: FROG.soft }} aria-hidden="true">
             {value === 0 ? 'Mute' : `${Math.round(value * 100)}%`}
           </span>
-          <AdjustTap side="up" onAdjust={onAdjust} />
+          <AdjustTap side="up" label={label} onAdjust={onAdjust} />
         </span>
       )}
       {adjust && control === 'cycle' && (
         // A stepped choice: ‹ value › — same tap targets, the value is a word.
         <span className="flex shrink-0 items-center gap-1" aria-label={`${label}: ${value}`}>
-          <AdjustTap side="down" onAdjust={onAdjust} />
+          <AdjustTap side="down" label={label} onAdjust={onAdjust} />
           <span className="min-w-[4.5rem] text-center text-xs font-medium" style={{ color: ['Off', '3×'].includes(value) ? FROG.soft : `rgb(${FROG.jade})` }} aria-hidden="true">
             {value}
           </span>
-          <AdjustTap side="up" onAdjust={onAdjust} />
+          <AdjustTap side="up" label={label} onAdjust={onAdjust} />
         </span>
       )}
     </button>
   )
 }
 
-function AdjustTap({ side, onAdjust }) {
+// The ‹ › steppers beside an adjustable row.
+//
+// A <span role="button"> rather than a real <button> for one unavoidable reason: MenuRow
+// IS a button, and a button cannot nest inside a button. (CoreOptionsPanel's twin, StepTap,
+// gets to be a real button only because its row is a div.) The consequences are handled
+// rather than ignored: the pointer cursor comes from the global rule in index.css, and
+// keyboard users never need to reach these — left/right on the focused row already steps
+// the value, which is why tabIndex is -1 here.
+//
+// `label` is not optional. These used to announce "Volume down"/"Volume up" on every
+// adjustable row, so a screen reader on the Filter row was told it was changing the volume.
+function AdjustTap({ side, label, onAdjust }) {
   const Icon = side === 'down' ? ChevronLeft : ChevronRight
   return (
     <span
       role="button"
       tabIndex={-1}
-      aria-label={side === 'down' ? 'Volume down' : 'Volume up'}
+      aria-label={`${side === 'down' ? 'Previous' : 'Next'} ${label}`}
       onClick={(e) => {
         e.stopPropagation()
         onAdjust?.(side === 'down' ? -1 : 1)

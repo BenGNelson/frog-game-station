@@ -369,7 +369,7 @@ const WikiPanel = forwardRef(function WikiPanel({
             )}
             <div
               ref={bodyRef}
-              className="wiki-article"
+              className="select-text wiki-article"
               style={{ '--wiki-accent': accentText }}
               onClick={onBodyClick}
               dangerouslySetInnerHTML={{ __html: article.html }}

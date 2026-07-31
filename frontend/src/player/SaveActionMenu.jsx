@@ -1,5 +1,6 @@
 import { useRef } from 'react'
-import { Play, Trash2 } from 'lucide-react'
+import { Play, Trash2, X } from 'lucide-react'
+import { moveInGrid } from '../lib/gridNav.js'
 import { useFocusTrap } from '../lib/useFocusTrap.js'
 import { FROG, scrim, SCRIM, focusRing } from '../frog/theme.js'
 import { hoverMove } from '../lib/pointer.js'
@@ -15,23 +16,41 @@ import { hoverMove } from '../lib/pointer.js'
 // Controlled focus (0 = Load, 1 = Delete) so the pad can drive the highlight from
 // the parent, plus its own key handler for the keyboard — the same dual pattern as
 // frog/ConfirmDialog. It stacks over the shelf (z-40), matching the delete confirm.
+// The rows, in walk order, exported so padRouter dispatches by ID instead of by index.
+// It used to hardcode "1 means delete" in three separate places, which is the kind of
+// arithmetic that silently means something else the moment a row is added — and adding a
+// row is exactly what happened here.
+export const SAVE_ACTIONS = [
+  { id: 'load', label: 'Load', Icon: Play },
+  { id: 'delete', label: 'Delete', Icon: Trash2, danger: true },
+  // A mouse had no way out of this chooser at all: Load or Delete or nothing. The pad has
+  // B and a keyboard has Escape; this is the third door, and it is last so the walk still
+  // opens on Load.
+  { id: 'cancel', label: 'Cancel', Icon: X },
+]
+
 export default function SaveActionMenu({ title, focus, onFocusChange, onLoad, onDelete, onCancel, z = 'z-40' }) {
   const panelRef = useRef(null)
   useFocusTrap(panelRef)
 
-  const rows = [
-    { id: 'load', label: 'Load', Icon: Play },
-    { id: 'delete', label: 'Delete', Icon: Trash2, danger: true },
-  ]
-  const commit = (i) => (i === 1 ? onDelete() : onLoad())
+  const rows = SAVE_ACTIONS
+  const commit = (i) => {
+    const id = rows[i]?.id
+    if (id === 'delete') onDelete()
+    else if (id === 'cancel') onCancel()
+    else onLoad()
+  }
 
   const onKeyDown = (e) => {
-    if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+    const dir =
+      e.key === 'ArrowUp' || e.key === 'ArrowLeft'
+        ? 'up'
+        : e.key === 'ArrowDown' || e.key === 'ArrowRight'
+          ? 'down'
+          : null
+    if (dir) {
       e.preventDefault()
-      onFocusChange(0)
-    } else if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
-      e.preventDefault()
-      onFocusChange(1)
+      onFocusChange(moveInGrid({ count: rows.length, cols: 1, index: focus }, dir))
     } else if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault()
       commit(focus)

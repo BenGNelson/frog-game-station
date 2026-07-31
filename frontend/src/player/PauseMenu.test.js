@@ -40,6 +40,19 @@ describe('pauseItems', () => {
     expect(display({ canFullscreen: true })).toContain('fullscreen')
   })
 
+  it('always gives the Display sub-screen a way out, whatever else it shows', () => {
+    // A pad has B and a keyboard has Escape, but a mouse has only what is drawn — and
+    // this screen used to draw no Back row and no ✕, so a mouse could enter it and not
+    // leave. It must be last (the walk still opens on the first real option) and it must
+    // survive every combination of the optional rows above it.
+    for (const bag of [{}, { canFullscreen: false }, { shader: 'CRT', ffRatio: '3×', hasCoreOptions: true }]) {
+      const ids = pauseItems(false, bag, 'display').map((i) => i.id)
+      expect(ids[ids.length - 1]).toBe('back')
+    }
+    // ...and the root menu does NOT have one — there is nothing above it to go back to.
+    expect(pauseItems(false, {}, 'root').map((i) => i.id)).not.toContain('back')
+  })
+
   it('keeps the mid-game rows at the top level and the set-once ones behind Display', () => {
     // The whole point of the split: what you reach for while playing stays one
     // walk away; what you set once is a level down.

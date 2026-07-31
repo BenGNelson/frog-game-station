@@ -1957,7 +1957,15 @@ export default function FrogBrowser() {
   return (
     <div
       data-testid="frog"
-      className="frog-root fixed inset-0 z-50 flex flex-col overflow-hidden"
+      // select-none across the browse chrome, the same way the player does it. This is a
+      // console UI: a click-drag across a tile should never leave a blue selection behind,
+      // and the game page's hero is a clickable div wrapping the title, so a drag there
+      // used to select the text AND still open the lightbox on mouseup.
+      //
+      // Genuine PROSE opts back in with `select-text` (the game summary and About, the
+      // wiki reader, the Pokédex). A blanket rule that made the wiki uncopyable would be
+      // a worse bug than the one it fixes.
+      className="frog-root fixed inset-0 z-50 flex select-none flex-col overflow-hidden"
       style={{
         // Feed the palette token to the CSS ground rule, so the default background stays
         // single-sourced from FROG.ground while the phone media query overrides to #000.
@@ -2185,6 +2193,15 @@ export default function FrogBrowser() {
           // autocorrect), so it sets the query directly rather than one dead-key-guarded
           // character at a time the way the grid does.
           onType={setQuery}
+          // The mouse's delete and clear. `del` is the same one Backspace uses, so the
+          // three ways of taking a letter back can't drift; clear only ever runs with a
+          // non-empty query (the buttons don't render otherwise), so unlike `del` it has
+          // no close-the-screen branch to worry about.
+          onBackspace={del}
+          onClear={() => {
+            setQuery('')
+            setZone('grid')
+          }}
           onPick={(game, ch) => (ch != null ? typeKey(ch) : openFromSearch(game))}
           recent={recentSearches}
           suggestions={suggestions}
