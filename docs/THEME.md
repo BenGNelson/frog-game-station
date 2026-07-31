@@ -88,12 +88,21 @@ which button you were about to press. Colour cannot carry both "what this does" 
 "where you are", so the cursor was given its own channel.
 
 - **`focusOutline()`** → `outline: 2px solid rgba(ink, 0.95)` at `outline-offset: 3px`.
-  **This is the constant channel**: the same near-white on every variant, every system
-  accent, every surface. An OUTLINE (not a box-shadow) because it draws outside the
-  box, so a solid fill cannot swallow it the way an inset ring does. It returns style
-  properties rather than a shadow string — spread it into a `style` object.
+  **This is the constant channel**: the same near-white on every variant and every system
+  accent. An OUTLINE (not a box-shadow) because it draws outside the box, so a solid fill
+  cannot swallow it the way an inset ring does — the positive offset is the whole
+  mechanism, and it is why no fill colour can ever be the cursor's backdrop. It returns
+  style properties rather than a shadow string — spread it into a `style` object.
   It is never the accent, and `theme.test.js` pins that: not jade, not danger, not any
-  of the nine `SYSTEMS` accents.
+  of the nine `SYSTEMS` accents, and light enough to clear 3:1 on every ground.
+
+  **Two components have it so far — `<Button>` and `<ChoiceRow>`.** Everything else still
+  focuses in the accent alone (list rows, shelf and game tiles, search keys, Settings and
+  Storage rows, and the player panels). That is not a finished state: those surfaces are
+  one accent-on-accent collision away from the same defect, and converting them is open
+  work. **Do not read this section as "the cursor channel is already everywhere."**
+  If you are drawing focus on a new surface, take `focusOutline()`; if you are touching
+  an old one, adding it is a welcome drive-by.
 - **`focusRing(accentRGB)`** → `inset 0 0 0 2px rgba(accent, 0.55)`, unchanged. The
   accent treatment is now the SECONDARY signal — warmth and system identity, not the
   thing you rely on to find the cursor. Still inset so it never collides with a
@@ -103,11 +112,17 @@ which button you were about to press. Colour cannot carry both "what this does" 
   changed is that it is no longer the *only* signal.
 - **`FOCUS_SCALE` = 1.04** — the one scale for things that swell when focused:
   buttons, cards, tiles. **List rows never scale** (they sit flush in a column; the
-  outline + ring + fill + edge bar carry the state).
+  ring + fill + edge bar carry the state — plus the outline on dialog rows, which are
+  the only rows that have it today).
 - The focused row/tile also takes an accent fill (`rgba(accent, ~0.14–0.24)`), and
   lists keep their lit edge-bar cursor.
 - Real keyboard/AT focus (`:focus-visible`) has a global outline in `index.css` —
-  separate from the app's `data-focused` controller cursor, and never suppressed.
+  separate from the app's `data-focused` controller cursor, and **never suppressed on
+  anything actionable**. The single exception is the dialog panel itself
+  (`[role="dialog"][tabindex="-1"]`), which takes focus only so `useFocusTrap` has an
+  anchor: it is not a control, nothing can be done to it, and its ring was louder than
+  the row cursor inside it. Suppressing a ring on something a user can act on is still
+  forbidden.
 - The shelf is the exception that proves the rule: its focus indicator is the mascot
   itself (the frog dresses in the focused system's costume) plus `FOCUS_SCALE`.
 
@@ -226,8 +241,9 @@ is jade via `sectionAccent('games')`).
 1. Colors from `FROG` / `systemStyle()`; alpha only via triplet tokens.
 2. Any overlay → a `SCRIM` stop. A centered dialog → `<DialogPanel>` + `<ChoiceRow>`,
    never a hand-rolled scrim, panel or row (§6).
-3. Focus → `focusOutline()` **always**, plus `focusRing()` for the accent warmth
+3. Focus → `focusOutline()` **on anything new**, plus `focusRing()` for the accent warmth
    (+ `FOCUS_SCALE` if it's a button/card, never on rows). One channel is never enough.
+   Older surfaces predate this and still wear the accent alone — see §5.
 4. Buttons → `<Button>`, or at minimum pill-shaped with the family's fills.
 5. Headings → `<Heading>`; titles wear `FONT_DISPLAY`; body stays system.
 6. Empty state → `<EmptyState>`.
