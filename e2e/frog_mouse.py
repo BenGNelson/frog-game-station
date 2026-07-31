@@ -35,8 +35,19 @@ with sync_playwright() as p:
     context = browser.new_context(viewport={"width": 1280, "height": 900}, reduced_motion="reduce")
     page = context.new_page()
 
+    # A page ERROR is a thrown exception — always a failure. A console error that is
+    # just "Failed to load resource" is a missing asset: the fixture library ships ROMs
+    # with no cover art, and the app falls back to a placeholder by design. Counting
+    # those would make this suite fail on the library it runs against rather than on the
+    # app, which is the mistake this file has already made twice.
     console_errors = []
-    page.on("console", lambda m: console_errors.append(m.text) if m.type == "error" else None)
+    page.on(
+        "console",
+        lambda m: console_errors.append(m.text)
+        if m.type == "error" and "Failed to load resource" not in m.text
+        else None,
+    )
+    page.on("pageerror", lambda e: console_errors.append(f"pageerror: {e}"))
 
     page.goto(f"{BASE}/frog", wait_until="domcontentloaded")
     page.wait_for_selector('[data-testid="frog-boot"]', state="visible", timeout=20000)
@@ -67,17 +78,33 @@ with sync_playwright() as p:
     page.wait_for_selector('[data-testid="frog-games"]', timeout=5000)
     page.wait_for_timeout(400)
 
+    # How far we can walk depends on the library, which differs by machine: CI points
+    # ROMS_DIR at a handful of fixtures, a dev box or the server at a real collection.
+    # Adapt rather than demand — but SAY which version ran, because the bug needs the list to
+    # actually scroll under the cursor, and a four-row list never scrolls. On a small
+    # library this still catches a snap-back; it does not exercise the scroll path.
     rows = page.locator('[data-testid="frog-row"]')
-    if rows.count() < 15:
-        check(False, f"need a system with 15+ games to walk; found {rows.count()}")
+    row_count = rows.count()
+    steps = min(10, max(0, row_count - 2))
+    if row_count < 4:
+        check(False, f"need at least 4 games in a system to walk; found {row_count}")
     else:
+        if row_count < 15:
+            print(
+                f"  --   only {row_count} games here: walking {steps}. Too short to scroll,"
+                " so the scroll-under-the-cursor path is NOT covered by this run."
+            )
         # Put the cursor on a row, by hovering it for real.
         # ROUNDED to whole pixels, deliberately. A PointerEvent reports sub-pixel
         # positions and its compatibility MouseEvent twin rounds them, so at a fractional
         # coordinate the two disagree by 0.5 and every guard reads "moved" — which is
         # exactly how a shared last-seen record hid a dead hover from this test. Integer
         # coordinates are what a 1x display and the Tauri app actually produce.
-        box = rows.nth(3).bounding_box()
+        # Far enough down to be mid-list on a real library, but never so far that the
+        # walk starts at the end — with four fixture rows, hovering row 3 left ArrowDown
+        # with nowhere to go and the "focus stalled" check fired on the test's own setup.
+        hover_row = min(3, max(0, row_count - steps - 1))
+        box = rows.nth(hover_row).bounding_box()
         hx = round(box["x"] + box["width"] / 2)
         hy = round(box["y"] + box["height"] / 2)
         page.mouse.move(hx, hy)
@@ -98,7 +125,7 @@ with sync_playwright() as p:
         # on a NEW row: if the resting cursor were stealing focus back, the sequence
         # would stall or bounce between two names instead of walking.
         seen = [start]
-        for _ in range(10):
+        for _ in range(steps):
             page.keyboard.press("ArrowDown")
             page.wait_for_timeout(120)
             seen.append(focused_name())
@@ -106,7 +133,7 @@ with sync_playwright() as p:
         stalled = [i for i in range(1, len(seen)) if seen[i] == seen[i - 1]]
         check(
             not stalled,
-            f"ten ArrowDowns each move focus on, with the mouse resting (stalled at {stalled}: {seen})",
+            f"{steps} ArrowDowns each move focus on, with the mouse resting (stalled at {stalled}: {seen})",
         )
         check(
             seen[-1] != start and start not in seen[1:],
@@ -161,22 +188,40 @@ with sync_playwright() as p:
     if keys.count() == 0:
         check(False, "the 6x6 grid keyboard is showing for a mouse")
     else:
-        for ch in ["M", "A"]:
-            page.locator('[data-testid="frog-search"] [role="group"] button', has_text=ch).first.click()
-            page.wait_for_timeout(150)
+        # Click keys that are actually LIVE, rather than naming letters. The board dims
+        # every key that would lead nowhere, and Playwright rightly refuses to click a
+        # disabled one — so a hardcoded "M then A" works against a real library and fails
+        # against a small one, where the second letter is already a dead end. Re-query
+        # after each press, because typing changes which keys still lead somewhere.
+        live = '[data-testid="frog-search"] [role="group"] button:not([aria-disabled="true"])'
+        typed_count = 0
+        for _ in range(2):
+            if page.locator(live).count() == 0:
+                break
+            page.locator(live).first.click()
+            page.wait_for_timeout(200)
+            typed_count += 1
         typed = page.locator('[data-testid="frog-search-query"]').inner_text()
-        check(len(typed) == 2, f"clicking grid keys types ({typed!r})")
+        check(typed_count > 0, "the board offers at least one live key to click")
+        check(
+            len(typed) == typed_count,
+            f"clicking {typed_count} live grid key(s) types exactly that ({typed!r})",
+        )
 
         page.locator('[data-testid="frog-search-backspace"]').click()
         page.wait_for_timeout(200)
         after = page.locator('[data-testid="frog-search-query"]').inner_text()
-        check(len(after) == 1, f"backspace takes a letter back ({typed!r} -> {after!r})")
+        check(
+            len(after) == typed_count - 1,
+            f"backspace takes a letter back ({typed!r} -> {after!r})",
+        )
 
-        page.locator('[data-testid="frog-search-clear"]').click()
-        page.wait_for_timeout(200)
+        if page.locator('[data-testid="frog-search-clear"]').count():
+            page.locator('[data-testid="frog-search-clear"]').click()
+            page.wait_for_timeout(200)
         check(
             page.locator('[data-testid="frog-search-backspace"]').count() == 0,
-            "clear empties the query (and the buttons go with it)",
+            "the query ends empty, and the delete buttons go with it",
         )
 
     # ---- the cursor is never hidden for a mouse user ----------------------------
