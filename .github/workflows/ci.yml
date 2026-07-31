@@ -33,6 +33,13 @@ jobs:
       - name: Build images
         run: docker compose --profile dev build
 
+      # Before the tests, because it is the fastest gate and the one that catches a
+      # whole class the others structurally cannot: vite does not scope-check, so a
+      # reference to an undefined variable builds clean and throws at RUNTIME. v0.10.0
+      # shipped exactly that in an effect's dependency array and served a blank player.
+      - name: Lint (eslint)
+        run: scripts/lint.sh
+
       - name: Unit tests (pytest + Vitest)
         run: scripts/test.sh
 
