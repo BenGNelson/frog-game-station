@@ -93,7 +93,11 @@ export default function Search({ query, results, zone, keyIndex, resultRow, allG
                 className="mb-3 flex h-11 items-center gap-1 rounded-xl px-4"
                 style={{ background: FROG.panel, border: `1px solid ${FROG.line}` }}
               >
-                <span className="text-lg font-semibold tracking-wide" style={{ color: query ? FROG.ink : FROG.faint }}>
+                <span
+                  data-testid="frog-search-query"
+                  className="text-lg font-semibold tracking-wide"
+                  style={{ color: query ? FROG.ink : FROG.faint }}
+                >
                   {query || 'Type to search'}
                 </span>
                 <span
