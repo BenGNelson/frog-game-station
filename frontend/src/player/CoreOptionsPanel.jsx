@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { ChevronLeft, RotateCcw, SlidersHorizontal } from 'lucide-react'
 import { valueLabel } from '../lib/coreOptions.js'
 import { FROG, scrim, SCRIM, focusRing } from '../frog/theme.js'
+import { hoverMove } from '../lib/pointer.js'
 
 // The System options screen — the running core's own knobs.
 //
@@ -83,7 +84,7 @@ export default function CoreOptionsPanel({
                 recoverable from inside the game rather than by editing storage. */}
             <button
               onClick={onReset}
-              onMouseMove={() => onFocus(resetIndex)}
+              onMouseMove={hoverMove(() => onFocus(resetIndex))}
               data-focused={focus === resetIndex || undefined}
               aria-current={focus === resetIndex || undefined}
               className="mt-4 flex w-full items-center gap-2 rounded-xl border px-3 py-2.5 text-left text-sm font-medium transition-colors"
@@ -110,7 +111,7 @@ function OptionRow({ row, focused, onStep, onHover }) {
       data-testid="core-option-row"
       data-focused={focused || undefined}
       aria-current={focused || undefined}
-      onMouseMove={onHover}
+      onMouseMove={hoverMove(onHover)}
       className="flex w-full items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors"
       style={{
         background: focused ? `rgba(${FROG.jade}, 0.14)` : FROG.panel,

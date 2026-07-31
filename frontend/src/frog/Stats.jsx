@@ -4,6 +4,7 @@ import { FROG, focusRing } from './theme.js'
 import { formatBytes, formatPlaytime } from '../lib/format.js'
 import Heading from './Heading.jsx'
 import Frog, { Reflected } from './Frog.jsx'
+import { hoverMove } from '../lib/pointer.js'
 
 // Pond stats — the library looking back at you. Presentational like Settings/Storage:
 // FrogBrowser derives the numbers (frog/stats.js) and owns the focus row; this draws
@@ -93,7 +94,7 @@ function Card({ id, focus, onFocus, Icon, title, children }) {
   return (
     <div
       data-focused={focused || undefined}
-      onMouseMove={() => onFocus(id)}
+      onMouseMove={hoverMove(() => onFocus(id))}
       className="rounded-xl px-4 py-3 transition-colors"
       style={{ background: FROG.panel, boxShadow: focused ? focusRing() : `inset 0 0 0 1px ${FROG.line}` }}
     >

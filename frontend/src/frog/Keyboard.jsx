@@ -5,6 +5,7 @@ import { ROWS, effectiveCaps } from '../lib/keyboard.js'
 import { FROG } from './theme.js'
 import ModalScrim from './ModalScrim.jsx'
 import { useRipple, Ripples } from './ripple.jsx'
+import { hoverMove } from '../lib/pointer.js'
 
 // FROG GAME STATION — the on-screen keyboard.
 //
@@ -111,7 +112,7 @@ function Key({ keyDef, caps, shift, on, accent, onHover, onPress }) {
   if (!fn) {
     const glyph = /[a-z]/i.test(keyDef) ? (caps ? keyDef.toUpperCase() : keyDef.toLowerCase()) : keyDef
     return (
-      <button type="button" onMouseMove={onHover} onClick={press} className={`${common} flex-1`} style={base}>
+      <button type="button" onMouseMove={hoverMove(onHover)} onClick={press} className={`${common} flex-1`} style={base}>
         <Ripples ripples={ripples} accent={active ? FROG.lineRGB : accent} />
         {glyph}
       </button>
@@ -125,7 +126,7 @@ function Key({ keyDef, caps, shift, on, accent, onHover, onPress }) {
     <button
       type="button"
       aria-label={label}
-      onMouseMove={onHover}
+      onMouseMove={hoverMove(onHover)}
       onClick={press}
       className={`${common} ${grow} gap-1.5`}
       style={base}

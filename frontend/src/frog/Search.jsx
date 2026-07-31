@@ -7,6 +7,7 @@ import { useRipple, Ripples } from './ripple.jsx'
 import { KEYS, COLS, liveKeys } from './search.js'
 import Frog, { Reflected } from './Frog.jsx'
 import SystemChip from './SystemChip.jsx'
+import { hoverMove } from '../lib/pointer.js'
 
 // The search screen.
 //
@@ -159,7 +160,7 @@ export default function Search({ query, results, zone, keyIndex, resultRow, allG
                     type="button"
                     data-focused={on || undefined}
                     data-testid="frog-search-row"
-                    onMouseMove={() => onResult(i)}
+                    onMouseMove={hoverMove(() => onResult(i))}
                     onClick={() => onPick(g)}
                     className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left transition-colors"
                     style={{
@@ -220,7 +221,7 @@ function GridKey({ ch, on, dead, onHover, onPress }) {
     <button
       type="button"
       aria-disabled={dead || undefined}
-      onMouseMove={onHover}
+      onMouseMove={hoverMove(onHover)}
       onClick={(e) => {
         if (!dead) spawnRipple(e)
         onPress(e)
@@ -256,7 +257,7 @@ function RecentSearches({ recent, zone, resultRow, onResult, onRecent, onRemoveR
                 type="button"
                 data-focused={on || undefined}
                 data-testid="frog-recent-search"
-                onMouseMove={() => onResult(i)}
+                onMouseMove={hoverMove(() => onResult(i))}
                 onClick={() => onRecent(r.q)}
                 className="flex min-w-0 flex-1 items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors"
                 style={{
@@ -310,7 +311,7 @@ function Suggestions({ suggestions, zone, resultRow, onResult, onRun }) {
               type="button"
               data-focused={on || undefined}
               data-testid="frog-suggestion"
-              onMouseMove={() => onResult(i)}
+              onMouseMove={hoverMove(() => onResult(i))}
               onClick={() => onRun(q)}
               className="flex items-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-medium transition-colors"
               style={{

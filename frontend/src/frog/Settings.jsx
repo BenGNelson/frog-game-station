@@ -2,6 +2,7 @@ import { RefreshCw, KeyRound, Gamepad2, Volume2, Hand, HardDrive, BarChart3 } fr
 import { FROG, focusRing } from './theme.js'
 import { useRipple, Ripples } from './ripple.jsx'
 import { TOUCH_OPACITY_LEVELS, nearestOpacityLevel } from '../lib/playerSettings.js'
+import { hoverMove } from '../lib/pointer.js'
 
 // The settings screen.
 //
@@ -206,7 +207,7 @@ function Card({ focused, onFocus, children }) {
   return (
     <div
       data-focused={focused || undefined}
-      onMouseMove={onFocus}
+      onMouseMove={hoverMove(onFocus)}
       className="rounded-xl px-4 py-3 transition-colors"
       style={{
         background: FROG.panel,

@@ -9,6 +9,7 @@ import { usesNativeKeyboard } from '../frog/input.js'
 import { applyKey, keyAt, moveKey, deleteChar } from '../lib/keyboard.js'
 import Keyboard from '../frog/Keyboard.jsx'
 import '../frog/frog.css'
+import { hoverMove } from '../lib/pointer.js'
 
 const SCROLL_STEP = 96
 // A held up/down counts as the SAME run while repeats keep arriving inside this window
@@ -416,7 +417,7 @@ function DexRow({ p, focused, onFocus, onOpen }) {
     <li>
       <button
         data-focused={focused || undefined}
-        onMouseMove={onFocus}
+        onMouseMove={hoverMove(onFocus)}
         onClick={onOpen}
         className="flex w-full items-center gap-3 rounded-lg px-3 py-1.5 text-left transition-colors"
         style={{
@@ -441,7 +442,7 @@ function DexTile({ p, focused, onFocus, onOpen }) {
     <li>
       <button
         data-focused={focused || undefined}
-        onMouseMove={onFocus}
+        onMouseMove={hoverMove(onFocus)}
         onClick={onOpen}
         className="flex w-full flex-col items-center gap-0.5 rounded-lg px-1 py-2 transition-colors"
         style={{

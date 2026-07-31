@@ -10,6 +10,7 @@ import { Reflected, SystemFrog } from './Frog.jsx'
 import { FinishedBadge, HackBadge, HackTag } from './badges.jsx'
 import EmptyState from './EmptyState.jsx'
 import SystemChip from './SystemChip.jsx'
+import { hoverMove } from '../lib/pointer.js'
 
 // Row height. Bigger on a TV/desktop (`lg`) — 15px rows on a 1080p panel viewed from a
 // sofa are below 10-foot legibility, and it's exactly where there's the most empty room.
@@ -231,7 +232,7 @@ export default function GameList({ system, collection, loading = false, games, f
                   type="button"
                   data-focused={on || undefined}
                   data-testid="frog-row"
-                  onMouseMove={() => onFocus(index)}
+                  onMouseMove={hoverMove(() => onFocus(index))}
                   onClick={() => onPick(g)}
                   className="flex w-full items-center gap-3 rounded-xl px-3 text-left transition-colors lg:gap-4 lg:px-4"
                   style={{

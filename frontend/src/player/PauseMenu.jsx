@@ -3,6 +3,7 @@ import { Play, Save, Camera, FastForward, Rewind, Maximize, Tv, Gauge, Gamepad2,
 import { moveInGrid } from '../lib/gridNav.js'
 import { FROG, scrim, SCRIM, focusRing } from '../frog/theme.js'
 import { radiantBackdrop } from '../lib/glow.js'
+import { hoverMove } from '../lib/pointer.js'
 
 // The in-game menu. Replaces EmulatorJS's own bottom bar, which is a strip of
 // small mouse-sized icons that a D-pad can't reach.
@@ -235,11 +236,10 @@ function MenuRow({ item, focused, onSelect, onHover, onAdjust }) {
       // so a test can count what's drawn against what pauseItems returned.
       data-testid="pause-row"
       onClick={onSelect}
-      // Hover-focus is onMouseMove app-wide (not onMouseEnter): with a pad and a mouse
-      // both live, a mouse *nudge* over an item re-claims the cursor even when the pointer
-      // was already sitting there after the D-pad moved focus elsewhere. onMouseEnter would
-      // miss that (no fresh "enter"), so the two inputs could disagree on what's focused.
-      onMouseMove={onHover}
+      // Hover-focus is onMouseMove app-wide, wrapped in hoverMove — see lib/pointer.js
+      // for why it's a move and not an enter, and why the move has to be checked against
+      // the last position before it's believed.
+      onMouseMove={hoverMove(onHover)}
       aria-current={focused || undefined}
       className="flex w-full items-center gap-3 rounded-xl border px-4 py-2.5 text-left transition-all active:scale-[0.99]"
       style={{

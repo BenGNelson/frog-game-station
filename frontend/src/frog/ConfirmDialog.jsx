@@ -3,6 +3,7 @@ import { useFocusTrap } from '../lib/useFocusTrap.js'
 import { FROG } from './theme.js'
 import ModalScrim from './ModalScrim.jsx'
 import Button from './Button.jsx'
+import { hoverMove } from '../lib/pointer.js'
 
 // A small yes/no gate. Controller-drivable and tappable — it guards a delete/remove
 // behind one deliberate step. Shared by the game-detail page and the in-game save-state
@@ -73,7 +74,7 @@ export default function ConfirmDialog({
             data-testid="frog-confirm-yes"
             focused={yesFocused}
             onClick={onYes}
-            onMouseMove={() => onFocusChange?.(0)}
+            onMouseMove={hoverMove(() => onFocusChange?.(0))}
           >
             {yesLabel}
           </Button>
@@ -81,7 +82,7 @@ export default function ConfirmDialog({
             variant="quiet"
             focused={noFocused}
             onClick={onNo}
-            onMouseMove={() => onFocusChange?.(1)}
+            onMouseMove={hoverMove(() => onFocusChange?.(1))}
             style={
               noFocused
                 ? { background: `rgba(${FROG.jade}, 0.16)`, color: `rgb(${FROG.jade})` }

@@ -2,6 +2,7 @@ import { useRef } from 'react'
 import { Play, Trash2 } from 'lucide-react'
 import { useFocusTrap } from '../lib/useFocusTrap.js'
 import { FROG, scrim, SCRIM, focusRing } from '../frog/theme.js'
+import { hoverMove } from '../lib/pointer.js'
 
 // The Load/Delete chooser for a save state.
 //
@@ -68,7 +69,7 @@ export default function SaveActionMenu({ title, focus, onFocusChange, onLoad, on
                 type="button"
                 data-focused={on || undefined}
                 onClick={() => commit(i)}
-                onMouseMove={() => onFocusChange(i)}
+                onMouseMove={hoverMove(() => onFocusChange(i))}
                 className="flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left text-sm font-medium transition-colors"
                 style={{
                   background: on ? `rgba(${tint}, 0.14)` : 'transparent',

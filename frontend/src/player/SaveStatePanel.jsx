@@ -5,6 +5,7 @@ import { Spinner } from '../components/ui.jsx'
 import { moveInGrid } from '../lib/gridNav.js'
 import { FROG, scrim, SCRIM, focusRing, FOCUS_SCALE } from '../frog/theme.js'
 import EmptyState from '../frog/EmptyState.jsx'
+import { hoverMove } from '../lib/pointer.js'
 
 // The in-game save-state shelf, opened from the pause menu.
 //
@@ -164,7 +165,7 @@ export default function SaveStatePanel({
         <div ref={gridRef} className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           <button
             onClick={onSave}
-            onMouseMove={() => onFocus(0)}
+            onMouseMove={hoverMove(() => onFocus(0))}
             disabled={busy}
             data-focused={focus === 0 || undefined}
             className="flex aspect-[4/3] flex-col items-center justify-center gap-2 rounded-xl border border-dashed transition-transform active:opacity-80 disabled:opacity-50"
@@ -181,7 +182,7 @@ export default function SaveStatePanel({
           </button>
 
           {states.map((s, i) => (
-            <div key={s.slot} data-focused={focus === i + 1 || undefined} onMouseMove={() => onFocus(i + 1)}>
+            <div key={s.slot} data-focused={focus === i + 1 || undefined} onMouseMove={hoverMove(() => onFocus(i + 1))}>
               <SaveStateCard
                 game={game}
                 state={s}
@@ -202,7 +203,7 @@ export default function SaveStatePanel({
               <button
                 key={c.id}
                 onClick={c.run}
-                onMouseMove={() => onFocus(idx)}
+                onMouseMove={hoverMove(() => onFocus(idx))}
                 data-focused={f || undefined}
                 className="flex aspect-[4/3] flex-col items-center justify-center gap-2 rounded-xl border border-dashed transition-transform active:opacity-80"
                 style={{

@@ -9,6 +9,7 @@ import { Reflected, SystemFrog } from './Frog.jsx'
 import { FinishedBadge, HackBadge } from './badges.jsx'
 import Heading from './Heading.jsx'
 import Console from './Console.jsx'
+import { hoverMove } from '../lib/pointer.js'
 
 // The shelf: Frog Game Station's home screen.
 //
@@ -50,7 +51,7 @@ function SystemTile({ system, focused, onFocus, onPick }) {
       type="button"
       data-testid="frog-system"
       data-focused={focused || undefined}
-      onMouseMove={onFocus}
+      onMouseMove={hoverMove(onFocus)}
       onClick={onPick}
       disabled={empty}
       className="group relative flex w-full flex-col items-center rounded-2xl px-2 pb-3 pt-4 transition-transform duration-200"
@@ -92,7 +93,7 @@ function GameCard({ game, focused, finished, hack, onFocus, onPick }) {
       type="button"
       data-testid="frog-jump"
       data-focused={focused || undefined}
-      onMouseMove={onFocus}
+      onMouseMove={hoverMove(onFocus)}
       onClick={onPick}
       className="relative flex w-36 shrink-0 flex-col overflow-hidden rounded-xl text-left transition-transform duration-200 sm:w-40"
       style={{
@@ -141,7 +142,7 @@ function SeeAllCard({ collection, focused, onFocus, onPick }) {
       type="button"
       data-testid="frog-collection-all"
       data-focused={focused || undefined}
-      onMouseMove={onFocus}
+      onMouseMove={hoverMove(onFocus)}
       onClick={onPick}
       className="relative flex aspect-[3/4] w-36 shrink-0 flex-col items-center justify-center gap-2 rounded-xl px-3 text-center transition-transform duration-200 sm:w-40"
       style={{
@@ -172,7 +173,7 @@ function SurpriseCard({ focused, onFocus, onPick }) {
       type="button"
       data-testid="frog-surprise"
       data-focused={focused || undefined}
-      onMouseMove={onFocus}
+      onMouseMove={hoverMove(onFocus)}
       onClick={onPick}
       className="relative flex aspect-[3/4] w-36 shrink-0 flex-col items-center justify-center gap-2 rounded-xl px-3 text-center transition-transform duration-200 sm:w-40"
       style={{
