@@ -15,6 +15,7 @@ point elsewhere (e.g. the frontend-dev server on :5174).
 """
 import os
 import sys
+import urllib.parse
 
 from playwright.sync_api import sync_playwright
 
@@ -45,6 +46,31 @@ PAGES = [
     ("/frog", []),           # the games browser (boot → shelf)
     ("/play", ["Back to Games"]),  # player with no game → its guard screen
 ]
+
+
+# The player page, resolved from whatever is actually in the library.
+#
+# This exists because v0.10.0 shipped a BLANK player: an effect's dependency array
+# referenced an undefined variable, which throws during render. Every /play check at the
+# time asserted only the URL, or the no-game guard screen — so nothing ever mounted the
+# component that was broken. The checks below (root non-empty, no console errors, no
+# pageerror) all catch a render throw; they just never got the chance to look at it.
+#
+# Resolved at runtime rather than hardcoded, because the library differs by machine: CI
+# points ROMS_DIR at e2e/fixtures/roms, a dev box points it at a real collection.
+def player_page(base):
+    import json
+    import urllib.request
+
+    try:
+        with urllib.request.urlopen(f"{base}/api/library/games", timeout=10) as r:
+            items = json.load(r).get("items") or []
+    except Exception as e:
+        return None, f"library query failed: {e}"
+    if not items:
+        return None, "the library is empty"
+    g = items[0]
+    return f"/play?id={urllib.parse.quote(g['id'])}&core={urllib.parse.quote(g['core'])}", None
 
 
 def check_page(page, path, expect):
@@ -158,7 +184,15 @@ def main():
     failures = []
     with sync_playwright() as p:
         browser = p.chromium.launch()
-        for path, expect in PAGES:
+        pages = list(PAGES)
+        # The one page that mounts PlayerShell. Skipped loudly rather than silently if the
+        # library is empty — a check that quietly vanishes is how the blank player survived.
+        pp, why = player_page(BASE_URL)
+        if pp:
+            pages.append((pp, []))
+        else:
+            print(f"--   SKIPPING the player-mounts check: {why}")
+        for path, expect in pages:
             page = browser.new_page()
             try:
                 problems = check_page(page, path, expect)
