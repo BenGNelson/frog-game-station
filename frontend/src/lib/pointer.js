@@ -103,9 +103,36 @@ export function pointerMoved(e) {
 export const hoverMove = (fn) =>
   typeof fn === 'function'
     ? (e) => {
-        if (pointerMoved(e)) fn(e)
+        if (!pointerMoved(e)) return
+        focusFromHover = true
+        fn(e)
       }
     : undefined
+
+// Did the focus change that is about to be rendered come from the MOUSE?
+//
+// Every surface keeps its focused item on screen with scrollIntoView. That is right for a
+// pad — focus can walk somewhere you cannot see — and actively wrong for a mouse, because
+// hovering something proves it is already on screen. Scrolling anyway drags the list
+// toward the cursor: park the pointer near the top of a game list and it creeps upward,
+// near the bottom and it creeps down, without you scrolling at all. The lists using
+// `block: 'center'` show it worst, since centring always moves something.
+//
+// Read-and-clear, consumed by the scroll effect that runs immediately after the focus
+// state change hoverMove just triggered.
+let focusFromHover = false
+export function consumeHoverFocus() {
+  const was = focusFromHover
+  focusFromHover = false
+  return was
+}
+
+// Cleared whenever a pad or key acts, so a hover that did NOT change focus (React bails
+// out when the index is unchanged, so no effect runs to consume the flag) cannot leave it
+// set and swallow the next genuine pad scroll.
+export function clearHoverFocus() {
+  focusFromHover = false
+}
 
 // A mouse, as opposed to a finger or a stylus. Pointer events carry this; the legacy
 // mouse events iOS synthesises after a tap do NOT, which is exactly why the input-mode
@@ -126,6 +153,7 @@ export function wakesCursor(e) {
 // Tests only — the module-level record is a singleton by design, so a suite that asserts
 // on the seeding behaviour has to be able to get back to a clean slate.
 export function resetPointer() {
+  focusFromHover = false
   records.pointer = null
   records.mouse = null
   memo.pointer = { event: null, result: false }

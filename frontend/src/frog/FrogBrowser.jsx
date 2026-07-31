@@ -43,7 +43,7 @@ import {
   isTouchMode,
   hidesIdleCursor,
 } from './input.js'
-import { isMousePointer, pointerMoved } from '../lib/pointer.js'
+import { isMousePointer, pointerMoved, clearHoverFocus } from '../lib/pointer.js'
 import { useIdleCursor } from '../lib/useIdleCursor.js'
 import { FROG, systemStyle, FONT_DISPLAY, focusRing } from './theme.js'
 import Caustics from './Caustics.jsx'
@@ -1246,6 +1246,11 @@ export default function FrogBrowser() {
   // Held in a ref so the poll loop is installed once and never re-installed mid-press.
   const act = useRef(() => {})
   act.current = (action) => {
+    // A pad or key is acting, so the next focus change is theirs and DOES want the list
+    // moved. Clearing here also stops a stale flag: a hover that lands on the
+    // already-focused row sets it, React bails out of the re-render, and no scroll effect
+    // runs to consume it — which would otherwise swallow the next genuine pad scroll.
+    clearHoverFocus()
     if (screen === 'boot') return
     // Nothing to point at yet. Without this, presses land against the skeleton's
     // placeholder rails and strand focus the moment the real ones arrive.

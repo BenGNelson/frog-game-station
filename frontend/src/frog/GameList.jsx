@@ -10,7 +10,7 @@ import { Reflected, SystemFrog } from './Frog.jsx'
 import { FinishedBadge, HackBadge, HackTag } from './badges.jsx'
 import EmptyState from './EmptyState.jsx'
 import SystemChip from './SystemChip.jsx'
-import { hoverMove } from '../lib/pointer.js'
+import { hoverMove, consumeHoverFocus } from '../lib/pointer.js'
 
 // Row height. Bigger on a TV/desktop (`lg`) — 15px rows on a 1080p panel viewed from a
 // sofa are below 10-foot legibility, and it's exactly where there's the most empty room.
@@ -117,6 +117,8 @@ export default function GameList({ system, collection, loading = false, games, f
   // feel navigable rather than crawled.
   useEffect(() => {
     const el = scrollerRef.current?.querySelector('[data-focused]')
+    // A mouse can already see what it hovered; only a pad needs the list moved.
+    if (consumeHoverFocus()) return
     el?.scrollIntoView({ block: 'center', behavior: 'auto' })
   }, [focus, games])
 

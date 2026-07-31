@@ -10,7 +10,7 @@ import { FinishedBadge, HackBadge } from './badges.jsx'
 import Heading from './Heading.jsx'
 import Console from './Console.jsx'
 import { useWheelRails } from './useWheelRail.js'
-import { hoverMove } from '../lib/pointer.js'
+import { hoverMove, consumeHoverFocus } from '../lib/pointer.js'
 
 // The shelf: Frog Game Station's home screen.
 //
@@ -243,6 +243,9 @@ export default function Shelf({ rails, focus, finishedIds, hackIds, onFocus, onP
   // tile that the vertical scroll has pushed below the fold. The frog aside is
   // position:sticky (below), so this scrolls only the rails past a pinned frog.
   useEffect(() => {
+    // Only for a pad. `inline: 'center'` always moves a rail, so hovering a card would
+    // slide the rail under the cursor and hand you a different card.
+    if (consumeHoverFocus()) return
     const el = railRefs.current[focus.rail]?.children?.[focus.index]
     el?.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' })
   }, [focus])

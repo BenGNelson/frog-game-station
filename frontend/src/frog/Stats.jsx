@@ -4,7 +4,7 @@ import { FROG, focusRing } from './theme.js'
 import { formatBytes, formatPlaytime } from '../lib/format.js'
 import Heading from './Heading.jsx'
 import Frog, { Reflected } from './Frog.jsx'
-import { hoverMove } from '../lib/pointer.js'
+import { hoverMove, consumeHoverFocus } from '../lib/pointer.js'
 
 // Pond stats — the library looking back at you. Presentational like Settings/Storage:
 // FrogBrowser derives the numbers (frog/stats.js) and owns the focus row; this draws
@@ -16,6 +16,8 @@ export default function Stats({ stats, focus, onFocus }) {
   // Keep the controller cursor's card on screen (the pad scrolls by moving focus).
   const panelRef = useRef(null)
   useEffect(() => {
+    // A mouse can already see what it hovered; only a pad needs the list moved.
+    if (consumeHoverFocus()) return
     panelRef.current?.querySelector('[data-focused]')?.scrollIntoView({ block: 'nearest' })
   }, [focus])
   return (

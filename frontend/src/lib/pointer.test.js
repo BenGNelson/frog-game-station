@@ -7,6 +7,8 @@ import {
   isMousePointer,
   wakesCursor,
   resetPointer,
+  consumeHoverFocus,
+  clearHoverFocus,
 } from './pointer.js'
 
 // A mouse event, as much of one as any of this cares about.
@@ -144,6 +146,44 @@ describe('hoverMove', () => {
     const real = move(5, 5)
     onFocus(real)
     expect(seen).toBe(real)
+  })
+})
+
+describe('where the focus change came from', () => {
+  // Every surface scrolls its focused item into view. Right for a pad, which can walk
+  // focus somewhere you cannot see; wrong for a mouse, because hovering something proves
+  // it is already on screen — and scrolling anyway drags the list toward the cursor.
+  const mm = (x, y) => ({ type: 'mousemove', clientX: x, clientY: y })
+
+  it('reports a hover, once', () => {
+    const onFocus = hoverMove(() => {})
+    onFocus(mm(10, 10)) // seed
+    onFocus(mm(40, 10)) // a real move
+    expect(consumeHoverFocus()).toBe(true)
+    // Read-and-clear: the next focus change is somebody else's until a hover says so.
+    expect(consumeHoverFocus()).toBe(false)
+  })
+
+  it('says nothing about a focus change no hover caused', () => {
+    expect(consumeHoverFocus()).toBe(false)
+  })
+
+  it('is not set by a hover that the movement guard rejected', () => {
+    const onFocus = hoverMove(() => {})
+    onFocus(mm(10, 10))
+    onFocus(mm(10, 10)) // the page scrolled under a resting cursor
+    expect(consumeHoverFocus()).toBe(false)
+  })
+
+  it('is cleared when a pad or key acts', () => {
+    // The staleness guard: a hover onto the ALREADY-focused row sets the flag, React
+    // bails out of the re-render, and no scroll effect runs to consume it. Without this
+    // the next genuine pad scroll would be swallowed.
+    const onFocus = hoverMove(() => {})
+    onFocus(mm(10, 10))
+    onFocus(mm(60, 10))
+    clearHoverFocus()
+    expect(consumeHoverFocus()).toBe(false)
   })
 })
 
