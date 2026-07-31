@@ -7,7 +7,7 @@ import { useRipple, Ripples } from './ripple.jsx'
 import { KEYS, COLS, liveKeys } from './search.js'
 import Frog, { Reflected } from './Frog.jsx'
 import SystemChip from './SystemChip.jsx'
-import { hoverMove } from '../lib/pointer.js'
+import { hoverMove, consumeHoverFocus } from '../lib/pointer.js'
 
 // The search screen.
 //
@@ -49,6 +49,8 @@ export default function Search({ query, results, zone, keyIndex, resultRow, allG
   const listRef = useRef(null)
   useEffect(() => {
     if (zone !== 'results') return
+    // A mouse can already see what it hovered; only a pad needs the list moved.
+    if (consumeHoverFocus()) return
     listRef.current?.querySelector('[data-focused]')?.scrollIntoView({ block: 'center', behavior: 'auto' })
   }, [zone, resultRow])
 

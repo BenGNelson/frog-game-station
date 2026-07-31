@@ -6,7 +6,7 @@ import Button from './Button.jsx'
 import Heading from './Heading.jsx'
 import EmptyState from './EmptyState.jsx'
 import ConfirmDialog from './ConfirmDialog.jsx'
-import { hoverMove } from '../lib/pointer.js'
+import { hoverMove, consumeHoverFocus } from '../lib/pointer.js'
 
 // The Downloads & Storage screen — the UI over lib/offlineStore's accounting layer.
 // Presentational, same contract as Settings: FrogBrowser owns the focus row, loads the
@@ -36,6 +36,8 @@ export default function Storage({
   // pad scrolls by moving focus, not by scrolling. No-op for mouse/touch.
   const panelRef = useRef(null)
   useEffect(() => {
+    // A mouse can already see what it hovered; only a pad needs the list moved.
+    if (consumeHoverFocus()) return
     panelRef.current?.querySelector('[data-focused]')?.scrollIntoView({ block: 'nearest' })
   }, [focus])
 

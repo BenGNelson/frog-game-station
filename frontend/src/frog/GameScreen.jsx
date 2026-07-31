@@ -18,7 +18,7 @@ import { FinishedBadge, HackBadge, HackTag } from './badges.jsx'
 import { agoLabel } from './shelf.js'
 import Keyboard from './Keyboard.jsx'
 import TrailerOverlay from './Trailer.jsx'
-import { hoverMove } from '../lib/pointer.js'
+import { hoverMove, consumeHoverFocus } from '../lib/pointer.js'
 import { useWheelRail } from './useWheelRail.js'
 
 // FROG GAME STATION — a game's page.
@@ -803,6 +803,7 @@ function SimilarRail({ games, focusedIndex, onFocus, onOpen }) {
   // shelf's rails). Harmless in touch mode, where focusedIndex stays -1.
   useEffect(() => {
     if (focusedIndex < 0) return
+    if (consumeHoverFocus()) return
     rowRef.current?.children?.[focusedIndex]?.scrollIntoView({
       block: 'nearest',
       inline: 'center',
