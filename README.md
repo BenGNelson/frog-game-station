@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/BenGNelson/frog-game-station/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/BenGNelson/frog-game-station/ci.yml?branch=main&style=flat-square&label=CI&logo=github" alt="CI"></a>
-  <img src="https://img.shields.io/badge/version-0.9.0-2ea44f?style=flat-square" alt="Version 0.9.0">
+  <img src="https://img.shields.io/badge/version-0.10.0-2ea44f?style=flat-square" alt="Version 0.10.0">
   <img src="https://img.shields.io/badge/license-MIT-2ea44f?style=flat-square" alt="License: MIT">
   <img src="https://img.shields.io/badge/React-18-149eca?style=flat-square&logo=react&logoColor=white" alt="React">
   <img src="https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white" alt="FastAPI">
