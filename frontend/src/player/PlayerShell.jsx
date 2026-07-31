@@ -176,6 +176,8 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
   // booting), `booted` = the engine is live, `bootDone` = the frog is taking its bow.
   const [bootAt, setBootAt] = useState(null)
   const [booted, setBooted] = useState(false)
+  // Bumped on every iframe document load — see onFrameLoad.
+  const [frameGen, setFrameGen] = useState(0)
   const [loadFailed, setLoadFailed] = useState(false)
   const [bootDone, setBootDone] = useState(false)
 
@@ -305,6 +307,13 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
   }, [])
 
   const onFrameLoad = useCallback(() => {
+    // A NEW document is now in the frame. Anything we injected into the old one — the
+    // cursor stylesheet, the activity listeners — died with it, so bump this and let the
+    // effects that reach into the frame re-run. Keyed on the load itself rather than on
+    // a state flag that merely happens to change nearby: at mount the frame still holds
+    // its throwaway about:blank, which is same-origin and accepts injections quite
+    // happily, and they are all discarded the moment emulator.html arrives.
+    setFrameGen((n) => n + 1)
     frameRef.current?.contentWindow?.focus?.()
     // Both of these must happen BEFORE the engine builds anything: they patch the
     // player document's own constructors. trackAudio catches its AudioContext;
@@ -741,14 +750,14 @@ export default function PlayerShell({ id, core, name, label, coverV, loadStateUr
   const { hidden: cursorHidden, wake: wakeCursor } = useIdleCursor({ enabled: padActive })
   useEffect(() => {
     setFrameCursor(frameRef.current, cursorHidden)
-  }, [cursorHidden, started])
+  }, [cursorHidden, frameGen])
   useEffect(() => {
     if (!padActive) return undefined
     // Feed the frame's activity to the hook's own wake path, not just to the frame's
     // class — otherwise the parent's timer stays latched and the cursor re-hides the
     // moment anything else re-renders.
     return onFrameActivity(frameRef.current, wakeCursor)
-  }, [padActive, started, wakeCursor])
+  }, [padActive, frameGen, wakeCursor])
 
   // The battery save — the game's own "Save", the one that costs you hours.
   //

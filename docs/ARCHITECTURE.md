@@ -89,9 +89,17 @@ reachable from anywhere. The shape of them is the design:
   control it follows rail 0**, so the cursor ends up on Jump-back-in's first game instead of
   locking onto the systems placeholder. A restored non-default position (returning from a game)
   counts as already-driven and is preserved as-is.
-- **The systems row never scrolls.** A small, fixed set of machines fits on one screen —
+- **The systems block never scrolls.** A small, fixed set of machines fits on one screen —
   no carousel, no hidden tile — so you can see the shape of the whole collection at a
   glance. A system with no games keeps its tile, dimmed.
+- **It is drawn as a grid, so the D-pad walks it as one.** A rail may declare `cols` (and
+  `centerLastRow`); the systems rail is the only one that does. Up/down then move between
+  its rows and only the top and bottom rows hand back to the rail walk, instead of it
+  being one flat row you step all the way across. Entering lands on the row you arrived
+  at, keeping the remembered column. The column count is a single exported constant that
+  both the render and the nav model read — including the centred orphan, since a short
+  last row is drawn in the middle and the walk has to agree about where that tile is. The
+  shoulder buttons still skip the whole rail; they are the "jump a section" control.
 - **One system's games are a TEXT LIST, not a grid of covers.** Retro box art is a small
   logo on a flat field: shrink hundreds of them and you get hundreds of identical
   rectangles, so you end up reading the labels anyway. Retro titles are also long, and a
@@ -491,20 +499,57 @@ stretch to fill the rail height** (`flex-1`), so each letter is a thumb-band, no
 **Touch is a first-class control model, not a fallback.** A phone has no controller, so the
 same browser has to be navigable by thumb — and it mostly already is, because every screen
 is built from real `<button onClick>` tiles/rows, so a tap plays or drills in exactly where
-a D-pad's A would. Input tracks ONE `mode` (`touch` | `pad`): it opens from the pointer
-kind (a coarse-pointer phone starts in `touch`), then every real input keeps it honest — a
-gamepad button flips it to `pad`, a finger flips it back. So a tablet with a controller
-opens in `touch`, becomes `pad` the instant a button is pressed, and flips back on a tap.
-`mode` decides only the two places a finger and a D-pad genuinely disagree: **(1)** the
-header carries a **search button** for touch (a pad has X + the legend; a thumb had no way
-in before), and **(2)** search forks its keyboard — on touch it swaps the 6×6 dead-key grid
-for the **device's own keyboard** (familiar, and it doesn't fight the muscle memory of
-every other text field). The controller legend is hidden in touch mode, and the global
-keydown router yields to a focused `<input>` so the native field's keystrokes never
-double-fire. Hover-to-focus is **`onMouseMove` everywhere** (not `onMouseEnter`): with a
-pad and a mouse both live, a mouse *nudge* has to re-claim the cursor even when the pointer
-was already resting on an item after the D-pad moved focus off it — `onMouseEnter` fires
-only on a fresh crossing and would let the two inputs disagree.
+a D-pad's A would. Input tracks ONE `mode`, with **three** values (`touch` | `pad` |
+`desktop`): it opens from the pointer kind and from what this tab was last in (a
+coarse-pointer phone starts in `touch`, a fine pointer in `desktop`), then every real input
+keeps it honest — a gamepad button flips it to `pad`, a finger to `touch`, a mouse to
+`desktop`. So a tablet with a controller opens in `touch`, becomes `pad` the instant a
+button is pressed, and flips back on a tap.
+
+Opening a fine pointer in `desktop` rather than `pad` is safe for the couch because the
+**boot screen** stands in the way: the only way past it with a controller is a button
+press, and that handler sets the mode and the screen together, so a pad user is already in
+`pad` before the shelf exists. The mode rides on the tab-lifetime `place` object so it also
+survives the round trip through a game.
+
+**Ask the mode by name, never by inspecting it.** `frog/input.js` exports one predicate per
+question — `usesNativeKeyboard`, `showsPadLegend`, `isTouchMode`, `hidesIdleCursor` — because
+a single boolean here previously stood in for five unrelated decisions and had to be
+untangled by hand at every call site. The questions today: search forks its keyboard on
+**touch** only (the 6×6 dead-key grid is kept for `desktop`, where a hardware keyboard
+already types straight into it — swapping in a native field would trade the dead-key
+dimming for a paste target); the header's **search button** is the thumb's way in; the
+**controller legend** shows for `pad` alone, since it names A/B/X/Y; and the legend also
+owns the bottom safe-area inset, so whenever it is hidden the root takes that inset back.
+The global keydown router yields to a focused `<input>` so a native field's keystrokes
+never double-fire.
+
+Hover-to-focus is `onMouseMove` (not `onMouseEnter`): with a pad and a mouse both live, a
+mouse *nudge* has to re-claim the cursor even when the pointer was already resting on an
+item after the D-pad moved focus off it — `onMouseEnter` fires only on a fresh crossing.
+**But every hover site goes through `hoverMove()` from `lib/pointer.js`, and a new one
+must too.** A bare `onMouseMove` reintroduces a real bug: every focus change calls
+`scrollIntoView`, so a D-pad press slides the page under a resting cursor, the browser
+dispatches a move for whatever is now underneath, and the highlight snaps back to the
+mouse. `clientX/clientY` are viewport coordinates, so a move caused by content scrolling
+reports the same numbers; a hand that moved cannot.
+
+That module records the last position **per event stream**, which is the part worth
+knowing before touching it. One physical movement fires a `pointermove` *and* its
+compatibility `mousemove`; the window listeners (the mode machine, the idle cursor) watch
+the first while hover rides the second. A single shared record let whichever fired first
+consume the comparison — silently killing hover on a 1x display, and on Retina, where the
+two events differ by exactly 0.5px, letting both read as movement and bringing the original
+bug back. Coordinates are rounded for the same reason.
+
+Two more pointer-shaped modules sit alongside it: `lib/useIdleCursor.js` fades the mouse
+out after 5s while a controller is driving (a class on `<html>`, mirrored into the emulator
+iframe through `emuBridge.js` — CSS does not cross a document boundary, and the frame's own
+mouse activity has to come back out or the cursor stays hidden while it is being used), and
+`lib/wheelScroll.js` + `frog/useWheelRail.js` give a plain mouse wheel the horizontal rails,
+which hide their scrollbars and were otherwise unreachable without a drag target. The wheel
+listener is attached natively with `{ passive: false }`: React registers `wheel` at the root
+as passive, so `preventDefault()` inside an `onWheel` prop is ignored silently.
 
 Because navigation is a **virtual cursor** (the global key router + a `data-focused`
 attribute for styling) rather than real DOM focus, most of the UI's focus-visible rings

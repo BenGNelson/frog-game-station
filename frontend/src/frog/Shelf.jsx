@@ -35,9 +35,9 @@ import { hoverMove } from '../lib/pointer.js'
 // scale 1: the keyframes win and the pop silently never happens. (It even *worked*
 // under prefers-reduced-motion, where the animation is off, which is a fun way to be
 // misled.) The wrapper bobs; the child scales.
-function Floats({ delay, children, className = '' }) {
+function Floats({ delay, children, style }) {
   return (
-    <div className={`frog-float ${className}`} style={{ animationDelay: `${delay}ms` }}>
+    <div className="frog-float" style={{ animationDelay: `${delay}ms`, ...style }}>
       {children}
     </div>
   )
@@ -350,13 +350,19 @@ export default function Shelf({ rails, focus, finishedIds, hackIds, onFocus, onP
                     // gated off) read as 3-3-1, not 3-3 and a stray. `centerLastRow` on
                     // the rail teaches the D-pad the same thing, so pressing up from
                     // here lands on the tile your eye says is above it.
-                    className={
+                    // Computed, not a `col-start-2` class: moveInGrid puts the orphan's
+                    // up-target at Math.floor((cols - 1) / 2), so a hardcoded 2 is the
+                    // other half of exactly the coupling SYSTEM_COLS exists to remove —
+                    // change the column count and the cursor and the eye part ways again.
+                    // (A template-literal Tailwind class would not work either: v4 scans
+                    // for literal strings and would emit no rule at all.)
+                    style={
                       rail.centerLastRow &&
                       i === rail.items.length - 1 &&
                       rail.items.length % SYSTEM_COLS === 1 &&
                       rail.items.length > SYSTEM_COLS
-                        ? 'col-start-2'
-                        : ''
+                        ? { gridColumnStart: Math.floor((SYSTEM_COLS - 1) / 2) + 1 }
+                        : undefined
                     }
                   >
                     <SystemTile

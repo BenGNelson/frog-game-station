@@ -136,10 +136,17 @@ export function moveInRails(rails, focus, dir, memory = {}) {
   // remembered tile is the right answer for them.
   const targetCols = target.cols ? Math.min(target.cols, Math.max(1, target.items.length)) : 0
   if (targetCols && (dir === 'up' || dir === 'down')) {
-    const col = restored % targetCols
-    const lastRow = Math.floor((target.items.length - 1) / targetCols)
+    const n = target.items.length
+    // A CENTRED orphan's arithmetic column is not its drawn column, and this rule is
+    // about where the tile appears. The lone tile on a short last row is index n-1 —
+    // arithmetic column 0 — but centerLastRow draws it in the middle, which is the whole
+    // reason that flag exists. Read the column the eye sees, or leaving from the centred
+    // tile and coming back lands you on the left-hand column instead.
+    const orphan = target.centerLastRow && n % targetCols === 1 && n > targetCols
+    const col = orphan && restored === n - 1 ? Math.floor((targetCols - 1) / 2) : restored % targetCols
+    const lastRow = Math.floor((n - 1) / targetCols)
     const row = dir === 'down' ? 0 : lastRow
-    restored = clamp(row * targetCols + col, 0, target.items.length - 1)
+    restored = clamp(row * targetCols + col, 0, n - 1)
   }
   return { focus: { rail: next, index: restored }, memory: remembered }
 }

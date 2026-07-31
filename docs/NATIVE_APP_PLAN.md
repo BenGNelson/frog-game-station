@@ -281,7 +281,7 @@ native-only ones; the same `vite build` still produces the web PWA for the serve
   not optional; depth-copy/color-copy/threaded-renderer variants don't help.
   **The Mac N64 path is therefore angrylion+cxd4 (software RDP) today** — a locked
   60 fps on the M4 and full speed even on the server's CPU — with **paraLLEl-RDP
-  via Vulkan/MoltenVK as the post-1.0 quality upgrade** (requires hosting a Vulkan
+  via Vulkan/MoltenVK as the later quality upgrade** (requires hosting a Vulkan
   HW-render context; do not fight Apple GL). Phase-2 lesson (same family as the
   GET_VARIABLE one): the NativePlayer owns **per-OS default core options**.
   Phase-3 lessons, same family again: (a) `GET_VARIABLE_UPDATE` must answer **true

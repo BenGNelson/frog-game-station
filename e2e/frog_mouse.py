@@ -72,8 +72,15 @@ with sync_playwright() as p:
         check(False, f"need a system with 15+ games to walk; found {rows.count()}")
     else:
         # Put the cursor on a row, by hovering it for real.
+        # ROUNDED to whole pixels, deliberately. A PointerEvent reports sub-pixel
+        # positions and its compatibility MouseEvent twin rounds them, so at a fractional
+        # coordinate the two disagree by 0.5 and every guard reads "moved" — which is
+        # exactly how a shared last-seen record hid a dead hover from this test. Integer
+        # coordinates are what a 1x display and the Tauri app actually produce.
         box = rows.nth(3).bounding_box()
-        page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+        hx = round(box["x"] + box["width"] / 2)
+        hy = round(box["y"] + box["height"] / 2)
+        page.mouse.move(hx, hy)
         page.wait_for_timeout(250)
 
         # Identify the focused row by its NAME, not its position among the rendered
@@ -111,7 +118,7 @@ with sync_playwright() as p:
         # under the cursor by now, so the row it lands on is NOT the one first hovered;
         # what matters is only that a deliberate move takes focus off the keyboard's row
         # immediately, with no second nudge needed.
-        page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2 + 1)
+        page.mouse.move(hx, hy + 40)
         page.wait_for_timeout(250)
         after_move = focused_name()
         check(

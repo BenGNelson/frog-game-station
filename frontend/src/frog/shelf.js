@@ -111,10 +111,10 @@ export function buildShelf(items = [], recent = [], favorites = [], collections 
   ]
   return [
     ...history,
-    // `cols` makes the D-pad walk this rail as the GRID it is drawn as (Shelf.jsx
-    // renders `grid-cols-3`), so up/down move between its rows instead of it being one
-    // flat row you have to step all the way across. The two must agree — if the render
-    // ever becomes responsive, this has to follow, or the cursor and your eye part ways.
+    // `cols` makes the D-pad walk this rail as the GRID it is drawn as — Shelf.jsx
+    // builds its gridTemplateColumns from this same SYSTEM_COLS — so up/down move
+    // between its rows instead of it being one flat row you have to step all the way
+    // across. Both sides read the constant, so a responsive column count stays honest.
     // `centerLastRow` goes with the CSS below it in Shelf.jsx: seven tiles (a touch
     // device, where the disc era is gated off) read as 3-3-1 CENTRED rather than 3-3
     // and a stray, and the walk has to know that or pressing up from the lone tile

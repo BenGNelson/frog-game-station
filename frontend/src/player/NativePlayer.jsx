@@ -136,10 +136,19 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
   const [quitFocus, setQuitFocus] = useState(1)
 
   const [padActive, setPadActive] = useState(false)
+  // "A pad is DRIVING", which here is not the same as `padActive`.
+  //
+  // The web player's padActive flips on the first button press; this one also flips on
+  // the host's hot-plug event, i.e. on mere presence. That is right for what it is used
+  // for (naming the pad on the Controls screen before you touch it), and wrong for the
+  // cursor: a controller sitting connected on the desk would hide the mouse — and on this
+  // client the mouse IS the DS stylus, so it would vanish out from under a held drag on
+  // the touchscreen, which is a perfectly normal thing to be doing.
+  const [padDriving, setPadDriving] = useState(false)
   // Fade the mouse out while a pad is driving. No iframe here — the game renders on a GL
   // view UNDER a transparent webview, so the class on our own <html> covers the whole
   // stage and none of the emuBridge frame plumbing applies.
-  useIdleCursor({ enabled: padActive })
+  useIdleCursor({ enabled: padDriving })
   const [padId, setPadId] = useState(null)
   const [padName, setPadName] = useState(null)
   // Bumped on every hot-plug edge, purely to re-run the bindings push below.
@@ -767,11 +776,15 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
   useGamepad({
     onPadButton: (padid) => {
       setPadActive(true)
+      setPadDriving(true) // a real press, not just a pad on the desk
       setPadId(padid)
       // The pad's id is "<name>:<index>" — the name is what a human recognises.
       setPadName((padid || '').split(':')[0] || null)
     },
-    onDisconnect: () => setPadActive(false),
+    onDisconnect: () => {
+      setPadActive(false)
+      setPadDriving(false)
+    },
 
     // Whether holding Menu is currently a chord modifier — true when any hotkey IS a chord,
     // or while the Controls screen is capturing one. Same contract as the web player.

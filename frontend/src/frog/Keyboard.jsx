@@ -46,7 +46,6 @@ export default function Keyboard({ title, text, placeholder, pos, shift, accent,
         onClick={(e) => e.stopPropagation()}
         className="w-full max-w-md rounded-2xl p-5 outline-none"
         style={{ background: FROG.panel, border: `1px solid ${FROG.line}`, boxShadow: '0 20px 60px rgba(0,0,0,0.6)' }}
-        onClick={(e) => e.stopPropagation()}
       >
         <p className="px-1 text-sm font-semibold" style={{ color: FROG.ink }}>
           {title}

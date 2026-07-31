@@ -1731,10 +1731,21 @@ export default function FrogBrowser() {
   }, [])
 
   useEffect(() => {
-    // A key, a mouse move or a wheel may dismiss from here: none of them has a trailing
+    // A key, a MOUSE move or a wheel may dismiss from here: none of them has a trailing
     // event that could land on something once the pond unmounts. The key is also stopped
     // so the press that wakes the pond doesn't also navigate the shelf behind it.
+    //
+    // `pointermove` MUST be gated on the pointer being a mouse. A finger is not: a real
+    // tap is pointerdown → pointermove ×N (the slop your hand adds) → pointerup → click,
+    // so an ungated move here dismisses the pond mid-tap and hands the trailing click
+    // straight to the tile underneath — the exact bug this whole change exists to kill,
+    // just needing a few pixels of jitter instead of a perfectly still finger.
+    //
+    // The consequence, chosen deliberately: a finger DRAGGED across the pond (past the
+    // slop, so no click follows) leaves it up until you tap. A pond that needs one more
+    // tap is a great deal better than a pond that opens a random console.
     const wake = (e) => {
+      if (e.type === 'pointermove' && !isMousePointer(e)) return
       if (saverRef.current && e.type === 'keydown') e.stopPropagation()
       wakeSaver()
     }

@@ -131,6 +131,42 @@ with sync_playwright() as p:
         "no ghost-click drill-in to a system's game list",
     )
 
+    # A tap with FINGER JITTER — the case a clean synthetic tap cannot reach.
+    #
+    # page.touchscreen.tap dispatches touchstart/touchend with zero movement, which is
+    # the one touch gesture that was always handled correctly. A real thumb wobbles a few
+    # pixels, and those pointermove events are dispatched INSIDE the tap's slop, so the
+    # gesture still ends in a click. An ungated pointermove dismissed the pond on that
+    # wobble and handed the click to the tile underneath — the original bug, needing only
+    # a slightly less steady hand. Driven through CDP because Playwright's own tap API
+    # cannot express it.
+    page.clock.fast_forward("03:30")
+    page.wait_for_timeout(300)
+    page.wait_for_selector('[data-testid="frog-screensaver"]', timeout=5000)
+
+    cdp = context.new_cdp_session(page)
+    x, y = box["x"], box["y"]
+    cdp.send("Input.dispatchTouchEvent", {
+        "type": "touchStart",
+        "touchPoints": [{"x": x, "y": y}],
+    })
+    for dy in (2, 4, 6):
+        cdp.send("Input.dispatchTouchEvent", {
+            "type": "touchMove",
+            "touchPoints": [{"x": x, "y": y + dy}],
+        })
+    cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
+    settle(page, 600)
+
+    check(
+        page.locator('[data-testid="frog-screensaver"]').count() == 0,
+        "a tap with finger jitter still dismisses the pond",
+    )
+    check(
+        page.locator('[data-testid="frog-games"]').count() == 0,
+        "...and STILL does not drill into the tile under the finger",
+    )
+
     # The pond must be able to come back — dismissing it must not disarm the idle timer.
     page.clock.fast_forward("03:30")
     page.wait_for_timeout(300)

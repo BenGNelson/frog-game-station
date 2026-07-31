@@ -365,9 +365,23 @@ export function onFrameActivity(frame, cb) {
   }
   if (!doc) return () => {}
 
+  // Only a MOUSE counts, matching the parent's own rule — otherwise a finger on the game
+  // canvas of a touchscreen laptop or an iPad would keep un-hiding a cursor nobody is
+  // using, and re-arm the timer on every touch so the fade never completes.
+  //
+  // Filtered here rather than through pointer.js's wakesCursor, deliberately: that
+  // records the pointer's position, and these coordinates are relative to the FRAME's
+  // viewport. Feeding them into the shared record would corrupt the very comparison
+  // hover-to-focus depends on. A wheel and a mouse press are unambiguous on their own;
+  // a move needs no position bookkeeping to prove someone is using the mouse in here.
+  const wanted = (e) => e.type === 'wheel' || e.pointerType === 'mouse'
+  const onEvent = (e) => {
+    if (wanted(e)) cb(e)
+  }
+
   const events = ['pointermove', 'pointerdown', 'wheel']
-  events.forEach((t) => doc.addEventListener(t, cb, { passive: true, capture: true }))
-  return () => events.forEach((t) => doc.removeEventListener(t, cb, { capture: true }))
+  events.forEach((t) => doc.addEventListener(t, onEvent, { passive: true, capture: true }))
+  return () => events.forEach((t) => doc.removeEventListener(t, onEvent, { capture: true }))
 }
 
 // --- driving the engine ----------------------------------------------------

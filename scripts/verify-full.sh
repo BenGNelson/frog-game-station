@@ -21,7 +21,7 @@ PLAYWRIGHT_VERSION="1.60.0"
 IMAGE="mcr.microsoft.com/playwright/python:v${PLAYWRIGHT_VERSION}-noble"
 
 # The full targeted gold suite, in a stable order.
-TESTS="routing.py frog_search.py frog_recent_search.py frog_settings.py frog_storage.py frog_touch.py frog_screensaver.py frog_detail.py frog_meta.py frog_rematch.py frog_offline.py frog_roam.py frog_volume.py"
+TESTS="routing.py frog_search.py frog_recent_search.py frog_settings.py frog_storage.py frog_touch.py frog_screensaver.py frog_mouse.py frog_detail.py frog_meta.py frog_rematch.py frog_offline.py frog_roam.py frog_volume.py"
 
 echo "E2E targeted flows against ${BASE_URL}"
 echo

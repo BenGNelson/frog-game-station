@@ -54,10 +54,10 @@ describe('notePointer', () => {
 
 describe('pointerMoved', () => {
   it('gives two handlers the same answer for one event', () => {
-    // A single event is routinely seen twice — a component's hover handler and the
-    // cursor auto-hide's window listener. Without the memo, whichever ran first would
+    // A single event is routinely seen twice within its own stream — a row inside a
+    // panel that also tracks focus. Without the memo, whichever handler ran first would
     // consume the comparison and the second would be told the pointer stood still.
-    notePointer(0, 0)
+    notePointer(0, 0, 0, 'pointer')
     const e = move(50, 50)
     expect(pointerMoved(e)).toBe(true)
     expect(pointerMoved(e)).toBe(true)
@@ -66,9 +66,59 @@ describe('pointerMoved', () => {
 
   it('still compares the NEXT event against the moved-to position', () => {
     // i.e. the memo must not also freeze the record it wrote.
-    notePointer(0, 0)
+    notePointer(0, 0, 0, 'pointer')
     pointerMoved(move(50, 50))
     expect(pointerMoved(move(50, 50))).toBe(false)
+  })
+})
+
+describe('the two event streams for one physical movement', () => {
+  // A browser fires `pointermove` and then the compatibility `mousemove` for a single
+  // hand movement. The window listeners (input mode, cursor auto-hide) watch the first;
+  // hover-to-focus rides the second. If they shared one record, whichever came first
+  // would consume the comparison and the other would be told the pointer stood still.
+  const pm = (x, y) => ({ type: 'pointermove', pointerType: 'mouse', clientX: x, clientY: y })
+  const mm = (x, y) => ({ type: 'mousemove', clientX: x, clientY: y })
+
+  it('lets hover fire even though a window pointermove saw the same movement first', () => {
+    // This is the regression. With one shared record, hover was dead app-wide on any
+    // display reporting integer coordinates.
+    let calls = 0
+    const onFocus = hoverMove(() => calls++)
+
+    wakesCursor(pm(100, 100)) // seed the pointer stream
+    onFocus(mm(100, 100)) // seed the mouse stream
+    expect(calls).toBe(0)
+
+    wakesCursor(pm(140, 100)) // the hand moves: pointermove lands first...
+    onFocus(mm(140, 100)) // ...and the mousemove must still count
+    expect(calls).toBe(1)
+  })
+
+  it('still refuses a scroll-induced move seen by both streams', () => {
+    // The other half: neither stream may be fooled into reporting movement just because
+    // the other one already recorded the position.
+    let calls = 0
+    const onFocus = hoverMove(() => calls++)
+    wakesCursor(pm(60, 60))
+    onFocus(mm(60, 60))
+
+    wakesCursor(pm(60, 60)) // the page scrolled under a resting cursor
+    onFocus(mm(60, 60))
+    expect(calls).toBe(0)
+  })
+
+  it('treats a sub-pixel PointerEvent and its rounded MouseEvent twin as one position', () => {
+    // PointerEvent reports fractions; its MouseEvent twin rounds them. Unrounded, a
+    // resting cursor on any Retina display reads as "moved" forever — which brought the
+    // original bug straight back.
+    let calls = 0
+    const onFocus = hoverMove(() => calls++)
+    wakesCursor(pm(200.5, 300.5))
+    onFocus(mm(200, 300))
+    wakesCursor(pm(200.5, 300.5)) // still resting
+    onFocus(mm(200, 300))
+    expect(calls).toBe(0)
   })
 })
 

@@ -22,10 +22,11 @@ Frog Game Station turns a folder of ROMs into a console you can actually enjoy b
 
 ## What it is
 
-The idea: an emulator front-end that's neither a spreadsheet of filenames nor a couch-only kiosk — one library that's genuinely nice to use from the sofa *and* the bus. So it's built for two audiences, both first-class:
+The idea: an emulator front-end that's neither a spreadsheet of filenames nor a couch-only kiosk — one library that's genuinely nice to use from the sofa *and* the bus. So it's built for three audiences, all first-class:
 
 - **Couch + controller.** A five-screen, console-style UI you drive entirely with a gamepad (or keyboard): boot → shelf → game list → game page, search anywhere. Rails, cursors, and a letter-at-a-time list keep hundreds of games one flick away — even naming a collection or a save state has an on-screen keyboard, so you never reach for a hardware one.
 - **Phone + thumb.** The exact same browser, touch-first: real tap targets on every tile, an on-screen keyboard for search, touch controls in the player, and an installable PWA so you can add it to your home screen and play downloaded games offline.
+- **Desk + mouse.** Every screen is drivable with a mouse alone — hover to highlight, wheel to walk the rails, a click path to everything the pad can reach. The app knows which of the three is in your hands and adapts: no controller legend for buttons you don't have, and when a pad *is* driving, the mouse pointer fades out after a few idle seconds and returns the moment you move it.
 
 It has a hand-drawn **frog mascot** and a **WATER / jade dark theme** — a pond motif where things float, reflect, and ripple. And it enriches each game with **[IGDB](https://www.igdb.com)** metadata (cover art, screenshots, summary, genres, rating) via a background matcher, so a bare filename becomes a real game page.
 
@@ -46,7 +47,7 @@ It has a hand-drawn **frog mascot** and a **WATER / jade dark theme** — a pond
 - **Pond stats** — the library looking back at you: totals and bytes per system, time played with a most-played top five, finished percentage, and what genres your pond actually plays.
 - **A real storage manager** — Settings → **Downloads & storage** shows exactly what's on the device (each game with its size, the emulator engine, the app shell, captured saves) reconciled against the browser's own usage figure, with a one-tap **Verify** that audits every stored byte against the downloads list — and per-game or remove-all cleanup.
 - **Real touch controls** — a from-scratch multi-touch overlay with true d-pad diagonals, hit areas bigger than the buttons, adjustable opacity, and a haptic tick on every press (Android).
-- **Gamepad-native** — pad, arrow keys, and mouse through one code path. The **Controls** screen draws *your* controller (Xbox / PlayStation / Nintendo): pick whether *A* means the letter or the position, remap any button, and badge app shortcuts onto free buttons.
+- **Gamepad-native** — pad, arrow keys, and mouse through one code path, each getting what it actually needs. The **Controls** screen draws *your* controller (Xbox / PlayStation / Nintendo): pick whether *A* means the letter or the position, remap any button, and badge app shortcuts onto free buttons.
 - **A drawn, living look** — console and mascot art illustrated in-app (no official logos), a rounded display face (Fredoka, bundled — no font CDN) on the wordmark and headings, pond caustics, cover reflections, per-system accents, and true-black OLED on phones. The pond is alive: lily pads drift on the shelf, presses ripple, bubbles rise on the loading screens, the mascot's eyes follow your cursor, a firefly visits after bedtime — and leave it idle a few minutes and a **screensaver** takes over, the frog happily catching flies until you press a button. All motion respects `prefers-reduced-motion`.
 
 ## Screenshots
