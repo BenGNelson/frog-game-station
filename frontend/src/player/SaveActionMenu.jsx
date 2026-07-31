@@ -13,7 +13,7 @@ import { hoverMove } from '../lib/pointer.js'
 // hands off to the shared "Delete this save state?" confirm, so the irreversible
 // step is still gated exactly once, downstream.
 //
-// Controlled focus (0 = Load, 1 = Delete) so the pad can drive the highlight from
+// Controlled focus — an index into SAVE_ACTIONS — so the pad can drive the highlight from
 // the parent, plus its own key handler for the keyboard — the same dual pattern as
 // frog/ConfirmDialog. It stacks over the shelf (z-40), matching the delete confirm.
 // The rows, in walk order, exported so padRouter dispatches by ID instead of by index.
@@ -63,6 +63,10 @@ export default function SaveActionMenu({ title, focus, onFocusChange, onLoad, on
   return (
     <div
       data-testid="frog-save-chooser"
+      // A backdrop click cancels — belt and braces beside the Cancel row, never instead
+      // of it: a scrim is an invisible affordance, and this chooser sits one press away
+      // from deleting a save.
+      onClick={onCancel}
       className={`absolute inset-0 ${z} flex items-center justify-center p-6`}
       style={{ background: scrim(SCRIM.dialog), backdropFilter: 'blur(3px)' }}
     >
@@ -73,6 +77,7 @@ export default function SaveActionMenu({ title, focus, onFocusChange, onLoad, on
         aria-label="Save state"
         tabIndex={-1}
         onKeyDown={onKeyDown}
+        onClick={(e) => e.stopPropagation()}
         className="w-full max-w-[15rem] rounded-2xl p-4 outline-none"
         style={{ background: FROG.panel, border: `1px solid ${FROG.line}`, boxShadow: '0 20px 60px rgba(0,0,0,0.6)' }}
       >

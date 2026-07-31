@@ -534,7 +534,10 @@ function Detail({ p, accentText, onReadWiki, onSelect }) {
       {p.evolutions && p.evolutions.length > 1 && (
         <>
           <h3 className="mb-2 mt-5 text-xs font-medium uppercase tracking-wide" style={{ color: FROG.faint }}>Evolutions</h3>
-          <div ref={evoRef} className="flex items-stretch justify-center gap-1.5 overflow-x-auto pb-1">
+          {/* `safe center` centres a chain that fits and falls back to start when one
+              overflows. Plain `center` spills off BOTH edges, and scrollLeft cannot go
+              below 0 — so a long chain's first stage was unreachable by any means. */}
+          <div ref={evoRef} className="flex items-stretch gap-1.5 overflow-x-auto pb-1 [justify-content:safe_center]">
             {p.evolutions.map((stage, si) => (
               <div key={si} className="flex items-center gap-1.5">
                 {si > 0 && <ChevronRight className="h-5 w-5 shrink-0" style={{ color: FROG.faint }} aria-hidden="true" />}

@@ -62,12 +62,19 @@ textarea:focus-visible {
   driven by a pad, and obvious the moment the desktop app made the mouse a first-class
   way in.
 
-  :where() contributes ZERO specificity, so any Tailwind cursor-* utility still wins —
-  which is what lets a dead search key say `cursor-not-allowed` and be believed. Disabled
-  buttons are excluded and keep the arrow (the empty system tiles are disabled), and
-  aria-disabled is honoured too, because the search grid dims its keys that way rather
-  than disabling them.
+  It lives in @layer base, and that is what makes a Tailwind cursor-* utility win. NOT
+  the :where() — Tailwind v4 declares `@layer theme, base, components, utilities`, so
+  every utility is layered, and an UNLAYERED rule would outrank all of them no matter how
+  little specificity it had. Layered here, the utilities layer wins as it should, which is
+  what lets a dead search key say `cursor-not-allowed` and be believed. (:where() is kept
+  so the rule also loses to any ordinary selector inside base.)
+
+  Disabled buttons are excluded and keep the arrow (the empty system tiles are disabled),
+  and aria-disabled is honoured too, because the search grid dims its keys that way
+  rather than disabling them.
 */
-:where(button:not(:disabled):not([aria-disabled='true']), [role='button']:not([aria-disabled='true'])) {
-  cursor: pointer;
+@layer base {
+  :where(button:not(:disabled):not([aria-disabled='true']), [role='button']:not([aria-disabled='true'])) {
+    cursor: pointer;
+  }
 }

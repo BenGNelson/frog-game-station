@@ -28,6 +28,22 @@ const LINE_PX = 16
 //     places: hijacking the wheel over a rail that already fits would eat the PAGE
 //     scroll, and a rail that can't move stealing your scroll is a worse bug than a rail
 //     you have to reach another way.
+// A real mouse wheel notches: the browser reports it in lines/pages, or in chunky whole
+// pixels (Chrome sends 100 or 120 per detent). A trackpad streams small, often fractional
+// deltas. That difference is the ONLY way to tell them apart from a wheel event, and it
+// matters more than it looks: a two-finger vertical swipe is byte-identical in shape to a
+// wheel tick, so without this a Mac trackpad's ordinary page scroll would be dragged
+// sideways the moment the cursor crossed a rail — on the machine this is developed on.
+//
+// A trackpad loses nothing by being excluded. It already speaks horizontal natively: a
+// two-finger sideways swipe arrives with deltaX set and the browser scrolls the rail
+// itself. The plain wheel is the only pointer with no way to express "sideways", which is
+// the entire reason this module exists.
+export function isWheelNotch({ deltaY = 0, deltaMode = 0 } = {}) {
+  if (deltaMode !== 0) return true // lines or pages — only a wheel reports those
+  return Number.isInteger(deltaY) && Math.abs(deltaY) >= 40
+}
+
 export function railScrollDelta(
   { deltaX = 0, deltaY = 0, deltaMode = 0, shiftKey = false } = {},
   { pageWidth = 0 } = {},
@@ -36,6 +52,8 @@ export function railScrollDelta(
   if (shiftKey) return 0
   if (Math.abs(deltaX) > Math.abs(deltaY)) return 0
   if (!deltaY) return 0
+  // ...and a trackpad keeps its own vertical scroll.
+  if (!isWheelNotch({ deltaY, deltaMode })) return 0
 
   // deltaMode: 0 = pixels, 1 = lines, 2 = pages.
   if (deltaMode === 1) return deltaY * LINE_PX

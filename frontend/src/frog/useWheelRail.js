@@ -15,6 +15,15 @@ import { railScrollDelta, railCanScroll } from '../lib/wheelScroll.js'
 // Scrolling a rail does NOT move focus. That is the same contract the game list's free
 // vertical scroll already has (its windowing reads the measured scrollTop, not the focus
 // index), and it is what keeps a wheel from yanking the pad's cursor around.
+//
+// THE TRADE, stated because it is the honest cost: while the cursor is over a rail that
+// still has room in the wheel's direction, the PAGE does not scroll. Walk ten covers into
+// a long rail and you must rewind it, or move the pointer off it, before the page moves
+// again. That is bearable on a six-item shelf rail and less so on a forty-game Favorites
+// row. The alternative — requiring shift, the browser's own convention — leaves the rails
+// unreachable by mouse at all, which is the state this replaced. If it grates, the fix is
+// a gesture-intent latch (hijack only once a gesture is established over the rail, and
+// release it after a pause), not removing the guard at the ends.
 export function attachWheelRail(el) {
   if (!el) return () => {}
 

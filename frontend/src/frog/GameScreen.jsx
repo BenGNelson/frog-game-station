@@ -1296,7 +1296,7 @@ function TagPicker({ tags, allTags, focus, native, accent, onFocus, onToggle, on
               }}
               placeholder="New collection…"
               maxLength={40}
-              className="min-w-0 flex-1 bg-transparent px-2 py-1.5 text-sm outline-none"
+              className="select-text min-w-0 flex-1 bg-transparent px-2 py-1.5 text-sm outline-none"
               style={{ color: FROG.ink }}
             />
             <button
@@ -1433,7 +1433,7 @@ function SaveEditor({ editor, native, accent, onEdit, onFocus, onOpenLabel, onOp
               }}
               placeholder="Name (optional)"
               maxLength={40}
-              className="mb-2 w-full rounded-xl px-3 py-2 text-sm outline-none"
+              className="select-text mb-2 w-full rounded-xl px-3 py-2 text-sm outline-none"
               style={field}
             />
             <textarea
@@ -1449,7 +1449,7 @@ function SaveEditor({ editor, native, accent, onEdit, onFocus, onOpenLabel, onOp
               placeholder="Note (optional)"
               maxLength={280}
               rows={2}
-              className="mb-3 w-full resize-none rounded-xl px-3 py-2 text-sm outline-none"
+              className="select-text mb-3 w-full resize-none rounded-xl px-3 py-2 text-sm outline-none"
               style={field}
             />
           </>

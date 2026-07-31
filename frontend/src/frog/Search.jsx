@@ -78,7 +78,7 @@ export default function Search({ query, results, zone, keyIndex, resultRow, allG
               autoCorrect="off"
               spellCheck={false}
               aria-label="Search games"
-              className="h-12 w-full rounded-xl px-4 text-lg font-semibold tracking-wide outline-none"
+              className="h-12 w-full select-text rounded-xl px-4 text-lg font-semibold tracking-wide outline-none"
               style={{
                 background: FROG.panel,
                 border: `1px solid rgba(${FROG.jade}, 0.5)`,
@@ -95,7 +95,11 @@ export default function Search({ query, results, zone, keyIndex, resultRow, allG
               >
                 <span
                   data-testid="frog-search-query"
-                  className="text-lg font-semibold tracking-wide"
+                  // min-w-0 + truncate, or a long query refuses to shrink (a flex item's
+                  // default min-width is auto) and pushes the shrink-0 delete buttons out
+                  // past the field's rounded edge — taking away a mouse user's only way
+                  // to delete, exactly when they most need it.
+                  className="min-w-0 truncate text-lg font-semibold tracking-wide"
                   style={{ color: query ? FROG.ink : FROG.faint }}
                 >
                   {query || 'Type to search'}

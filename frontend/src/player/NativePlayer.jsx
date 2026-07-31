@@ -135,20 +135,18 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
   const [pendingQuit, setPendingQuit] = useState(false)
   const [quitFocus, setQuitFocus] = useState(1)
 
+  // "A pad is DRIVING" — set by a real button press, never by mere presence, which is
+  // exactly what the web player's padActive means too. It used to also flip on the host's
+  // hot-plug event here, and that cost two things on the one client where the mouse is
+  // load-bearing: a controller resting on the desk hid the ☰ (leaving no visible way into
+  // the pause menu at all), and it faded the cursor out from under a held drag on the DS
+  // touchscreen, where the mouse IS the stylus. Presence is still tracked, but as padName
+  // — which is all the Controls screen ever wanted it for.
   const [padActive, setPadActive] = useState(false)
-  // "A pad is DRIVING", which here is not the same as `padActive`.
-  //
-  // The web player's padActive flips on the first button press; this one also flips on
-  // the host's hot-plug event, i.e. on mere presence. That is right for what it is used
-  // for (naming the pad on the Controls screen before you touch it), and wrong for the
-  // cursor: a controller sitting connected on the desk would hide the mouse — and on this
-  // client the mouse IS the DS stylus, so it would vanish out from under a held drag on
-  // the touchscreen, which is a perfectly normal thing to be doing.
-  const [padDriving, setPadDriving] = useState(false)
   // Fade the mouse out while a pad is driving. No iframe here — the game renders on a GL
   // view UNDER a transparent webview, so the class on our own <html> covers the whole
   // stage and none of the emuBridge frame plumbing applies.
-  useIdleCursor({ enabled: padDriving })
+  useIdleCursor({ enabled: padActive })
   const [padId, setPadId] = useState(null)
   const [padName, setPadName] = useState(null)
   // Bumped on every hot-plug edge, purely to re-run the bindings push below.
@@ -294,7 +292,6 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
       'pad',
       (p) => {
         const count = Number(p?.count) || 0
-        setPadActive(!!p?.connected || count > 0)
         // Named before you press anything — the Controls screen used to read
         // "No controller connected" until the first button went down.
         if (p?.connected && p?.name) setPadName(p.name)
@@ -601,9 +598,9 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
     flashShot('saved')
   }, [name, flashShot])
 
-  // Which pause list is showing: the root menu or the Display sub-screen. B (and
-  // the ✕) pops back to root before it closes the menu, so the sub-screen can
-  // never be a trap.
+  // Which pause list is showing: the root menu or the Display sub-screen. B, Escape and
+  // the sub-screen's own Back row all pop to root before anything closes the menu, so it
+  // can never be a trap. (There has never been a ✕ here, whatever the old comment said.)
   const [menuScreen, setMenuScreen] = useState('root')
 
   // --- System options: the core's own knobs ---------------------------------
@@ -776,15 +773,11 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
   useGamepad({
     onPadButton: (padid) => {
       setPadActive(true)
-      setPadDriving(true) // a real press, not just a pad on the desk
       setPadId(padid)
       // The pad's id is "<name>:<index>" — the name is what a human recognises.
       setPadName((padid || '').split(':')[0] || null)
     },
-    onDisconnect: () => {
-      setPadActive(false)
-      setPadDriving(false)
-    },
+    onDisconnect: () => setPadActive(false),
 
     // Whether holding Menu is currently a chord modifier — true when any hotkey IS a chord,
     // or while the Controls screen is capturing one. Same contract as the web player.
@@ -1007,6 +1000,9 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
 
       <div className="relative min-h-0 w-full flex-1">
         {/* The way into the pause menu without a pad — the desktop mouse's ☰. */}
+        {/* padActive is a real PRESS, not a plugged-in pad — see its declaration. A
+            controller resting on the desk must not hide the only visible way into the
+            pause menu from someone driving a DS with the mouse as its stylus. */}
         {isRunning(state) && !padActive && (
           <button
             onClick={openMenu}

@@ -1745,7 +1745,11 @@ export default function FrogBrowser() {
     // slop, so no click follows) leaves it up until you tap. A pond that needs one more
     // tap is a great deal better than a pond that opens a random console.
     const wake = (e) => {
-      if (e.type === 'pointermove' && !isMousePointer(e)) return
+      // A move must be a MOUSE and must have actually moved. Blink emits a synthetic
+      // pointermove at unchanged coordinates whenever the element under a stationary
+      // cursor changes — which is exactly what mounting a full-screen overlay does. Ungated,
+      // the pond dismissed itself in the frame it appeared, on any desk with a mouse on it.
+      if (e.type === 'pointermove' && (!isMousePointer(e) || !pointerMoved(e))) return
       if (saverRef.current && e.type === 'keydown') e.stopPropagation()
       wakeSaver()
     }

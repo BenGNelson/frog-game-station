@@ -1,11 +1,34 @@
 import { describe, it, expect } from 'vitest'
-import { railScrollDelta, railCanScroll } from './wheelScroll.js'
+import { railScrollDelta, railCanScroll, isWheelNotch } from './wheelScroll.js'
+
+describe('isWheelNotch', () => {
+  it('recognises a real wheel by its chunky, notched delta', () => {
+    expect(isWheelNotch({ deltaY: 100 })).toBe(true) // Chrome, one detent
+    expect(isWheelNotch({ deltaY: -120 })).toBe(true)
+    expect(isWheelNotch({ deltaY: 3, deltaMode: 1 })).toBe(true) // Firefox, in lines
+  })
+
+  it('does NOT claim a trackpad', () => {
+    // This is the one that matters on a Mac. A two-finger vertical swipe has the same
+    // SHAPE as a wheel tick, so without this the page would stop scrolling the moment
+    // the cursor crossed a rail. A trackpad loses nothing: a sideways swipe already
+    // arrives with deltaX and the browser scrolls the rail itself.
+    expect(isWheelNotch({ deltaY: 4 })).toBe(false)
+    expect(isWheelNotch({ deltaY: 12.5 })).toBe(false)
+    expect(isWheelNotch({ deltaY: -2 })).toBe(false)
+  })
+})
 
 describe('railScrollDelta', () => {
   it('turns a vertical wheel into horizontal movement', () => {
     // The whole point: a plain mouse has no way to reach along a rail otherwise.
     expect(railScrollDelta({ deltaY: 100 })).toBe(100)
     expect(railScrollDelta({ deltaY: -100 })).toBe(-100)
+  })
+
+  it('leaves a trackpad vertical scroll alone', () => {
+    expect(railScrollDelta({ deltaY: 8 })).toBe(0)
+    expect(railScrollDelta({ deltaY: -13.5 })).toBe(0)
   })
 
   it('keeps out of the way when the input is ALREADY horizontal', () => {

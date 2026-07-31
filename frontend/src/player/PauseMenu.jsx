@@ -138,9 +138,15 @@ export default function PauseMenu({ open, name, fastForward, rewinding, canFulls
   }
 
   const panelRef = useRef(null)
+  // Re-focus on a SCREEN change too, not just on open. Clicking a row focuses that
+  // <button>; switching to the Display sub-screen swaps the whole item array, so the
+  // focused button unmounts and focus falls to <body> — taking the panel's onKeyDown
+  // with it. Arrows, Enter and Escape would all go dead for anyone who reached the
+  // sub-screen with a mouse, which is precisely the user this sub-screen's Back row
+  // was added for.
   useEffect(() => {
     if (open) panelRef.current?.focus()
-  }, [open])
+  }, [open, screen])
 
   if (!open) return null
 
@@ -278,24 +284,24 @@ function MenuRow({ item, focused, onSelect, onHover, onAdjust }) {
         // stop propagation so a thumb stepping the level never also fires the row's own
         // action (mute). The row itself announces the level for AT.
         <span className="flex shrink-0 items-center gap-1.5" aria-label={`Volume ${Math.round(value * 100)} percent`}>
-          <AdjustTap side="down" label={label} onAdjust={onAdjust} />
+          <AdjustTap side="down" label={label} control={control} onAdjust={onAdjust} />
           <span className="h-1.5 w-12 overflow-hidden rounded-full" style={{ background: FROG.line }} aria-hidden="true">
             <span className="block h-full rounded-full" style={{ background: `rgb(${FROG.jade})`, width: `${Math.round(value * 100)}%` }} />
           </span>
           <span className="w-9 text-right text-xs tabular-nums" style={{ color: FROG.soft }} aria-hidden="true">
             {value === 0 ? 'Mute' : `${Math.round(value * 100)}%`}
           </span>
-          <AdjustTap side="up" label={label} onAdjust={onAdjust} />
+          <AdjustTap side="up" label={label} control={control} onAdjust={onAdjust} />
         </span>
       )}
       {adjust && control === 'cycle' && (
         // A stepped choice: ‹ value › — same tap targets, the value is a word.
         <span className="flex shrink-0 items-center gap-1" aria-label={`${label}: ${value}`}>
-          <AdjustTap side="down" label={label} onAdjust={onAdjust} />
+          <AdjustTap side="down" label={label} control={control} onAdjust={onAdjust} />
           <span className="min-w-[4.5rem] text-center text-xs font-medium" style={{ color: ['Off', '3×'].includes(value) ? FROG.soft : `rgb(${FROG.jade})` }} aria-hidden="true">
             {value}
           </span>
-          <AdjustTap side="up" label={label} onAdjust={onAdjust} />
+          <AdjustTap side="up" label={label} control={control} onAdjust={onAdjust} />
         </span>
       )}
     </button>
@@ -313,13 +319,17 @@ function MenuRow({ item, focused, onSelect, onHover, onAdjust }) {
 //
 // `label` is not optional. These used to announce "Volume down"/"Volume up" on every
 // adjustable row, so a screen reader on the Filter row was told it was changing the volume.
-function AdjustTap({ side, label, onAdjust }) {
+function AdjustTap({ side, label, control, onAdjust }) {
   const Icon = side === 'down' ? ChevronLeft : ChevronRight
+  // A slider goes down/up; a stepped choice goes previous/next. Announcing "Previous
+  // Volume" is as wrong as the hardcoded "Volume up" this replaced was on the Filter row.
+  const verb =
+    control === 'slider' ? (side === 'down' ? 'down' : 'up') : side === 'down' ? 'Previous' : 'Next'
   return (
     <span
       role="button"
       tabIndex={-1}
-      aria-label={`${side === 'down' ? 'Previous' : 'Next'} ${label}`}
+      aria-label={control === 'slider' ? `${label} ${verb}` : `${verb} ${label}`}
       onClick={(e) => {
         e.stopPropagation()
         onAdjust?.(side === 'down' ? -1 : 1)
