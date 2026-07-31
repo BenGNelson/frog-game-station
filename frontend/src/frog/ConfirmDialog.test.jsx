@@ -64,5 +64,52 @@ describe('ConfirmDialog', () => {
     const html = renderToString(<ConfirmDialog message="Delete?" onYes={() => {}} onNo={() => {}} />)
     expect(html).toContain('data-testid="frog-confirm"')
     expect(html).toContain('data-testid="frog-confirm-yes"')
+    expect(html).toContain('data-testid="frog-confirm-no"')
+  })
+
+  // THE CONTRACT padRouter DEPENDS ON. It hardcodes `focus === 1 ? cancel : confirm`, in
+  // two places, so if these rows ever swap, A deletes while the highlight sits on Keep.
+  // The assertion this replaces matched `>Keep<` anywhere in the string, so swapping the
+  // rows kept every test green.
+  it('puts YES at index 0 and NO at index 1, in that DOM order', () => {
+    const html = renderToString(
+      <ConfirmDialog message="Delete?" onYes={() => {}} onNo={() => {}} yesLabel="Delete" noLabel="Keep" />
+    )
+    expect(html.indexOf('frog-confirm-yes')).toBeGreaterThan(-1)
+    expect(html.indexOf('frog-confirm-yes')).toBeLessThan(html.indexOf('frog-confirm-no'))
+    expect(html.indexOf('Delete')).toBeLessThan(html.indexOf('Keep'))
+
+    // ...and focus={0} lands on yes, focus={1} on no — the index-to-row mapping itself.
+    const onYes = renderToString(
+      <ConfirmDialog message="D?" onYes={() => {}} onNo={() => {}} focus={0} onFocusChange={() => {}} />
+    )
+    const yesIdx = onYes.indexOf('frog-confirm-yes')
+    const noIdx = onYes.indexOf('frog-confirm-no')
+    const focusedIdx = onYes.indexOf('data-focused="true"')
+    expect(focusedIdx).toBeGreaterThan(yesIdx)
+    expect(focusedIdx).toBeLessThan(noIdx)
+  })
+
+  // Uncontrolled mode has no cursor at all: FrogBrowser maps Enter to YES unconditionally
+  // and useFocusTrap swallows Tab, so without `primary` the gate is two identical dim
+  // boxes over an irreversible act — the same "which button am I about to press?" defect
+  // this component was rewritten to fix, moved to the browser screens.
+  it('marks the default action when there is no cursor to show', () => {
+    const html = renderToString(<ConfirmDialog message="Remove everything?" onYes={() => {}} onNo={() => {}} />)
+    expect(html).not.toContain('data-focused') // no cursor in this mode
+    const yesIdx = html.indexOf('frog-confirm-yes')
+    const noIdx = html.indexOf('frog-confirm-no')
+    const litIdx = html.indexOf(`rgba(${FROG.danger}, 0.14)`)
+    expect(litIdx, 'the yes row must be lit').toBeGreaterThan(yesIdx)
+    expect(litIdx, 'and it must be the yes row, not the no row').toBeLessThan(noIdx)
+  })
+
+  it('shows no primary once a cursor exists, so the two never compete', () => {
+    const html = renderToString(
+      <ConfirmDialog message="D?" onYes={() => {}} onNo={() => {}} focus={1} onFocusChange={() => {}} />
+    )
+    expect((html.match(/data-focused="true"/g) || []).length).toBe(1)
+    // Only the focused (no) row is lit; the yes row rests.
+    expect(html).not.toContain(`rgba(${FROG.danger}, 0.14)`)
   })
 })

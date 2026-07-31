@@ -30,6 +30,7 @@ export default function ChoiceRow({
   sub,
   trailing,
   focused = false,
+  primary = false,
   danger = false,
   accent = FROG.jade,
   variant = 'menu',
@@ -43,25 +44,38 @@ export default function ChoiceRow({
 }) {
   const tint = danger ? FROG.danger : accent
   const resting = variant === 'menu' ? FROG.line : 'transparent'
+  // `primary` is the DEFAULT-ACTION weight, for a dialog with no cursor to show —
+  // the confirm gate when it is driven by real DOM focus rather than a pad index.
+  // Enter commits that row, so it has to look like it. It borrows the focused row's
+  // tint and border but NOT the cursor outline, so it can never be mistaken for
+  // "you are here" when a cursor is also on screen.
+  const lit = focused || primary
   return (
     <button
+      // rest goes FIRST so the named props below always win. onMouseMove in
+      // particular is load-bearing: the app's idiom elsewhere is
+      // `onMouseMove={hoverMove(onFocus)}`, and someone copying that onto a
+      // ChoiceRow would otherwise replace the guarded handler and bring back the
+      // bug pointer.js exists for — a pad-driven scroll emits a synthetic move,
+      // and focus snaps back under a stationary mouse.
+      {...rest}
       type="button"
       data-testid={testid}
       data-focused={focused || undefined}
       onClick={onClick}
       // hoverMove filters out the synthetic mousemove a scroll emits, so parking the
-      // pointer over a list can't drag focus around under the user.
-      onMouseMove={onHover ? hoverMove(() => onHover()) : undefined}
+      // pointer over a list can't drag focus around under the user. It already returns
+      // undefined for a non-function, so no branch is needed here.
+      onMouseMove={hoverMove(onHover)}
       className={`flex w-full items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left text-sm font-medium transition-colors ${className}`}
       style={{
-        background: focused ? `rgba(${tint}, 0.14)` : 'transparent',
-        borderColor: focused ? `rgba(${tint}, 0.7)` : resting,
-        boxShadow: focused ? focusRing(tint) : 'none',
-        color: focused ? FROG.ink : FROG.soft,
+        background: lit ? `rgba(${tint}, 0.14)` : 'transparent',
+        borderColor: lit ? `rgba(${tint}, 0.7)` : resting,
+        boxShadow: lit ? focusRing(tint) : 'none',
+        color: lit ? FROG.ink : FROG.soft,
         ...(focused ? focusOutline() : {}),
         ...style,
       }}
-      {...rest}
     >
       {/* The icon keeps its own colour whether focused or not — it says what the row
           DOES, and that meaning must not flicker as the cursor passes over it. */}
@@ -72,7 +86,10 @@ export default function ChoiceRow({
           aria-hidden="true"
         />
       )}
-      {children ?? (
+      {/* `||`, not `??`: a caller writing `{cond && <X/>}` passes `false` when the
+          condition is off, and `??` would let that through as an empty row with no
+          label at all. */}
+      {children || (
         <span className="min-w-0 flex-1">
           <span className="block truncate">{label}</span>
           {sub && (

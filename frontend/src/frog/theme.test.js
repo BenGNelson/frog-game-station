@@ -94,39 +94,35 @@ describe('single-source colour helpers', () => {
     expect(FROG.inkRGB).toBe(triplet)
   })
 
-  it('the focus cursor is its own channel, not an accent', () => {
-    // The whole point: the cursor colour must never be a colour that already MEANS
-    // something, or focus and meaning collide — which is exactly how the Quit
-    // confirm drew a red glow on a red fill and said nothing. Jade is the default
-    // accent, danger is destructive, and every SYSTEMS accent tints a whole screen.
+  it('focusOutline() draws OUTSIDE the box, so a solid fill cannot swallow it', () => {
+    // An inset ring is what vanished on the solid-danger button, so this must stay an
+    // outline with a POSITIVE offset — not a box-shadow, and not inset. The offset is
+    // the whole mechanism: it puts the cursor beyond the border box, so no fill colour
+    // can ever be its backdrop, whatever the variant does.
+    const o = focusOutline()
+    expect(o.outlineOffset).toBe('3px')
+    expect(o.outline).not.toContain('inset')
+    expect(o.boxShadow).toBeUndefined() // a separate channel from focusRing()
+    expect(o.outline).toMatch(/^2px solid rgba\(/)
+  })
+
+  it('the focus cursor is a LIGHT colour, whatever token it is built from', () => {
+    // The assertion this replaces was built from FOCUS_CURSOR itself, so it was true for
+    // any value: setting the cursor to FROG.ground (near-black, invisible everywhere)
+    // kept the whole suite green. Measure the actual colour instead.
+    const [r, g, b] = FOCUS_CURSOR.split(',').map((n) => Number(n.trim()))
+    const hex = '#' + [r, g, b].map((c) => c.toString(16).padStart(2, '0')).join('')
+    // It lands on panel (dialog rows), ground (full-screen surfaces) and true black
+    // (the OLED override). 3:1 is the AA bar for a UI component boundary.
+    for (const bg of [FROG.panel, FROG.ground, '#000000']) {
+      expect(contrast(hex, bg), `cursor on ${bg}`).toBeGreaterThanOrEqual(3)
+    }
+    // ...and it must not be a colour that already MEANS something, or focus and meaning
+    // collide again — which is exactly how the Quit confirm's red-on-red happened.
     expect(FOCUS_CURSOR).not.toBe(FROG.jade)
     expect(FOCUS_CURSOR).not.toBe(FROG.danger)
     for (const [name, s] of Object.entries(SYSTEMS)) {
       expect(FOCUS_CURSOR, `${name}'s accent must not be the cursor`).not.toBe(s.accent)
     }
-  })
-
-  it('focusOutline() draws OUTSIDE the box, so a solid fill cannot swallow it', () => {
-    // An inset ring is what vanished on the solid-danger button, so this must stay an
-    // outline with an offset — not a box-shadow, and not inset.
-    const o = focusOutline()
-    expect(o.outline).toBe(`2px solid rgba(${FOCUS_CURSOR}, 0.95)`)
-    expect(o.outlineOffset).toBe('3px')
-    expect(o.outline).not.toContain('inset')
-    expect(o.boxShadow).toBeUndefined() // a separate channel from focusRing()
-  })
-
-  it('the focus cursor reads on every surface it lands on', () => {
-    // Dialog rows and panels sit on `panel`; full-screen surfaces on `ground`. 3:1 is
-    // the AA bar for a UI component boundary, and both clear it by a mile.
-    for (const bg of [FROG.panel, FROG.ground, '#000000']) {
-      expect(contrast(FROG.ink, bg), `cursor on ${bg}`).toBeGreaterThanOrEqual(3)
-    }
-    // The hard case is a SOLID danger fill — light ink on light red measures ~2.97,
-    // just under the bar. It is accepted rather than tuned away because the outline is
-    // only one of three simultaneous signals there (scale + glow + outline), and
-    // because it replaces a red-on-red glow measuring ~1.0 — i.e. nothing at all.
-    // If a future variant leans on the outline ALONE over a light fill, revisit.
-    expect(contrast(FROG.ink, '#EF5A5A')).toBeGreaterThan(2.5)
   })
 })

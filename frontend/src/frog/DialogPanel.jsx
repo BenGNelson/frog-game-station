@@ -33,9 +33,9 @@ const DialogPanel = forwardRef(function DialogPanel(
     testid,
     z = 'z-20',
     width = 'max-w-sm',
-    // A prop rather than something a caller overrides through className: Tailwind
-    // resolves conflicting utilities by stylesheet order, not class order, so
-    // appending `p-4` after `p-5` would win or lose depending on the build.
+    // A prop rather than something a caller overrides through className: Tailwind emits
+    // padding utilities in a deterministic sorted order, so an appended `p-4` always
+    // LOSES to the base `p-5` regardless of class order. Silently, which is worse.
     pad = 'p-5',
     title,
     titleId,
@@ -49,14 +49,19 @@ const DialogPanel = forwardRef(function DialogPanel(
   },
   ref
 ) {
+  // A dialog with no accessible name is worse than useless to a screen reader, and a
+  // `titleId` pointing at a title that never rendered is worse still — it suppresses
+  // aria-label AND dangles. Resolve both here rather than trusting every caller.
+  const labelledBy = title && titleId ? titleId : undefined
+  const label = labelledBy ? undefined : ariaLabel || title
   return (
     <ModalScrim testid={testid} z={z} depth="dialog" onClick={onBackdrop}>
       <div
         ref={ref}
         role="dialog"
         aria-modal="true"
-        aria-label={titleId ? undefined : ariaLabel}
-        aria-labelledby={titleId}
+        aria-label={label}
+        aria-labelledby={labelledBy}
         tabIndex={-1}
         onKeyDown={onKeyDown}
         // The panel swallows clicks so the backdrop handler above only fires for

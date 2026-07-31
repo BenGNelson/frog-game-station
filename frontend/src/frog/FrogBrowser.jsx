@@ -1040,7 +1040,9 @@ export default function FrogBrowser() {
   const openSaveEditor = (snap) => {
     if (!snap) return
     const orig = { label: snap.label || '', note: snap.note || '', pinned: !!snap.pinned }
-    setSaveEditor({ slot: snap.slot, index: 0, ...orig, orig })
+    // Touch renders name/note as native fields rather than rows, so it opens on Pin —
+    // the first index that actually addresses something there. Matches the walk's floor.
+    setSaveEditor({ slot: snap.slot, index: native ? 2 : 0, ...orig, orig })
   }
   const editSaveField = (patch) => setSaveEditor((e) => (e ? { ...e, ...patch } : e))
   // Persist on close — but only if something actually changed, so opening a save just to
@@ -1360,7 +1362,11 @@ export default function FrogBrowser() {
     // 1 = note, 2 = pin, 3 = delete, 4 = done), A activates (name/note open the
     // keyboard), B closes (persisting).
     if (screen === 'detail' && saveEditor) {
-      if (action === 'up') setSaveEditor((e) => ({ ...e, index: Math.max(0, e.index - 1) }))
+      // In touch mode name/note are real <input>s, not focusable rows, so indices 0 and 1
+      // render nothing — landing there would pop the on-screen keyboard OVER the native
+      // field. Same guard, same reason, as the tag picker's floor above.
+      const floor = native ? 2 : 0
+      if (action === 'up') setSaveEditor((e) => ({ ...e, index: Math.max(floor, e.index - 1) }))
       else if (action === 'down') setSaveEditor((e) => ({ ...e, index: Math.min(4, e.index + 1) }))
       else if (action === 'confirm') {
         if (saveEditor.index === 0) openKeyboard('saveLabel')
@@ -2446,7 +2452,18 @@ export default function FrogBrowser() {
                       ]
                     : tagPicker
                       ? [
-                          { button: 'A', label: tagPicker.index < 0 ? 'Type' : 'Toggle' },
+                          {
+                            button: 'A',
+                            // The last index is the Done ROW, where A closes rather than
+                            // toggles — the legend is the couch UI's only documentation,
+                            // so it must not name the wrong verb on the row it lands on.
+                            label:
+                              tagPicker.index < 0
+                                ? 'Type'
+                                : tagPicker.index >= allTags.length
+                                  ? 'Done'
+                                  : 'Toggle',
+                          },
                           { button: 'B', label: 'Done' },
                           { button: 'D-pad', label: 'Move' },
                         ]
@@ -2454,7 +2471,9 @@ export default function FrogBrowser() {
                         ? [
                             {
                               button: 'A',
-                              label: ['Name', 'Note', 'Pin', 'Delete'][saveEditor.index] ?? 'Select',
+                              // Index 4 is the Done row; without it here the array fell
+                              // off the end and the row was legended "Select".
+                              label: ['Name', 'Note', 'Pin', 'Delete', 'Done'][saveEditor.index] ?? 'Select',
                             },
                             { button: 'B', label: 'Done' },
                             { button: 'D-pad', label: 'Move' },

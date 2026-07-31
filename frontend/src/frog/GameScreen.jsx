@@ -1011,6 +1011,15 @@ function RematchDialog({ rematch, native = false, accent, onHover, onPick, onTog
   useFocusTrap(panelRef)
   const options = rematchOptions(rematch)
   const nothingFound = !candidates.length && !searchResults.length
+  // The option list scrolls (max-h-72), and Cancel is its LAST row — so without this the
+  // walk down to the way out moves the highlight somewhere nobody can see, and the screen
+  // simply stops changing. A base search returning eight results is enough to overflow.
+  // Same one-liner as Storage/Stats/Search; DialogPanel puts the ref on the panel, which
+  // is what makes it reachable from here.
+  useEffect(() => {
+    if (consumeHoverFocus()) return // a mouse can already see what it hovered
+    panelRef.current?.querySelector('[data-focused]')?.scrollIntoView({ block: 'nearest' })
+  }, [index])
   return (
     <DialogPanel
       ref={panelRef}
@@ -1057,7 +1066,12 @@ function RematchDialog({ rematch, native = false, accent, onHover, onPick, onTog
         </span>
       </ChoiceRow>
 
-      <ul className="max-h-72 space-y-1 overflow-y-auto" style={{ scrollbarWidth: 'none' }}>
+      {/* px-1 is not decoration: focusOutline() draws 3px OUTSIDE the row's border box,
+          and `overflow-y: auto` forces overflow-x to compute to auto too — without the
+          gutter the cursor's left and right edges are clipped away and the focused row
+          shows a broken rectangle. scroll-py keeps a row's outline clear of the fold
+          when scrollIntoView brings it in. */}
+      <ul className="max-h-72 space-y-1 overflow-y-auto px-1 py-1 scroll-py-2" style={{ scrollbarWidth: 'none' }}>
         {options.map((o, i) => {
           const focused = i === index
           if (o.type === 'search') {
@@ -1078,11 +1092,15 @@ function RematchDialog({ rematch, native = false, accent, onHover, onPick, onTog
             return (
               <li key="cancel">
                 <ChoiceRow
+                  testid="frog-rematch-cancel"
                   Icon={X}
                   label="Cancel"
                   accent={accent}
                   focused={focused}
-                  disabled={busy}
+                  // Dimmed while a match is in flight, but NEVER disabled: applyMatch has
+                  // no timeout and no abort, so a stalled IGDB proxy would otherwise leave
+                  // the only labelled way out dead — and a disabled button takes neither
+                  // clicks nor hover. B and the backdrop still escape; this must too.
                   style={busy ? { opacity: 0.6 } : undefined}
                   onClick={onCancel}
                   onHover={() => onHover(i)}
@@ -1102,7 +1120,17 @@ function RematchDialog({ rematch, native = false, accent, onHover, onPick, onTog
                 onClick={() => onPick(isClear ? null : o.id, isClear ? false : hack, o.name)}
                 onHover={() => onHover(i)}
                 label={isClear ? 'Use the basic page' : o.name}
-                sub={isClear ? undefined : o.release_year || undefined}
+                // The year is a figure you scan down a column, so it keeps its tabular
+                // digits rather than taking ChoiceRow's default `sub` styling.
+                sub={
+                  !isClear && o.release_year ? (
+                    <span className="tabular-nums">{o.release_year}</span>
+                  ) : undefined
+                }
+                // The game you are ALREADY matched to reads at full strength even
+                // unfocused — that is state, not cursor, and the same rule the applied
+                // tag and the pinned save follow.
+                style={isCurrent ? { color: FROG.ink } : undefined}
                 trailing={
                   isCurrent ? (
                     <Check className="h-4 w-4 shrink-0" style={{ color: `rgb(${accent})` }} aria-hidden="true" />
@@ -1222,6 +1250,12 @@ function TagPicker({ tags, allTags, focus, native, accent, onFocus, onToggle, on
   useFocusTrap(panelRef)
   const [draft, setDraft] = useState('')
   const has = new Set(tags)
+  // The tag list scrolls once there are more than ~6 collections, and Done sits past its
+  // end — see the re-match dialog above for why walking to it needs this.
+  useEffect(() => {
+    if (consumeHoverFocus()) return
+    panelRef.current?.querySelector('[data-focused]')?.scrollIntoView({ block: 'nearest' })
+  }, [focus.index])
   const submit = () => {
     if (draft.trim()) {
       onAdd(draft)
@@ -1291,7 +1325,9 @@ function TagPicker({ tags, allTags, focus, native, accent, onFocus, onToggle, on
       )}
 
       {allTags.length > 0 ? (
-        <ul className="max-h-64 space-y-1 overflow-y-auto" style={{ scrollbarWidth: 'none' }}>
+        // px-1/scroll-py: see the re-match list above — the cursor outline is drawn
+        // outside the row and would be clipped by the scroll box without a gutter.
+        <ul className="max-h-64 space-y-1 overflow-y-auto px-1 py-1 scroll-py-2" style={{ scrollbarWidth: 'none' }}>
           {allTags.map((t, i) => (
             <li key={t}>
               <ChoiceRow
@@ -1328,7 +1364,11 @@ function TagPicker({ tags, allTags, focus, native, accent, onFocus, onToggle, on
         Icon={Check}
         label="Done"
         accent={accent}
-        focused={focus.index === doneIndex}
+        // `!native` guards the first-ever open on a phone: touch has no cursor (the
+        // component's `focus.index` is dead there), it opens at index 0, and with no
+        // collections yet doneIndex is also 0 — so Done would render pre-selected
+        // directly under the "No collections yet" copy.
+        focused={!native && focus.index === doneIndex}
         onClick={onClose}
         onHover={() => onFocus(doneIndex)}
         className="mt-3"

@@ -17,12 +17,21 @@ import ChoiceRow from './ChoiceRow.jsx'
 // which never had the problem, because a 14% tint is not a fill — so the two dialogs a
 // player meets back-to-back are visibly the same thing.
 //
+// Tab reaches nothing inside this dialog in either mode: useFocusTrap intercepts it and
+// parks focus back on the panel. Enter/Escape arrive through FrogBrowser's window keymap
+// (browser screens) or padRouter (the player), never through the browser's own handling.
+//
 // Two selection modes:
-//  - Uncontrolled (no `focus`): the game page's default — useFocusTrap parks real focus
-//    on the panel, A/Enter confirms, B/Esc cancels, Tab walks the buttons.
+//  - Uncontrolled (no `focus`): the browser screens' default — FrogBrowser traps input
+//    and maps Enter to YES unconditionally, so there is no cursor to show. The yes row
+//    therefore renders `primary`: with no cursor, the default action must still be
+//    visible, or the gate is two identical boxes over an irreversible act. `primary` is
+//    the ONLY thing distinguishing the rows in this mode — do not remove it without
+//    giving the caller a real cursor first.
 //  - Controlled (`focus` is 0=yes / 1=no, with `onFocusChange`): the player drives the
 //    highlight itself (the app owns menu focus via `data-focused`, not real DOM focus),
-//    so a d-pad can move between the rows before committing.
+//    so a d-pad can move between the rows before committing. Here the cursor carries the
+//    state and nothing is `primary`, so the two channels never compete.
 export default function ConfirmDialog({
   message,
   onYes,
@@ -41,9 +50,12 @@ export default function ConfirmDialog({
   useFocusTrap(panelRef)
   const controlled = focus === 0 || focus === 1
 
+  // Index 0 is ALWAYS yes and index 1 is ALWAYS no. padRouter hardcodes that
+  // (`focus === 1 ? cancel : confirm`, twice), so reordering these silently makes A
+  // delete while the highlight sits on Keep. Pinned in ConfirmDialog.test.jsx.
   const rows = [
     { id: 'yes', label: yesLabel, Icon: yesIcon, danger: true, testid: 'frog-confirm-yes', act: onYes },
-    { id: 'no', label: noLabel, Icon: noIcon, act: onNo },
+    { id: 'no', label: noLabel, Icon: noIcon, testid: 'frog-confirm-no', act: onNo },
   ]
 
   const onKeyDown = (e) => {
@@ -91,8 +103,10 @@ export default function ConfirmDialog({
             label={r.label}
             danger={r.danger}
             focused={focus === i}
+            // No cursor in uncontrolled mode, so the row Enter commits carries the weight.
+            primary={!controlled && r.id === 'yes'}
             onClick={r.act}
-            onHover={() => onFocusChange?.(i)}
+            onHover={controlled ? () => onFocusChange(i) : undefined}
           />
         ))}
       </div>

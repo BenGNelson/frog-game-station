@@ -7,7 +7,7 @@ import ModalScrim from './ModalScrim.jsx'
 import DialogPanel from './DialogPanel.jsx'
 import ChoiceRow from './ChoiceRow.jsx'
 import { FinishedBadge, HackBadge, HackTag } from './badges.jsx'
-import { FROG, SCRIM, focusOutline } from './theme.js'
+import { FROG, SCRIM, focusOutline, focusRing } from './theme.js'
 
 // Render smoke + the contracts the theme bible (docs/THEME.md) leans on. These are
 // the shared chrome primitives — a crash or a drifted default here would show on
@@ -29,20 +29,21 @@ describe('Button — the Pebble family', () => {
     expect(focused).toContain('scale(1.04)')
   })
 
-  it('solid takes an accent override (the confirm gate passes danger)', () => {
+  // No screen passes solid+danger any more — ConfirmDialog was rebuilt on ChoiceRow and
+  // imports no Button at all — so this is a primitive-level contract, not a live caller.
+  it('solid takes an accent override', () => {
     const html = renderToString(<Button variant="solid" accent={FROG.danger}>Delete</Button>)
     expect(html).toContain(`rgb(${FROG.danger})`)
   })
 
-  // THE REGRESSION PIN. Focus used to be spoken only in the accent, so the confirm
-  // gate's solid-danger button drew a red glow on a red fill and its highlight
-  // vanished — you could not tell Quit from Keep playing. Every variant must now
-  // carry the SAME cursor outline, whatever its accent is doing.
+  // THE REGRESSION PIN. Focus used to be spoken only in the accent, so a solid-danger
+  // button drew a red glow on a red fill and its highlight vanished. Every variant must
+  // now carry the SAME cursor outline, whatever its accent is doing.
   it('every variant wears the same focus cursor, regardless of accent', () => {
     const { outline } = focusOutline()
     const cases = [
       ['solid', FROG.jade],
-      ['solid', FROG.danger], // the one that used to disappear
+      ['solid', FROG.danger], // the combination that used to disappear
       ['quiet', FROG.jade],
       ['danger', FROG.danger],
     ]
@@ -54,6 +55,20 @@ describe('Button — the Pebble family', () => {
       const rest = renderToString(<Button variant={variant} accent={accent}>Go</Button>)
       expect(rest, `${variant}/${accent} unfocused`).not.toContain(outline)
     }
+  })
+
+  // ...and the outline is ADDITIVE, not a replacement. That word carries the whole
+  // design — the accent stays as the secondary signal, so focus keeps its warmth and its
+  // system identity. Without this, stripping every per-variant treatment (a plausible
+  // "the outline is the cursor now, the glow is redundant" cleanup) left the suite green
+  // and landed back on a single-channel cursor.
+  it('keeps each variant its own accent treatment underneath the cursor', () => {
+    const solid = renderToString(<Button variant="solid" accent={FROG.jade} focused>Go</Button>)
+    expect(solid).toContain(`0 0 26px rgba(${FROG.jade}, 0.55)`)
+    const quiet = renderToString(<Button variant="quiet" accent={FROG.jade} focused>Go</Button>)
+    expect(quiet).toContain(focusRing(FROG.jade))
+    const danger = renderToString(<Button variant="danger" focused>Go</Button>)
+    expect(danger).toContain(focusRing(FROG.danger))
   })
 })
 
@@ -144,6 +159,23 @@ describe('ChoiceRow', () => {
     )
     expect(html).toContain('custom body')
     expect(html).toContain('tick')
+  })
+
+  it('falls back to the label when conditional children evaluate to false', () => {
+    // `{cond && <X/>}` passes `false`, which `??` would let through as an empty row.
+    const html = renderToString(<ChoiceRow label="Pin to top">{false}</ChoiceRow>)
+    expect(html).toContain('Pin to top')
+  })
+
+  it('primary lights a row WITHOUT claiming to be the cursor', () => {
+    // The confirm gate's uncontrolled mode has no cursor, so the row Enter commits has
+    // to carry weight — but it must never wear the outline, or a pad user would see two
+    // "you are here" markers. This is the pair of assertions that keeps those separate.
+    const { outline } = focusOutline()
+    const html = renderToString(<ChoiceRow label="Delete" danger primary />)
+    expect(html).toContain(`rgba(${FROG.danger}, 0.14)`) // lit
+    expect(html).not.toContain(outline) // but not the cursor
+    expect(html).not.toContain('data-focused')
   })
 })
 
