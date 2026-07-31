@@ -144,7 +144,28 @@ export default function Screensaver({ onWake }) {
     <div
       ref={pondRef}
       data-testid="frog-screensaver"
+      // A MOUSE dismisses on click — its terminal event, with no ghost to worry about.
       onClick={onWake}
+      // A FINGER dismisses on touchend, and calls preventDefault first.
+      //
+      // Dismissing on `click` alone is what a clean tap produces, but a thumb that wanders
+      // even slightly past the browser's tap slop produces NO click at all — so a sloppy
+      // tap left the pond sitting there and you had to tap again, precisely. That is a
+      // worse daily annoyance than the bug this whole mechanism was built to prevent.
+      //
+      // preventDefault on touchend is the documented way to suppress the compatibility
+      // mouse events, click included (Touch Events spec, "Compatibility mouse events").
+      // So the trailing click is not swallowed after the fact — the race the earlier
+      // capture-phase attempt lost on real iOS — it is never dispatched. Any touch
+      // dismisses the pond, and none of them can reach the tile underneath.
+      // The cancelable check is not defensive noise: a touchend arrives non-cancelable
+      // once the browser has already committed to a scroll, and calling preventDefault
+      // then is ignored with a console warning. It is also exactly the case that needs no
+      // suppressing — a gesture the browser turned into a scroll produces no click.
+      onTouchEnd={(e) => {
+        if (e.cancelable) e.preventDefault()
+        onWake?.()
+      }}
       className="frog-rise fixed inset-0 z-[60] cursor-pointer overflow-hidden"
       style={{ background: FROG.ground }}
       role="presentation"

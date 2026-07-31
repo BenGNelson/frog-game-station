@@ -167,6 +167,34 @@ with sync_playwright() as p:
         "...and STILL does not drill into the tile under the finger",
     )
 
+    # A properly SLOPPY tap — a drag well past the browser's tap slop, which produces no
+    # click at all. Dismissing on `click` alone left the pond sitting there until you
+    # tapped again accurately, which is the annoyance that made this worth another pass.
+    page.clock.fast_forward("03:30")
+    page.wait_for_timeout(300)
+    page.wait_for_selector('[data-testid="frog-screensaver"]', timeout=5000)
+
+    cdp.send("Input.dispatchTouchEvent", {
+        "type": "touchStart",
+        "touchPoints": [{"x": box["x"], "y": box["y"]}],
+    })
+    for dy in (10, 25, 45, 60):
+        cdp.send("Input.dispatchTouchEvent", {
+            "type": "touchMove",
+            "touchPoints": [{"x": box["x"] + dy // 3, "y": box["y"] + dy}],
+        })
+    cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
+    settle(page, 600)
+
+    check(
+        page.locator('[data-testid="frog-screensaver"]').count() == 0,
+        "a sloppy tap that drags well past the slop dismisses the pond too",
+    )
+    check(
+        page.locator('[data-testid="frog-games"]').count() == 0,
+        "...and still does not drill through",
+    )
+
     # The pond must be able to come back — dismissing it must not disarm the idle timer.
     page.clock.fast_forward("03:30")
     page.wait_for_timeout(300)
