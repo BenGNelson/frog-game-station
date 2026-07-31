@@ -18,6 +18,8 @@ Severity is about impact on play: **blocking** (a system is unusable), **degrade
 | 7 | [N64 shows a green-black strip at the bottom](#7-n64-shows-a-green-black-strip-at-the-bottom) | N64 | Cosmetic |
 | 8 | [The Quit confirm's focused button is hard to identify](#8-the-quit-confirms-focused-button-is-hard-to-identify) | All | Cosmetic |
 | 9 | [One pre-v0.9.0 save state will not open on the phone](#9-one-pre-v090-save-state-will-not-open-on-the-phone) | N64 | Cosmetic |
+| 10 | [Changing the DS screen layout mid-game kills the game](#10-changing-the-ds-screen-layout-mid-game-kills-the-game) | DS (desktop app) | Blocking |
+| 11 | [PS1 System options do not appear](#11-ps1-system-options-do-not-appear) | PS1 (desktop app) | Degraded |
 
 ---
 
@@ -77,6 +79,11 @@ letterbox chain is CORRECT — a real click logs
 `stylus css(400,527) x2 -> picture(0.276,0.659) rect(213,0,2133x1600)`, and the
 arithmetic checks out. So the pointer reaches `input::pointer` with good coordinates
 and the bug is downstream: how melonDS is fed or polled.
+
+**Confirmed again 2026-07-30** on the v0.10.0 hands-on pass: clicking the on-screen touch
+panel does nothing, mouse or otherwise. The mouse-as-stylus mapping is the only way the DS
+touch screen can be reached on the desktop app, so this blocks every game that requires a
+touch input to proceed.
 
 **Next:** look at `DEVICE_POINTER`/`POINTER_COUNT` in `input::state`, whether the core
 needs `retro_set_controller_port_device(0, RETRO_DEVICE_POINTER)`, and whether
@@ -184,3 +191,47 @@ path is tested), but the web player cannot.
 
 Not worth a migration for a single slot: re-save it in the desktop app and the problem
 is gone. Listed so it is not rediscovered as a bug.
+
+## 10. Changing the DS screen layout mid-game kills the game
+
+**Reported 2026-07-30 (v0.10.0 hands-on pass), reproduced on two different games.**
+
+Changing the DS screen layout from the pause menu's **System options** while a game is
+running lets it carry on for a minute or two, then the session dies and the player shows
+**"The game didn't start"**. Without a layout change the same games run normally, so the
+option itself is the trigger rather than the games.
+
+**Two things make it worse than a crash:**
+- The failure is DELAYED. It does not fall over at the moment of the change, which is why
+  it survived the v0.9.0 pass — the option appeared to work.
+- **The controller cannot dismiss the failure screen.** That screen is reachable only by
+  mouse or keyboard, which on a couch means the session is simply over.
+
+**Where to look.** v0.9.0 fixed the host freezing the aspect ratio at boot, by handling
+`SET_GEOMETRY`/`SET_SYSTEM_AV_INFO` instead of letting them fall through the environment
+catch-all — melonDS announces a screen-layout change exactly that way. So the reshape path
+is new, and it reallocates the GL stage while the core is running. Suspect the resize
+racing the frame the session thread is mid-way through presenting, and check whether the
+watchdog is what reports "didn't start" long after the session actually stopped. Note the
+failure screen's own pad handling is a separate, smaller fix and worth doing regardless.
+
+**Workaround:** set the DS layout before launching, not during. Init-only knobs already
+say "Applies next launch"; this one claims to be live and is not.
+
+## 11. PS1 System options do not appear
+
+**Reported 2026-07-30 (v0.10.0 hands-on pass), on Tekken 3.**
+
+The pause menu shows no **System options** row for a running PS1 game, so the
+DualShock ↔ Digital pad switch is unreachable.
+
+This is a defect rather than an uncurated system: `.chd` maps to core id `psx`
+(`backend/app/library.py`), the pinned core is `pcsx_rearmed`
+(`scripts/native-cores.lock`), and `lib/coreOptions.js` curates `psx` with
+`pcsx_rearmed_pad1type`. All three agree, so the row should render.
+
+**Where to look.** The row appears only when the RUNNING core reports the curated key —
+the table names keys and labels, the values come from the core. So either this
+`pcsx_rearmed` build registers the pad type under a different key, or it registers nothing
+until later than the host reads `list_core_options`. Boot Tekken 3 and read what the host
+actually reports; the answer is one key name either way.
