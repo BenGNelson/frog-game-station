@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { createNativeEmu } from './nativeEmu.js'
+import { createNativeEmu, BootCancelled } from './nativeEmu.js'
 import { captureSave, seedSave, readFromEngine } from './gameSaves.js'
 import { saveState } from './saveStates.js'
 import { isRastate, wrapRastate, unwrapRastate } from './rastate.js'
@@ -208,5 +208,60 @@ describe('the save pipeline over the native adapter', () => {
     await emu.gameManager.loadState(raw)
     const sent = io.calls.find(([name]) => name === 'load_state')[1]
     expect(Array.from(sent)).toEqual(Array.from(raw))
+  })
+})
+
+// The host stops the current session on EVERY launch, so a boot the caller has
+// already abandoned is not merely wasted work — it fells the live session and
+// then, owning the newest generation, stops it again on the way out. That is the
+// dev double-mount blank player: two GL inits, core activity, and no frames.
+describe('createNativeEmu — an abandoned boot', () => {
+  it('never reaches load_game, and takes its listener back down', async () => {
+    const io = fakeIo()
+    await expect(
+      createNativeEmu(
+        { gameId: 'g', romUrl: 'u', core: 'gba', system: 'gba', isCancelled: () => true },
+        io
+      )
+    ).rejects.toThrow(BootCancelled)
+    expect(io.calls.some(([name]) => name === 'load_game')).toBe(false)
+    // A cancelled boot that left its listener behind would keep answering
+    // sram-changed for a session it does not own.
+    expect(Object.keys(io.listeners)).toHaveLength(0)
+  })
+
+  it('boots normally when the caller has NOT abandoned it', async () => {
+    const io = fakeIo()
+    const emu = await createNativeEmu(
+      { gameId: 'g', romUrl: 'u', core: 'gba', system: 'gba', isCancelled: () => false },
+      io
+    )
+    expect(io.calls.some(([name]) => name === 'load_game')).toBe(true)
+    expect(emu.native.av).toBeTruthy()
+  })
+
+  it('is asked BEFORE load_game, not after — the whole point of the guard', async () => {
+    // Cancelled only once the boot is already under way: the guard must still be
+    // reading it late enough to see the change, and early enough to stop.
+    const io = fakeIo()
+    let cancelled = false
+    io.listen.mockImplementationOnce(async (name, fn) => {
+      cancelled = true // stands in for the caller's cleanup running mid-boot
+      io.listeners[name] = fn
+      return () => delete io.listeners[name]
+    })
+    await expect(
+      createNativeEmu(
+        { gameId: 'g', romUrl: 'u', core: 'gba', system: 'gba', isCancelled: () => cancelled },
+        io
+      )
+    ).rejects.toThrow(BootCancelled)
+    expect(io.calls.some(([name]) => name === 'load_game')).toBe(false)
+  })
+
+  it('with no isCancelled at all, boots — the signal is optional', async () => {
+    const io = fakeIo()
+    await createNativeEmu({ gameId: 'g', romUrl: 'u', core: 'gba', system: 'gba' }, io)
+    expect(io.calls.some(([name]) => name === 'load_game')).toBe(true)
   })
 })

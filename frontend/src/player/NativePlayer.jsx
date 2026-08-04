@@ -120,6 +120,29 @@ export function nativeBindingEntries(controls, core) {
   return entries
 }
 
+/// Unpause the host, and say whether play may actually begin.
+///
+/// The unpause MUST be awaited and its refusal MUST be surfaced. The host answers
+/// `no game running` whenever the session is gone, and an unawaited invoke drops
+/// that on the floor — the player then advances to PLAYING over a dead core, which
+/// is the worst-reporting failure the app has: the stage goes fully transparent to
+/// let the (never-drawn) GL picture through, and the start card, the boot frog and
+/// the failure screen are all gated off behind "we're playing". The window shows
+/// nothing but its own title bar, and no log records anything wrong.
+///
+/// Split out from startGame so that contract is testable without a running host.
+export async function beginPlay(native) {
+  try {
+    await native.setPaused(false)
+    return { ok: true, message: null }
+  } catch (e) {
+    // Tauri rejects with a bare string, not an Error — carry either through so the
+    // failure screen can name the real reason instead of its generic fallback.
+    const message = e instanceof Error ? e.message : String(e ?? '')
+    return { ok: false, message: message || null }
+  }
+}
+
 export default function NativePlayer({ id, core, name, label, coverV, loadStateUrl, d = {} }) {
   const navigate = useNavigate()
   const emuRef = useRef(null)
@@ -213,6 +236,10 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
         // The saved core options must ride the launch — the host arms them
         // before retro_init, the only moment a core reads them.
         options: coreOptionsFor(readSettings(window.localStorage), core),
+        // Asked just before load_game. `dead` below still stops a session that
+        // arrives after we've backed out; this stops one being started at all,
+        // which is what keeps a superseded boot from felling the live session.
+        isCancelled: () => dead,
       },
       d
     )
@@ -408,13 +435,21 @@ export default function NativePlayer({ id, core, name, label, coverV, loadStateU
 
   // Start the game: unpause the core and (for a slot launch) pour the save state
   // in. Latched — the start card takes A, Enter/Space AND a click, and a double
-  // gesture must not double-load the state.
+  // gesture must not double-load the state. The unpause is AWAITED through
+  // beginPlay: see there for why letting it fail silently is the one bug that
+  // reports nothing at all.
   const startedRef = useRef(false)
-  const startGame = useCallback(() => {
+  const startGame = useCallback(async () => {
     const emu = emuRef.current
     if (!emu || startedRef.current) return
     startedRef.current = true
-    emu.native.setPaused(false)
+    const begun = await beginPlay(emu.native)
+    if (!begun.ok) {
+      startedRef.current = false // a transient refusal may still be retried
+      setFailMessage(begun.message)
+      setLoadFailed(true)
+      return
+    }
     dispatch('started')
     if (loadStateUrl) {
       // Launching straight into a save state from the game's page. Fetched here
