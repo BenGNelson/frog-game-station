@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { renderToString } from 'react-dom/server'
 import { MemoryRouter } from 'react-router-dom'
-import NativePlayer, { KEY_INPUTS, nativeBindingEntries } from './NativePlayer.jsx'
+import NativePlayer, { KEY_INPUTS, nativeBindingEntries, beginPlay } from './NativePlayer.jsx'
 import { RETROPAD, DIGITAL_INPUTS } from '../lib/retropad.js'
 
 // The native player's cheap-but-honest coverage: a server-render smoke of the
@@ -78,6 +78,55 @@ describe('the keyboard relay table', () => {
     for (const [key, index] of Object.entries(KEY_INPUTS)) {
       if (!'ijklfght'.includes(key)) expect(index, key).toBeLessThan(DIGITAL_INPUTS)
     }
+  })
+})
+
+// The blank-player contract. A player that advances to PLAYING over a host that
+// refused renders as a window with nothing in it but its title bar — no picture,
+// no start card, no error — and logs nothing. beginPlay is the one gate.
+describe('beginPlay', () => {
+  it('reports ok once the host has actually unpaused', async () => {
+    const setPaused = vi.fn(async () => null)
+    await expect(beginPlay({ setPaused })).resolves.toEqual({ ok: true, message: null })
+    expect(setPaused).toHaveBeenCalledWith(false)
+  })
+
+  it('does NOT report ok when the host refuses, and carries the reason', async () => {
+    // Exactly what the host answers when the session is gone (commands.rs send()).
+    const setPaused = vi.fn(async () => {
+      throw 'no game running'
+    })
+    expect(await beginPlay({ setPaused })).toEqual({ ok: false, message: 'no game running' })
+  })
+
+  it('carries a real Error message too', async () => {
+    const setPaused = async () => {
+      throw new Error('the emulator thread is gone')
+    }
+    expect(await beginPlay({ setPaused })).toEqual({
+      ok: false,
+      message: 'the emulator thread is gone',
+    })
+  })
+
+  it('waits for the host rather than assuming — a slow refusal still fails', async () => {
+    // The original bug in one assertion: the unpause was never awaited, so a
+    // refusal that arrived a tick later could not possibly have been seen.
+    let settle
+    const setPaused = () =>
+      new Promise((_, reject) => {
+        settle = () => reject('no game running')
+      })
+    const pending = beginPlay({ setPaused })
+    settle()
+    expect(await pending).toEqual({ ok: false, message: 'no game running' })
+  })
+
+  it('falls back to null when the refusal carries no reason at all', async () => {
+    const setPaused = async () => {
+      throw ''
+    }
+    expect(await beginPlay({ setPaused })).toEqual({ ok: false, message: null })
   })
 })
 

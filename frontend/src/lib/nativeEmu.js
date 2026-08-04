@@ -29,10 +29,23 @@ async function tauriIo() {
   return { invoke, listen }
 }
 
+/// Thrown when a boot is abandoned before it ever reaches the host. Distinct from
+/// a core that refused: nothing started, so there is nothing to report to the user.
+export class BootCancelled extends Error {
+  constructor() {
+    super('the launch was superseded before it started')
+    this.name = 'BootCancelled'
+    this.cancelled = true
+  }
+}
+
 /// Start a native session and return the engine adapter. Rejects if the core
 /// refuses (missing core, bad ROM, GL failure) — the caller shows the honest
 /// failure screen.
-export async function createNativeEmu({ gameId, romUrl, core, system, options = {} }, d = {}) {
+///
+/// `isCancelled` lets the caller abandon a launch it no longer wants; see the
+/// guard below for why that has to be asked BEFORE load_game rather than after.
+export async function createNativeEmu({ gameId, romUrl, core, system, options = {}, isCancelled }, d = {}) {
   const { invoke, listen } = d.invoke ? d : await tauriIo()
 
   let sram = null // the snapshot getSaveFile serves synchronously
@@ -55,6 +68,20 @@ export async function createNativeEmu({ gameId, romUrl, core, system, options = 
   const unlisten = await listen('native:sram-changed', () => {
     refreshSram()
   })
+
+  // An abandoned boot must never reach load_game, because the host stops the
+  // current session on every launch — so a superseded boot arriving late tears
+  // down the session the LIVE caller is holding, and the caller has no way to
+  // tell. Worse, generations are handed out in ARRIVAL order, not mount order:
+  // the abandoned boot can legitimately own the NEWEST one and stop it on its
+  // way out, which is the generation guard working correctly on the wrong
+  // session. React StrictMode makes this routine in dev — its second mount skips
+  // the first's uncached module import and overtakes it. Asking here, rather than
+  // stopping on arrival, is the only point where nothing has happened yet.
+  if (isCancelled?.()) {
+    unlisten()
+    throw new BootCancelled()
+  }
 
   // `options` are the player's saved core-option choices for this system. They
   // must ride the LAUNCH, not a later call: the host arms them before retro_init,

@@ -1149,6 +1149,30 @@ The player and readers are **real routes**, not overlays, so the phone's back ge
 
 ## Decision log
 
+- **A launch that has been abandoned must never reach the host, and no UI state may
+  advance on an unawaited command.** The host stops the current session on every
+  `load_game` — one session at a time — and hands out generations in the order calls
+  *arrive*. The player assumed that order matched the order its mounts were *created*,
+  so a discarded boot could be trusted to hold the older generation and stop only
+  itself. It does not: `createNativeEmu` awaits a dynamic import and a `listen`
+  round-trip before it invokes, and under React StrictMode the second mount skips the
+  first's uncached import and routinely overtakes it. The discarded boot then fells the
+  live session on the way in and, legitimately owning the newest generation, stops it
+  again on the way out — the generation guard working perfectly on the wrong session.
+  The fix is to ask `isCancelled()` immediately *before* `load_game`, which is the last
+  moment where nothing has happened yet; stopping on arrival cannot undo a teardown that
+  has already run. The second half matters just as much: `startGame` used to call
+  `setPaused(false)` without awaiting it, so the host's `no game running` refusal was
+  dropped as an unhandled rejection and the player advanced to PLAYING over a dead core.
+  That renders as a window containing nothing but its own title bar — the stage goes
+  transparent to let the never-drawn GL picture through, and the boot frog, the start
+  card and the failure screen are all gated off behind "we're playing", while no log
+  records anything wrong. The general rule: **cancellation is checked before the side
+  effect, not after it, and a UI never reports success it did not wait for.** Pinned in
+  `nativeEmu.test.js` (an abandoned boot never reaches `load_game` and drops its
+  listener), `NativePlayer.test.jsx` (`beginPlay` never reports ok on a refusal, and
+  waits rather than assuming) and `commands.rs` (`cancels_fetch` — a stale stop may not
+  cancel a newer launch's download).
 - **The lint gate is mandatory, and it must be able to see JSX.** `scripts/lint.sh` runs
   `eslint . --max-warnings 0` in CI. Two `eslint-plugin-react` rules are load-bearing
   rather than stylistic, because ESLint's scope analysis creates no reference for a JSX

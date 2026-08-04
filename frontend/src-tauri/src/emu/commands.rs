@@ -249,6 +249,22 @@ async fn stop_game_inner(
     Ok(())
 }
 
+/// May this stop cancel the in-flight ROM download? Only if it targets the newest
+/// launch. An unscoped stop (a real quit) always may; a generation-scoped one may
+/// only when it names the newest generation, since anything older has already been
+/// superseded and its cancel would land on somebody else's download.
+///
+/// Pure and separate so the ordering rule can be tested without a running host.
+/// The remaining window is harmless: a stop that slips in after `stop_game_inner`
+/// but before the next `GEN` bump is cleared anyway, because `load_game` resets
+/// FETCH_CANCEL after taking its generation and before it starts fetching.
+fn cancels_fetch(generation: Option<u64>, newest: u64) -> bool {
+    match generation {
+        None => true,
+        Some(g) => g >= newest,
+    }
+}
+
 #[tauri::command]
 pub async fn stop_game(
     app: tauri::AppHandle,
@@ -256,8 +272,14 @@ pub async fn stop_game(
     generation: Option<u64>,
 ) -> Result<(), String> {
     // Tell any in-flight ROM download to give up BEFORE queueing for the lock —
-    // otherwise quitting mid-download waits out the whole disc.
-    FETCH_CANCEL.store(true, std::sync::atomic::Ordering::Relaxed);
+    // otherwise quitting mid-download waits out the whole disc. That has to run
+    // unlocked, so it cannot consult the session; the generation is the only thing
+    // we can judge it by, and a STALE stop must be ignored here. Otherwise a
+    // superseded boot tearing itself down cancels the download the current launch
+    // is sitting in, and that launch fails for a reason that has already passed.
+    if cancels_fetch(generation, GEN.load(std::sync::atomic::Ordering::Relaxed)) {
+        FETCH_CANCEL.store(true, std::sync::atomic::Ordering::Relaxed);
+    }
     // Same lock as load_game: a stop that races a launch must fully finish
     // (thread dead, stage removed) before the next boot touches the statics.
     let _serial = state.load_lock.lock().await;
@@ -476,4 +498,31 @@ mod stage {
         Err("the native player targets macOS in Phase 2a".into())
     }
     pub unsafe fn remove(_ns_view: usize) {}
+}
+
+#[cfg(test)]
+mod tests {
+    use super::cancels_fetch;
+
+    #[test]
+    fn a_real_quit_always_cancels_the_download() {
+        // No generation is the unscoped stop — quitting mid-download must not
+        // wait out the whole disc, which is why the store runs before the lock.
+        assert!(cancels_fetch(None, 0));
+        assert!(cancels_fetch(None, 7));
+    }
+
+    #[test]
+    fn the_newest_launch_may_cancel_its_own_download() {
+        assert!(cancels_fetch(Some(3), 3));
+    }
+
+    #[test]
+    fn a_superseded_boot_may_not_cancel_a_newer_download() {
+        // The regression this exists for: a stale generation-scoped stop landing
+        // while a NEWER launch is mid-fetch used to abort that fetch, failing the
+        // live launch for a reason that had already passed.
+        assert!(!cancels_fetch(Some(1), 2));
+        assert!(!cancels_fetch(Some(1), 9));
+    }
 }
