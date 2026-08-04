@@ -44,7 +44,7 @@ app = FastAPI(
         "schema live alongside them at `/api/docs`, `/api/redoc`, and "
         "`/api/openapi.json`."
     ),
-    version="0.10.0",
+    version="0.11.0",
     openapi_tags=tags_metadata,
     # Serve the docs under /api so they ride the same nginx reverse-proxy as the
     # API itself (the frontend only proxies /api).
