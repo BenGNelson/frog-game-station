@@ -1,5 +1,19 @@
 import { describe, it, expect, vi } from 'vitest'
-import { saveState, loadState, listStates, deleteState, setStateMeta, captureShot, localStateKey } from './saveStates.js'
+import {
+  saveState,
+  loadState,
+  listStates,
+  deleteState,
+  setStateMeta,
+  captureShot,
+  localStateKey,
+  pendingStateKey,
+  pendingShotKey,
+  readStateOutbox,
+  pendingStateCount,
+  flushStateOutbox,
+  OUTBOX_CAP,
+} from './saveStates.js'
 
 // A running engine, reduced to the two things save states touch.
 function fakeEmu({ state = new Uint8Array([1, 2, 3]), shot = new Blob(['png']) } = {}) {
@@ -20,10 +34,28 @@ function fakeCaches() {
     store,
     open: async () => ({
       put: async (k, res) => store.set(k, res),
-      match: async (k) => store.get(k),
+      // A real cache hands out a fresh Response per match; a body can only be read once.
+      match: async (k) => store.get(k)?.clone(),
+      delete: async (k) => store.delete(typeof k === 'string' ? k : k.key),
+      // Real caches hand back Requests with an absolute url; the sweep reads the path.
+      keys: async () => [...store.keys()].map((k) => ({ url: 'http://localhost' + k, key: k })),
     }),
   }
 }
+
+function fakeStorage(initial = {}) {
+  const m = new Map(Object.entries(initial))
+  return {
+    getItem: (k) => (m.has(k) ? m.get(k) : null),
+    setItem: (k, v) => m.set(k, v),
+    removeItem: (k) => m.delete(k),
+  }
+}
+
+const offlineFetch = () =>
+  vi.fn(async () => {
+    throw new Error('offline')
+  })
 
 const ok = (body) => ({ ok: true, status: 200, json: async () => body, arrayBuffer: async () => body })
 
@@ -179,5 +211,196 @@ describe('setStateMeta', () => {
       throw new Error('offline')
     })
     await expect(setStateMeta('g', '7', { pinned: true }, { fetch })).resolves.toBe(false)
+  })
+})
+
+describe('the save-state outbox', () => {
+  it('parks a state whose upload failed, with its own bytes and screenshot', async () => {
+    const caches = fakeCaches()
+    const storage = fakeStorage()
+    const res = await saveState(fakeEmu(), 'g', { fetch: offlineFetch(), caches, storage, now: () => 1000 })
+
+    expect(res).toMatchObject({ offline: true, pending: true })
+    expect(readStateOutbox(storage)).toEqual([{ gameId: 'g', ts: 1000 }])
+    expect(pendingStateCount('g', { storage })).toBe(1)
+    // The pending copy is separate from the resume slot, which the next save overwrites.
+    expect(caches.store.has(localStateKey('g'))).toBe(true)
+    expect(caches.store.has(pendingStateKey('g', 1000))).toBe(true)
+    expect(caches.store.has(pendingShotKey('g', 1000))).toBe(true)
+  })
+
+  it('keeps BOTH of two states saved offline, not just the last', async () => {
+    const caches = fakeCaches()
+    const storage = fakeStorage()
+    let t = 1
+    const d = { fetch: offlineFetch(), caches, storage, now: () => t++ }
+    await saveState(fakeEmu({ state: new Uint8Array([1]) }), 'g', d)
+    await saveState(fakeEmu({ state: new Uint8Array([2]) }), 'g', d)
+    expect(readStateOutbox(storage).map((e) => e.ts)).toEqual([1, 2])
+    expect(caches.store.has(pendingStateKey('g', 1))).toBe(true)
+    expect(caches.store.has(pendingStateKey('g', 2))).toBe(true)
+  })
+
+  it('does not claim a later upload when there is no cache to retry from', async () => {
+    // Plain-HTTP origin: no Cache API at all. The engine still has the state, but
+    // nothing can be parked — the shelf must not promise a sync.
+    const noCaches = { open: async () => { throw new Error('no caches') } }
+    const res = await saveState(fakeEmu(), 'g', { fetch: offlineFetch(), caches: noCaches, storage: fakeStorage() })
+    expect(res).toMatchObject({ offline: true, pending: false })
+  })
+
+  it('flushes oldest first, frees the bytes, and clears the index', async () => {
+    const caches = fakeCaches()
+    const storage = fakeStorage()
+    let t = 1
+    const park = { fetch: offlineFetch(), caches, storage, now: () => t++ }
+    await saveState(fakeEmu({ state: new Uint8Array([1]) }), 'a', park)
+    await saveState(fakeEmu({ state: new Uint8Array([2]) }), 'b', park)
+
+    const fetch = vi.fn(async () => ok({}))
+    await expect(flushStateOutbox({ fetch, caches, storage })).resolves.toBe(2)
+    expect(fetch.mock.calls.map(([, init]) => init.body.get('id'))).toEqual(['a', 'b'])
+    expect(fetch.mock.calls[0][1].body.get('screenshot')).toBeTruthy()
+    expect(readStateOutbox(storage)).toEqual([])
+    expect(caches.store.has(pendingStateKey('a', 1))).toBe(false)
+    expect(caches.store.has(pendingShotKey('a', 1))).toBe(false)
+    // The resume slot is not the outbox's to touch.
+    expect(caches.store.has(localStateKey('b'))).toBe(true)
+  })
+
+  it('keeps everything and stops at the first unreachable upload', async () => {
+    const caches = fakeCaches()
+    const storage = fakeStorage()
+    let t = 1
+    const park = { fetch: offlineFetch(), caches, storage, now: () => t++ }
+    await saveState(fakeEmu(), 'a', park)
+    await saveState(fakeEmu(), 'b', park)
+
+    await expect(flushStateOutbox({ fetch: offlineFetch(), caches, storage })).resolves.toBe(0)
+    expect(readStateOutbox(storage)).toHaveLength(2)
+    expect(caches.store.has(pendingStateKey('a', 1))).toBe(true)
+  })
+
+  it('leaves the outbox alone on a 5xx but drops a state the server refuses outright', async () => {
+    const caches = fakeCaches()
+    const storage = fakeStorage()
+    let t = 1
+    const park = { fetch: offlineFetch(), caches, storage, now: () => t++ }
+    await saveState(fakeEmu(), 'a', park)
+
+    await expect(flushStateOutbox({ fetch: vi.fn(async () => ({ ok: false, status: 503 })), caches, storage })).resolves.toBe(0)
+    expect(readStateOutbox(storage)).toHaveLength(1)
+
+    // 413: too big. It will be too big tomorrow as well — stop carrying it.
+    await expect(flushStateOutbox({ fetch: vi.fn(async () => ({ ok: false, status: 413 })), caches, storage })).resolves.toBe(0)
+    expect(readStateOutbox(storage)).toEqual([])
+    expect(caches.store.has(pendingStateKey('a', 1))).toBe(false)
+  })
+
+  it('drops an index entry whose bytes are gone instead of sending nothing', async () => {
+    const caches = fakeCaches()
+    const storage = fakeStorage({ 'frog.games.stateOutbox': JSON.stringify([{ gameId: 'ghost', ts: 5 }]) })
+    const fetch = vi.fn(async () => ok({}))
+    await expect(flushStateOutbox({ fetch, caches, storage })).resolves.toBe(0)
+    expect(fetch).not.toHaveBeenCalled()
+    expect(readStateOutbox(storage)).toEqual([])
+  })
+
+  it('caps the outbox by dropping the oldest, bytes included', async () => {
+    const caches = fakeCaches()
+    const storage = fakeStorage()
+    let t = 1
+    const park = { fetch: offlineFetch(), caches, storage, now: () => t++ }
+    for (let i = 0; i < OUTBOX_CAP + 2; i++) await saveState(fakeEmu(), 'g', park)
+    const list = readStateOutbox(storage)
+    expect(list).toHaveLength(OUTBOX_CAP)
+    expect(list[0].ts).toBe(3) // 1 and 2 fell off
+    expect(caches.store.has(pendingStateKey('g', 1))).toBe(false)
+    expect(caches.store.has(pendingStateKey('g', 3))).toBe(true)
+  })
+
+  it('survives a corrupt or missing index', () => {
+    expect(readStateOutbox(fakeStorage({ 'frog.games.stateOutbox': '{nope' }))).toEqual([])
+    expect(readStateOutbox(fakeStorage({ 'frog.games.stateOutbox': JSON.stringify([{ ts: 1 }, null]) }))).toEqual([])
+    expect(readStateOutbox(undefined)).toEqual([])
+  })
+
+  it('runs ONE flush at a time — an overlapping caller shares it, never re-uploads', async () => {
+    const caches = fakeCaches()
+    const storage = fakeStorage()
+    await saveState(fakeEmu(), 'a', { fetch: offlineFetch(), caches, storage, now: () => 1 })
+    let release
+    const gate = new Promise((r) => (release = r))
+    const fetch = vi.fn(async () => {
+      await gate // the first upload is "in flight" until released
+      return ok({})
+    })
+    const first = flushStateOutbox({ fetch, caches, storage })
+    const second = flushStateOutbox({ fetch, caches, storage })
+    expect(second).toBe(first)
+    release()
+    await expect(first).resolves.toBe(1)
+    expect(fetch).toHaveBeenCalledTimes(1)
+    // And a flush started AFTER the first finished sees an empty outbox.
+    await expect(flushStateOutbox({ fetch, caches, storage })).resolves.toBe(0)
+    expect(fetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the rest when a 5xx stops a multi-entry flush, in order', async () => {
+    const caches = fakeCaches()
+    const storage = fakeStorage()
+    let t = 1
+    const park = { fetch: offlineFetch(), caches, storage, now: () => t++ }
+    await saveState(fakeEmu(), 'a', park)
+    await saveState(fakeEmu(), 'b', park)
+    const fetch = vi.fn(async () => ({ ok: false, status: 503 }))
+    await expect(flushStateOutbox({ fetch, caches, storage })).resolves.toBe(0)
+    expect(fetch).toHaveBeenCalledTimes(1) // stopped at the first, did not try b
+    expect(readStateOutbox(storage).map((e) => e.gameId)).toEqual(['a', 'b'])
+  })
+
+  it('treats 408 and 429 as "not now", not as refused', async () => {
+    const caches = fakeCaches()
+    const storage = fakeStorage()
+    await saveState(fakeEmu(), 'a', { fetch: offlineFetch(), caches, storage, now: () => 1 })
+    for (const status of [408, 429]) {
+      await expect(flushStateOutbox({ fetch: vi.fn(async () => ({ ok: false, status })), caches, storage })).resolves.toBe(0)
+      expect(readStateOutbox(storage)).toHaveLength(1)
+    }
+  })
+
+  it('parks and later sends a state that has no screenshot', async () => {
+    const caches = fakeCaches()
+    const storage = fakeStorage()
+    await saveState(fakeEmu({ shot: null }), 'a', { fetch: offlineFetch(), caches, storage, now: () => 1 })
+    expect(caches.store.has(pendingStateKey('a', 1))).toBe(true)
+    expect(caches.store.has(pendingShotKey('a', 1))).toBe(false)
+    const fetch = vi.fn(async () => ok({}))
+    await expect(flushStateOutbox({ fetch, caches, storage })).resolves.toBe(1)
+    expect(fetch.mock.calls[0][1].body.get('screenshot')).toBeNull()
+  })
+
+  it('never lets two saves in the same millisecond share a key', async () => {
+    const caches = fakeCaches()
+    const storage = fakeStorage()
+    const park = { fetch: offlineFetch(), caches, storage, now: () => 5 }
+    await saveState(fakeEmu({ state: new Uint8Array([1]) }), 'a', park)
+    await saveState(fakeEmu({ state: new Uint8Array([2]) }), 'a', park)
+    expect(readStateOutbox(storage).map((e) => e.ts)).toEqual([5, 6])
+    expect(caches.store.has(pendingStateKey('a', 6))).toBe(true)
+  })
+
+  it('sweeps pending bytes the index does not know about', async () => {
+    const caches = fakeCaches()
+    const storage = fakeStorage()
+    // A page that died between the cache put and the index write.
+    const cache = await caches.open()
+    await cache.put(pendingStateKey('orphan', 9), new Response(new Blob([1])))
+    await cache.put(pendingShotKey('orphan', 9), new Response(new Blob([1])))
+    await cache.put(localStateKey('orphan'), new Response(new Blob([1]))) // the resume slot: not the sweep's business
+    await expect(flushStateOutbox({ fetch: vi.fn(async () => ok({})), caches, storage })).resolves.toBe(0)
+    expect(caches.store.has(pendingStateKey('orphan', 9))).toBe(false)
+    expect(caches.store.has(pendingShotKey('orphan', 9))).toBe(false)
+    expect(caches.store.has(localStateKey('orphan'))).toBe(true)
   })
 })

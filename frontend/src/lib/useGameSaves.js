@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { seedSave, captureSave, flushOutbox } from './gameSaves.js'
+import { flushStateOutbox } from './saveStates.js'
 
 // Owns the battery save for as long as a game is on screen.
 //
@@ -66,9 +67,13 @@ export function useGameSaves(emuRef, gameId, running) {
     }
   }, [running, gameId, emuRef])
 
-  // Anything that never reached the server gets another go the moment we're back.
+  // Anything that never reached the server gets another go the moment we're back —
+  // the battery save AND any save states parked while offline.
   useEffect(() => {
-    const retry = () => flushOutbox().catch(() => {})
+    const retry = () => {
+      flushOutbox().catch(() => {})
+      flushStateOutbox().catch(() => {})
+    }
     retry() // and once now, in case we came back while nobody was looking
     window.addEventListener('online', retry)
     return () => window.removeEventListener('online', retry)

@@ -5,19 +5,193 @@
 //   · the local cache — so reopening the game resumes it even offline
 //   · the backend     — so the state roams to your other devices
 // The network half is best-effort: a failed upload must never lose the local
-// copy, which is the one that makes offline play work.
+// copy, which is the one that makes offline play work. And it is never FORGOTTEN
+// either: a state that could not be uploaded goes in an outbox and is pushed the
+// next time the app is online (see flushStateOutbox) — the same promise the battery
+// save has had (gameSaves.js), which this module used to make and not keep.
 //
-// fetch/caches are injected so every path here is testable without a browser.
+// fetch/caches/storage are injected so every path here is testable without a browser.
 
 import { GAME_SAVES_CACHE } from './offlineConfig.js'
 import { saveStatesUrl, saveStateUrl, saveStateMetaUrl } from './library.js'
 
 export const localStateKey = (gameId) => `/__game-save/${encodeURIComponent(gameId)}`
 
+// A state waiting to be uploaded keeps its OWN bytes (and screenshot) under a key of
+// its own: the resume slot above is overwritten by every save, so two states saved on
+// a plane would otherwise leave only the last one to send.
+export const pendingStateKey = (gameId, ts) => `/__game-save-pending/${encodeURIComponent(gameId)}/${ts}`
+export const pendingShotKey = (gameId, ts) => `${pendingStateKey(gameId, ts)}/shot`
+
+// The outbox index: [{ gameId, ts }], oldest first. Just the bookkeeping — the bytes
+// live in the cache under the keys above.
+const OUTBOX_KEY = 'frog.games.stateOutbox'
+// A device that never gets back online must not fill up: beyond this the OLDEST
+// pending state is dropped (its resume copy is unaffected).
+export const OUTBOX_CAP = 20
+
 function deps(d = {}) {
   return {
     fetch: d.fetch || globalThis.fetch?.bind(globalThis),
     caches: 'caches' in d ? d.caches : globalThis.caches,
+    storage: 'storage' in d ? d.storage : globalThis.localStorage,
+    now: d.now || (() => Date.now()),
+  }
+}
+
+// --- the outbox (pure over the injected storage) -----------------------------
+
+export function readStateOutbox(storage) {
+  try {
+    const raw = storage?.getItem(OUTBOX_KEY)
+    const list = raw ? JSON.parse(raw) : []
+    return Array.isArray(list) ? list.filter((e) => e && e.gameId && e.ts) : []
+  } catch {
+    return []
+  }
+}
+
+function writeStateOutbox(storage, list) {
+  try {
+    storage?.setItem(OUTBOX_KEY, JSON.stringify(list))
+  } catch {
+    // Full/blocked storage. The resume copy is still safe; only the retry is lost.
+  }
+}
+
+// How many of this game's states are still waiting to upload — the shelf's message
+// says so after an offline save, so "it'll upload later" is a number, not a hope.
+export function pendingStateCount(gameId, d) {
+  const { storage } = deps(d)
+  return readStateOutbox(storage).filter((e) => e.gameId === gameId).length
+}
+
+// Park a state that could not be uploaded. Returns the entry, or null if nothing
+// could be stored (no Cache API — then there is nothing to retry from).
+async function enqueueState(gameId, blob, shot, d) {
+  const { caches: c, storage, now } = deps(d)
+  let ts = now()
+  // The key is (game, ts): two saves inside one millisecond must not share one.
+  const taken = new Set(readStateOutbox(storage).filter((e) => e.gameId === gameId).map((e) => e.ts))
+  while (taken.has(ts)) ts++
+  try {
+    const cache = await c.open(GAME_SAVES_CACHE)
+    await cache.put(pendingStateKey(gameId, ts), new Response(blob))
+    if (shot) await cache.put(pendingShotKey(gameId, ts), new Response(shot))
+  } catch {
+    return null
+  }
+  let list = [...readStateOutbox(storage), { gameId, ts }]
+  // Oldest out when over the cap — and its bytes with it.
+  while (list.length > OUTBOX_CAP) {
+    const dropped = list.shift()
+    await forgetPending(dropped, d)
+  }
+  writeStateOutbox(storage, list)
+  return { gameId, ts }
+}
+
+async function forgetPending(entry, d) {
+  const { caches: c } = deps(d)
+  try {
+    const cache = await c.open(GAME_SAVES_CACHE)
+    await cache.delete(pendingStateKey(entry.gameId, entry.ts))
+    await cache.delete(pendingShotKey(entry.gameId, entry.ts))
+  } catch {
+    /* already gone, or no cache — nothing to free */
+  }
+}
+
+async function postState(gameId, blob, shot, f) {
+  const body = new FormData()
+  body.append('id', gameId)
+  body.append('state', blob)
+  if (shot) body.append('screenshot', shot, 'shot.png')
+  // The backend assigns the slot itself (a timestamp) — the client never picks
+  // one, which is also what keeps a hostile id out of the save path.
+  return f(saveStatesUrl(gameId), { method: 'POST', body })
+}
+
+// Upload everything the outbox holds, oldest first. Called when the app is back
+// online (and once at startup, in case it came back while nobody was looking).
+// A state the server REFUSES (4xx — too big, bad id) is dropped: it would be refused
+// again tomorrow. A state that cannot be REACHED (network, 5xx, or a 408/429 that
+// says "not now") stays, and the flush stops there rather than hammering a server
+// that is still down. Returns the count sent.
+//
+// ONE flush at a time. The games browser and a running game both trigger this, and a
+// browser fires `online` more than once per reconnect; a second flush that started
+// while a (large, N64-sized) upload was still in flight would read the same index and
+// upload it again — a duplicate slot, and each one costs the server's prune an older
+// state. Overlapping callers share the flush already running.
+let inFlight = null
+export function flushStateOutbox(d) {
+  if (inFlight) return inFlight
+  inFlight = runFlush(d).finally(() => {
+    inFlight = null
+  })
+  return inFlight
+}
+
+const TRANSIENT_4XX = new Set([408, 429])
+
+async function runFlush(d) {
+  const { fetch: f, caches: c, storage } = deps(d)
+  const pending = readStateOutbox(storage)
+  let sent = 0
+  for (const entry of pending) {
+    let blob = null
+    let shot = null
+    try {
+      const cache = await c.open(GAME_SAVES_CACHE)
+      blob = (await (await cache.match(pendingStateKey(entry.gameId, entry.ts)))?.blob()) || null
+      shot = (await (await cache.match(pendingShotKey(entry.gameId, entry.ts)))?.blob()) || null
+    } catch {
+      /* no cache → nothing to send */
+    }
+    if (!blob || !blob.size) {
+      await forgetPending(entry, d) // whatever half of it is left
+      writeStateOutbox(storage, readStateOutbox(storage).filter((e) => !(e.gameId === entry.gameId && e.ts === entry.ts)))
+      continue
+    }
+    let res
+    try {
+      res = await postState(entry.gameId, blob, shot, f)
+    } catch {
+      break // still offline — try again next time
+    }
+    if (res.ok || (res.status >= 400 && res.status < 500 && !TRANSIENT_4XX.has(res.status))) {
+      if (res.ok) sent++
+      await forgetPending(entry, d)
+      writeStateOutbox(storage, readStateOutbox(storage).filter((e) => !(e.gameId === entry.gameId && e.ts === entry.ts)))
+      continue
+    }
+    break // 5xx / 408 / 429: the server is there but not ready — leave the rest for later
+  }
+  await sweepOrphans(d)
+  return sent
+}
+
+// Pending bytes whose index entry never got written (the page died between the cache
+// put and the setItem) would otherwise sit in the cache forever, counted under "Game
+// saves" and freed only by "Remove all". After a flush, anything under the pending
+// prefix that the index does not know about goes.
+const PENDING_PREFIX = '/__game-save-pending/'
+async function sweepOrphans(d) {
+  const { caches: c, storage } = deps(d)
+  try {
+    const cache = await c.open(GAME_SAVES_CACHE)
+    const known = new Set()
+    for (const e of readStateOutbox(storage)) {
+      known.add(pendingStateKey(e.gameId, e.ts))
+      known.add(pendingShotKey(e.gameId, e.ts))
+    }
+    for (const req of await cache.keys()) {
+      const path = new URL(req.url, 'http://localhost').pathname
+      if (path.startsWith(PENDING_PREFIX) && !known.has(path)) await cache.delete(req)
+    }
+  } catch {
+    /* no cache, or it would not list — nothing to sweep */
   }
 }
 
@@ -69,8 +243,9 @@ async function isBlank(blob) {
   }
 }
 
-// Snapshot the running game. Returns { slot } on a successful upload, or
-// { slot: null, offline: true } when only the local copy landed.
+// Snapshot the running game. Returns { offline: false } on a successful upload, or
+// { offline: true, pending } when only the local copy landed — `pending` is true when
+// the state was also parked in the outbox for a later upload.
 export async function saveState(emu, gameId, d) {
   const { fetch: f, caches: c } = deps(d)
   // `await` is a no-op for the web engine's synchronous Uint8Array and the
@@ -97,17 +272,13 @@ export async function saveState(emu, gameId, d) {
   // no pre-captured frame was handed in.
   const shot = d?.shot ?? (await captureShot(emu))
   try {
-    const body = new FormData()
-    body.append('id', gameId)
-    body.append('state', blob)
-    if (shot) body.append('screenshot', shot, 'shot.png')
-    // The backend assigns the slot itself (a timestamp) — the client never picks
-    // one, which is also what keeps a hostile id out of the save path.
-    const res = await f(saveStatesUrl(gameId), { method: 'POST', body })
+    const res = await postState(gameId, blob, shot, f)
     if (!res.ok) throw new Error(String(res.status))
-    return { offline: false, bytes: state.length, hasShot: !!shot }
+    return { offline: false, pending: false, bytes: state.length, hasShot: !!shot }
   } catch {
-    return { offline: true, bytes: state.length, hasShot: !!shot }
+    // Not lost: parked for the next time we're online.
+    const parked = await enqueueState(gameId, blob, shot, d)
+    return { offline: true, pending: !!parked, bytes: state.length, hasShot: !!shot }
   }
 }
 

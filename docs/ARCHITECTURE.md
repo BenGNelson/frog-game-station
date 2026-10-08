@@ -845,11 +845,32 @@ pruned), so the collection can't grow without bound.
   progress made on another device. A LIVE session takes over once on conflict
   (deliberate play wins); the on-the-way-out flush doesn't, and a 409'd outbox entry
   is dropped rather than retried.
-- **Save states — explicit snapshots.** The engine fires a save-state event (state blob +
-  screenshot) when you hit Save State in-game; the iframe POSTs it. A game's page lists its
-  states (screenshot thumbnails), and **Resume** relaunches loading the chosen state's
-  bytes. Slot ids are backend-assigned millisecond timestamps (digits only) — which
+- **Save states — explicit snapshots.** Save State in the pause menu reads the state out
+  of the running engine **in the parent** (`lib/saveStates.js` — the iframe is the thing
+  being torn down on quit, so it never owns a write), pairs it with the frame captured
+  while the game was still on screen, writes a local resume copy, and POSTs it. A game's
+  page lists its states (screenshot thumbnails) and loads one back into the running
+  engine. Slot ids are backend-assigned millisecond timestamps (digits only) — which
   doubles as the traversal guard for the file paths.
+  **An upload that fails is parked, not forgotten.** The state (and its screenshot) go
+  into an **outbox** under their own cache keys — the resume copy is overwritten by every
+  save, so two states saved on a plane would otherwise leave one to send — indexed in
+  `localStorage` (`frog.games.stateOutbox`, capped at 20, oldest dropped). It is flushed
+  oldest-first whenever the app is back online: on the games browser mounting, on the
+  server becoming reachable, and inside a running game on `online`. A 4xx (too big, bad
+  id) drops the entry, since it would be refused again; a network error or 5xx stops the
+  flush and keeps the rest; a 408/429 counts as "not now", not as refused. Only one flush
+  runs at a time (the browser and a running game both trigger it, and `online` fires more
+  than once per reconnect) — a duplicate upload would cost a slot, since every upload
+  prunes unpinned states beyond the newest 20, so a full outbox landing at once does
+  push out that game's older unpinned states. Slots are append-only on the server, so a
+  late upload simply adds one — there is no conflict rule to get wrong, unlike SRAM's
+  lineage guard. Both
+  halves need the Cache API, i.e. a secure origin: on a plain-HTTP LAN address a save
+  state can only be uploaded live, and the shelf's message says so.
+  **On boot the local resume copy wins** — `emulator.html` loads `/__game-save/<gid>` if
+  the device has one, before the `?loadstate` the app passed. That is what keeps an
+  offline session continuous; the "no auto-load" rule above is about SRAM-only resumes.
   - **Native audio consumes at the core's DECLARED rate, which one core gets wrong.**
     The cpal callback runs at the device rate and each output frame eats
     `ratio = core_rate / device_rate` source frames, so consumption is pinned to

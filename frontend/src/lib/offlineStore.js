@@ -303,6 +303,9 @@ export async function gameSavesBytes() {
   }
 }
 
+// Deliberately leaves any `/__game-save-pending/` keys alone: a state waiting to
+// upload should still roam even if its game's download is removed (saveStates.js
+// owns those and frees them once sent).
 async function removeGameSave(gid) {
   if (!('caches' in self) || !gid) return
   try {

@@ -31,6 +31,8 @@ import { getRecentSearches, recordSearch, removeRecentSearch } from '../lib/rece
 import { moveInRails, reconcileShelfFocus } from '../lib/gridNav.js'
 import { playForAction } from '../lib/sfx.js'
 import { applyDeferredSwReload } from '../lib/swReload.js'
+import { flushOutbox } from '../lib/gameSaves.js'
+import { flushStateOutbox } from '../lib/saveStates.js'
 import { useGamepad } from '../lib/useGamepad.js'
 import { mediaMatches } from '../lib/useMediaQuery.js'
 import { SkeletonLine } from '../components/ui.jsx'
@@ -126,6 +128,15 @@ export default function FrogBrowser() {
   useEffect(() => {
     if (online && !wasOnline.current) setReloadNonce((n) => n + 1)
     wasOnline.current = online
+  }, [online])
+  // Saves that never reached the server — the battery save and any save states parked
+  // while offline — get their retry here as well as inside a running game: on this
+  // screen mounting (every post-game moment) and on the offline→online edge. So a state
+  // saved on the plane uploads when you land, without having to open a game first.
+  useEffect(() => {
+    if (!online) return
+    flushOutbox().catch(() => {})
+    flushStateOutbox().catch(() => {})
   }, [online])
   const { data, loading, error: libraryError, retrying } = useApi(
     `/library/games${reloadNonce ? `?r=${reloadNonce}` : ''}`,

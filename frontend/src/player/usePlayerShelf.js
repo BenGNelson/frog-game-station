@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { postCover, deleteCover } from '../lib/library.js'
-import { saveState, loadState, listStates, deleteState } from '../lib/saveStates.js'
+import { saveState, loadState, listStates, deleteState, pendingStateCount } from '../lib/saveStates.js'
 
 // The save-state shelf's state machine — everything behind SaveStatePanel plus the
 // confirms and cover actions layered over it. Lives outside PlayerShell so any player
@@ -59,8 +59,16 @@ export function usePlayerShelf({ id, coverV, emuRef, dispatch, liveShotRef }) {
       const res = await saveState(emuRef.current, id, { shot: liveShotRef.current })
       // The local copy always lands; only the upload can fail. Say so rather than
       // claiming success, but don't treat it as an error — the state is safe on
-      // this device and the game will still resume from it.
-      if (res.offline) setError('Saved on this device. It’ll sync to your other devices when you’re back online.')
+      // this device and the game will still resume from it. `pending` means it is
+      // also in the outbox, so the promise to upload it later is a real one.
+      if (res.offline) {
+        const waiting = pendingStateCount(id)
+        setError(
+          res.pending
+            ? `Saved on this device${waiting > 1 ? ` (${waiting} waiting)` : ''}. It’ll upload the next time you’re online.`
+            : 'Saved on this device only — it can’t be uploaded from here.'
+        )
+      }
       setStates(await listStates(id))
     } catch (e) {
       setError(e?.message || 'Could not save.')
