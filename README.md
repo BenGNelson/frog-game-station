@@ -157,7 +157,8 @@ Frog Game Station is an installable PWA: on your home screen it opens fullscreen
 browser chrome) and downloaded games play offline.
 
 1. **Serve it over HTTPS at its own hostname.** Browsers only install PWAs from a
-   secure origin — plain LAN HTTP won't offer it. The easiest paths are a
+   secure origin — plain LAN HTTP won't offer it (games still play there; installing,
+   offline downloads and the resume-from-local-save path are what need HTTPS). The easiest paths are a
    [Tailscale](https://tailscale.com) HTTPS route or a reverse proxy (Caddy/nginx)
    with a certificate; the step-by-step runbook is [`docs/DEPLOY.md`](docs/DEPLOY.md).
 2. **Open that HTTPS URL on the device and install:**

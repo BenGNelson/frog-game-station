@@ -198,6 +198,13 @@
         // save passed in via ?loadstate. Read straight from the saves cache (not
         // via a URL the SW would have to serve).
         function localSaveBlobUrl() {
+          // The Cache API only exists on a secure origin (HTTPS, or localhost).
+          // Served over plain LAN HTTP there is no `caches` at all, and a bare
+          // reference throws SYNCHRONOUSLY — which used to kill this whole boot
+          // script before loader.js was ever appended: a black frame, no error in
+          // the server log, the ROM already downloaded. No cache simply means no
+          // local save to resume; the engine still boots.
+          if (!('caches' in window)) return Promise.resolve(null);
           return caches
             .open('hq-game-saves')
             .then(function (c) { return c.match('/__game-save/' + encodeURIComponent(gid)); })

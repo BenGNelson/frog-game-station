@@ -485,6 +485,7 @@ Worth stating so nobody plans around a fantasy:
 | Fullscreen API | Absent on iPhone; webkit-prefixed on iPad. The **installed PWA** is the real fullscreen path. Fullscreen must target the player's *wrapper*, not the iframe, or the game goes fullscreen without its controls. |
 | Haptics | **None.** WebKit has no vibration API. The press glow carries the whole feel. |
 | Wake lock | Works (iOS 16.4+), but is **released whenever the page hides and never returned** — it must be re-acquired on every `visibilitychange`. |
+| Plain-HTTP origin (a LAN address) | **Games play; nothing else that needs a secure context does.** Browsers expose the Cache API, service workers and PWA install only to HTTPS and to loopback names (`localhost`, `127.0.0.1`), so over `http://<lan-address>` there is no offline download, no install, no local save cache. The player must therefore never *assume* those APIs: `emulator.html` once dereferenced `caches` unguarded and every game sat at a black frame on the LAN while the same URL booted on `localhost` — the one origin every automated check drove. `e2e/player_insecure.py` now boots the player through a non-secure hostname so that stays true. |
 
 ### Navigation, touch as a first-class model, and offline
 
@@ -1114,6 +1115,9 @@ downloads it into the frontend's public assets (gitignored), or the player can b
 at the public CDN. The engine is threadless, so no cross-origin-isolation
 (COOP/COEP / `crossOriginIsolated`) headers are needed — one less thing for nginx to get
 right.
+And the player boots from a plain-HTTP origin: the secure-context APIs (Cache API, service
+worker) are *optional* on its boot path, so a LAN address plays games even though it can't
+install or go offline — see *What the browser / iOS will not let us do*.
 
 Because the engine is fetched separately, a fresh clone can reach the player before it's
 installed. Rather than a silently-broken frame, the player **HEADs the engine loader on
